@@ -29,6 +29,7 @@ jobs:
 
       - name: Terraform Init
         run: terraform init
+        working-directory: ./terraform  # <--- Asegurate que sea la misma carpeta
 
       - name: Terraform Plan
         run: terraform plan -out=tfplan
