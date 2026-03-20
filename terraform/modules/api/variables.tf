@@ -35,3 +35,8 @@ variable "signer_route_path" {
   type    = string
   default = "/get-url"
 }
+
+variable "cognito_user_pool_arn" {
+  type        = string
+  description = "ARN del User Pool de Cognito para autenticación"
+}

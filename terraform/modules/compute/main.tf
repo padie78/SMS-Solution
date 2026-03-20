@@ -1,45 +1,46 @@
-module "lambda_extractor" {
-  source  = "terraform-aws-modules/lambda/aws"
-  version = "~> 6.0"
+# Empaquetado independiente (Terraform se encarga de esto)
+data "archive_file" "signer_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/../../lambda_code/signer_lambda"
+  output_path = "${path.module}/zips/signer.zip"
+}
 
-  function_name = "${var.project_name}-${var.environment}-extractor"
-  handler       = var.extractor_handler
-  runtime       = var.lambda_runtime
-  architectures = [var.lambda_architecture]
+data "archive_file" "processor_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/../../lambda_code/processor_lambda"
+  output_path = "${path.module}/zips/processor.zip"
+}
 
-  source_path   = var.lambda_source_path
-  timeout       = var.extractor_timeout
-  memory_size   = var.extractor_memory
-
-  environment_variables = {
-    DYNAMO_TABLE     = var.dynamo_table_name
-    EXTERNAL_API_URL = var.external_api_url
-    ENVIRONMENT      = var.environment
-  }
-
-  attach_policy_statements = true
-  policy_statements = {
-    ai = {
-      effect    = "Allow"
-      actions   = ["textract:AnalyzeDocument", "bedrock:InvokeModel"]
-      resources = var.allowed_ai_models # Parametrizamos los modelos permitidos
-    },
-    s3 = {
-      effect    = "Allow"
-      actions   = ["s3:GetObject"]
-      resources = ["${var.upload_bucket_arn}/*"]
-    },
-    dynamo = {
-      effect    = "Allow"
-      actions   = ["dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:GetItem"]
-      resources = [var.dynamo_table_arn]
+# Lambda 1: Signer (La que llama Angular)
+resource "aws_lambda_function" "signer" {
+  function_name = "${var.project_name}-signer-${var.environment}"
+  filename      = data.archive_file.signer_zip.output_path
+  handler       = "src/index.handler"
+  runtime       = "nodejs20.x"
+  role          = var.lambda_role_arn
+  
+  environment {
+    variables = {
+      UPLOAD_BUCKET = var.upload_bucket_name
     }
   }
+}
 
-  allowed_triggers = {
-    S3Post = {
-      service    = "s3"
-      source_arn = var.upload_bucket_arn
+# Lambda 2: Processor (La que dispara S3)
+resource "aws_lambda_function" "processor" {
+  function_name = "${var.project_name}-processor-${var.environment}"
+  filename      = data.archive_file.processor_zip.output_path
+  handler       = "src/index.handler"
+  runtime       = "nodejs20.x"
+  role          = var.lambda_role_arn
+  timeout       = 60 # Fundamental para Bedrock/Textract
+
+  environment {
+    variables = {
+      DYNAMO_TABLE      = var.dynamo_table_name
+      BEDROCK_MODEL_ID  = var.bedrock_model_id
+      EMISSIONS_API_URL = var.emissions_api_url
+      EMISSIONS_API_KEY = var.emissions_api_key
     }
   }
 }

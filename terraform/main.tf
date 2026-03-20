@@ -9,6 +9,12 @@ module "iam" {
   environment  = var.environment
 }
 
+module "auth" {
+  source       = "./modules/auth"
+  project_name = var.project_name
+  environment  = var.environment
+}
+
 # Llamamos al módulo de Storage
 module "storage" {
   source       = "./modules/storage"
@@ -87,6 +93,8 @@ module "compute_api" {
 # 3. Módulo de Rutas: Conecta las Lambdas con el Gateway
 module "api" {
   source            = "./modules/api"
+
+  cognito_user_pool_arn = module.auth.user_pool_arn # ARN del User Pool de Cognito para autenticación
   
   # Conexión con el módulo compute_api (Infraestructura)
   api_id            = module.compute_api.api_id

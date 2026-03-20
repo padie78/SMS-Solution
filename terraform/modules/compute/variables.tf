@@ -1,46 +1,49 @@
-variable "project_name"      { type = string }
-variable "environment"       { type = string }
-variable "upload_bucket_arn" { type = string }
-variable "dynamo_table_name" { type = string }
-variable "dynamo_table_arn"  { type = string }
-variable "external_api_url"  { type = string }
-
-# Variables de configuración de Lambda (Sin Hardcode)
-variable "lambda_runtime"      { 
-  type = string 
-  default = "nodejs20.x" 
-}
-variable "lambda_architecture" { 
-  type = string  
-  default = "arm64" 
-} # Más performance por menos precio
-  
-variable "lambda_source_path" { 
-  type = string 
-  default = "../lambda_extractor" 
-}
-variable "extractor_handler"  {
-  type = string 
-  default = "index.handler" 
+# --- Identificación del Proyecto ---
+variable "project_name" {
+  description = "Nombre del proyecto (ej: sms)"
+  type        = string
 }
 
-variable "extractor_timeout"  { 
-  type = number 
-  default = 30 
+variable "environment" {
+  description = "Entorno de despliegue (dev, prod, etc)"
+  type        = string
 }
 
-variable "extractor_memory"   {
-  type = number 
-  default = 512 
+variable "aws_region" {
+  description = "Región de AWS"
+  type        = string
 }
 
-# Seguridad: Lista de ARNs de modelos de Bedrock permitidos
-variable "allowed_ai_models" {
-  type    = list(string)
-  default = ["*"] # En prod, pasamos el ARN específico de Claude 3.5 Sonnet o Haiku
-}
-
+# --- Seguridad e Infraestructura ---
 variable "lambda_role_arn" {
-  type = string       
-  description = "ARN del rol de IAM que las Lambdas usarán para ejecutar (proviene de módulo IAM)"
+  description = "ARN del rol de IAM para las Lambdas"
+  type        = string
+}
+
+variable "upload_bucket_name" {
+  description = "Nombre del bucket de S3 donde se suben los archivos"
+  type        = string
+}
+
+variable "dynamo_table_name" {
+  description = "Nombre de la tabla de DynamoDB para guardar resultados"
+  type        = string
+}
+
+# --- Configuración de IA y APIs Externas ---
+variable "bedrock_model_id" {
+  description = "ID del modelo de Amazon Bedrock (ej: anthropic.claude-3-haiku)"
+  type        = string
+  default     = "anthropic.claude-3-haiku-20240307-v1:0"
+}
+
+variable "emissions_api_url" {
+  description = "URL del motor de cálculo de emisiones externo"
+  type        = string
+}
+
+variable "emissions_api_key" {
+  description = "API Key para el motor de emisiones"
+  type        = string
+  sensitive   = true # Esto evita que el valor se imprima en los logs de Terraform
 }

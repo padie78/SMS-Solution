@@ -18,6 +18,11 @@ variable "environment" {
   default     = "dev"
 }
 
+variable "cognito_user_pool_arn" {
+  type        = string
+  description = "ARN del User Pool de Cognito para autenticación"
+}
+
 # --- Configuración de Red y Seguridad (CORS) ---
 variable "cors_origins" {
   type        = list(string)
