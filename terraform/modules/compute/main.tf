@@ -2,13 +2,13 @@
 
 data "archive_file" "signer_zip" {
   type        = "zip"
-  source_dir  = "${path.module}/../../lambda_code/signer_lambda"
+  source_dir  = "${path.module}/../../../lambda_code/signer_lambda"
   output_path = "${path.module}/zips/signer.zip"
 }
 
 data "archive_file" "processor_zip" {
   type        = "zip"
-  source_dir  = "${path.module}/../../lambda_code/processor_lambda"
+  source_dir  = "${path.module}/../../../lambda_code/processor_lambda"
   output_path = "${path.module}/zips/processor.zip"
 }
 
