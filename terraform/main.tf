@@ -1,8 +1,6 @@
-provider "aws" {
-  region = var.aws_region
-}
-
-# Este es el "module.iam" al que haces referencia
+# ==============================================================================
+# 1. SEGURIDAD E IDENTIDAD (Cimientos)
+# ==============================================================================
 module "iam" {
   source       = "./modules/iam"
   project_name = var.project_name
@@ -15,110 +13,105 @@ module "auth" {
   environment  = var.environment
 }
 
-# Llamamos al módulo de Storage
+# ==============================================================================
+# 2. PERSISTENCIA Y ALMACENAMIENTO (Data Layer)
+# ==============================================================================
 module "storage" {
   source       = "./modules/storage"
   project_name = var.project_name
   environment  = var.environment
 
-  # Versionado
-  versioning_enabled = false
-
-  # CORS
-  cors_allowed_origins = var.cors_origins
-
-  # Seguridad (bloqueo público)
+  # Configuración de S3 para el SMS
+  versioning_enabled      = false
+  cors_allowed_origins    = var.cors_origins
   block_public_acls       = var.block_public_acls
   block_public_policy     = var.block_public_policy
   ignore_public_acls      = var.ignore_public_acls
   restrict_public_buckets = var.restrict_public_buckets
 }
 
-
-# Llamamos al módulo de Database
 module "database" {
   source             = "./modules/database"
   project_name       = var.project_name
   environment        = var.environment
-  table_name         = local.table_name  # nombre personalizado
-  billing_mode       = var.billing_mode  # default
-  enable_ttl         = var.enable_ttl    # default
-  ttl_attribute_name = var.ttl_attribute_name # default
+  table_name         = local.table_name 
+  billing_mode       = var.billing_mode 
+  enable_ttl         = var.enable_ttl   
+  ttl_attribute_name = var.ttl_attribute_name
 }
 
-
-# 1. Módulo de Cómputo: Define las funciones Lambda
+# ==============================================================================
+# 3. CÓMPUTO (Lógica de Negocio / IA)
+# ==============================================================================
 module "compute" {
   source       = "./modules/compute"
   project_name = var.project_name
   environment  = var.environment
   
-  # Seguridad: El rol que creamos en el módulo IAM
+  # Seguridad: Inyectamos el rol generado dinámicamente
   lambda_role_arn = module.iam.lambda_role_arn
 
   # Infraestructura: Conexión con Storage y Database
-  upload_bucket_arn = module.storage.bucket_arn
-  upload_bucket_name = module.storage.bucket_name # <-- Usá .name o .id, no .arn
+  upload_bucket_arn  = module.storage.bucket_arn
+  upload_bucket_name = module.storage.bucket_name
 
   dynamo_table_name = module.database.table_name
   dynamo_table_arn  = module.database.table_arn
 
-  # Configuración externa (puedes sacarla de var o hardcodearla)
-  external_api_url  = var.external_api_url # Mejor usar variable para flexibilidad
+  # Configuración de la API de Emisiones y Bedrock
+  external_api_url    = var.external_api_url
+  emissions_api_key   = var.emissions_api_key
+  emissions_api_url   = var.emissions_api_url
+  bedrock_model_id    = var.bedrock_model_id
   
-  # Opcionales: Si no los pasas, usa los defaults (arm64, nodejs20, etc)
+  # Runtime y Arquitectura
   lambda_architecture = var.lambda_architecture 
-
-  emissions_api_key = var.emissions_api_key
-  emissions_api_url = var.emissions_api_url
-  bedrock_model_id  = var.bedrock_model_id
 }
 
-
-# 2. Módulo de Infraestructura API: Crea el "Edificio" (Gateway + Stage)
-# --- Módulo de Infraestructura de API ---
+# ==============================================================================
+# 4. INFRAESTRUCTURA API (El "Edificio" del Gateway)
+# ==============================================================================
 module "compute_api" {
   source       = "./modules/compute_api"
-  
-  # Identificación (Vienen de tus variables globales)
   project_name = var.project_name
   environment  = var.environment
 
-  # Configuración de la API
   auto_deploy     = var.auto_deploy
 
-  # Configuración de CORS (Pasamos la lista definida en terraform.tfvars)
+  # Configuración de CORS para el Frontend
   api_cors_origins = var.cors_origins
   api_cors_methods = var.api_cors_methods
   api_cors_headers = var.api_cors_headers
   api_cors_max_age = var.api_cors_max_age
 
-  # Seguridad: Pasamos el ARN generado por el módulo IAM
+  # Seguridad: Rol para el Authorizer/Invocación
   lambda_role_arn  = module.iam.lambda_role_arn
 }
 
-# 3. Módulo de Rutas: Conecta las Lambdas con el Gateway
+# ==============================================================================
+# 5. RUTAS Y CONECTIVIDAD (Capa de Aplicación)
+# ==============================================================================
 module "api" {
   source            = "./modules/api"
   project_name      = var.project_name
   environment       = var.environment
 
-  # Conexión con Cognito
+  # Conexión con Cognito para Auth
   cognito_user_pool_arn = module.auth.user_pool_arn
   cognito_client_id     = module.auth.client_id
   cognito_endpoint      = module.auth.user_pool_endpoint
   
-  # Infraestructura API
+  # Infraestructura API Gateway
   api_id            = module.compute_api.api_id
   api_execution_arn = module.compute_api.api_execution_arn
   
-  # Lambdas
-  query_lambda_arn   = module.compute.query_lambda_arn
-  query_lambda_name  = module.compute.query_lambda_name
+  # Conexión con Lambdas (Signer para S3 y Processor para IA)
+  query_lambda_arn   = module.compute.processor_lambda_arn
+  query_lambda_name  = module.compute.processor_lambda_name
   signer_lambda_arn  = module.compute.signer_lambda_arn
   signer_lambda_name = module.compute.signer_lambda_name
 
-  # Paths
+  # Endpoints configurables
   query_route_path  = var.query_route_path
   signer_route_path = var.signer_route_path 
 }
