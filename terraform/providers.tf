@@ -1,5 +1,5 @@
 terraform {
-  required_version = ">= 1.7.0"
+  required_version = ">= 1.6.0"
 
   # --- BACKEND REMOTO (El "Cerebro" de Terraform) ---
   # IMPORTANTE: Debés crear el bucket "sms-platform-terraform-state-diego" 
