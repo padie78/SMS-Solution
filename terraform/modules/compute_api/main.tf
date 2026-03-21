@@ -1,4 +1,4 @@
-# 1. El Recurso Principal: API Gateway HTTP (El "Edificio")
+# --- 1. API GATEWAY HTTP (El "Edificio") ---
 resource "aws_apigatewayv2_api" "http_api" {
   name          = "${var.project_name}-${var.environment}-api"
   protocol_type = "HTTP"
@@ -18,9 +18,15 @@ resource "aws_apigatewayv2_api" "http_api" {
   }
 }
 
-# 2. Stage por defecto (La "Puerta" para que la URL sea pública)
+# --- 2. STAGE POR DEFECTO (La "Puerta" pública) ---
+# El stage $default permite que la API sea accesible inmediatamente en la URL base
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.http_api.id
   name        = "$default"
   auto_deploy = var.auto_deploy
+
+  # Opcional: Configuración de logs de acceso si lo necesitás a futuro
+  tags = {
+    Environment = var.environment
+  }
 }

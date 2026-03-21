@@ -117,7 +117,6 @@ module "api" {
   query_lambda_name  = module.compute.query_lambda_name
   signer_lambda_arn  = module.compute.signer_lambda_arn
   signer_lambda_name = module.compute.signer_lambda_name
-  lambda_role_arn  = module.iam.lambda_role_arn
 
   # Paths
   query_route_path  = var.query_route_path
