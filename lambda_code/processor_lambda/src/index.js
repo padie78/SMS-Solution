@@ -2,7 +2,7 @@ const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const { DynamoDBDocumentClient, PutCommand } = require("@aws-sdk/lib-dynamodb");
 const { extraerTexto } = require("./textract");
 const { entenderConIA } = require("./bedrock");
-const { calcularEnApiExterna } = require("./external-api");
+const { calcularEnApiExterna } = require("./external_api");
 
 // Inicialización fuera del handler (Warm Start)
 const ddbClient = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
