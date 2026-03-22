@@ -1,27 +1,34 @@
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
-// Instanciamos fuera para optimizar el rendimiento (Warm Starts)
+// Reutilización del cliente para optimizar Warm Starts
 const s3Client = new S3Client({ region: process.env.AWS_REGION || "eu-central-1" });
 
 exports.handler = async (event) => {
-    // 1. Validación de existencia de body y contexto de autoría
-    if (!event.body || !event.requestContext?.authorizer) {
+    // 1. Validación defensiva del Authorizer (Compatible con REST y HTTP API)
+    const claims = event.requestContext?.authorizer?.claims || 
+                   event.requestContext?.authorizer?.jwt?.claims;
+
+    if (!claims) {
+        console.error("No se encontró el contexto de auth. Evento recibido:", JSON.stringify(event));
+        return { 
+            statusCode: 401, 
+            body: JSON.stringify({ message: "Unauthorized: No identity context found" }) 
+        };
+    }
+
+    // 2. Validación defensiva del Body
+    if (!event.body) {
         return {
             statusCode: 400,
-            body: JSON.stringify({ message: "Invalid request: Missing body or authorization context" })
+            body: JSON.stringify({ message: "Missing request body" })
         };
     }
 
     try {
-        // Extraemos la identidad real desde el Token de Cognito (Identity-Based)
-        // El 'sub' es el ID único del usuario, el 'username' es su nombre de login.
-        const userId = event.requestContext.authorizer.claims.sub || 
-                       event.requestContext.authorizer.claims['cognito:username'];
-
+        const userId = claims.sub || claims['cognito:username'];
         const { fileName, fileType } = JSON.parse(event.body);
 
-        // 2. Validación de campos obligatorios
         if (!fileName) {
             return {
                 statusCode: 400,
@@ -29,19 +36,17 @@ exports.handler = async (event) => {
             };
         }
 
-        // 3. Sanitización y Generación de Key Dinámica
-        // Usamos el userId de Cognito para garantizar aislamiento entre clientes (SaaS Architecture)
+        // 3. Sanitización y Generación de Key Dinámica por Usuario
         const cleanFileName = fileName.replace(/\s+/g, '_').toLowerCase();
-        const timestamp = Date.now();
-        const key = `${userId}/uploads/${timestamp}-${cleanFileName}`;
+        const key = `${userId}/uploads/${Date.now()}-${cleanFileName}`;
 
         const command = new PutObjectCommand({
             Bucket: process.env.UPLOAD_BUCKET,
             Key: key,
-            ContentType: fileType || 'application/pdf' // Default a PDF para SMS-Platform
+            ContentType: fileType || 'application/pdf'
         });
 
-        // 4. Generación de URL firmada (Vence en 5 minutos)
+        // 4. Generación de Presigned URL (Vence en 5 min)
         const uploadURL = await getSignedUrl(s3Client, command, { expiresIn: 300 });
 
         return {
@@ -55,7 +60,7 @@ exports.handler = async (event) => {
             body: JSON.stringify({
                 uploadURL,
                 key,
-                userId // Útil para que el front sepa bajo qué ID quedó guardado
+                userId
             })
         };
     } catch (error) {
