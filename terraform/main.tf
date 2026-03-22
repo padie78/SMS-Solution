@@ -28,6 +28,8 @@ module "storage" {
   block_public_policy     = var.block_public_policy
   ignore_public_acls      = var.ignore_public_acls
   restrict_public_buckets = var.restrict_public_buckets
+  processor_lambda_arn  = module.compute.processor_lambda_arn
+  processor_lambda_name = module.compute.processor_lambda_name
 }
 
 module "database" {
