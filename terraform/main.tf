@@ -61,7 +61,6 @@ module "compute" {
   dynamo_table_arn  = module.database.table_arn
 
   # Configuración de la API de Emisiones y Bedrock
-  external_api_url    = var.external_api_url
   emissions_api_key   = var.emissions_api_key
   emissions_api_url   = var.emissions_api_url
   bedrock_model_id    = var.bedrock_model_id

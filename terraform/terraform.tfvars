@@ -20,7 +20,6 @@ ignore_public_acls      = true
 restrict_public_buckets = true
 
 # --- Configuración de Cómputo y API ---
-external_api_url    = "https://api.sustainability.example.com"
 lambda_architecture = "arm64" # Mayor performance, menor costo
 auto_deploy         = true
 

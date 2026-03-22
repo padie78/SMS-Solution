@@ -51,12 +51,6 @@ variable "restrict_public_buckets" {
   description = "Restringe el acceso a buckets con políticas públicas solo a servicios de AWS y usuarios autorizados."
 }
 
-variable "external_api_url" {
-  type        = string
-  description = "URL de la API externa para obtener datos de sostenibilidad"
-  default     = "https://api.sustainability.example.com"  
-} # URL de la API externa (puede ser variable para flexibilidad)
-
 variable "lambda_architecture" {
   type        = string
   default     = "arm64"

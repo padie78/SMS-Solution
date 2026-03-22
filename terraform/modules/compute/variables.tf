@@ -13,7 +13,6 @@ variable "dynamo_table_name"  { type = string }
 variable "dynamo_table_arn"   { type = string }
 
 # Configuración de Negocio / IA
-variable "external_api_url"   { type = string }
 variable "emissions_api_url"  { type = string }
 variable "emissions_api_key"  { 
   type = string
