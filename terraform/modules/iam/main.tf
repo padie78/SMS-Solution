@@ -14,6 +14,22 @@ resource "aws_iam_role" "lambda_exec" {
   })
 }
 
+resource "aws_iam_role_policy" "s3_policy" {
+  name = "sms-platform-s3-upload-policy"
+  role = aws_iam_role.lambda_role.id # El nombre de tu recurso de rol
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = ["s3:PutObject"]
+        Effect   = "Allow"
+        Resource = "arn:aws:s3:::sms-platform-dev-uploads/*"
+      }
+    ]
+  })
+}
+
 # Política básica para que las Lambdas escriban logs en CloudWatch
 resource "aws_iam_role_policy_attachment" "lambda_logs" {
   role       = aws_iam_role.lambda_exec.name
