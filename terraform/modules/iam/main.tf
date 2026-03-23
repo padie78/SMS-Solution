@@ -1,4 +1,4 @@
-# El "Trust Policy": Permite que el servicio Lambda use este rol
+# 1. El "Trust Policy": Permite que el servicio Lambda use este rol
 resource "aws_iam_role" "lambda_exec" {
   name = "${var.project_name}-${var.environment}-lambda-role"
 
@@ -17,7 +17,7 @@ resource "aws_iam_role" "lambda_exec" {
 # Política para permitir la subida a S3 (PutObject)
 resource "aws_iam_role_policy" "s3_policy" {
   name = "sms-platform-s3-upload-policy"
-  role = aws_iam_role.lambda_exec.id  # <--- CORREGIDO: ahora coincide con "lambda_exec"
+  role = aws_iam_role.lambda_exec.id
   
   policy = jsonencode({
     Version = "2012-10-17"
@@ -37,7 +37,7 @@ resource "aws_iam_role_policy_attachment" "lambda_logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-
+# Política de IA (Textract + Bedrock + GetObject)
 resource "aws_iam_policy" "processor_ai_permissions" {
   name        = "${var.project_name}-processor-ai-policy-${var.environment}"
   description = "Permisos para que la Lambda use OCR e Inteligencia Artificial"
@@ -46,9 +46,12 @@ resource "aws_iam_policy" "processor_ai_permissions" {
     Version = "2012-10-17"
     Statement = [
       {
-        # Permiso para Textract (Servicio Regional)
+        # Permisos para Textract (DetectDocument y AnalyzeExpense)
         Effect   = "Allow"
-        Action   = ["textract:DetectDocumentText"]
+        Action   = [
+          "textract:DetectDocumentText",
+          "textract:AnalyzeExpense"
+        ]
         Resource = "*" 
       },
       {
@@ -67,20 +70,16 @@ resource "aws_iam_policy" "processor_ai_permissions" {
   })
 }
 
-# Adjuntar la política al Rol usando el nombre correcto
+# Adjuntar la política al Rol
 resource "aws_iam_role_policy_attachment" "attach_ai_policy" {
-  # ANTES decía: aws_iam_role.iam_for_lambda.name
-  # AHORA debe decir:
   role       = aws_iam_role.lambda_exec.name 
   policy_arn = aws_iam_policy.processor_ai_permissions.arn
 }
 
-# terraform/modules/iam/main.tf
-
-resource "aws_iam_role_policy" "textract_policy" {
+# Política adicional para asegurar AnalyzeExpense (Versión Inline)
+resource "aws_iam_role_policy" "textract_extra_policy" {
   name = "textract-analyze-expense-policy"
-  # REFERENCIA DINÁMICA: usa el nombre del recurso definido arriba en tu archivo
-  role = aws_iam_role.lambda_exec_role.name 
+  role = aws_iam_role.lambda_exec.name 
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -89,11 +88,6 @@ resource "aws_iam_role_policy" "textract_policy" {
         Effect   = "Allow"
         Action   = ["textract:AnalyzeExpense"]
         Resource = "*"
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["s3:GetObject"]
-        Resource = "arn:aws:s3:::sms-platform-dev-uploads/*" # Usá variables para el bucket
       }
     ]
   })
