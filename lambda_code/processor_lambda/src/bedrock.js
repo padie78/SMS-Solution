@@ -2,49 +2,84 @@ const { BedrockRuntimeClient, InvokeModelCommand } = require("@aws-sdk/client-be
 
 const client = new BedrockRuntimeClient({ region: process.env.AWS_REGION || "eu-central-1" });
 
-exports.entenderConIA = async (texto) => {
-    // Definimos las reglas de negocio en inglés para máxima precisión del modelo
-    const systemPrompt = `You are a specialized Sustainability Data Engineer. Your role is to parse raw text from utility invoices and map them to GHG Protocol and Climatiq API standards.
+/**
+ * Procesa datos de Textract usando Claude 3.5 Haiku para normalización de datos de sostenibilidad.
+ * @param {Object} summary - Campos de resumen de Textract
+ * @param {Array} items - Líneas de detalle de Textract
+ */
+exports.entenderConIA = async (summary, items) => {
+    // 1. IMPORTANTE: Usamos la versión 3.5 para evitar el error de "Legacy Model"
+    const modelId = "anthropic.claude-3-5-haiku-20241022-v1:0";
+
+    const systemPrompt = `You are a specialized Sustainability Data Engineer. 
+    Your role is to parse structured OCR data from utility invoices and map them to GHG Protocol and Climatiq API standards.
     
-    CORE OBJECTIVES:
-    1. Identify the 'service_type' (electricity, natural_gas, water, fuel, etc.).
-    2. Extract 'quantity' (numeric only) and 'unit' (standardized: kWh, L, m3, km).
-    3. Determine the 'scope' (1, 2, or 3) based on GHG Protocol.
-    4. Provide a 'suggested_query' optimized for Climatiq's /search endpoint.
-    
+    OUTPUT STRUCTURE (Strict JSON):
+    {
+      "extracted_data": {
+        "vendor": "String",
+        "invoice_date": "YYYY-MM-DD",
+        "total_amount": Number,
+        "currency": "ISO Code",
+        "city": "String"
+      },
+      "ai_analysis": {
+        "service_type": "electricity|natural_gas|water|fuel|waste",
+        "scope": 1|2|3,
+        "suggested_query": "Climatiq-optimized search string",
+        "consumption_value": Number,
+        "consumption_unit": "kWh|L|m3|kg",
+        "confidence_score": Number (0-1),
+        "insight_text": "Short sustainability insight"
+      }
+    }
+
     CONSTRAINTS:
-    - Respond ONLY with a valid JSON object.
-    - No conversational text or explanations.
-    - Use null if a value is not found.
-    - If the input is in Spanish or Hebrew, translate semantic terms to English for the 'suggested_query'.`;
+    - Respond ONLY with valid JSON.
+    - If data is in Spanish/Hebrew, translate semantic terms for 'suggested_query' to English.
+    - Use null if a value is not found.`;
 
-    const userPrompt = `Parse the following invoice text: "${texto}"`;
+    // Enviamos los datos estructurados para que la IA no tenga que "adivinar" el texto
+    const userPrompt = `Parse the following OCR results:
+    SUMMARY FIELDS: ${JSON.stringify(summary)}
+    LINE ITEMS: ${JSON.stringify(items)}`;
 
-    const input = {
-        modelId: process.env.BEDROCK_MODEL_ID || "anthropic.claude-3-haiku-20240307-v1:0",
+    const params = {
+        modelId: modelId,
         contentType: "application/json",
         accept: "application/json",
         body: JSON.stringify({
             anthropic_version: "bedrock-2023-05-31",
-            max_tokens: 1000,
-            system: systemPrompt, // Aquí inyectamos las reglas
-            messages: [{ role: "user", content: userPrompt }]
+            max_tokens: 1500,
+            system: systemPrompt,
+            messages: [{ role: "user", content: userPrompt }],
+            temperature: 0 // Mantenerlo en 0 para máxima consistencia en extracción de datos
         })
     };
 
     try {
-        const response = await client.send(new InvokeModelCommand(input));
+        const command = new InvokeModelCommand(params);
+        const response = await client.send(command);
+        
         const rawRes = new TextDecoder().decode(response.body);
         const parsedRes = JSON.parse(rawRes);
+        
+        // Claude en Bedrock devuelve el texto dentro de content[0].text
         const contentText = parsedRes.content[0].text;
 
-        // Extraemos solo el bloque JSON por seguridad
+        // Limpieza de posibles explicaciones fuera del JSON
         const jsonMatch = contentText.match(/\{[\s\S]*\}/);
-        if (!jsonMatch) throw new Error("Invalid JSON structure in AI response.");
+        if (!jsonMatch) throw new Error("No JSON found in AI response");
 
-        return JSON.parse(jsonMatch[0]);
+        const finalData = JSON.parse(jsonMatch[0]);
+
+        return {
+            extracted_data: finalData.extracted_data,
+            ai_analysis: finalData.ai_analysis
+        };
+
     } catch (error) {
         console.error("Architect Error - Bedrock Pipeline:", error);
-        throw new Error("AI failed to normalize invoice data.");
+        throw new Error(`AI failed to normalize invoice data: ${error.message}`);
     }
 };
