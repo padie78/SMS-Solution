@@ -9,12 +9,13 @@ async function calcularEnClimatiq(datosProcesadosPorIA) {
     // ESTRUCTURA SEGÚN TU CURL: El activity_id VA DENTRO de emission_factor
     const body = {
         "emission_factor": {
-            "activity_id": "electricity-supply_grid-source_israel_grid", // ID para Be'er Sheva
-            "data_version": "^21" // Versión recomendada por Climatiq
+            // Este ID es el que usa Climatiq en su documentación de ejemplo
+            "activity_id": "electricity-supply_grid-source_residual_mix",
+            "data_version": "^21" 
         },
         "parameters": {
             "energy": Number(datosProcesadosPorIA.value) || 10,
-            "energy_unit": "kWh"
+            "energy_unit": "kWh" // Mantén la 'W' mayúscula como en el cURL
         }
     };
 
