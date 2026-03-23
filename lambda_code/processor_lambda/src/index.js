@@ -4,9 +4,9 @@ const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
 const crypto = require("crypto");
 
 // Importación de tus módulos (Asegúrate que los archivos existan en la misma carpeta)
-const { extraerTexto } = require("./textract");
+const { extraerFactura } = require("./textract");
 const { entenderConIA } = require("./bedrock");
-const { calcularEnApiExterna } = require("./external_api");
+const { calcularEnClimatiq } = require("./external_api");
 
 const ddbClient = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
 const dynamo = DynamoDBDocumentClient.from(ddbClient);
@@ -36,9 +36,9 @@ exports.handler = async (event) => {
             const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
 
             // 2. Ejecutar Pipeline: OCR -> IA -> Carbono
-            const texto = await extraerTexto(bucket, key);
-            const { extracted_data, ai_analysis } = await entenderConIA(texto);
-            const climatiq_result = await calcularEnApiExterna(ai_analysis);
+            const factura = await extraerFactura(bucket, key);
+            const { extracted_data, ai_analysis } = await entenderConIA(factura);
+            const climatiq_result = await calcularEnClimatiq(ai_analysis);
 
             const now = new Date().toISOString();
             const [datePart] = now.split('T');
