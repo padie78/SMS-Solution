@@ -9,7 +9,8 @@ const client = new BedrockRuntimeClient({ region: process.env.AWS_REGION || "eu-
  */
 exports.entenderConIA = async (summary, items) => {
     // 1. IMPORTANTE: Usamos la versión 3.5 para evitar el error de "Legacy Model"
-    const modelId = "anthropic.claude-3-5-haiku-20241022-v1:0";
+    const modelId = "anthropic.claude-haiku-4-5-20251001-v1:0";
+    
 
     const systemPrompt = `You are a specialized Sustainability Data Engineer. 
     Your role is to parse structured OCR data from utility invoices and map them to GHG Protocol and Climatiq API standards.
