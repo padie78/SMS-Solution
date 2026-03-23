@@ -21,33 +21,36 @@ resource "aws_iam_role_policy_attachment" "lambda_logs" {
 }
 
 # 3. Política Integral (S3 + Textract Asíncrono + Bedrock)
-# He consolidado s3_policy, textract_extra_policy y processor_ai_permissions aquí
 resource "aws_iam_policy" "processor_ai_permissions" {
   name        = "${var.project_name}-processor-ai-policy-${var.environment}"
-  description = "Permisos consolidados para OCR (Textract Asíncrono), IA (Bedrock) y S3"
+  description = "Permisos consolidados para OCR (Textract), IA (Bedrock Claude 4.5/3.5) y S3"
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        # Permisos para Textract: Se agregan las acciones asíncronas para PDFs
+        # Permisos para Textract: Soporte completo para procesamiento de facturas y PDFs
         Effect   = "Allow"
         Action   = [
           "textract:DetectDocumentText",
           "textract:AnalyzeExpense",
-          "textract:StartExpenseAnalysis", # <--- REQUERIDO para el nuevo código
-          "textract:GetExpenseAnalysis"    # <--- REQUERIDO para el nuevo código
+          "textract:StartExpenseAnalysis",
+          "textract:GetExpenseAnalysis"
         ]
         Resource = "*" 
       },
       {
-        # Permiso específico para Claude 3 Haiku en Bedrock
+        # Permiso FLEXIBLE para Bedrock:
+        # Permite modelos base de la serie 3, 3.5 y 4.x, así como perfiles de inferencia regionales.
         Effect   = "Allow"
         Action   = ["bedrock:InvokeModel"]
-        Resource = "arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0"
+        Resource = [
+          "arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-*",
+          "arn:aws:bedrock:eu-central-1:*:inference-profile/eu.anthropic.claude-*"
+        ]
       },
       {
-        # Permisos de S3: Combinamos PutObject y GetObject en un solo bloque
+        # Permisos de S3: Acceso al bucket de carga del proyecto
         Effect   = "Allow"
         Action   = [
           "s3:GetObject",
