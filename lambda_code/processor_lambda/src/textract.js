@@ -5,7 +5,7 @@ const client = new TextractClient({ region: process.env.AWS_REGION || "eu-centra
 exports.extraerFactura = async (bucket, key) => {
     try {
         const command = new AnalyzeExpenseCommand({
-            DocumentLocation: {
+            Document: { // <-- CAMBIO AQUÍ: 'Document' en lugar de 'DocumentLocation'
                 S3Object: {
                     Bucket: bucket,
                     Name: key
