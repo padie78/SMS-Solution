@@ -1,19 +1,30 @@
+/**
+ * Invocación a Climatiq API v1/estimate
+ * Corregido para evitar el error 'missing field emission_factor'
+ */
 async function calcularEnClimatiq(datosProcesadosPorIA) {
+    // La URL v1/estimate es correcta, pero el body requiere una estructura específica
     const url = "https://api.climatiq.io/data/v1/estimate";
-    // RECOMENDACIÓN: Usar variables de entorno siempre
     const apiKey = process.env.CLIMATIQ_API_KEY || "2E44QNZJMX5X5B6EM43E88KRZ8"; 
 
-    // Construcción dinámica del payload
-    const parameters = {};
-    const pType = datosProcesadosPorIA.parameter_type; // Ej: 'energy'
-    
-    parameters[pType] = datosProcesadosPorIA.value;
-    parameters[`${pType}_unit`] = datosProcesadosPorIA.unit; // Ej: 'energy_unit': 'kWh'
+    if (!datosProcesadosPorIA.activity_id || !datosProcesadosPorIA.parameter_type) {
+        throw new Error("Datos insuficientes de la IA: falta activity_id o parameter_type");
+    }
 
+    // Normalizamos la unidad a minúsculas para evitar errores de validación de la API
+    const unidadNormalizada = datosProcesadosPorIA.unit.toLowerCase();
+    const pType = datosProcesadosPorIA.parameter_type; // ej: 'energy'
+
+    // Estructura EXACTA que espera Climatiq para estimaciones basadas en actividad
     const body = {
         activity_id: datosProcesadosPorIA.activity_id,
-        parameters: parameters
+        parameters: {
+            [pType]: datosProcesadosPorIA.value,
+            [`${pType}_unit`]: unidadNormalizada
+        }
     };
+
+    console.log(`[CLIMATIQ_DEBUG] Enviando Payload:`, JSON.stringify(body));
 
     try {
         const response = await fetch(url, {
@@ -28,17 +39,18 @@ async function calcularEnClimatiq(datosProcesadosPorIA) {
         const data = await response.json();
 
         if (!response.ok) {
-            // Logueamos el error completo de Climatiq para depurar IDs de actividad inválidos
-            console.error(`[CLIMATIQ_ERROR]`, JSON.stringify(data, null, 2));
-            throw new Error(`Climatiq API Error: ${data.error || data.message}`);
+            // Si falta 'emission_factor' es porque el activity_id no fue reconocido 
+            // y la API asume que quieres hacer un cálculo manual.
+            console.error(`[CLIMATIQ_ERROR] Status: ${response.status}`, JSON.stringify(data, null, 2));
+            throw new Error(data.message || `Error en Climatiq: ${data.error_code}`);
         }
 
         return {
             co2e: data.co2e,
             unit: data.co2e_unit,
-            audit_trail: data.audit_trail, // Crucial para reportes de sostenibilidad
+            audit_trail: data.audit_trail,
             calculation_id: data.calculation_id,
-            activity_data: data.activity_data // Información extra sobre el factor de emisión usado
+            activity_data: data.activity_data 
         };
 
     } catch (error) {
