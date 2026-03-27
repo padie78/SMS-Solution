@@ -5,7 +5,7 @@
 async function calcularEnClimatiq(ai_analysis) {
     const url = "https://api.climatiq.io/data/v1/estimate";
     // Priorizamos EMISSIONS_API_KEY que es como lo tenés en Terraform
-    const apiKey = (process.env.EMISSIONS_API_KEY || process.env.CLIMATIQ_API_KEY || "").trim();
+    const apiKey = "2E44QNZJMX5X5B6EM43E88KRZ8";
 
     if (!apiKey) {
         console.error("[CLIMATIQ_CONFIG_ERROR]: API Key no encontrada en variables de entorno.");
