@@ -4,7 +4,7 @@
  */
 async function calcularEnClimatiq(ai_analysis) {
     const url = "https://api.climatiq.io/data/v1/estimate";
-    const apiKey = process.env.EMISSIONS_API_KEY;
+    const apiKey = process.env.EMISSIONS_API_KEY || "dummy-key"
 
     if (!apiKey) {
         console.error("[CLIMATIQ_CONFIG_ERROR]: API Key no configurada.");
@@ -44,7 +44,7 @@ async function calcularEnClimatiq(ai_analysis) {
             method: "POST",
             signal: controller.signal,
             headers: {
-                "Authorization": `Bearer ${apiKey}`,
+                "x-api-key": apiKey,
                 "Content-Type": "application/json"
             },
             body: JSON.stringify(body)
