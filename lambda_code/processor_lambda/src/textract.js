@@ -1,127 +1,85 @@
-const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
-const { DynamoDBDocumentClient, PutCommand } = require("@aws-sdk/lib-dynamodb");
-const { S3Client, GetObjectCommand } = require("@aws-sdk/client-s3");
-const crypto = require("crypto");
+const { TextractClient, AnalyzeDocumentCommand } = require("@aws-sdk/client-textract");
 
-// Importación de tus módulos (deben estar en la misma carpeta o como Layers)
-const { extraerFactura } = require("./textract");
-const { entenderConIA } = require("./bedrock");
-const { calcularEnClimatiq } = require("./external_api");
+// Reutilización de cliente para optimizar el rendimiento en AWS Lambda
+const textractClient = new TextractClient({ region: process.env.AWS_REGION || "eu-central-1" });
 
-const ddbClient = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
-const dynamo = DynamoDBDocumentClient.from(ddbClient, {
-    marshallOptions: { removeUndefinedValues: true, convertEmptyValues: true },
-});
-const s3Client = new S3Client({ region: process.env.AWS_REGION || "eu-central-1" });
-
-exports.handler = async (event) => {
-    const results = [];
-
-    for (const record of event.Records) {
-        const bucket = record.s3.bucket.name;
-        const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '));
-        
-        // Extracción de contexto multi-tenant
-        const parts = key.split('/');
-        const orgId = parts[1] || 'UNKNOWN_ORG'; 
-        const filename = parts[parts.length - 1];
-        const fileId = filename.split('.')[0] || Date.now().toString();
-
-        try {
-            console.log(`[PIPELINE_START] Procesando: ${filename} para Org: ${orgId}`);
-
-            // 1. Obtener Buffer y generar Hash para evitar duplicados futuros
-            const s3Response = await s3Client.send(new GetObjectCommand({ Bucket: bucket, Key: key }));
-            const chunks = [];
-            for await (const chunk of s3Response.Body) { chunks.push(chunk); }
-            const fileBuffer = Buffer.concat(chunks);
-            const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
-
-            // 2. OCR - Textract (Ahora configurado para capturar Service Dates)
-            const facturaRaw = await extraerFactura(bucket, key);
-            
-            // 3. IA - Bedrock (Con el nuevo System Prompt Blindado)
-            const aiResponse = await entenderConIA(facturaRaw.summary, facturaRaw.items);
-            const { extracted_data = {}, ai_analysis = {} } = aiResponse;
-
-            // 4. Carbono - Climatiq (Llamada con los Enums normalizados)
-            const climatiqResult = await calcularEnClimatiq(ai_analysis) || {};
-
-            const now = new Date().toISOString();
-            const [today] = now.split('T');
-
-            // 5. Lógica de Negocio e Indicadores de Sostenibilidad
-            const totalAmount = Number(extracted_data.total_amount) || 0;
-            const co2Value = Number(climatiqResult.co2e) || 0;
-            
-            // Métrica Pro: Intensidad de Carbono (CO2 por cada unidad monetaria)
-            const carbonIntensity = totalAmount > 0 ? (co2Value / totalAmount).toFixed(5) : 0;
-
-            // 6. Construcción del "Golden Record" para DynamoDB
-            const itemToPersist = {
-                PK: `ORG#${orgId}`,
-                SK: `INV#${extracted_data.invoice_date || today}#${fileId}`,
-                metadata: {
-                    filename,
-                    s3_key: key,
-                    file_hash: fileHash,
-                    processed_at: now,
-                    status: "PROCESSED",
-                    ai_model: "claude-3-5-haiku-v2"
-                },
-                extracted_data: {
-                    vendor: extracted_data.vendor || "UNKNOWN",
-                    invoice_number: extracted_data.invoice_number || "N/A",
-                    invoice_date: extracted_data.invoice_date || today,
-                    period_start: extracted_data.period_start || null,
-                    period_end: extracted_data.period_end || null,
-                    total_amount: totalAmount,
-                    currency: extracted_data.currency || "USD",
-                    raw_consumption: extracted_data.raw_consumption || 0,
-                    raw_unit: extracted_data.raw_unit || "unit"
-                },
-                ai_analysis: {
-                    service_type: ai_analysis.service_type, // Enum: Electricity, Gas...
-                    scope: ai_analysis.scope,               // Enum: 1, 2, 3
-                    calculation_method: ai_analysis.calculation_method, // Enum: consumption_based, spend_based
-                    activity_id: ai_analysis.activity_id,
-                    parameter_type: ai_analysis.parameter_type,
-                    value: Number(ai_analysis.value) || 0,
-                    unit: ai_analysis.unit,
-                    confidence_score: ai_analysis.confidence_score || 0,
-                    requires_review: ai_analysis.requires_review || (ai_analysis.confidence_score < 0.85),
-                    is_estimated_reading: !!ai_analysis.is_estimated_reading,
-                    insight_text: ai_analysis.insight_text || ""
-                },
-                climatiq_result: {
-                    co2e: co2Value,
-                    co2e_unit: "kg",
-                    activity_id: climatiqResult.activity_id || ai_analysis.activity_id,
-                    calculation_id: climatiqResult.calculation_id || "N/A",
-                    audit_trail: "climatiq_api_v3"
-                },
-                analytics_dimensions: {
-                    period_year: parseInt((extracted_data.invoice_date || today).split('-')[0]),
-                    period_month: parseInt((extracted_data.invoice_date || today).split('-')[1]),
-                    carbon_intensity: parseFloat(carbonIntensity),
-                    country: "AR", // Podría dinamizarse con extracted_data.country
-                    sector: "CONSTRUCTION"
-                }
-            };
-
-            // 7. Persistencia Final
-            await dynamo.send(new PutCommand({
-                TableName: process.env.DYNAMO_TABLE || "EmissionsData",
-                Item: itemToPersist
-            }));
-
-            console.log(`[PIPELINE_SUCCESS] Factura ${fileId} guardada con éxito.`);
-            results.push({ key, status: 'success' });
-
-        } catch (err) {
-            console.error(`[PIPELINE_ERROR] Fallo en ${key}: ${err.message}`);
-            results.push({ key, status: 'error', message: err.message });
+/**
+ * Realiza el OCR de la factura usando AnalyzeDocument con Queries en Inglés.
+ * Incorpora campos de auditoría para un SaaS de Sustentabilidad profesional.
+ */
+exports.extraerFactura = async (bucket, key) => {
+    console.log(`[TEXTRACT] Iniciando análisis profundo en s3://${bucket}/${key}`);
+    
+    const params = {
+        Document: { S3Object: { Bucket: bucket, Name: key } },
+        // QUERIES: Para datos específicos con alta precisión.
+        // FORMS: Para capturar pares clave-valor que Textract detecta automáticamente.
+        FeatureTypes: ["QUERIES", "FORMS"], 
+        QueriesConfig: {
+            Queries: [
+                // Identificación y Finanzas
+                { Text: "What is the vendor or company name?", Alias: "VENDOR" },
+                { Text: "What is the total amount to pay?", Alias: "TOTAL_AMOUNT" },
+                { Text: "What is the currency (code or symbol)?", Alias: "CURRENCY" },
+                { Text: "What is the invoice or document number?", Alias: "INVOICE_NUMBER" },
+                
+                // Temporalidad (Crítico para reportes de GEI mensuales)
+                { Text: "What is the invoice date?", Alias: "INVOICE_DATE" },
+                { Text: "What is the service period start date?", Alias: "PERIOD_START" },
+                { Text: "What is the service period end date?", Alias: "PERIOD_END" },
+                
+                // Consumo Específico (Clave para Climatiq)
+                { Text: "What is the total consumption value and unit (e.g. 500 kWh, 15 m3)?", Alias: "CONSUMPTION" },
+                
+                // Auditoría y Localización (Para multi-site management)
+                { Text: "What is the service address or installation site?", Alias: "SITE_LOCATION" },
+                { Text: "What is the meter number or account identifier?", Alias: "ACCOUNT_ID" }
+            ]
         }
+    };
+
+    try {
+        const command = new AnalyzeDocumentCommand(params);
+        const response = await textractClient.send(command);
+
+        // 1. Extraemos el texto completo para el resumen de Bedrock
+        const fullText = response.Blocks
+            .filter(b => b.BlockType === "LINE")
+            .map(b => b.Text)
+            .join(" ");
+
+        // 2. Mapeo de respuestas de Queries
+        const queryResults = {};
+        const queryBlocks = response.Blocks.filter(b => b.BlockType === "QUERY");
+        
+        queryBlocks.forEach(q => {
+            const relationship = q.Relationships?.find(r => r.Type === "ANSWER");
+            if (relationship) {
+                // Buscamos el bloque de respuesta vinculado
+                const answerBlock = response.Blocks.find(b => b.Id === relationship.Ids[0]);
+                if (answerBlock && answerBlock.Text) {
+                    queryResults[q.Query.Alias] = answerBlock.Text.trim();
+                }
+            } else {
+                queryResults[q.Query.Alias] = null; // Mantenemos la llave para consistencia
+            }
+        });
+
+        // 3. (Opcional) Metadata adicional para debugging o auditoría
+        const metadata = {
+            pages: response.DocumentMetadata.Pages,
+            model_version: "Textract_AnalyzeDoc_v2024"
+        };
+
+        return {
+            summary: fullText.trim(),
+            query_hints: queryResults, // Este es el "oro" para Bedrock
+            metadata: metadata,
+            raw_blocks: response.Blocks // Por si necesitas procesar tablas después
+        };
+
+    } catch (error) {
+        console.error("[TEXTRACT_CRITICAL_ERROR]:", error.message);
+        throw new Error(`Textract failed to process document: ${error.message}`);
     }
-    return results;
 };
