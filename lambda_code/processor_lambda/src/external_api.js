@@ -1,11 +1,11 @@
 /**
  * Invocación a Climatiq API v1/estimate
- * Adaptada para corregir el error 400 (invalid field: currency)
+ * Adaptada para corregir Error 400 (Query not found) y versionado de datos.
  */
 async function calcularEnClimatiq(ai_analysis) {
     const url = "https://api.climatiq.io/data/v1/estimate";
     
-    // Usamos la key directa para descartar problemas de inyección de variables
+    // Key directa para testeo (recuerda pasarla a process.env después)
     const apiKey = "2E44QNZJMX5X5B6EM43E88KRZ8";
 
     if (!apiKey) {
@@ -25,16 +25,19 @@ async function calcularEnClimatiq(ai_analysis) {
     };
     const normalizedUnit = unitMap[ai_analysis.unit?.toLowerCase()] || ai_analysis.unit;
 
-    // 2. Construcción del Payload (FIX: Money Unit)
+    // 2. Construcción de Parámetros y Validación de Activity ID
     const parameters = {};
     const valorNumerico = Number(ai_analysis.value) || 0;
 
+    // Fallback de seguridad: Si Bedrock no provee un ID válido, usamos el genérico de red eléctrica
+    const safeActivityId = (ai_analysis.activity_id && ai_analysis.activity_id.length > 5)
+        ? ai_analysis.activity_id
+        : "electricity-supply_grid-source_production_mix";
+
     if (ai_analysis.calculation_method === "spend_based") {
-        // CORRECTO: Climatiq v1 espera 'money' y 'money_unit'
         parameters.money = valorNumerico;
         parameters.money_unit = ai_analysis.unit?.toLowerCase() || "usd"; 
     } else {
-        // CORRECTO: Activity-based
         const type = ai_analysis.parameter_type || "energy"; 
         parameters[type] = valorNumerico;
         parameters[`${type}_unit`] = normalizedUnit;
@@ -42,8 +45,9 @@ async function calcularEnClimatiq(ai_analysis) {
 
     const body = {
         emission_factor: {
-            activity_id: ai_analysis.activity_id || "electricity-supply_grid-source_production_mix",
-            data_version: "^21" 
+            activity_id: safeActivityId,
+            // FIX: Usamos ^1 para mayor compatibilidad con los factores de emisión existentes
+            data_version: "^1" 
         },
         parameters
     };
@@ -52,7 +56,7 @@ async function calcularEnClimatiq(ai_analysis) {
     const timeout = setTimeout(() => controller.abort(), 8000);
 
     try {
-        console.log(`[CLIMATIQ_DEBUG] Enviando Payload: ${JSON.stringify(body)}`);
+        console.log(`[CLIMATIQ_DEBUG] Intentando cálculo con ActivityID: ${safeActivityId}`);
 
         const response = await fetch(url, {
             method: "POST",
@@ -68,7 +72,8 @@ async function calcularEnClimatiq(ai_analysis) {
         const data = await response.json();
 
         if (!response.ok) {
-            // Esto nos dirá exactamente qué campo falla si vuelve el 400
+            // Si falla el factor específico, logueamos el ID para ajustarlo en el prompt de Bedrock
+            console.error(`[CLIMATIQ_QUERY_FAIL]: ID rechazado -> ${safeActivityId}`);
             throw new Error(`Climatiq_${response.status}: ${data.message || data.error_code}`);
         }
 
