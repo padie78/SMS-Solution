@@ -1,62 +1,73 @@
 /**
- * Invocación a Climatiq API v1/estimate
- * Adaptada para corregir Error 400 (Query not found) y versionado de datos.
+ * Invocación Multimodelo a Climatiq API
+ * Soporta: Basic Estimate, Freight (v3) y Travel (v1).
  */
 async function calcularEnClimatiq(ai_analysis) {
-    const url = "https://api.climatiq.io/data/v1/estimate";
-    
-    // Key directa para testeo (recuerda pasarla a process.env después)
     const apiKey = "2E44QNZJMX5X5B6EM43E88KRZ8";
+    const baseUrl = "https://api.climatiq.io/data/v1";
 
-    if (!apiKey) {
-        console.error("[CLIMATIQ_CONFIG_ERROR]: API Key no encontrada.");
-        return { co2e: 0, error: true, message: "Missing API Key" };
-    }
-
-    // 1. Normalización de Unidades
-    const unitMap = { 
-        "kilowatt-hour": "kWh", 
-        "kilovatios": "kWh", 
-        "kwh": "kWh", 
-        "m3": "m3", 
-        "litros": "l",
-        "usd": "usd",
-        "eur": "eur"
-    };
+    // 1. Mapeo de Unidades y Endpoints
+    const unitMap = { "kilowatt-hour": "kWh", "kwh": "kWh", "litros": "l", "m3": "m3", "toneladas": "t" };
     const normalizedUnit = unitMap[ai_analysis.unit?.toLowerCase()] || ai_analysis.unit;
+    
+    // Determinamos qué "Sabor" de la API usar
+    const facturaTipo = ai_analysis.factura_tipo || "general"; // 'general', 'freight', 'travel'
+    let url = `${baseUrl}/estimate`;
+    let body = {};
 
-    // 2. Construcción de Parámetros y Validación de Activity ID
-    const parameters = {};
-    const valorNumerico = Number(ai_analysis.value) || 0;
+    // 2. Construcción de Payload según el Modelo (Los "Tipos")
+    switch (facturaTipo) {
+        
+        case "freight": // Para logística y transporte de carga
+            url = `${baseUrl}/freight/v3/intermodal`;
+            body = {
+                route: ai_analysis.route || [], // Array de {from, to, mode}
+                cargo: {
+                    weight: Number(ai_analysis.value),
+                    weight_unit: normalizedUnit || "t"
+                }
+            };
+            break;
 
-    // Fallback de seguridad: Si Bedrock no provee un ID válido, usamos el genérico de red eléctrica
-    const safeActivityId = (ai_analysis.activity_id && ai_analysis.activity_id.length > 5)
-        ? ai_analysis.activity_id
-        : "electricity-supply_grid-source_production_mix";
+        case "travel": // Para viajes corporativos (vuelos, trenes)
+            url = `${baseUrl}/travel/flights`;
+            body = {
+                legs: ai_analysis.legs || [], // Array de {from, to, class}
+                passengers: ai_analysis.passengers || 1
+            };
+            break;
 
-    if (ai_analysis.calculation_method === "spend_based") {
-        parameters.money = valorNumerico;
-        parameters.money_unit = ai_analysis.unit?.toLowerCase() || "usd"; 
-    } else {
-        const type = ai_analysis.parameter_type || "energy"; 
-        parameters[type] = valorNumerico;
-        parameters[`${type}_unit`] = normalizedUnit;
+        case "general":
+        default: // El "Basic Estimate" que ya conocemos para Energía/Agua/Gas
+            const parameters = {};
+            const valorNumerico = Number(ai_analysis.value) || 0;
+
+            if (ai_analysis.calculation_method === "spend_based") {
+                parameters.money = valorNumerico;
+                parameters.money_unit = ai_analysis.unit?.toLowerCase() || "usd";
+            } else {
+                const type = ai_analysis.parameter_type || "energy"; 
+                parameters[type] = valorNumerico;
+                parameters[`${type}_unit`] = normalizedUnit;
+            }
+
+            body = {
+                emission_factor: {
+                    activity_id: ai_analysis.activity_id || "electricity-supply_grid-source_residual_mix",
+                    data_version: "^21",
+                    region: ai_analysis.region || "IL" // Default para evitar el 400
+                },
+                parameters
+            };
+            break;
     }
 
-    const body = {
-        emission_factor: {
-            activity_id: safeActivityId,
-            // FIX: Usamos ^1 para mayor compatibilidad con los factores de emisión existentes
-            data_version: "^1" 
-        },
-        parameters
-    };
-
+    // 3. Ejecución del Request
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
+    const timeout = setTimeout(() => controller.abort(), 12000);
 
     try {
-        console.log(`[CLIMATIQ_DEBUG] Intentando cálculo con ActivityID: ${safeActivityId}`);
+        console.log(`[CLIMATIQ_ROUTING] Tipo: ${facturaTipo} | URL: ${url}`);
 
         const response = await fetch(url, {
             method: "POST",
@@ -72,23 +83,27 @@ async function calcularEnClimatiq(ai_analysis) {
         const data = await response.json();
 
         if (!response.ok) {
-            // Si falla el factor específico, logueamos el ID para ajustarlo en el prompt de Bedrock
-            console.error(`[CLIMATIQ_QUERY_FAIL]: ID rechazado -> ${safeActivityId}`);
+            console.error(`[CLIMATIQ_API_REJECTED]: ${JSON.stringify(data)}`);
             throw new Error(`Climatiq_${response.status}: ${data.message || data.error_code}`);
         }
 
+        // 4. Normalización de Salida (Para que DynamoDB reciba siempre lo mismo)
         return {
-            calculation_id: data.calculation_id,
+            calculation_id: data.calculation_id || data.emission_factor?.id || "N/A",
             co2e: Number(data.co2e),
             co2e_unit: data.co2e_unit || "kg",
-            activity_id: data.emission_factor?.activity_id,
-            audit_trail: "climatiq_api_v1_estimate",
-            timestamp: new Date().toISOString()
+            activity_id: data.emission_factor?.activity_id || facturaTipo,
+            audit_trail: data.audit_trail || `climatiq_${facturaTipo}`,
+            timestamp: new Date().toISOString(),
+            metadata: {
+                region: data.emission_factor?.region || ai_analysis.region,
+                year: data.emission_factor?.year || 2026
+            }
         };
 
     } catch (error) {
-        clearTimeout(timeout);
-        console.error("[CLIMATIQ_EXCEPTION]:", error.message);
+        if (timeout) clearTimeout(timeout);
+        console.error(`[CLIMATIQ_EXCEPTION] [${facturaTipo}]:`, error.message);
         
         return { 
             co2e: 0, 
