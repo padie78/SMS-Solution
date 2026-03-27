@@ -3,7 +3,7 @@ const { S3Client } = require("@aws-sdk/client-s3");
 const { extraerFactura } = require("./textract");
 const { entenderConIA } = require("./bedrock");
 const { calcularEnClimatiq } = require("./external_api");
-const { saveInvoiceWithStats } = require("./database");
+const { saveInvoiceWithStats } = require("./db");
 const { downloadFromS3, buildGoldenRecord } = require("./utils");
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION || "eu-central-1" });
