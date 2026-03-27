@@ -1,80 +1,87 @@
-const { TextractClient, AnalyzeDocumentCommand } = require("@aws-sdk/client-textract");
+const { TextractClient, AnalyzeExpenseCommand } = require("@aws-sdk/client-textract");
 
+// Optimizamos el cliente fuera del handler
 const textractClient = new TextractClient({ region: process.env.AWS_REGION || "eu-central-1" });
 
+/**
+ * Utiliza AnalyzeExpense para procesar facturas multipágina de forma síncrona.
+ * Soporta hasta 30 páginas y detecta automáticamente campos financieros.
+ */
 exports.extraerFactura = async (bucket, key) => {
-    // 1. Validación de extensión rápida
-    const extension = key.split('.').pop().toLowerCase();
-    const validExtensions = ['pdf', 'jpg', 'jpeg', 'png', 'tiff'];
+    console.log(`[TEXTRACT] Iniciando AnalyzeExpense en s3://${bucket}/${key}`);
     
-    if (!validExtensions.includes(extension)) {
-        throw new Error(`Unsupported document format: .${extension}. AWS Textract only supports PDF, JPG, PNG, and TIFF.`);
-    }
-
-    console.log(`[TEXTRACT] Procesando archivo .${extension} en s3://${bucket}/${key}`);
+    // Validación rápida de extensión (aunque S3 debería filtrarlo antes)
+    const extension = key.split('.').pop().toLowerCase();
     
     const params = {
-        Document: { S3Object: { Bucket: bucket, Name: key } },
-        FeatureTypes: ["QUERIES", "FORMS"], 
-        QueriesConfig: {
-            Queries: [
-                { Text: "What is the vendor or company name?", Alias: "VENDOR" },
-                { Text: "What is the total amount to pay?", Alias: "TOTAL_AMOUNT" },
-                { Text: "What is the currency (code or symbol)?", Alias: "CURRENCY" },
-                { Text: "What is the invoice or document number?", Alias: "INVOICE_NUMBER" },
-                { Text: "What is the invoice date?", Alias: "INVOICE_DATE" },
-                { Text: "What is the service period start date?", Alias: "PERIOD_START" },
-                { Text: "What is the service period end date?", Alias: "PERIOD_END" },
-                { Text: "What is the total consumption value and unit (e.g. 500 kWh, 15 m3)?", Alias: "CONSUMPTION" },
-                { Text: "What is the service address or installation site?", Alias: "SITE_LOCATION" },
-                { Text: "What is the meter number or account identifier?", Alias: "ACCOUNT_ID" }
-            ]
+        Document: {
+            S3Object: {
+                Bucket: bucket,
+                Name: key
+            }
         }
     };
 
     try {
-        const command = new AnalyzeDocumentCommand(params);
+        const command = new AnalyzeExpenseCommand(params);
         const response = await textractClient.send(command);
+        const pageCount = response.DocumentMetadata?.Pages || 1;
+        console.log(`[TEXTRACT_SUCCESS] Documento de ${pageCount} páginas procesado.`);
 
-        // Si el documento tiene muchas páginas, avisar en logs (AnalyzeDocument solo ve la pág 1)
-        if (response.DocumentMetadata.Pages > 1) {
-            console.warn(`[TEXTRACT_WARNING] Document has ${response.DocumentMetadata.Pages} pages. Synchronous API only processed the first page.`);
-        }
 
+        // 1. Extraemos TODO el texto de las 3 páginas para darle contexto a Bedrock
         const fullText = response.Blocks
             .filter(b => b.BlockType === "LINE")
             .map(b => b.Text)
             .join(" ");
 
-        const queryResults = {};
-        const queryBlocks = response.Blocks.filter(b => b.BlockType === "QUERY");
-        
-        queryBlocks.forEach(q => {
-            const relationship = q.Relationships?.find(r => r.Type === "ANSWER");
-            if (relationship && relationship.Ids) {
-                // Mejora: Buscar la respuesta de forma segura
-                const answerId = relationship.Ids[0];
-                const answerBlock = response.Blocks.find(b => b.Id === answerId);
-                queryResults[q.Query.Alias] = answerBlock ? answerBlock.Text.trim() : null;
-            } else {
-                queryResults[q.Query.Alias] = null;
-            }
-        });
+        // 2. Mapeamos los campos normalizados que Textract encuentra por defecto
+        // Nos enfocamos en el primer documento detectado (el PDF completo)
+        const expenseDoc = response.ExpenseDocuments[0];
+        const rawHints = {};
+
+        if (expenseDoc && expenseDoc.SummaryFields) {
+            expenseDoc.SummaryFields.forEach(field => {
+                // Mapeamos el Label técnico a un nombre amigable
+                const label = field.Type.Text || "UNKNOWN";
+                const value = field.ValueDetection?.Text || null;
+                rawHints[label] = value;
+            });
+        }
+
+        // 3. Normalización de campos para mantener compatibilidad con tu esquema previo
+        // AnalyzeExpense usa nombres de campos estándar de AWS
+        const query_hints = {
+            VENDOR: rawHints.VENDOR_NAME || rawHints.NAME,
+            TOTAL_AMOUNT: rawHints.TOTAL || rawHints.AMOUNT_DUE,
+            CURRENCY: rawHints.CURRENCY || null,
+            INVOICE_DATE: rawHints.INVOICE_RECEIPT_DATE || rawHints.DATE,
+            INVOICE_NUMBER: rawHints.INVOICE_RECEIPT_ID,
+            // Estos campos suelen venir en 'LineItems' o como campos genéricos
+            ACCOUNT_ID: rawHints.ACCOUNT_NUMBER || rawHints.CUSTOMER_NUMBER,
+            ADDRESS: rawHints.VENDOR_ADDRESS || rawHints.RECEIVER_ADDRESS,
+            // El consumo a veces viene en LineItems, pero Bedrock lo encontrará en el summary
+            RAW_HINTS: rawHints // Mantenemos los crudos por si Bedrock quiere excavar más
+        };
 
         return {
             summary: fullText.trim(),
-            query_hints: queryResults,
+            query_hints: query_hints,
             metadata: {
                 pages: response.DocumentMetadata.Pages,
+                method: "AnalyzeExpense",
                 format: extension
             }
         };
 
     } catch (error) {
-        // Capturamos el error específico de AWS para dar feedback claro
+        console.error("[TEXTRACT_CRITICAL_ERROR]:", error.message);
+        
+        // Error específico cuando el PDF es ilegible o protegido
         if (error.name === "UnsupportedDocumentException") {
-            console.error("[TEXTRACT_CRITICAL] El archivo está corrupto o es un PDF no compatible.");
+            throw new Error("The PDF is encrypted, corrupted, or not supported by AWS Textract.");
         }
-        throw error;
+        
+        throw new Error(`Textract Failed: ${error.message}`);
     }
 };
