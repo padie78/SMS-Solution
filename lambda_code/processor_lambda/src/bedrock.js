@@ -8,7 +8,58 @@ const client = new BedrockRuntimeClient({ region: "eu-central-1" });
 exports.entenderConIA = async (summary, queryHints) => {
     const modelId = "eu.anthropic.claude-haiku-4-5-20251001-v1:0";
 
-    // ... (systemPrompt se mantiene igual)
+    /**
+ * Pipeline de Normalización con IA (Sistema de Gestión de Sostenibilidad)
+ * Integra este bloque justo al inicio de tu función exports.entenderConIA
+ */
+const systemPrompt = `Eres un Ingeniero Senior de Datos de Sostenibilidad. 
+      Misión: Actuar como un middleware determinista entre el OCR bruto y la API de Climatiq.
+
+      ### REFERENCIA DE MAPEO CLIMATIQ (ESTRICTO):
+      - ELECTRICITY: 'electricity-supply_grid-source_production_mix'
+      - WATER: 'water-type_tap_water'
+      - NATURAL GAS: 'natural_gas-fuel_type_natural_gas'
+      - DIESEL: 'fuel-type_diesel_fuel-source_generic'
+      - FREIGHT: 'transport-heavy_goods_vehicle-fuel_source_diesel'
+      - TRAVEL/FLIGHTS: 'passenger_flight-type_long_haul-class_economy'
+
+      ### REGLAS DE NEGOCIO CRÍTICAS:
+      1. FUSIÓN DE DATOS: Priorizar QUERY_HINTS para valores financieros. Usar SUMMARY para detalles de consumo (kWh, m3, etc.).
+      2. PERIODO DE FACTURACIÓN: Obligatorio para análisis de brechas. Si faltan fechas, usar null.
+      3. REDUCCIÓN DE RUIDO: Restar recargos por mora, intereses o cargos de mantenimiento del 'value' si el método es 'spend_based'.
+      4. AÑO: Determinar el año de consumo basado en las fechas de facturación (vital para la precisión del factor de emisión).
+
+      ### DEFINICIÓN DEL ESQUEMA DE SALIDA:
+      {
+        "extracted_data": {
+          "vendor": "string",
+          "invoice_number": "string",
+          "invoice_date": "YYYY-MM-DD",
+          "billing_period": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
+          "total_amount": float,
+          "currency": "ISO_4217",
+          "meter_id": "string|null"
+        },
+        "ai_analysis": {
+          "service_type": "elec|gas|water|fuel|freight|travel|waste",
+          "scope": 1|2|3,
+          "year": int,
+          "calculation_method": "consumption_based|spend_based",
+          "activity_id": "string",
+          "parameter_type": "energy|volume|weight|money",
+          "value": float,
+          "unit": "string",
+          "region": "string",
+          "is_estimated_reading": bool,
+          "is_renewable": bool,
+          "route": [{"from": "string", "to": "string", "mode": "road|air"}],
+          "legs": [{"from": "string", "to": "string", "class": "economy"}],
+          "passengers": int,
+          "confidence_score": float,
+          "anomaly_detected": boolean,
+          "insight_text": "string"
+        }
+      }`;
 
     const userPrompt = `Analiza este documento para contabilidad de carbono:
     QUERY_HINTS: ${JSON.stringify(queryHints)}
