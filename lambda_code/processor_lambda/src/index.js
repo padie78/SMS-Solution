@@ -4,7 +4,7 @@ const { S3Client } = require("@aws-sdk/client-s3");
 // Importación de módulos de infraestructura y lógica
 const { extraerFactura } = require("./textract");
 const { entenderConIA } = require("./bedrock");
-const { calcularEnClimatiq } = require("./external_api");
+const { calculateInClimatiq } = require("./external_api");
 const { saveInvoiceWithStats } = require("./db");
 const { downloadFromS3, buildGoldenRecord } = require("./utils");
 
@@ -36,7 +36,7 @@ exports.handler = async (event) => {
 
             // ... (resto de tu lógica de IA y DB)
             const ai = await entenderConIA(rawOcr.summary, rawOcr.query_hints); // Cambiado a query_hints
-            const climatiq = await calcularEnClimatiq(ai.ai_analysis) || {};
+            const climatiq = await calculateInClimatiq(ai.ai_analysis) || {};
 
             const recordToSave = buildGoldenRecord(orgId, fileId, key, filename, fileHash, ai, climatiq);
             await saveInvoiceWithStats(recordToSave);
