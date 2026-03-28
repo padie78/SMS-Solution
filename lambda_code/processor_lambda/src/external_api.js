@@ -1,6 +1,6 @@
 /**
  * Multi-model Climatiq API Wrapper - Ironclad Architecture Edition
- * Final Fix: Global Fallback Strategy & Automatic Unit/Activity Alignment
+ * Final Fix: Dual-level data_version placement & Fallback Logic.
  */
 async function calculateInClimatiq(ai_analysis) {
     const apiKey = "2E44QNZJMX5X5B6EM43E88KRZ8"; 
@@ -25,10 +25,9 @@ async function calculateInClimatiq(ai_analysis) {
         return unitMap[unit] || rawUnit; 
     }
 
-    // 2. SELECCIÓN DINÁMICA DE ACTIVITY_ID (Para Spend-based)
+    // 2. SELECCIÓN DINÁMICA DE ACTIVITY_ID
     function getAdjustedActivityId(originalId, method, sType) {
         if (method === 'spend_based' && (sType === 'elec' || sType === 'electricity')) {
-            // Factor compatible con parámetros de tipo 'money'
             return "electricity-consumption"; 
         }
         return originalId;
@@ -48,10 +47,11 @@ async function calculateInClimatiq(ai_analysis) {
     
     let url = `${baseUrl}/estimate`;
     let finalPayload = {
-        data_version: DATA_VERSION,
+        data_version: DATA_VERSION, // Nivel 1: Root
         emission_factor: {
             activity_id: finalActivityId,
-            region: ai_analysis.region || "ES"
+            region: ai_analysis.region || "ES",
+            data_version: DATA_VERSION // Nivel 2: Nested (CRÍTICO para evitar el error actual)
         }
     };
 
@@ -66,8 +66,7 @@ async function calculateInClimatiq(ai_analysis) {
 
     try {
         console.log(`=== [CLIMATIQ_STRICT_REQ] Method: ${calculationMethod} ===`);
-        console.log("Payload:", JSON.stringify(finalPayload, null, 2));
-
+        
         let response = await fetch(url, {
             method: "POST",
             signal: controller.signal,
@@ -78,19 +77,18 @@ async function calculateInClimatiq(ai_analysis) {
         let data = await response.json();
 
         // --- ESTRATEGIA DE FALLBACK (REINTENTO GLOBAL) ---
-        // Si no encuentra el factor o hay error de unidades (Quito, ELEIA, etc.)
         if (!response.ok && (data.error_code === "no_emission_factor_found" || data.message.includes("unit type") || data.error_code === "resource_not_found")) {
-            console.warn("⚠️ [FALLBACK]: No se encontró factor exacto. Usando fuente universal IEA...");
+            console.warn("⚠️ [FALLBACK]: Reintentando con factor genérico IEA...");
             
             const fallbackPayload = {
-                data_version: DATA_VERSION,
+                data_version: DATA_VERSION, // Root
                 emission_factor: {
                     activity_id: "electricity-supply_grid-source_production_mix",
                     region: ai_analysis.region || "ES",
-                    source: "IEA" // Comodín internacional
+                    source: "IEA",
+                    data_version: DATA_VERSION // Nested
                 },
                 parameters: {
-                    // Si era spend_based, estimamos kWh (dividiendo por precio prom. 0.15) para que el factor IEA lo acepte
                     energy: calculationMethod === 'spend_based' ? Math.round(numericValue / 0.15) : numericValue,
                     energy_unit: "kWh"
                 }
@@ -104,20 +102,15 @@ async function calculateInClimatiq(ai_analysis) {
             data = await response.json();
         }
 
-        if (!response.ok) throw new Error(`Climatiq Fatal: ${data.message || data.error_code}`);
+        if (!response.ok) throw new Error(`Climatiq Error: ${data.message || data.error_code}`);
 
         return {
             calculation_id: data.calculation_id,
             co2e: Number(data.co2e),
             co2e_unit: data.co2e_unit,
             activity_id: finalActivityId,
-            audit_trail: `climatiq_${serviceType}_${calculationMethod}_v3_fallback`,
-            timestamp: new Date().toISOString(),
-            metadata: { 
-                region: ai_analysis.region, 
-                year: ai_analysis.year,
-                fallback_used: !response.ok // Indica si se usó el factor IEA
-            }
+            audit_trail: `climatiq_${serviceType}_${calculationMethod}_v3_fix`,
+            timestamp: new Date().toISOString()
         };
 
     } catch (error) {
