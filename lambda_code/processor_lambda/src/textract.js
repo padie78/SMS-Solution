@@ -6,31 +6,52 @@ const {
 
 const textractClient = new TextractClient({ region: process.env.AWS_REGION || "eu-central-1" });
 
+/**
+ * Procesa facturas en PDF, JPG, PNG o TIFF.
+ * El flujo asíncrono es compatible con todos estos formatos siempre que vengan de S3.
+ */
 exports.extraerFactura = async (bucket, key) => {
     const startTime = Date.now();
+    const extension = key.split('.').pop().toLowerCase();
+    
     console.log(`=== [TEXTRACT_JOB_START] ===`);
-    console.log(`Origen: s3://${bucket}/${key}`);
+    console.log(`Archivo: s3://${bucket}/${key} | Formato detectado: ${extension}`);
+
+    // Validación rápida de formatos soportados por Textract
+    const formatosSoportados = ['pdf', 'jpg', 'jpeg', 'png', 'tiff'];
+    if (!formatosSoportados.includes(extension)) {
+        throw new Error(`Formato .${extension} no soportado por AWS Textract.`);
+    }
 
     try {
+        // AWS detecta el MIME type automáticamente desde S3, 
+        // pero la estructura del comando StartExpenseAnalysisCommand es la misma.
         const startCommand = new StartExpenseAnalysisCommand({
-            DocumentLocation: { S3Object: { Bucket: bucket, Name: key } }
+            DocumentLocation: { 
+                S3Object: { 
+                    Bucket: bucket, 
+                    Name: key 
+                } 
+            }
         });
         
         const startResponse = await textractClient.send(startCommand);
         const jobId = startResponse.JobId;
-        
         console.log(`Job ID asignado: ${jobId}`);
 
         let finished = false;
         let response;
         let attempts = 0;
 
+        // Polling loop (igual para todos los formatos)
         while (!finished && attempts < 30) { 
             attempts++;
             await new Promise(r => setTimeout(r, 2000));
             const getCommand = new GetExpenseAnalysisCommand({ JobId: jobId });
             response = await textractClient.send(getCommand);
+            
             console.log(`[TEXTRACT_POLLING] Intento ${attempts} | Estado: ${response.JobStatus}`);
+            
             if (response.JobStatus === "SUCCEEDED") finished = true;
             else if (response.JobStatus === "FAILED") throw new Error(`AWS Textract Job Failed: ${response.StatusMessage}`);
         }
@@ -40,8 +61,7 @@ exports.extraerFactura = async (bucket, key) => {
         const processTime = Date.now() - startTime;
         console.log(`=== [TEXTRACT_RESPONSE_RECEIVED] ===`);
 
-        // --- 1. EXTRACCIÓN DE TEXTO COMPLETO (Estrategia Híbrida) ---
-        // Primero intentamos bloques directos (OCR puro)
+        // --- EXTRACCIÓN HÍBRIDA (Optimizado para fotos/JPG y PDFs) ---
         let fullText = (response.Blocks || [])
             .filter(b => b.BlockType === "LINE")
             .map(b => b.Text)
@@ -52,14 +72,14 @@ exports.extraerFactura = async (bucket, key) => {
         const expenseDoc = response.ExpenseDocuments?.[0];
 
         if (expenseDoc) {
-            // Extraer Hints financieros
+            // Campos de cabecera
             if (expenseDoc.SummaryFields) {
                 expenseDoc.SummaryFields.forEach(f => {
                     rawHints[f.Type?.Text || "UNKNOWN"] = f.ValueDetection?.Text || "N/A";
                 });
             }
 
-            // PROCESAMIENTO DE TABLAS (Donde están los consumos: kWh, m3, etc.)
+            // Tablas de consumo (muy importante en JPGs de facturas escaneadas)
             if (expenseDoc.LineItemGroups) {
                 expenseDoc.LineItemGroups.forEach(group => {
                     group.LineItems?.forEach(item => {
@@ -71,18 +91,19 @@ exports.extraerFactura = async (bucket, key) => {
                 });
             }
 
-            // SAFETY NET: Si fullText vino vacío (común en ExpenseAnalysis), reconstruimos 
-            // el texto completo a partir de los campos detectados por el modelo de IA.
+            // Si es un JPG, a veces response.Blocks viene vacío pero SummaryFields no.
             if (!fullText) {
-                console.log("[TEXTRACT_DEBUG] Reconstruyendo texto desde ExpenseDocuments...");
                 const backupText = [];
-                expenseDoc.SummaryFields?.forEach(f => backupText.push(f.LabelDetection?.Text, f.ValueDetection?.Text));
+                expenseDoc.SummaryFields?.forEach(f => {
+                    if (f.LabelDetection?.Text) backupText.push(f.LabelDetection.Text);
+                    if (f.ValueDetection?.Text) backupText.push(f.ValueDetection.Text);
+                });
                 fullText = backupText.filter(Boolean).join(" ");
             }
         }
 
-        // --- 2. CONSOLIDACIÓN PARA BEDROCK ---
         const summaryForAI = `
+        FORMAT: ${extension.toUpperCase()}
         DOCUMENT_RAW_TEXT: ${fullText}
         STRUCTURED_LINE_ITEMS: ${detailedLines.join("\n")}
         `.trim();
@@ -100,14 +121,12 @@ exports.extraerFactura = async (bucket, key) => {
             metadata: { 
                 pages: response.DocumentMetadata?.Pages || 1, 
                 jobId: jobId,
+                format: extension,
                 latency_ms: processTime
             }
         };
 
-        // El log crítico para debuguear el summaryLength
-        console.log(`✅ [TEXTRACT_SUCCESS] Páginas: ${result.metadata.pages} | Caracteres Summary: ${result.summary.length}`);
-        console.log(`=== [TEXTRACT_JOB_END] ===`);
-
+        console.log(`✅ [TEXTRACT_SUCCESS] Formato: ${extension} | Caracteres Summary: ${result.summary.length}`);
         return result;
 
     } catch (error) {
