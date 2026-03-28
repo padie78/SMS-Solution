@@ -57,9 +57,6 @@ exports.extraerFactura = async (bucket, key) => {
                     const label = f.LabelDetection?.Text || "";
                     const confidence = f.Type?.Confidence?.toFixed(2) || "N/A";
                     
-                    // Log individual de campo para debug
-                    console.log(`[FIELD] ${type}: "${value}" (Label: ${label}) | Conf: ${confidence}%`);
-                    
                     rawHints[type] = value;
                     if (label) textParts.push(`${label}: ${value}`);
                     else if (value) textParts.push(value);
@@ -79,7 +76,6 @@ exports.extraerFactura = async (bucket, key) => {
                         }).join(" | ");
                         
                         if (fields) {
-                            console.log(`[TABLE_LINE] G:${gIdx} L:${iIdx} | ${fields}`);
                             detailedLines.push(`[LINE_${gIdx}_${iIdx}]: ${fields}`);
                         }
                     });
@@ -100,7 +96,7 @@ exports.extraerFactura = async (bucket, key) => {
 
         // Log del texto consolidado que verá la IA
         console.log(`--- [FULL_TEXT_FOR_IA] ---`);
-        console.log(fullText.substring(0, 1000) + (fullText.length > 1000 ? "... [TRUNCATED]" : ""));
+        console.log(fullText); // Enviamos el string completo al buffer de log
 
         const summaryForAI = `
         FORMAT: ${extension.toUpperCase()}
