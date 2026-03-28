@@ -1,17 +1,24 @@
+/**
+ * Climatiq Wrapper - SMS Project
+ * Asegúrate de que este archivo termine con module.exports
+ */
 async function calculateInClimatiq(ai_analysis) {
-    // 1. LOG DE ENTRADA INMEDIATA (Fuera del try para ver si la función llega a arrancar)
+    // 1. LOG DE ENTRADA ABSOLUTA
     console.log("---------- [DEBUG SMS START] ----------");
-    console.log("Recibido ai_analysis:", JSON.stringify(ai_analysis));
+    console.log("Recibido ai_analysis:", JSON.stringify(ai_analysis, null, 2));
 
     const apiKey = "2E44QNZJMX5X5B6EM43E88KRZ8"; 
     const baseUrl = "https://api.climatiq.io/data/v1/estimate";
     const DATA_VERSION = "32.32"; 
 
     try {
+        // Validación básica para evitar crashes por undefined
+        if (!ai_analysis) throw new Error("ai_analysis es undefined o null");
+
         const serviceType = ai_analysis.service_type?.toLowerCase() || 'unknown';
         const calculationMethod = ai_analysis.calculation_method || 'unknown';
 
-        // --- MÉTODOS INTERNOS (Mantenlos igual) ---
+        // --- LÓGICA DE NORMALIZACIÓN ---
         function sanitizeUnits(sType, rawUnit, method) {
             if (!rawUnit) return method === 'spend_based' ? 'eur' : 'kWh';
             const unit = rawUnit.toLowerCase().trim();
@@ -19,9 +26,8 @@ async function calculateInClimatiq(ai_analysis) {
                 const currencyMap = { "euro": "eur", "euros": "eur", "eur": "eur", "dollar": "usd", "shekel": "ils" };
                 return currencyMap[unit] || "eur";
             }
-            const unitMap = { "kwh": "kWh", "l": "l", "m3": "m3", "kg": "kg" };
             if (sType?.includes('elec') || sType?.includes('gas')) return 'kWh';
-            return unitMap[unit] || rawUnit;
+            return "kWh"; 
         }
 
         function getAdjustedActivityId(method, sType) {
@@ -37,7 +43,7 @@ async function calculateInClimatiq(ai_analysis) {
         const unit = sanitizeUnits(serviceType, ai_analysis.unit, calculationMethod);
         const activityId = getAdjustedActivityId(calculationMethod, serviceType);
 
-        // 2. CONSTRUCCIÓN Y LOG DEL PAYLOAD
+        // 2. CONSTRUCCIÓN DEL PAYLOAD
         const finalPayload = {
             data_version: DATA_VERSION,
             emission_factor: {
@@ -52,7 +58,7 @@ async function calculateInClimatiq(ai_analysis) {
             }
         };
 
-        // ESTE ES EL LOG CRÍTICO
+        // --- LOG CRÍTICO ANTES DE FETCH ---
         console.log("🚀 [CLIMATIQ_PAYLOAD_PRE_FLIGHT]:", JSON.stringify(finalPayload, null, 2));
 
         const response = await fetch(baseUrl, {
@@ -67,12 +73,11 @@ async function calculateInClimatiq(ai_analysis) {
         const data = await response.json();
 
         if (!response.ok) {
-            // LOG DE ERROR DE LA API
             console.error("❌ [CLIMATIQ_API_REJECTED]:", JSON.stringify(data, null, 2));
             throw new Error(data.message || data.error_code);
         }
 
-        console.log("✅ [CLIMATIQ_SUCCESS]:", data.co2e);
+        console.log("✅ [CLIMATIQ_SUCCESS]: CO2 =", data.co2e);
         console.log("---------- [DEBUG SMS END] ----------");
 
         return {
@@ -85,8 +90,10 @@ async function calculateInClimatiq(ai_analysis) {
         };
 
     } catch (error) {
-        // LOG DE CRASH
         console.error("🔥 [FATAL_EXCEPTION_IN_WRAPPER]:", error.message);
         throw error; 
     }
 }
+
+// ESTA LÍNEA ES LA QUE SOLUCIONA EL "NOT A FUNCTION"
+module.exports = { calculateInClimatiq };
