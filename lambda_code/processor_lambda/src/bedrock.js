@@ -3,16 +3,38 @@ const { BedrockRuntimeClient, InvokeModelCommand } = require("@aws-sdk/client-be
 const client = new BedrockRuntimeClient({ region: "eu-central-1" });
 
 /**
+ * Función interna de limpieza y validación de esquema
+ */
+function validarYLimpiarResultado(resultado) {
+    // 1. Asegurar tipos de datos básicos (totales y valores siempre numéricos)
+    if (resultado.extracted_data && typeof resultado.extracted_data.total_amount === 'string') {
+        resultado.extracted_data.total_amount = parseFloat(resultado.extracted_data.total_amount.replace(/[^0-9.,]/g, '').replace(',', '.'));
+    }
+
+    if (resultado.ai_analysis && typeof resultado.ai_analysis.value === 'string') {
+        resultado.ai_analysis.value = parseFloat(resultado.ai_analysis.value.replace(/[^0-9.,]/g, '').replace(',', '.'));
+    }
+
+    // 2. Validación de campos obligatorios para el SMS
+    const camposObligatorios = ['extracted_data', 'ai_analysis', 'climatiq_ready_payload'];
+    camposObligatorios.forEach(campo => {
+        if (!resultado[campo]) {
+            console.warn(`[WARN] El resultado de IA no contiene el campo: ${campo}`);
+            // Inicializamos vacío para evitar errores de undefined en el frontend
+            resultado[campo] = {};
+        }
+    });
+
+    return resultado;
+}
+
+/**
  * Pipeline de Normalización con IA (Sistema de Gestión de Sostenibilidad)
  */
 exports.entenderConIA = async (summary, queryHints) => {
     const modelId = "eu.anthropic.claude-haiku-4-5-20251001-v1:0";
 
-    /**
- * Pipeline de Normalización con IA (Sistema de Gestión de Sostenibilidad)
- * Integra este bloque justo al inicio de tu función exports.entenderConIA
- */
-const systemPrompt = `Eres un Ingeniero Senior de Datos de Sostenibilidad. 
+    const systemPrompt = `Eres un Ingeniero Senior de Datos de Sostenibilidad. 
       Misión: Actuar como un middleware determinista entre el OCR bruto y la API de Climatiq.
 
       ### REFERENCIA DE MAPEO CLIMATIQ (ESTRICTO):
@@ -20,16 +42,13 @@ const systemPrompt = `Eres un Ingeniero Senior de Datos de Sostenibilidad.
       - WATER: 'water-type_tap_water'
       - NATURAL GAS: 'natural_gas-fuel_type_natural_gas'
       - DIESEL: 'fuel-type_diesel_fuel-source_generic'
-      - FREIGHT: 'transport-heavy_goods_vehicle-fuel_source_diesel'
-      - TRAVEL/FLIGHTS: 'passenger_flight-type_long_haul-class_economy'
 
       ### REGLAS DE NEGOCIO CRÍTICAS:
       1. FUSIÓN DE DATOS: Priorizar QUERY_HINTS para valores financieros. Usar SUMMARY para detalles de consumo (kWh, m3, etc.).
       2. PERIODO DE FACTURACIÓN: Obligatorio para análisis de brechas. Si faltan fechas, usar null.
-      3. REDUCCIÓN DE RUIDO: Restar recargos por mora, intereses o cargos de mantenimiento del 'value' si el método es 'spend_based'.
-      4. AÑO: Determinar el año de consumo basado en las fechas de facturación (vital para la precisión del factor de emisión).
+      3. AÑO: Determinar el año de consumo basado en las fechas de facturación (vital para el factor de emisión).
 
-      ### DEFINICIÓN DEL ESQUEMA DE SALIDA:
+      ### DEFINICIÓN DEL ESQUEMA DE SALIDA (JSON):
       {
         "extracted_data": {
           "vendor": "string",
@@ -41,23 +60,23 @@ const systemPrompt = `Eres un Ingeniero Senior de Datos de Sostenibilidad.
           "meter_id": "string|null"
         },
         "ai_analysis": {
-          "service_type": "elec|gas|water|fuel|freight|travel|waste",
+          "service_type": "elec|gas|water|fuel",
           "scope": 1|2|3,
           "year": int,
           "calculation_method": "consumption_based|spend_based",
           "activity_id": "string",
-          "parameter_type": "energy|volume|weight|money",
+          "parameter_type": "energy|volume|money",
           "value": float,
           "unit": "string",
           "region": "string",
-          "is_estimated_reading": bool,
-          "is_renewable": bool,
-          "route": [{"from": "string", "to": "string", "mode": "road|air"}],
-          "legs": [{"from": "string", "to": "string", "class": "economy"}],
-          "passengers": int,
           "confidence_score": float,
-          "anomaly_detected": boolean,
           "insight_text": "string"
+        },
+        "climatiq_ready_payload": {
+          "activity_id": "string",
+          "parameters": { "energy_value": float, "energy_unit": "string" },
+          "year": int,
+          "region": "string"
         }
       }`;
 
@@ -74,17 +93,7 @@ const systemPrompt = `Eres un Ingeniero Senior de Datos de Sostenibilidad.
     };
 
     try {
-        // --- LOG DE ENTRADA ---
         console.log("=== [BEDROCK_INPUT_START] ===");
-        console.log(`Modelo: ${modelId}`);
-        console.log("Payload enviado a Bedrock:", JSON.stringify({
-            queryHints,
-            summaryLength: summary.length,
-            modelParams: { temperature: bodyPayload.temperature, max_tokens: bodyPayload.max_tokens }
-        }, null, 2));
-        // Opcional: console.log("System Prompt:", systemPrompt); // Solo si necesitas debuggear el prompt largo
-        console.log("=== [BEDROCK_INPUT_END] ===");
-
         const command = new InvokeModelCommand({
             modelId,
             contentType: "application/json",
@@ -100,31 +109,25 @@ const systemPrompt = `Eres un Ingeniero Senior de Datos de Sostenibilidad.
         const parsedRes = JSON.parse(rawRes);
         const contentText = parsedRes.content?.[0]?.text || "";
 
-        // --- LOG DE SALIDA (RAW) ---
         console.log("=== [BEDROCK_OUTPUT_START] ===");
         console.log(`Latencia: ${duration}ms`);
-        console.log("Respuesta cruda de la IA:", contentText);
-
+        
+        // Extraer JSON de la respuesta (maneja si la IA incluye texto extra)
         const jsonMatch = contentText.match(/\{[\s\S]*\}/);
         if (!jsonMatch) {
-            console.error("❌ ERROR: La IA no incluyó un bloque JSON en su respuesta.");
-            throw new Error("La IA no devolvió un JSON válido");
+            throw new Error("La IA no incluyó un bloque JSON en su respuesta.");
         }
         
-        const finalResult = JSON.parse(jsonMatch[0]);
+        let finalResult = JSON.parse(jsonMatch[0]);
 
-        // Sanitización final de datos
-        validarYLimpiarResultado(finalResult);
+        // --- AQUÍ SE LLAMA A LA FUNCIÓN DE LIMPIEZA ---
+        finalResult = validarYLimpiarResultado(finalResult);
 
-        // --- LOG DE RESULTADO FINAL ---
-        console.log("Resultado final normalizado:", JSON.stringify(finalResult, null, 2));
-        console.log("=== [BEDROCK_OUTPUT_END] ===");
-
+        console.log("✅ Resultado final normalizado listo para DynamoDB");
         return finalResult;
 
     } catch (error) {
         console.error("🚨 [BEDROCK_PIPELINE_ERROR]:", error.message);
-        if (error.stack) console.error("Stack Trace:", error.stack);
         throw new Error(`Fallo en la Normalización de IA: ${error.message}`);
     }
 };
