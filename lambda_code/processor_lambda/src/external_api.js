@@ -12,34 +12,77 @@ async function calculateInClimatiq(ai_analysis) {
 
     // 1. SANITIZACIÓN DE UNIDADES
     function sanitizeUnits(sType, rawUnit, method) {
-        const unit = rawUnit?.toLowerCase().trim();
-        if (method === 'spend_based') {
-            const currencyMap = { "euro": "eur", "euros": "eur", "dollar": "usd", "shekel": "ils" };
-            return currencyMap[unit] || unit;
-        }
-        if (sType === 'elec' || sType === 'electricity') return 'kWh';
-        if (sType === 'gas') return 'kWh';
-        if (sType === 'water') return 'l';
+        if (!rawUnit) return method === 'spend_based' ? 'eur' : 'kWh';
+        
+        const unit = rawUnit.toLowerCase().trim();
 
-        const unitMap = { "kwh": "kWh", "liters": "l", "m3": "m3", "kg": "kg", "t": "t" };
-        return unitMap[unit] || rawUnit; 
-    }
+        // Mapeo para Spend-based (Monedas ISO 4217)
+        if (method === 'spend_based') {
+            const currencyMap = {
+                "euro": "eur", "euros": "eur", "eur": "eur",
+                "dollar": "usd", "dollars": "usd", "usd": "usd",
+                "shekel": "ils", "shekels": "ils", "ils": "ils", "nis": "ils",
+                "peso": "mxn", "ars": "ars", "clp": "clp"
+            };
+            return currencyMap[unit] || "eur"; // Default a EUR por ser la base del proyecto
+        }
+
+        // Mapeo para Consumption-based (Unidades Técnicas)
+        const unitMap = {
+            // Energía
+            "kwh": "kWh", "kilowatt-hour": "kWh", "wh": "Wh", "mwh": "MWh",
+            // Volumen
+            "l": "l", "liter": "l", "litros": "l", "m3": "m3", "cubic_meters": "m3",
+            "ft3": "ft3", "gallon": "gallon",
+            // Masa
+            "kg": "kg", "kilogram": "kg", "t": "t", "ton": "t", "tonne": "t",
+            "lb": "lb", "pound": "lb"
+        };
+
+        // Forzado por tipo de servicio si hay ambigüedad
+        if (sType?.includes('elec') || sType?.includes('gas')) return 'kWh';
+        if (sType?.includes('water')) return 'l';
+
+        return unitMap[unit] || rawUnit;
+    }   
 
     // 2. SELECCIÓN DINÁMICA DE ACTIVITY_ID (Evita el error de ELEIA)
     function getAdjustedActivityId(originalId, method, sType) {
-        if (method === 'spend_based' && (sType === 'elec' || sType === 'electricity')) {
-            // Este factor sí acepta 'money' como parámetro
-            return "electricity-consumption"; 
+        const type = sType?.toLowerCase() || '';
+
+        // Si es basado en gasto, usamos factores SUT (Supply-Use Table)
+        // Estos factores están diseñados para aceptar 'money' como parámetro.
+        if (method === 'spend_based') {
+            if (type.includes('elec')) return "energy-distribution"; // Factor universal de gasto eléctrico
+            if (type.includes('gas')) return "gas-distribution";
+            if (type.includes('water')) return "water-collection_treatment_supply";
+            
+            // Si no detectamos el servicio, usamos un factor genérico de servicios industriales
+            return "industrial_processing-services"; 
         }
+
+        // Si es basado en consumo pero el ID viene vacío o genérico, asignamos el estándar de red
+        if (!originalId || originalId === "default") {
+            if (type.includes('elec')) return "electricity-supply_grid-source_production_mix";
+            if (type.includes('gas')) return "fuel-natural_gas-stationary_combustion";
+        }
+        
         return originalId;
-    }
+    }   
 
     // 3. CORRECCIÓN DE PARAMETER_TYPE
-    function getCorrectParameterType(sType, method) {
+   function getCorrectParameterType(sType, method) {
+        // Regla de oro: El método de cálculo manda sobre el tipo de servicio
         if (method === 'spend_based') return 'money';
-        if (sType === 'elec' || sType === 'gas') return 'energy';
-        if (sType === 'water' || sType === 'fuel') return 'volume';
-        return ai_analysis.parameter_type || 'energy';
+    
+        const type = sType?.toLowerCase() || '';
+
+        // Clasificación física
+        if (type.includes('elec') || type.includes('gas')) return 'energy';
+        if (type.includes('water') || type.includes('fuel') || type.includes('diesel')) return 'volume';
+        if (type.includes('freight') || type.includes('waste')) return 'weight';
+
+        return 'energy'; // Fallback seguro
     }
 
     const finalParamType = getCorrectParameterType(serviceType, calculationMethod);
