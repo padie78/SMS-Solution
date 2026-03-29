@@ -119,17 +119,34 @@ async function invokeBedrock(summary, queryHints, customInstruction = "") {
  * PASO 1: Generar keywords y CLASIFICAR el servicio
  */
 exports.generarBusquedaSemantica = async (summary, queryHints = {}) => {
-    // Añadimos service_type a la instrucción para que el fallback sepa qué es
-    const instruction = `Identify the provider and the utility type. 
-    Classification for service_type: 'elec', 'gas', 'water', or 'fuel'.`;
+    // Cambiamos la instrucción para que use el vocabulario de Climatiq
+    const instruction = `Mission: Map the document to Climatiq Search terms.
+    - If electricity: Use "Electricity supplied from grid"
+    - If gas: Use "Natural gas"
+    - If fuel/diesel: Use "Diesel" or "Fuel oil"
+    - If water: Use "Water supply"
+    
+    Classification for service_type: 'elec', 'gas', 'water', 'fuel'.
+    Region must be ISO-3166-1 alpha-2 (e.g., 'ES' for Spain).`;
     
     const result = await invokeBedrock(summary, queryHints, instruction);
     
+    // Mapeo manual de emergencia para asegurar que el query sea limpio
+    const climatiqTerms = {
+        'elec': 'Electricity supplied from grid',
+        'gas': 'Natural gas',
+        'water': 'Water supply',
+        'fuel': 'Diesel'
+    };
+
+    const service = result.ai_analysis?.service_type || 'elec';
+    const normalizedQuery = climatiqTerms[service] || service;
+
     return {
         ...result,
-        // Aseguramos que existan estos campos para que external_api no rompa
-        service_type: result.ai_analysis?.service_type || 'elec',
-        search_query: `${result.extracted_data?.vendor || ''} ${result.ai_analysis?.service_type || ''}`.trim(),
+        service_type: service,
+        // Ahora el query es: "Electricity supplied from grid" en vez de "ELEIA elec"
+        search_query: normalizedQuery, 
         vendor: result.extracted_data?.vendor || "Unknown",
         region: result.ai_analysis?.region || "ES"
     };
