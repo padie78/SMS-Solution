@@ -35,7 +35,7 @@ exports.handler = async (event, context) => {
             // ... (Resto de tus pasos de OCR, IA, etc.)
             
             // Ejemplo: usar el explorador para loguear qué factores hay disponibles para este caso
-            // const hints = await exploreFreeActivities("gas natural"); 
+            const hints = await exploreFreeActivities(); 
 
             results.push({ key, status: 'success' });
         } catch (err) {
