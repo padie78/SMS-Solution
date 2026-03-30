@@ -3,19 +3,37 @@ const { entenderFacturaParaClimatiq } = require("./bedrock");
 
 const CLIMATIQ_API_KEY = "2E44QNZJMX5X5B6EM43E88KRZ8"; 
 const BASE_URL = "https://api.climatiq.io/data/v1";
-const VERSION = "32.32";
 
+/**
+ * Normaliza los parámetros y UNIDADES para Climatiq.
+ * IMPORTANTE: Climatiq es estricto con el casing de las unidades.
+ */
 function buildClimatiqParameters(strategy, line) {
     const val = Number(line.value) || 0;
-    const unit = (line.unit || strategy.default_unit || "").toLowerCase();
     
-    switch (strategy.unit_type) {
-        case "energy": return { energy: val, energy_unit: unit };
-        case "weight": return { weight: val, weight_unit: unit };
-        case "distance": return { distance: val, distance_unit: unit };
+    // Mapeo de seguridad para evitar errores de "not a valid unit"
+    const unitMapping = {
+        "kwh": "kWh",
+        "KWH": "kWh",
+        "kg": "kg",
+        "t": "t",
+        "km": "km",
+        "t.km": "t.km"
+    };
+
+    const rawUnit = (line.unit || strategy.default_unit || "").toLowerCase();
+    const cleanUnit = unitMapping[rawUnit] || rawUnit;
+
+    switch (strategy.unit_type.toLowerCase()) {
+        case "energy": 
+            return { energy: val, energy_unit: cleanUnit };
+        case "weight": 
+            return { weight: val, weight_unit: cleanUnit };
+        case "distance": 
+            return { distance: val, distance_unit: cleanUnit };
         case "weightoverdistance": 
             return { 
-                weight: Number(line.logistics_meta?.weight) || val, 
+                weight: Number(line.logistics_meta?.weight) || 0, 
                 weight_unit: "t",
                 distance: Number(line.logistics_meta?.distance) || 0,
                 distance_unit: "km"
@@ -37,20 +55,21 @@ async function calculateInClimatiq(ocrSummary, queryHints = {}) {
             if (!strategy) return { success: false, error: "Strategy Not Found" };
 
             const params = buildClimatiqParameters(strategy, line);
+            if (!params) return { success: false, error: "Invalid Parameters" };
 
             try {
-                // FIX: Aseguramos el orden de las llaves manualmente
+                // Usamos la estructura que verificaste en tu búsqueda y ejemplo
                 const requestBody = JSON.stringify({
                     emission_factor: {
                         activity_id: strategy.activity_id,
-                        data_version: "^3", // Versión dinámica como en tu ejemplo
-                        region: "GB", 
+                        data_version: "^1", // Mantenemos v1 por compatibilidad de IDs
+                        region: "GB",       // Alineado a tu JSON de búsqueda
                         year: 2021
                     },
                     parameters: params
                 });
 
-                const res = await fetch(`${BASE_URL}/estimate?data_version=${VERSION}`, {
+                const res = await fetch(`${BASE_URL}/estimate`, {
                     method: "POST",
                     headers: { 
                         "Authorization": `Bearer ${CLIMATIQ_API_KEY}`, 
@@ -79,11 +98,12 @@ async function calculateInClimatiq(ocrSummary, queryHints = {}) {
         });
 
         const results = await Promise.all(linePromises);
-        const successfulOnes = results.filter(r => r && r.success);
+        const safeResults = results || [];
+        const successfulOnes = safeResults.filter(r => r && r.success);
 
         return {
             total_co2e: successfulOnes.reduce((acc, curr) => acc + (curr.co2e || 0), 0),
-            items: results, 
+            items: safeResults, 
             invoice_metadata: {
                 vendor: meta.vendor?.name || "Unknown",
                 invoice_no: meta.invoice_number || "N/A",
