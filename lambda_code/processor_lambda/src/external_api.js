@@ -70,6 +70,16 @@ async function calculateInClimatiq(ocrSummary, queryHints = {}) {
         const lines = fullAnalysis.emission_lines;
         const meta = fullAnalysis.extracted_data || {};
 
+        // --- [DEBUG: AI_EXTRACTION_BREAKPOINT] ---
+        console.log(`\n🔍 [AI_ANALYSIS_COMPLETE]`);
+        console.log(`Lines Detected: ${Array.isArray(lines) ? lines.length : 0}`);
+        
+        console.log(`\n--- [EMISSION_LINES_RAW] ---`);
+        console.log(JSON.stringify(lines, null, 2));
+
+        console.log(`\n--- [INVOICE_METADATA_RAW] ---`);
+        console.log(JSON.stringify(meta, null, 2));
+
         const linePromises = lines.map(async (line) => {
             const strategy = STRATEGIES[line.strategy];
             

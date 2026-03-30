@@ -5,13 +5,8 @@ const { calculateInClimatiq } = require("./external_api");
 const { saveInvoiceWithStats } = require("./db");
 const { downloadFromS3, buildGoldenRecord } = require("./utils");
 
-// Configuración de Clientes AWS
 const s3Client = new S3Client({ region: process.env.AWS_REGION || "eu-central-1" });
 
-/**
- * LAMBDA HANDLER: Orquestador Principal del Pipeline de Carbono
- * Flujo: S3 Trigger -> Textract (OCR) -> Bedrock (AI) -> Climatiq (CO2e) -> DynamoDB/RDS
- */
 exports.handler = async (event, context) => {
     const results = [];
     const requestId = context.awsRequestId;
@@ -28,21 +23,26 @@ exports.handler = async (event, context) => {
             const filename = parts.pop();
             const fileId = filename.split('.')[0];
 
-            console.log(`[PROCESSING]: Org: ${orgId} | File: ${filename}`);
+            console.log(`\n--- [STEP 1: METADATA] ---`);
+            console.log(`File: ${filename} | Org: ${orgId} | Key: ${key}`);
 
-            // 2. OCR
+            // 2. OCR - Textract
             const rawOcr = await extraerFactura(bucket, key);
+            console.log(`\n--- [STEP 2: OCR_RESULT] ---`);
+            console.log(JSON.stringify(rawOcr, null, 2));
             
             // 3. Integridad (Hash)
             const fileBuffer = await downloadFromS3(s3Client, bucket, key);
             const fileHash = crypto.createHash('sha256').update(fileBuffer).digest('hex');
+            console.log(`\n--- [STEP 3: FILE_INTEGRITY] ---`);
+            console.log(`SHA256: ${fileHash}`);
 
-            // 4. IA + CLIMATIQ 
-            // IMPORTANTE: Esta función ahora siempre devuelve un objeto con { total_co2e, items, invoice_metadata }
+            // 4. IA + CLIMATIQ
             const climatiqResult = await calculateInClimatiq(rawOcr.summary, rawOcr.query_hints);
+            console.log(`\n--- [STEP 4: CLIMATIQ_CALCULATION] ---`);
+            console.log(JSON.stringify(climatiqResult, null, 2));
 
-            // 5. Construcción del "Golden Record" 
-            // Pasamos climatiqResult.invoice_metadata en lugar de audit
+            // 5. Construcción del "Golden Record"
             const recordToSave = buildGoldenRecord(
                 orgId, 
                 fileId, 
@@ -52,24 +52,26 @@ exports.handler = async (event, context) => {
                 climatiqResult.invoice_metadata || {}, 
                 climatiqResult               
             );
+            console.log(`\n--- [STEP 5: GOLDEN_RECORD_READY] ---`);
+            console.log(JSON.stringify(recordToSave, null, 2));
 
-            // 6. Lógica Defensiva Refactorizada
-            // Si no hay total_co2e o no hay items, lo marcamos para revisión
+            // 6. Lógica Defensiva y Status
             if (!climatiqResult || climatiqResult.total_co2e === 0) {
-                console.warn(`[!] Marking ${fileId} for manual review: No carbon data found.`);
+                console.warn(`[!] Status: PENDING_REVIEW | Reason: No carbon data.`);
                 recordToSave.status = "PENDING_REVIEW";
                 recordToSave.error_log = "IA could not extract emission lines or calculation resulted in 0.";
             } else {
                 recordToSave.status = "PROCESSED";
-                // FIX DEL LOG: Usamos las propiedades correctas del objeto de respuesta
                 const unit = (climatiqResult.items && climatiqResult.items.length > 0) 
                              ? climatiqResult.items[0].unit 
                              : 'kg';
-                console.log(`✅ [CALCULATED]: ${climatiqResult.total_co2e.toFixed(5)} ${unit} CO2e`);
+                console.log(`✅ [STEP 6: FINAL_STATUS] PROCESSED | Total: ${climatiqResult.total_co2e.toFixed(5)} ${unit}`);
             }
 
             // 7. Persistencia
-            await saveInvoiceWithStats(recordToSave);
+            console.log(`\n--- [STEP 7: DATABASE_PERSISTENCE] ---`);
+            const dbStatus = await saveInvoiceWithStats(recordToSave);
+            console.log(`DB Response: ${JSON.stringify(dbStatus)}`);
             
             results.push({ 
                 key, 
@@ -78,11 +80,12 @@ exports.handler = async (event, context) => {
             });
 
         } catch (err) {
-            console.error(`❌ [FATAL_ERROR] ${key}: ${err.stack}`); // Usamos .stack para ver la línea exacta del reduce
+            console.error(`\n❌ [FATAL_ERROR] ${key}`);
+            console.error(`Stack: ${err.stack}`);
             results.push({ key, status: 'error', message: err.message });
         }
     }
     
-    console.log(`=== [END_BATCH] Req: ${requestId} ===`);
+    console.log(`\n=== [END_BATCH] Req: ${requestId} ===`);
     return results;
 };
