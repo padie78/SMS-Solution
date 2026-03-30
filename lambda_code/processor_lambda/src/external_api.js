@@ -130,15 +130,12 @@ async function calculateInClimatiq(ocrSummary, queryHints = {}) {
         });
 
         const results = await Promise.all(linePromises);
-        
-        // El reduce ahora es SEGURO porque curr.co2e siempre será un número (0 o el valor real)
-        const total = results.reduce((acc, curr) => acc + (curr.co2e || 0), 0);
 
-        if (total > 0) {
-            // Buscamos la primera unidad válida para el log
-            const firstUnit = results.find(r => r.success)?.unit || "kg";
-            console.log(`✅ [CALCULATED]: ${total.toFixed(5)} ${firstUnit} CO2e`);
-        }
+// FILTRÁ LOS ÉXITOS Y MOSTRÁ EL TOTAL UNA SOLA VEZ
+const total = results.reduce((acc, curr) => acc + (curr.co2e || 0), 0);
+if (results.length > 0) {
+    console.log(`✅ [TOTAL_CALCULATED]: ${total.toFixed(5)} kg CO2e (${results.length} líneas)`);
+}
 
         return {
             total_co2e: total,
