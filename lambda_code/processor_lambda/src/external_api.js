@@ -32,7 +32,7 @@ function buildClimatiqParameters(strategy, line) {
     }
 }
 
-async function calculateInClimatiq(ocrSummary, queryHints = {}) {
+exports.calculateInClimatiq = async function(ocrSummary, queryHints = {}) {
     try {
         const fullAnalysis = await entenderFacturaParaClimatiq(ocrSummary, queryHints);
         const { emission_lines, extracted_data } = fullAnalysis;
