@@ -22,7 +22,7 @@ exports.saveInvoiceWithStats = async (data) => {
     const items = Array.isArray(internal.items) ? internal.items : [];
     
     const { full_record } = data;
-    const tableName = process.env.DYNAMO_TABLE || "sms-platform-dev-emissions";
+    const tableName = "sms-platform-dev-emissions";
 
     if (!full_record || !full_record.SK) {
         console.error("🚨 [DB_ERROR]: full_record o SK faltante.");
