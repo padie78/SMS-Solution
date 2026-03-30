@@ -7,26 +7,41 @@ const dynamo = DynamoDBDocumentClient.from(client, {
 });
 
 /**
- * Persistencia Atómica de Factura y Actualización de Estadísticas (Multi-Ítem)
+ * Persistencia Atómica de Factura y Actualización de Estadísticas
+ * Blindada contra valores undefined en el reduce.
  */
 exports.saveInvoiceWithStats = async (data) => {
-    const { orgId, year, month, totalAmount, items } = data.internal_refs;
+    // 1. Desestructuración segura con valores por defecto
+    const internal = data.internal_refs || {};
+    const orgId = internal.orgId || 'UNKNOWN_ORG';
+    const year = internal.year || new Date().getFullYear().toString();
+    const month = internal.month || (new Date().getMonth() + 1).toString().padStart(2, '0');
+    const totalAmount = Number(internal.totalAmount) || 0;
+    
+    // BLINDAJE CRÍTICO: Aseguramos que 'items' sea siempre un array para el reduce
+    const items = Array.isArray(internal.items) ? internal.items : [];
+    
     const { full_record } = data;
-    const tableName = process.env.DYNAMO_TABLE;
+    const tableName = process.env.DYNAMO_TABLE || "SustainabilityTable";
 
-    // 1. Agregación local: Sumamos CO2 por cada tipo de servicio en la factura
-    // Ej: { ELEC: 120.5, GAS: 80.2 }
+    if (!full_record || !full_record.SK) {
+        console.error("🚨 [DB_ERROR]: full_record o SK faltante.");
+        return { success: false, reason: "MISSING_RECORD_DATA" };
+    }
+
+    // 2. Agregación local segura
     const serviceTotals = items.reduce((acc, item) => {
-        acc[item.strategy] = (acc[item.strategy] || 0) + item.co2e;
+        if (item && item.strategy) {
+            acc[item.strategy] = (acc[item.strategy] || 0) + (Number(item.co2e) || 0);
+        }
         return acc;
     }, {});
 
     const totalCo2eFactura = Object.values(serviceTotals).reduce((a, b) => a + b, 0);
 
     try {
-        // PASO 1: Guardar Factura e inicializar contadores mensuales/anuales
-        // Transacción para asegurar que si la factura ya existe (SK), nada se guarde.
-        await dynamo.send(new TransactWriteCommand({
+        // PASO 1: Guardar Factura e inicializar contadores
+        const mainTransaction = {
             TransactItems: [
                 {
                     Put: { 
@@ -58,39 +73,42 @@ exports.saveInvoiceWithStats = async (data) => {
                     }
                 }
             ]
-        }));
+        };
 
-        // PASO 2: Iterar y actualizar cada servicio detectado en la factura
-        // Esto asegura que el desglose por servicio en el Dashboard sea exacto.
-        for (const [service, co2Value] of Object.entries(serviceTotals)) {
-            await dynamo.send(new TransactWriteCommand({
-                TransactItems: [{
-                    Update: {
-                        TableName: tableName,
-                        Key: { PK: `ORG#${orgId}`, SK: `STATS#${year}` },
-                        UpdateExpression: `
-                            SET by_service.#s = if_not_exists(by_service.#s, :zero) + :co2,
-                                by_month.#m.co2 = by_month.#m.co2 + :co2,
-                                by_month.#m.spend = by_month.#m.spend + :money_share
-                        `,
-                        ExpressionAttributeNames: { "#s": service, "#m": month },
-                        ExpressionAttributeValues: { 
-                            ":co2": co2Value, 
-                            ":zero": 0,
-                            // Asignamos el gasto total solo al primer servicio para no triplicar el gasto real
-                            ":money_share": (service === Object.keys(serviceTotals)[0]) ? totalAmount : 0 
+        await dynamo.send(new TransactWriteCommand(mainTransaction));
+
+        // PASO 2: Actualizar desglose por servicio (solo si hay servicios detectados)
+        const services = Object.keys(serviceTotals);
+        if (services.length > 0) {
+            for (const [service, co2Value] of Object.entries(serviceTotals)) {
+                await dynamo.send(new TransactWriteCommand({
+                    TransactItems: [{
+                        Update: {
+                            TableName: tableName,
+                            Key: { PK: `ORG#${orgId}`, SK: `STATS#${year}` },
+                            UpdateExpression: `
+                                SET by_service.#s = if_not_exists(by_service.#s, :zero) + :co2,
+                                    by_month.#m.co2 = if_not_exists(by_month.#m.co2, :zero) + :co2,
+                                    by_month.#m.spend = if_not_exists(by_month.#m.spend, :zero) + :money_share
+                            `,
+                            ExpressionAttributeNames: { "#s": service, "#m": month },
+                            ExpressionAttributeValues: { 
+                                ":co2": co2Value, 
+                                ":zero": 0,
+                                ":money_share": (service === services[0]) ? totalAmount : 0 
+                            }
                         }
-                    }
-                }]
-            }));
+                    }]
+                }));
+            }
         }
 
-        console.log(`✅ [DB_SUCCESS]: Invoice ${full_record.invoice_no} and multi-service stats updated.`);
+        console.log(`✅ [DB_SUCCESS]: Invoice ${full_record.invoice_no || 'N/A'} and stats updated.`);
         return { success: true };
 
     } catch (error) {
         if (error.name === "TransactionCanceledException" || error.message.includes("ConditionalCheckFailed")) {
-            console.warn(`⏭️ [DUPLICATE_SKIP]: SK ${full_record.SK} already exists.`);
+            console.warn(`⏭️ [DUPLICATE_SKIP]: SK ${full_record.SK} ya existe en DynamoDB.`);
             return { success: false, reason: "ALREADY_EXISTS" };
         }
 
