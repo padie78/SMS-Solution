@@ -67,5 +67,22 @@ Mission: Extract both accounting and emission data from invoice OCR summaries.
 
     const response = await client.send(command);
     const rawRes = JSON.parse(new TextDecoder().decode(response.body));
-    return JSON.parse(rawRes.content[0].text);
+    
+    // 1. Obtenemos el texto crudo
+    let contentText = rawRes.content[0].text.trim();
+
+    // 2. LIMPIEZA CRUCIAL: Eliminamos bloques de código Markdown si existen
+    // Este Regex busca cualquier cosa que esté entre { y } inclusive
+    const jsonMatch = contentText.match(/\{[\s\S]*\}/);
+    
+    if (jsonMatch) {
+        contentText = jsonMatch[0];
+    }
+
+    try {
+        return JSON.parse(contentText);
+    } catch (parseError) {
+        console.error("🚨 [JSON_PARSE_FAILED]: El modelo devolvió basura:", contentText);
+        throw new Error("La IA no devolvió un JSON válido para procesar.");
+    }
 };
