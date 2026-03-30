@@ -1,13 +1,14 @@
 const { STRATEGIES } = require("./constants/climatiq_catalog");
 const { entenderFacturaParaClimatiq } = require("./bedrock");
 
-// Recomendación: Mover esto a AWS Secrets Manager o Environment Variables
+// Credenciales y Configuración
 const CLIMATIQ_API_KEY = "2E44QNZJMX5X5B6EM43E88KRZ8"; 
 const BASE_URL = "https://api.climatiq.io/data/v1";
+const FIXED_DATA_VERSION = "32.32";
 
 /**
  * Construye los parámetros numéricos requeridos por Climatiq.
- * Asegura que los valores sean Numbers y no Strings para evitar 400 Bad Request.
+ * Forzamos tipos Number para evitar errores de validación de esquema.
  */
 function buildClimatiqParameters(strategy, line) {
     const val = Number(line.value) || 0;
@@ -29,14 +30,13 @@ function buildClimatiqParameters(strategy, line) {
 }
 
 /**
- * Procesa la factura extraída por la IA y calcula las emisiones.
+ * Procesa la factura extraída por la IA y coordina los cálculos con Climatiq.
  */
 async function calculateInClimatiq(ocrSummary, queryHints = {}) {
     try {
-        // 1. Obtener análisis de Bedrock
+        // 1. Análisis semántico con Bedrock
         const fullAnalysis = await entenderFacturaParaClimatiq(ocrSummary, queryHints);
         
-        // 2. Extraer líneas y metadatos con Fallbacks seguros
         const lines = fullAnalysis?.emission_lines || [];
         const meta = fullAnalysis?.extracted_data || {};
 
@@ -45,12 +45,12 @@ async function calculateInClimatiq(ocrSummary, queryHints = {}) {
             return null;
         }
 
-        // 3. Procesamiento en paralelo de cada línea
+        // 2. Procesamiento paralelo de estimaciones
         const linePromises = lines.map(async (line) => {
             const strategy = STRATEGIES[line.strategy];
             
             if (!strategy) {
-                return { success: false, error: `Strategy ${line.strategy} not found in catalog`, desc: line.description };
+                return { success: false, error: `Strategy ${line.strategy} not found`, desc: line.description };
             }
 
             const params = buildClimatiqParameters(strategy, line);
@@ -60,32 +60,32 @@ async function calculateInClimatiq(ocrSummary, queryHints = {}) {
 
             try {
                 /**
-                 * FIX CRUCIAL: Construcción manual del Body.
-                 * Climatiq v32.32 requiere 'data_version' al inicio del stream JSON
-                 * para evitar el error de validación en la columna 103.
+                 * FIX DEFINITIVO PARA ERROR COLUMNA 103:
+                 * 1. Usamos un String literal para asegurar que data_version sea la PRIMERA llave.
+                 * 2. Añadimos data_version a la URL para bypass de validación en el gateway.
                  */
-                const requestBody = {
-                    data_version: "32.32", // SIEMPRE PRIMERO
+                const manualJsonBody = JSON.stringify({
+                    data_version: FIXED_DATA_VERSION,
                     emission_factor: {
                         activity_id: strategy.activity_id
                     },
                     parameters: params
-                };
+                });
 
-                const res = await fetch(`${BASE_URL}/estimate`, {
+                const res = await fetch(`${BASE_URL}/estimate?data_version=${FIXED_DATA_VERSION}`, {
                     method: "POST",
                     headers: { 
                         "Authorization": `Bearer ${CLIMATIQ_API_KEY}`, 
                         "Content-Type": "application/json",
                         "Accept": "application/json"
                     },
-                    body: JSON.stringify(requestBody)
+                    body: manualJsonBody
                 });
 
                 const data = await res.json();
                 
                 if (!res.ok) {
-                    console.error(`❌ [CLIMATIQ_ERROR]: ${line.strategy} -> ${data.message}`);
+                    console.error(`❌ [CLIMATIQ_REJECTED]: ${line.strategy} -> ${data.message}`);
                     return { success: false, error: data.message, desc: line.description };
                 }
 
@@ -99,15 +99,14 @@ async function calculateInClimatiq(ocrSummary, queryHints = {}) {
                 };
 
             } catch (e) {
-                return { success: false, error: `Network/Parsing Error: ${e.message}` };
+                return { success: false, error: `Fetch error: ${e.message}` };
             }
         });
 
-        // 4. Esperar resultados y consolidar
+        // 3. Consolidación de resultados
         const results = await Promise.all(linePromises);
         const successfulOnes = results.filter(r => r && r.success === true);
 
-        // 5. Retorno estructurado para el index.js / DynamoDB
         return {
             total_co2e: successfulOnes.reduce((acc, curr) => acc + (curr.co2e || 0), 0),
             items: results, 
