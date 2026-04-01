@@ -1,18 +1,18 @@
 const BASE_QUERIES = [
     // --- AUDITORÍA FINANCIERA Y FISCAL ---
-    { Text: "What is the company name (e.g., ELEIA)?", Alias: "VENDOR_NAME" },
-    { Text: "What is the CIF or NIF of the vendor (issuer)?", Alias: "VENDOR_TAX_ID" },
-    { Text: "What is the NIF/DNI of the customer (client)?", Alias: "CUSTOMER_NIF" },
-    { Text: "What is the N° de Factura?", Alias: "INVOICE_ID" },
+    { Text: "What is the company name like ELEIA?", Alias: "VENDOR_NAME" },
+    { Text: "What is the CIF or NIF of the vendor?", Alias: "VENDOR_TAX_ID" },
+    { Text: "What is the NIF or DNI of the customer?", Alias: "CUSTOMER_NIF" },
+    { Text: "What is the Numero de Factura?", Alias: "INVOICE_ID" }, // Sin el símbolo °
     { Text: "What is the value for Total factura?", Alias: "TOTAL_AMOUNT" },
-    { Text: "What is the base imponible or net amount?", Alias: "NET_AMOUNT" },
-    { Text: "What is the currency symbol (e.g., €)?", Alias: "CURRENCY" },
+    { Text: "What is the base imponible amount?", Alias: "NET_AMOUNT" },
+    { Text: "What is the currency symbol like Euro?", Alias: "CURRENCY" },
 
     // --- TEMPORALIDAD Y GEOGRAFÍA ---
     { Text: "What is the Fecha de Emision?", Alias: "INVOICE_DATE" },
-    { Text: "What is the billing start date after 'Del'?", Alias: "PERIOD_START" },
-    { Text: "What is the billing end date after 'al'?", Alias: "PERIOD_END" },
-    { Text: "What is the 5-digit postal code (CP)?", Alias: "POSTAL_CODE" },
+    { Text: "What is the date after Del?", Alias: "PERIOD_START" }, // Sin comillas
+    { Text: "What is the date after al?", Alias: "PERIOD_END" },   // Sin comillas
+    { Text: "What is the 5-digit postal code CP?", Alias: "POSTAL_CODE" },
     { Text: "What is the country name?", Alias: "COUNTRY" }
 ];
 
