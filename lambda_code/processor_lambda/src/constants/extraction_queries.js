@@ -1,84 +1,76 @@
 const BASE_QUERIES = [
     // --- AUDITORÍA FINANCIERA Y FISCAL ---
-    { Text: "What is the vendor name like ELEIA?", Alias: "VENDOR_NAME" },
-    { Text: "What is the CIF or NIF of the vendor?", Alias: "VENDOR_TAX_ID" },
-    { Text: "What is the NIF or DNI of the customer?", Alias: "CUSTOMER_NIF" },
-    { Text: "What is the Numero de Factura?", Alias: "INVOICE_ID" },
-    { Text: "What is the value for Total factura?", Alias: "TOTAL_AMOUNT" },
-    { Text: "What is the base imponible amount?", Alias: "NET_AMOUNT" },
-    { Text: "What is the currency symbol or Euro?", Alias: "CURRENCY" },
+    { Text: "¿Cual es el nombre de la empresa emisora como ELEIA?", Alias: "VENDOR_NAME" },
+    { Text: "¿Cual es el CIF o NIF del emisor?", Alias: "VENDOR_TAX_ID" },
+    { Text: "¿Cual es el NIF o DNI del cliente?", Alias: "CUSTOMER_NIF" },
+    { Text: "¿Cual es el Numero de Factura?", Alias: "INVOICE_ID" },
+    { Text: "¿Cual es el importe de Total factura?", Alias: "TOTAL_AMOUNT" },
+    { Text: "¿Cual es el importe de la base imponible?", Alias: "NET_AMOUNT" },
+    { Text: "¿Cual es el simbolo de moneda o Euro?", Alias: "CURRENCY" },
 
     // --- TEMPORALIDAD Y GEOGRAFÍA ---
-    { Text: "What is the Fecha de Emision?", Alias: "INVOICE_DATE" },
-    { Text: "What is the billing start date after Del?", Alias: "PERIOD_START" }, // Sin comillas
-    { Text: "What is the billing end date after al?", Alias: "PERIOD_END" },   // Sin comillas
-    { Text: "What is the 5-digit postal code CP?", Alias: "POSTAL_CODE" },
-    { Text: "What is the country name?", Alias: "COUNTRY" }
+    { Text: "¿Cual es la Fecha de Emision?", Alias: "INVOICE_DATE" },
+    { Text: "¿Cual es la fecha de inicio despues de la palabra Del?", Alias: "PERIOD_START" },
+    { Text: "¿Cual es la fecha de fin despues de la palabra al?", Alias: "PERIOD_END" },
+    { Text: "¿Cual es el codigo postal de 5 digitos CP?", Alias: "POSTAL_CODE" },
+    { Text: "¿Cual es el nombre del pais?", Alias: "COUNTRY" }
 ];
 
 export const QUERIES_BY_CATEGORY = {
     ELEC: [
         ...BASE_QUERIES,
-        { Text: "What is the invoice number or reference?", Alias: "INVOICE_ID" },
-        { Text: "What is the total amount to pay with currency symbol?", Alias: "TOTAL_AMOUNT" },
-        { Text: "What is the name of the energy company (issuer)?", Alias: "VENDOR_NAME" },
-        { Text: "What is the CIF or NIF of the issuer company?", Alias: "VENDOR_TAX_ID" },
-        { Text: "What is the consumption in kWh?", Alias: "KWH_CONSUMPTION" },
-        { Text: "What is the CUPS code?", Alias: "CUPS" },
-        { Text: "What is the invoice date?", Alias: "INVOICE_DATE" }
+        { Text: "¿Cual es el consumo total en kWh?", Alias: "KWH_CONSUMPTION" },
+        { Text: "¿Cual es el codigo CUPS?", Alias: "CUPS" }
     ],
     GAS: [
         ...BASE_QUERIES,
-        { Text: "What is the CUPS or supply point ID for GAS?", Alias: "SUPPLY_ID" },
-        { Text: "What is the gas consumption in m3?", Alias: "VALUE" },
-        { Text: "What is the Higher Heating Value (PCS)?", Alias: "TECH_FACTOR" }
+        { Text: "¿Cual es el CUPS o ID de punto de suministro de GAS?", Alias: "SUPPLY_ID" },
+        { Text: "¿Cual es el consumo de gas en m3?", Alias: "VALUE" },
+        { Text: "¿Cual es el Poder Calorifico Superior PCS?", Alias: "TECH_FACTOR" }
     ],
     LOGISTICS: [
         ...BASE_QUERIES,
-        { Text: "What is the vehicle license plate or ID?", Alias: "VEHICLE_ID" },
-        { Text: "What is the total distance traveled?", Alias: "DISTANCE" },
-        { Text: "What is the weight of the load?", Alias: "WEIGHT" },
-        { Text: "What is the type of fuel used?", Alias: "FUEL_TYPE" }
+        { Text: "¿Cual es la matricula o ID del vehiculo?", Alias: "VEHICLE_ID" },
+        { Text: "¿Cual es la distancia total recorrida?", Alias: "DISTANCE" },
+        { Text: "¿Cual es el peso de la carga?", Alias: "WEIGHT" },
+        { Text: "¿Cual es el tipo de combustible usado?", Alias: "FUEL_TYPE" }
     ],
     WASTE: [
         ...BASE_QUERIES,
-        { Text: "What is the type of waste (e.g. Paper, Plastic, Hazardous, Organic, Mixed)?", Alias: "WASTE_TYPE" },
-        { Text: "What is the total weight in kilograms or tons?", Alias: "VALUE" },
-        { Text: "What is the disposal method (e.g. Recycling, Landfill, Incineration, Composting)?", Alias: "TREATMENT_METHOD" },
-        { Text: "What is the container size or volume?", Alias: "CONTAINER_VOLUME" }
+        { Text: "¿Cual es el tipo de residuo (Papel, Plastico, Peligroso, Organico)?", Alias: "WASTE_TYPE" },
+        { Text: "¿Cual es el peso total en kilogramos o toneladas?", Alias: "VALUE" },
+        { Text: "¿Cual es el metodo de eliminacion (Reciclaje, Vertedero, Incineracion)?", Alias: "TREATMENT_METHOD" },
+        { Text: "¿Cual es el tamaño o volumen del contenedor?", Alias: "CONTAINER_VOLUME" }
     ],
     WATER: [
         ...BASE_QUERIES,
-        { Text: "What is the total water consumption in cubic meters (m3)?", Alias: "VALUE" },
-        { Text: "What is the meter reference or supply point ID for water?", Alias: "SUPPLY_ID" },
-        { Text: "What is the breakdown of fresh water vs. sewage costs?", Alias: "SEWAGE_BREAKDOWN" },
-        { Text: "Is there a mention of reclaimed or recycled water use?", Alias: "WATER_SOURCE_TYPE" }
+        { Text: "¿Cual es el consumo total de agua en metros cubicos m3?", Alias: "VALUE" },
+        { Text: "¿Cual es la referencia del contador o ID de suministro de agua?", Alias: "SUPPLY_ID" },
+        { Text: "¿Cual es el desglose de costes de agua potable vs alcantarillado?", Alias: "SEWAGE_BREAKDOWN" }
     ],
     STATIONARY_COMBUSTION: [
         ...BASE_QUERIES,
-        { Text: "What is the type of fuel (e.g. Diesel, Fuel Oil, Propane, Pellets)?", Alias: "FUEL_TYPE" },
-        { Text: "What is the quantity in Liters, Gallons or kg?", Alias: "VALUE" },
-        { Text: "What is the Net Calorific Value (NCV) or density if mentioned?", Alias: "TECH_SPEC" },
-        { Text: "What is the tank or equipment ID being refilled?", Alias: "EQUIPMENT_ID" }
+        { Text: "¿Cual es el tipo de combustible (Diesel, Gasoleo, Propano, Pellets)?", Alias: "FUEL_TYPE" },
+        { Text: "¿Cual es la cantidad en Litros o kg?", Alias: "VALUE" },
+        { Text: "¿Cual es el ID del tanque o equipo recargado?", Alias: "EQUIPMENT_ID" }
     ],
     REFRIGERANTS: [
         ...BASE_QUERIES,
-        { Text: "What is the refrigerant gas name (e.g. R-410A, R-134a, R-32, R-404A)?", Alias: "GAS_TYPE" },
-        { Text: "What is the amount of gas recharged or topped up in kg?", Alias: "VALUE" },
-        { Text: "What is the reason for service (e.g. Leak repair, Annual maintenance)?", Alias: "SERVICE_TYPE" },
-        { Text: "What is the ID of the cooling unit or HVAC system?", Alias: "UNIT_ID" }
+        { Text: "¿Cual es el nombre del gas refrigerante (R-410A, R-134a, R-32)?", Alias: "GAS_TYPE" },
+        { Text: "¿Cual es la cantidad de gas recargada en kg?", Alias: "VALUE" },
+        { Text: "¿Cual es el motivo del servicio (Fuga, Mantenimiento anual)?", Alias: "SERVICE_TYPE" },
+        { Text: "¿Cual es el ID de la unidad de refrigeracion o sistema HVAC?", Alias: "UNIT_ID" }
     ],
     FLIGHTS: [
         ...BASE_QUERIES,
-        { Text: "What is the flight origin and destination (IATA codes)?", Alias: "ROUTE" },
-        { Text: "What is the travel class (e.g. Economy, Premium, Business, First)?", Alias: "TRAVEL_CLASS" },
-        { Text: "What is the passenger name?", Alias: "PASSENGER_NAME" },
-        { Text: "Is it a one-way or round-trip ticket?", Alias: "TRIP_TYPE" }
+        { Text: "¿Cual es el origen y destino del vuelo (codigos IATA)?", Alias: "ROUTE" },
+        { Text: "¿Cual es la clase de viaje (Economy, Business, First)?", Alias: "TRAVEL_CLASS" },
+        { Text: "¿Cual es el nombre del pasajero?", Alias: "PASSENGER_NAME" },
+        { Text: "¿Es un billete de ida o de ida y vuelta?", Alias: "TRIP_TYPE" }
     ],
     OTHERS: [
         ...BASE_QUERIES,
     ]
 };
 
-// --- IMPORTANTE: Exportación por defecto para que funcione con tus importaciones actuales ---
 export default { QUERIES_BY_CATEGORY };

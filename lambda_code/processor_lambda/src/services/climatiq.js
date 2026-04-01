@@ -4,16 +4,20 @@ import { STRATEGIES } from "../constants/climatiq_catalog.js";
 /**
  * Servicio de Cálculo de Huella de Carbono (Climatiq API).
  * Traduce líneas de emisión auditadas por la IA en kgCO2e reales.
- * * @param {Array} lines - Array de objetos con { strategy, value, unit }
+ * @param {Array} lines - Array de objetos con { strategy, value, unit }
  * @returns {Promise<Object>} - Resumen de emisiones totales y desglose por línea.
  */
 export const calculateFootprint = async (lines) => {
+    // --- LOG START ---
+    console.log(`   [CLIMATIQ_START]: Calculando huella de carbono para ${lines?.length || 0} líneas...`);
+    
     let totalKg = 0;
     const items = [];
 
     // Validamos si hay líneas para procesar
-    if (!lines || !Array.isArray(lines)) {
-        return { total_tons: 0, items: [] };
+    if (!lines || !Array.isArray(lines) || lines.length === 0) {
+        console.log(`   [CLIMATIQ_END]: No hay líneas válidas para procesar. Emisiones: 0`);
+        return { total_tons: 0, total_kg: 0, items: [] };
     }
 
     for (const line of lines) {
@@ -21,12 +25,12 @@ export const calculateFootprint = async (lines) => {
         
         // Si la estrategia no existe en nuestro catálogo, saltamos la línea
         if (!strategy) {
-            console.warn(`⚠️ [CLIMATIQ]: Estrategia no encontrada para: ${line.strategy}`);
+            console.warn(`      ⚠️ [CLIMATIQ_WARN]: Estrategia '${line.strategy}' no encontrada en el catálogo.`);
             continue;
         }
 
         try {
-            // Usamos el fetch nativo de Node.js 20
+            // Usamos el fetch nativo de Node.js 20/22
             const res = await fetch("https://api.climatiq.io/data/v1/estimate", {
                 method: "POST",
                 headers: { 
@@ -46,7 +50,7 @@ export const calculateFootprint = async (lines) => {
 
             if (!res.ok) {
                 const errorData = await res.json();
-                console.error(`❌ [CLIMATIQ_API_ERROR]: ${errorData.message || res.statusText}`);
+                console.error(`      ❌ [CLIMATIQ_API_ERROR]: ${errorData.message || res.statusText}`);
                 continue;
             }
 
@@ -61,9 +65,12 @@ export const calculateFootprint = async (lines) => {
             });
 
         } catch (error) {
-            console.error(`🚨 [CLIMATIQ_NETWORK_ERROR]:`, error.message);
+            console.error(`      🚨 [CLIMATIQ_NETWORK_ERROR]:`, error.message);
         }
     }
+
+    // --- LOG END ---
+    console.log(`   [CLIMATIQ_END]: Cálculo completado. Total: ${totalKg.toFixed(4)} kgCO2e`);
 
     return { 
         total_tons: totalKg / 1000, 

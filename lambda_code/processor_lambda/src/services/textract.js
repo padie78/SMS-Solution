@@ -7,25 +7,17 @@ const client = new TextractClient({
 });
 
 export const extractText = async (bucket, key, category = "OTHERS") => {
-    console.log(`🔍 [TEXTRACT_START]: Procesando [${category}] | s3://${bucket}/${key}`);
+    // --- LOG START ---
+    console.log(`   [TEXTRACT_START]: Procesando [${category}] | s3://${bucket}/${key}`);
 
     const queries = QUERIES_BY_CATEGORY[category] || QUERIES_BY_CATEGORY.OTHERS;
 
-    // --- LOG DE SELECCIÓN DE ESTRATEGIA ---
-    console.log(`🎯 [STRATEGY_SELECTION]: Usando queries para la categoría [${category}]`);
-
     if (!QUERIES_BY_CATEGORY[category]) {
-        console.warn(`⚠️  [CATEGORY_FALLBACK]: La categoría '${category}' no existe. Aplicando [OTHERS] por defecto.`);
+        console.warn(`      ⚠️ [CATEGORY_FALLBACK]: Categoría '${category}' no encontrada. Usando [OTHERS].`);
     }
 
-    // --- DEBUG: QUERIES ENVIADAS ---
-    console.log(`--- [DEBUG_SENT_QUERIES] ---`);
-    console.table(queries.map(q => ({ Alias: q.Alias, Query: q.Text })));
-
     const params = {
-        Document: {
-            S3Object: { Bucket: bucket, Name: key }
-        },
+        Document: { S3Object: { Bucket: bucket, Name: key } },
         FeatureTypes: ["QUERIES"],
         QueriesConfig: {
             Queries: queries.map(q => ({
@@ -39,25 +31,19 @@ export const extractText = async (bucket, key, category = "OTHERS") => {
         const command = new AnalyzeDocumentCommand(params);
         const response = await client.send(command);
 
-        if (!response.Blocks) {
+        if (!response || !response.Blocks) {
             throw new Error("Textract no devolvió bloques de datos.");
         }
 
-        // 2. Texto Crudo Completo
+        // 1. Extraer Texto Crudo (LINEs)
         const rawText = response.Blocks
             .filter(block => block.BlockType === "LINE")
             .map(block => block.Text)
             .join("\n");
 
-        // --- DEBUG: TEXTO COMPLETO ---
-        // Útil para copiar y pegar en un test de Bedrock manualmente
-        console.log(`--- [DEBUG_RAW_TEXT_FULL] ---`);
-        console.log(rawText);
-        console.log(`--- [END_RAW_TEXT] ---`);
-
-        // 3. Mapeo de resultados con Confidence Scores
+        // 2. Mapeo de resultados y Confidence Scores
         const queryHints = {};
-        const queryDetails = []; // Para un log más rico
+        const queryDetails = [];
         
         const queryBlocks = response.Blocks.filter(b => b.BlockType === "QUERY");
         const resultBlocks = response.Blocks.filter(b => b.BlockType === "QUERY_RESULT");
@@ -77,27 +63,29 @@ export const extractText = async (bucket, key, category = "OTHERS") => {
                     });
                 }
             } else {
-                queryHints[alias] = null;
+                queryHints[alias] = "NOT_FOUND";
                 queryDetails.push({ Field: alias, Value: "NOT_FOUND", Confidence: "0%" });
             }
         });
 
-        // --- DEBUG: RESULTADOS DETALLADOS ---
-        console.log(`--- [DEBUG_EXTRACTION_REPORT] ---`);
+        // --- DEBUG: TABLA DE EXTRACCIÓN (Opcional, útil en Dev) ---
         console.table(queryDetails);
 
-        const foundFields = Object.values(queryHints).filter(v => v !== null).length;
-        console.log(`✅ [TEXTRACT_SUCCESS]: ${foundFields}/${queries.length} campos detectados.`);
+        // --- LOG END (Resumen en una sola fila) ---
+        const foundFields = Object.values(queryHints).filter(v => v !== "NOT_FOUND").length;
+        const confAvg = response.Blocks[0]?.Confidence || 0;
+        
+        console.log(`   [TEXTRACT_END]: Extracción completada | Hits: ${foundFields}/${queries.length} | Conf: ${confAvg.toFixed(2)}% | Total: ${queryHints.TOTAL_AMOUNT || 'N/A'}`);
 
         return {
             rawText,
             queryHints,
             category,
-            confidence: response.Blocks[0]?.Confidence || 0
+            confidence: confAvg
         };
 
     } catch (error) {
-        console.error(`❌ [TEXTRACT_ERROR] en ${key}:`, error.message);
+        console.error(`   ❌ [TEXTRACT_ERROR] en ${key}:`, error.message);
         throw error;
     }
 };
