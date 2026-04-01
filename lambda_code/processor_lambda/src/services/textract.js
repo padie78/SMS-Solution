@@ -1,39 +1,26 @@
-// 1. Importaciones ESM
 import { TextractClient, AnalyzeDocumentCommand } from "@aws-sdk/client-textract";
-// Importante: Incluir la extensión .js en archivos locales
 import { QUERIES_BY_CATEGORY } from "../constants/extraction_queries.js";
 
-/**
- * Optimizamos el cliente fuera del handler para reutilizar conexiones TCP.
- * Configuramos reintentos para manejar picos de carga en el pipeline.
- */
 const client = new TextractClient({ 
     region: process.env.AWS_REGION || "eu-central-1",
     maxAttempts: 3 
 });
 
-/**
- * Servicio de Extracción de Datos mediante Amazon Textract Queries.
- * @param {string} bucket - S3 Bucket origen.
- * @param {string} key - S3 Key del archivo.
- * @param {string} category - Categoría (ELEC, GAS, LOGISTICS, OTHERS).
- */
 export const extractText = async (bucket, key, category = "OTHERS") => {
     console.log(`🔍 [TEXTRACT_START]: Procesando [${category}] | s3://${bucket}/${key}`);
 
-    // Obtenemos el set de queries (Base + Específicas)
     const queries = QUERIES_BY_CATEGORY[category] || QUERIES_BY_CATEGORY.OTHERS;
+
+    // --- DEBUG: QUERIES ENVIADAS ---
+    console.log(`--- [DEBUG_SENT_QUERIES] ---`);
+    console.table(queries.map(q => ({ Alias: q.Alias, Query: q.Text })));
 
     const params = {
         Document: {
-            S3Object: {
-                Bucket: bucket,
-                Name: key
-            }
+            S3Object: { Bucket: bucket, Name: key }
         },
         FeatureTypes: ["QUERIES"],
         QueriesConfig: {
-            // El SDK v3 espera un array de objetos { Text, Alias }
             Queries: queries.map(q => ({
                 Text: q.Text,
                 Alias: q.Alias
@@ -49,16 +36,22 @@ export const extractText = async (bucket, key, category = "OTHERS") => {
             throw new Error("Textract no devolvió bloques de datos.");
         }
 
-        // 2. Extraemos el Texto Crudo (LINEs) para el análisis semántico de Bedrock
+        // 2. Texto Crudo Completo
         const rawText = response.Blocks
             .filter(block => block.BlockType === "LINE")
             .map(block => block.Text)
             .join("\n");
 
-        // 3. Mapeamos los resultados de las QUERIES a un objeto plano (queryHints)
+        // --- DEBUG: TEXTO COMPLETO ---
+        // Útil para copiar y pegar en un test de Bedrock manualmente
+        console.log(`--- [DEBUG_RAW_TEXT_FULL] ---`);
+        console.log(rawText);
+        console.log(`--- [END_RAW_TEXT] ---`);
+
+        // 3. Mapeo de resultados con Confidence Scores
         const queryHints = {};
+        const queryDetails = []; // Para un log más rico
         
-        // Filtramos bloques para búsquedas más eficientes
         const queryBlocks = response.Blocks.filter(b => b.BlockType === "QUERY");
         const resultBlocks = response.Blocks.filter(b => b.BlockType === "QUERY_RESULT");
 
@@ -67,16 +60,27 @@ export const extractText = async (bucket, key, category = "OTHERS") => {
             const relationship = qBlock.Relationships?.find(r => r.Type === "ANSWER");
             
             if (relationship && relationship.Ids.length > 0) {
-                // Buscamos el bloque de respuesta vinculado
                 const answerBlock = resultBlocks.find(r => relationship.Ids.includes(r.Id));
-                queryHints[alias] = answerBlock ? answerBlock.Text : null;
+                if (answerBlock) {
+                    queryHints[alias] = answerBlock.Text;
+                    queryDetails.push({
+                        Field: alias,
+                        Value: answerBlock.Text,
+                        Confidence: `${answerBlock.Confidence.toFixed(2)}%`
+                    });
+                }
             } else {
                 queryHints[alias] = null;
+                queryDetails.push({ Field: alias, Value: "NOT_FOUND", Confidence: "0%" });
             }
         });
 
+        // --- DEBUG: RESULTADOS DETALLADOS ---
+        console.log(`--- [DEBUG_EXTRACTION_REPORT] ---`);
+        console.table(queryDetails);
+
         const foundFields = Object.values(queryHints).filter(v => v !== null).length;
-        console.log(`✅ [TEXTRACT_SUCCESS]: Se extrajeron ${foundFields}/${queries.length} campos.`);
+        console.log(`✅ [TEXTRACT_SUCCESS]: ${foundFields}/${queries.length} campos detectados.`);
 
         return {
             rawText,
@@ -91,5 +95,4 @@ export const extractText = async (bucket, key, category = "OTHERS") => {
     }
 };
 
-// 4. Exportación por defecto para mantener consistencia con index.js
 export default { extractText };
