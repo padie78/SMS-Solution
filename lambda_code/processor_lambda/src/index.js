@@ -31,6 +31,13 @@ export const handler = async (event, context) => { // Añadido 'context' como se
 
         // Logueamos los primeros 500 caracteres del texto que se le enviará al Classifier
         console.log(`📝 [CLASSIFIER_INPUT_PREVIEW]: "${initialOcr.rawText?.substring(0, 500).replace(/\n/g, ' ')}..."`);
+
+        // --- LOG DEL TEXTO COMPLETO PARA CLASIFICACIÓN ---
+        console.log(`📝 [CLASSIFIER_FULL_INPUT]:`);
+        console.log(`--------------------------------------------------`);
+        console.log(initialOcr.rawText); 
+        console.log(`--------------------------------------------------`);
+        console.log(`📊 [STATS]: ${initialOcr.rawText?.length || 0} caracteres totales.`);
         
         const category = await classifier.identifyCategory(initialOcr.rawText);
         console.log(`   [1/6] [CLASSIFY_END]: Categoría resuelta -> ${category}`);
