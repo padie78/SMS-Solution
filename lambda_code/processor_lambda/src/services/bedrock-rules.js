@@ -1,7 +1,7 @@
 /**
  * Single Source of Truth para reglas de negocio por categoría.
  */
-const CATEGORY_RULES = {
+export const CATEGORY_RULES = {
     ELEC: {
         focus: "Extract Active Energy (kWh). Identify CUPS/Meter ID.",
         scope: "SCOPE_2",
@@ -69,4 +69,5 @@ const CATEGORY_RULES = {
     }
 };
 
-module.exports = { CATEGORY_RULES };
+// Exportación por defecto para mantener compatibilidad total
+export default { CATEGORY_RULES };

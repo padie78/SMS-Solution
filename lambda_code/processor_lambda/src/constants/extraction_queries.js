@@ -44,9 +44,6 @@ export const QUERIES_BY_CATEGORY = {
         { Text: "What is the disposal method (e.g. Recycling, Landfill, Incineration, Composting)?", Alias: "TREATMENT_METHOD" },
         { Text: "What is the container size or volume?", Alias: "CONTAINER_VOLUME" }
     ],
-
-    // 2. AGUA Y SANEAMIENTO (Huella Hídrica)
-    // Segundo KPI más pedido en Auditorías ESG.
     WATER: [
         ...BASE_QUERIES,
         { Text: "What is the total water consumption in cubic meters (m3)?", Alias: "VALUE" },
@@ -54,9 +51,6 @@ export const QUERIES_BY_CATEGORY = {
         { Text: "What is the breakdown of fresh water vs. sewage costs?", Alias: "SEWAGE_BREAKDOWN" },
         { Text: "Is there a mention of reclaimed or recycled water use?", Alias: "WATER_SOURCE_TYPE" }
     ],
-
-    // 3. COMBUSTIBLES ESTACIONARIOS (Scope 1)
-    // Para calderas propias, grupos electrógenos o maquinaria de planta.
     STATIONARY_COMBUSTION: [
         ...BASE_QUERIES,
         { Text: "What is the type of fuel (e.g. Diesel, Fuel Oil, Propane, Pellets)?", Alias: "FUEL_TYPE" },
@@ -64,9 +58,6 @@ export const QUERIES_BY_CATEGORY = {
         { Text: "What is the Net Calorific Value (NCV) or density if mentioned?", Alias: "TECH_SPEC" },
         { Text: "What is the tank or equipment ID being refilled?", Alias: "EQUIPMENT_ID" }
     ],
-
-    // 4. GASES REFRIGERANTES (F-GASES)
-    // ¡Crítico! Tienen un potencial de calentamiento global (GWP) altísimo.
     REFRIGERANTS: [
         ...BASE_QUERIES,
         { Text: "What is the refrigerant gas name (e.g. R-410A, R-134a, R-32, R-404A)?", Alias: "GAS_TYPE" },
@@ -74,9 +65,6 @@ export const QUERIES_BY_CATEGORY = {
         { Text: "What is the reason for service (e.g. Leak repair, Annual maintenance)?", Alias: "SERVICE_TYPE" },
         { Text: "What is the ID of the cooling unit or HVAC system?", Alias: "UNIT_ID" }
     ],
-
-    // 5. VIAJES CORPORATIVOS - VUELOS (Scope 3 - Cat 6)
-    // Para empresas con mucha movilidad internacional.
     FLIGHTS: [
         ...BASE_QUERIES,
         { Text: "What is the flight origin and destination (IATA codes)?", Alias: "ROUTE" },
@@ -84,8 +72,10 @@ export const QUERIES_BY_CATEGORY = {
         { Text: "What is the passenger name?", Alias: "PASSENGER_NAME" },
         { Text: "Is it a one-way or round-trip ticket?", Alias: "TRIP_TYPE" }
     ],
-    // Por si llega algo que no está categorizado, devolvemos al menos lo básico
     OTHERS: [
         ...BASE_QUERIES
     ]
 };
+
+// --- IMPORTANTE: Exportación por defecto para que funcione con tus importaciones actuales ---
+export default { QUERIES_BY_CATEGORY };

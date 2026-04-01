@@ -1,17 +1,19 @@
-const textract = require("./services/textract");
-const classifier = require("./services/classifier");
-const bedrock = require("./services/bedrock");
-const climatiq = require("./services/climatiq");
-const mapper = require("./services/mapper");
-const db = require("./services/db");
+// 1. Importaciones con sintaxis ESM y extensiones .js obligatorias
+import textract from "./services/textract.js";
+import classifier from "./services/classifier.js";
+import bedrock from "./services/bedrock.js";
+import climatiq from "./services/climatiq.js";
+import mapper from "./services/mapper.js";
+import db from "./services/db.js";
 
-exports.handler = async (event) => {
+// 2. Exportación nombrada para el handler de Lambda
+export const handler = async (event, context) => { // Añadido 'context' como segundo parámetro
     const startTime = Date.now();
     const record = event.Records[0];
     const bucket = record.s3.bucket.name;
     const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
 
-    // ID de correlación simple para seguir el rastro en logs
+    // ID de correlación: context.awsRequestId ya viene definido por AWS Lambda
     const requestId = context.awsRequestId || Math.random().toString(36).substring(7);
 
     console.log(`🚀 [PIPELINE_START] [ID:${requestId}]: Iniciando proceso para s3://${bucket}/${key}`);

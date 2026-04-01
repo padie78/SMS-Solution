@@ -1,4 +1,5 @@
-const { BedrockRuntimeClient, InvokeModelCommand } = require("@aws-sdk/client-bedrock-runtime");
+// 1. Importaciones ESM (AWS SDK v3 ya es compatible nativamente)
+import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 
 // Configuración del cliente con optimización para Warm Starts
 const client = new BedrockRuntimeClient({
@@ -9,10 +10,8 @@ const client = new BedrockRuntimeClient({
 /**
  * Servicio de Auditoría ESG mediante GenAI (Claude 3 Haiku).
  * Transforma OCR ruidoso en el "Golden Record" para DynamoDB.
- * * @param {Object} extraction - { rawText, queryHints, category }
- * @returns {Promise<Object>} - Payload listo para el Mapper y las tablas de BD.
  */
-exports.analyzeInvoice = async (extraction) => {
+export const analyzeInvoice = async (extraction) => {
     const { rawText, queryHints, category } = extraction;
 
     console.log(`   [BEDROCK_START]: Generando auditoría técnica para categoría: ${category}`);
@@ -55,66 +54,45 @@ Auditing a ${category} invoice. Focus: ${currentFocus}
     "invoice_date": "YYYY-MM-DD",
     "billing_period": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
     "currency": "ISO_4217",
-    "amounts": { "total_with_tax": float, "net": float }
+    "amounts": { "total_with_tax": "float", "net": "float" }
   },
   "analytics_metadata": {
-    // --- TEMPORAL ---
-    "year": int,
+    "year": "int",
     "month": "MM",
     "quarter": "Q1|Q2|Q3|Q4",
-    "is_adjustment": boolean, // Indica si es una factura rectificativa de meses anteriores
-
-    // --- GEOGRÁFICO & ESTRUCTURAL ---
-    "facility_id": "string",     // ID de la planta/sede (extraído de CUPS/Dirección)
-    "facility_name": "string",   // Nombre legible para el Dashboard
-    "business_unit": "string",   // Depto: "Manufactura", "Logística", "Oficinas"
+    "is_adjustment": "boolean",
+    "facility_id": "string",
+    "facility_name": "string",
+    "business_unit": "string",
     "country_code": "ISO_2",
-    "region_state": "string",    // Para impuestos al carbono locales (ej: "Andalucía", "Texas")
-
-    // --- CLASIFICACIÓN ESG ---
+    "region_state": "string",
     "scope": "SCOPE_1|SCOPE_2|SCOPE_3",
-    "category": "string",        // Ej: "ELECTRICITY", "STATIONARY_COMBUSTION"
-    "resource_type": "string",   // Ej: "RENEWABLE", "FOSSIL", "RECYCLED"
-    "ghg_protocol_category": "string", // Cat 1-15 para Scope 3 (Vital para auditoría)
-
-    // --- MÉTRICAS DE INTENSIDAD (Para Benchmarking) ---
-    "occupancy_hint": float,     // Si la factura menciona m2, empleados o noches de hotel
-    "is_estimated": boolean,     // Detectar si la factura es una "Lectura Estimada" vs "Real"
-
-    // --- AUDIT & TRUST ---
+    "category": "string",
+    "resource_type": "string",
+    "ghg_protocol_category": "string",
+    "occupancy_hint": "float",
+    "is_estimated": "boolean",
     "confidence_level": "HIGH|MEDIUM|LOW",
-    "anomaly_flag": boolean,      // ¿El consumo parece fuera de rango para esta facility?
-
-    // --- IDENTIFICACIÓN DE ACTIVO (CRÍTICO) ---
-    "service_id": "string",      // CUPS, Número de Medidor, Serial de Activo
-    "contract_type": "string",   // "FIXED", "INDEXED", "SINGLE_PAYMENT"
-
-    // --- COMPORTAMIENTO FINANCIERO ---
-    "is_recurring": boolean,     // true para consumos mensuales, false para multas o reparaciones
+    "anomaly_flag": "boolean",
+    "service_id": "string",
+    "contract_type": "string",
+    "is_recurring": "boolean",
     "billing_frequency": "MONTHLY|QUARTERLY|ANNUAL",
-
-    // --- VALIDACIÓN DE INTEGRIDAD ---
-    "reading_type": "ACTUAL|ESTIMATED|CORRECTION", // Más preciso que solo is_estimated
-    "verification_status": "PENDING_AUTOMATED"     // Estado inicial para tu flujo de estados
+    "reading_type": "ACTUAL|ESTIMATED|CORRECTION",
+    "verification_status": "PENDING_AUTOMATED"
   },
   "emission_lines": [
     {
-        "strategy": "ELEC", 
-        "description": "Consumo de Energía Activa - Periodo Valle",
-        "value": 1250.8,
-        "unit": "kWh",
-        "confidence_score": 0.98,
-        "reasoning": "Se extrajo del apartado de detalle de facturación, concepto Energía Activa P3.",
-        "period": { "start": "2026-01-01", "end": "2026-01-31" }, // <--- Vital para STATS#
-        "metadata": {
-        "meter_id": "ES0021000000000000XX",
-        "is_renewable": true,        // <--- Alimenta tu tag RENEWABLE_CERTIFIED
-        "is_estimated_reading": false, // <--- Evita ruido en analítica
-        "tariff_name": "2.0TD",
-        "voltage_level": "LOW"       // <--- Cambia el factor de pérdida eléctrica
-        }
+        "strategy": "string", 
+        "description": "string",
+        "value": "float",
+        "unit": "string",
+        "confidence_score": "float",
+        "reasoning": "string",
+        "period": { "start": "YYYY-MM-DD", "end": "YYYY-MM-DD" },
+        "metadata": { "any": "any" }
     }
-    ]
+  ]
 }`;
 
     // 3. Payload de ejecución
@@ -155,7 +133,7 @@ Auditing a ${category} invoice. Focus: ${currentFocus}
 
         const finalData = JSON.parse(resultText);
 
-        console.log(`   [BEDROCK_END]: Auditoría finalizada para ${finalData.source_data.vendor.name || 'Vendor desconocido'}`);
+        console.log(`   [BEDROCK_END]: Auditoría finalizada para ${finalData.source_data?.vendor?.name || 'Vendor desconocido'}`);
         return finalData;
 
     } catch (error) {
@@ -163,3 +141,6 @@ Auditing a ${category} invoice. Focus: ${currentFocus}
         throw new Error(`Failed AI Audit: ${error.message}`);
     }
 };
+
+// 2. Exportación por defecto para el import en index.js
+export default { analyzeInvoice };

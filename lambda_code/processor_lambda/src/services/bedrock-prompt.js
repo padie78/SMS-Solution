@@ -1,4 +1,5 @@
-const { CATEGORY_RULES } = require('./bedrock-rules');
+// 1. Importación obligatoria con extensión .js
+import { CATEGORY_RULES } from './bedrock-rules.js';
 
 /**
  * Genera el esquema de analytics_metadata inyectando valores fijos de la regla.
@@ -9,8 +10,8 @@ const getAnalyticsMetadataSchema = (category, rule) => {
         is_adjustment: "boolean",
         facility_id: "string", facility_name: "string",
         business_unit: "string", country_code: "ISO_2",
-        scope: rule.scope,      // Prefilled
-        category: category,      // Prefilled
+        scope: rule.scope,      // Prefilled dinámicamente desde la regla
+        category: category,     // Prefilled dinámicamente
         resource_type: "RENEWABLE|FOSSIL|RECYCLED",
         ghg_protocol_category: "string",
         occupancy_hint: "float (m2 or employees)",
@@ -26,9 +27,10 @@ const getAnalyticsMetadataSchema = (category, rule) => {
 };
 
 /**
- * Construye el System Prompt dinámico.
+ * Construye el System Prompt dinámico inyectando el esquema JSON esperado.
+ * Exportación nombrada para mayor claridad.
  */
-exports.buildSystemPrompt = (category) => {
+export const buildSystemPrompt = (category) => {
     const rule = CATEGORY_RULES[category] || CATEGORY_RULES.OTHERS;
 
     const fullSchema = {
@@ -50,7 +52,7 @@ exports.buildSystemPrompt = (category) => {
                 confidence_score: "float",
                 reasoning: "string",
                 period: { start: "YYYY-MM-DD", end: "YYYY-MM-DD" },
-                metadata: rule.metadata // Inyección dinámica de campos específicos
+                metadata: rule.metadata // Inyección dinámica de campos específicos según categoría
             }
         ]
     };
@@ -69,3 +71,6 @@ exports.buildSystemPrompt = (category) => {
             ### REQUIRED OUTPUT SCHEMA:
             ${JSON.stringify(fullSchema, null, 2)}`;
 };
+
+// 2. Exportación por defecto para mantener consistencia con los otros servicios
+export default { buildSystemPrompt };

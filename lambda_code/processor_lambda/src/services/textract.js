@@ -1,5 +1,7 @@
-const { TextractClient, AnalyzeDocumentCommand } = require("@aws-sdk/client-textract");
-const { QUERIES_BY_CATEGORY } = require("../constants/extraction_queries");
+// 1. Importaciones ESM
+import { TextractClient, AnalyzeDocumentCommand } from "@aws-sdk/client-textract";
+// Importante: Incluir la extensión .js en archivos locales
+import { QUERIES_BY_CATEGORY } from "../constants/extraction_queries.js";
 
 /**
  * Optimizamos el cliente fuera del handler para reutilizar conexiones TCP.
@@ -12,15 +14,14 @@ const client = new TextractClient({
 
 /**
  * Servicio de Extracción de Datos mediante Amazon Textract Queries.
- * * @param {string} bucket - S3 Bucket origen.
- * @param {string} key - S3 Key del archivo (Factura/Imagen).
+ * @param {string} bucket - S3 Bucket origen.
+ * @param {string} key - S3 Key del archivo.
  * @param {string} category - Categoría (ELEC, GAS, LOGISTICS, OTHERS).
- * @returns {Promise<Object>} - rawText (para Bedrock) y queryHints (datos limpios).
  */
-exports.extractText = async (bucket, key, category = "OTHERS") => {
+export const extractText = async (bucket, key, category = "OTHERS") => {
     console.log(`🔍 [TEXTRACT_START]: Procesando [${category}] | s3://${bucket}/${key}`);
 
-    // 1. Obtenemos el set de queries (Base + Específicas) desde nuestras constantes
+    // Obtenemos el set de queries (Base + Específicas)
     const queries = QUERIES_BY_CATEGORY[category] || QUERIES_BY_CATEGORY.OTHERS;
 
     const params = {
@@ -32,7 +33,11 @@ exports.extractText = async (bucket, key, category = "OTHERS") => {
         },
         FeatureTypes: ["QUERIES"],
         QueriesConfig: {
-            Queries: queries
+            // El SDK v3 espera un array de objetos { Text, Alias }
+            Queries: queries.map(q => ({
+                Text: q.Text,
+                Alias: q.Alias
+            }))
         }
     };
 
@@ -41,11 +46,10 @@ exports.extractText = async (bucket, key, category = "OTHERS") => {
         const response = await client.send(command);
 
         if (!response.Blocks) {
-            throw new Error("Textract no devolvió bloques de datos. El archivo podría estar corrupto.");
+            throw new Error("Textract no devolvió bloques de datos.");
         }
 
-        // 2. Extraemos el Texto Crudo (LINEs)
-        // Esto sirve para que Bedrock tenga el contexto semántico completo.
+        // 2. Extraemos el Texto Crudo (LINEs) para el análisis semántico de Bedrock
         const rawText = response.Blocks
             .filter(block => block.BlockType === "LINE")
             .map(block => block.Text)
@@ -53,6 +57,8 @@ exports.extractText = async (bucket, key, category = "OTHERS") => {
 
         // 3. Mapeamos los resultados de las QUERIES a un objeto plano (queryHints)
         const queryHints = {};
+        
+        // Filtramos bloques para búsquedas más eficientes
         const queryBlocks = response.Blocks.filter(b => b.BlockType === "QUERY");
         const resultBlocks = response.Blocks.filter(b => b.BlockType === "QUERY_RESULT");
 
@@ -60,8 +66,8 @@ exports.extractText = async (bucket, key, category = "OTHERS") => {
             const alias = qBlock.Query.Alias;
             const relationship = qBlock.Relationships?.find(r => r.Type === "ANSWER");
             
-            if (relationship) {
-                // Buscamos el bloque de respuesta vinculado al ID de la query
+            if (relationship && relationship.Ids.length > 0) {
+                // Buscamos el bloque de respuesta vinculado
                 const answerBlock = resultBlocks.find(r => relationship.Ids.includes(r.Id));
                 queryHints[alias] = answerBlock ? answerBlock.Text : null;
             } else {
@@ -69,20 +75,21 @@ exports.extractText = async (bucket, key, category = "OTHERS") => {
             }
         });
 
-        // Log de trazabilidad para CloudWatch
         const foundFields = Object.values(queryHints).filter(v => v !== null).length;
         console.log(`✅ [TEXTRACT_SUCCESS]: Se extrajeron ${foundFields}/${queries.length} campos.`);
 
         return {
-            rawText,        // Input sucio pero completo para Bedrock
-            queryHints,     // Datos "Gold" validados por la visión de Textract
+            rawText,
+            queryHints,
             category,
             confidence: response.Blocks[0]?.Confidence || 0
         };
 
     } catch (error) {
         console.error(`❌ [TEXTRACT_ERROR] en ${key}:`, error.message);
-        // Propagamos el error para que el index.js lo capture y maneje el flujo
         throw error;
     }
 };
+
+// 4. Exportación por defecto para mantener consistencia con index.js
+export default { extractText };
