@@ -39,7 +39,7 @@ export const handler = async (event, context) => {
         
         const emissionCalculations = await calculateFootprint(
             emissionLines, 
-            aiAnalysis.extracted_data?.location?.country || "ES"
+            "GB"
         );
         
         const totalCo2 = emissionCalculations.reduce((acc, curr) => acc + (curr.co2e || 0), 0);
