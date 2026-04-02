@@ -3,19 +3,28 @@ import crypto from 'crypto';
 export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
     const now = new Date().toISOString();
     
+    // Referencia rápida al objeto invoice del prompt
+    const invoice = aiData.extracted_data?.invoice;
+    
     // Extraer datos para la Sort Key
-    const invoiceDate = aiData.extracted_data?.invoice?.date || "0000-00-00";
+    const invoiceDate = invoice?.date || "0000-00-00";
     const s3FileName = s3Key.split('/').pop();
     
     const fileHash = crypto.createHash('sha256').update(s3FileName).digest('hex');
     const shortHash = fileHash.substring(0, 8);
     const SK = `INV#${invoiceDate}#${shortHash}`;
 
-    // Sanitización de montos (total_amount.total según el log)
-    const rawAmount = aiData.extracted_data?.invoice?.total_amount?.total || 0;
-    const cleanAmount = typeof rawAmount === 'string' 
-        ? parseFloat(rawAmount.replace(/[^0-9.,]/g, '').replace(',', '.')) 
-        : Number(rawAmount);
+    /**
+     * CORRECCIÓN CRÍTICA: Ruta según tu Prompt
+     * Tu prompt genera: "total_amount": { "total": "float", "currency": "ISO_4217" }
+     */
+    const rawTotal = invoice?.total_amount?.total || 0;
+    const currency = invoice?.total_amount?.currency || "EUR";
+
+    // Sanitización robusta de números
+    const cleanAmount = typeof rawTotal === 'string' 
+        ? parseFloat(rawTotal.replace(/[^0-9.,]/g, '').replace(',', '.')) 
+        : Number(rawTotal);
 
     return {
         PK: partitionKey,
@@ -24,15 +33,17 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
         ai_analysis: {
             activity_id: footprint.activity_id,
             calculation_method: "consumption_based",
-            // Corregido: toFixed fallaba porque esto venía undefined en tu log
+            // Seguridad para evitar el error de toFixed(2)
             confidence_score: Number(aiData.confidence_score || 0), 
             insight_text: aiData.analysis_summary || `Processed invoice for ${aiData.extracted_data?.vendor?.name}`,
             parameter_type: "energy",
-            region: aiData.extracted_data?.location?.country_code || "ES",
+            region: aiData.extracted_data?.location?.country || "ES",
             requires_review: (Number(aiData.confidence_score || 0) < 0.8),
             service_type: aiData.category || "elec",
-            unit: aiData.extracted_data?.consumption?.unit || "kWh",
-            value: Number(aiData.extracted_data?.consumption?.value || 0),
+            // Ajustamos a la ruta de tus emission_lines si es necesario, 
+            // o lo dejamos mapeado al primer valor encontrado
+            unit: aiData.emission_lines?.[0]?.unit || "kWh",
+            value: Number(aiData.emission_lines?.[0]?.value || 0),
             year: invoiceDate.split('-')[0]
         },
 
@@ -53,13 +64,14 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
 
         extracted_data: {
             billing_period: {
-                start: aiData.extracted_data?.invoice?.period_start || null,
-                end: aiData.extracted_data?.invoice?.period_end || null
+                // Si la IA no los extrajo, estos vendrán como null
+                start: invoice?.period_start || null,
+                end: invoice?.period_end || null
             },
-            currency: aiData.extracted_data?.invoice?.currency || "EUR",
+            currency: currency,
             invoice_date: invoiceDate,
-            invoice_number: aiData.extracted_data?.invoice?.number || "NO-NUMBER",
-            // RUTA CORREGIDA AQUÍ
+            invoice_number: invoice?.number || "NO-NUMBER",
+            // ASIGNACIÓN FINAL CORREGIDA
             total_amount: cleanAmount || 0, 
             vendor: aiData.extracted_data?.vendor?.name || "Unknown Vendor"
         },
