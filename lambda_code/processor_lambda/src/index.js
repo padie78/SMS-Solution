@@ -22,7 +22,18 @@ export const handler = async (event, context) => {
 
         // --- FASE 2: IA ANALYSIS ---
         const aiAnalysis = await bedrock.analyzeInvoice(ocrData.rawText);
+
+        console.log(`🤖 [AI_ANALYSIS_DONE]: Categoría: ${aiAnalysis.category} | Confianza: ${aiAnalysis.confidence_score.toFixed(2)}`);
         
+        console.log(`🤖 [AI_ANALYSIS_DONE]: Categoría: ${aiAnalysis.category} | Confianza: ${aiAnalysis.confidence_score.toFixed(2)}`);
+
+// Agrega esto para inspeccionar el objeto de extracción
+console.log("🔍 [DEBUG_EXTRACTION]:", JSON.stringify({
+    valor_crudo: aiAnalysis.extracted_data?.invoice?.total_amount,
+    tipo_de_dato: typeof aiAnalysis.extracted_data?.invoice?.total_amount,
+    objeto_completo: aiAnalysis.extracted_data?.invoice
+}, null, 2));
+
         // --- FASE 3: CLIMATIQ CALCULATION ---
         const emissionLines = (aiAnalysis.emission_lines || []).map(line => ({
             ...line,
