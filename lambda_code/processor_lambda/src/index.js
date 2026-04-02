@@ -23,16 +23,12 @@ export const handler = async (event, context) => {
         // --- FASE 2: IA ANALYSIS ---
         const aiAnalysis = await bedrock.analyzeInvoice(ocrData.rawText);
 
-        console.log(`🤖 [AI_ANALYSIS_DONE]: Categoría: ${aiAnalysis.category} | Confianza: ${aiAnalysis.confidence_score.toFixed(2)}`);
         
-        console.log(`🤖 [AI_ANALYSIS_DONE]: Categoría: ${aiAnalysis.category} | Confianza: ${aiAnalysis.confidence_score.toFixed(2)}`);
+        // index.js - Línea 26 corregida
+console.log(`🤖 [AI_ANALYSIS_DONE]: Categoría: ${aiAnalysis?.category || 'N/A'} | Confianza: ${aiAnalysis?.confidence_score?.toFixed(2) || '0.00'}`);
 
-// Agrega esto para inspeccionar el objeto de extracción
-console.log("🔍 [DEBUG_EXTRACTION]:", JSON.stringify({
-    valor_crudo: aiAnalysis.extracted_data?.invoice?.total_amount,
-    tipo_de_dato: typeof aiAnalysis.extracted_data?.invoice?.total_amount,
-    objeto_completo: aiAnalysis.extracted_data?.invoice
-}, null, 2));
+// E inspeccionamos TODO el objeto para ver qué envió la IA realmente
+console.log("🔍 [FULL_AI_RESPONSE]:", JSON.stringify(aiAnalysis, null, 2));
 
         // --- FASE 3: CLIMATIQ CALCULATION ---
         const emissionLines = (aiAnalysis.emission_lines || []).map(line => ({
