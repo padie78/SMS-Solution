@@ -3,7 +3,7 @@ import { STRATEGIES } from "../constants/climatiq_catalog.js";
 export const calculateFootprint = async (lines, country = "ES") => {
     let totalKg = 0;
     const items = [];
-    const CLIMATIQ_TOKEN = process.env.CLIMATIQ_API_KEY; // Recomendado usar env var
+    const CLIMATIQ_TOKEN = "2E44QNZJMX5X5B6EM43E88KRZ8" // Recomendado usar env var
     const DATA_VERSION = "32.32"; 
 
     for (const line of lines) {
