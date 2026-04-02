@@ -14,6 +14,8 @@ export const handler = async (event, context) => {
     const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
     const requestId = context.awsRequestId;
 
+    console.log(`🚀 [PIPELINE_START]: Procesando s3://${bucket}/${key}`);
+
     try {
         // --- FASE 1: OCR ---
         const ocrData = await extractText(bucket, key);
@@ -22,7 +24,6 @@ export const handler = async (event, context) => {
         const aiAnalysis = await bedrock.analyzeInvoice(ocrData.rawText);
         
         // --- FASE 3: CLIMATIQ CALCULATION ---
-        // Inyectamos categoría global en las líneas si Bedrock la omitió
         const emissionLines = (aiAnalysis.emission_lines || []).map(line => ({
             ...line,
             category: line.category || aiAnalysis.category || "ELEC"
@@ -31,30 +32,52 @@ export const handler = async (event, context) => {
         const country = aiAnalysis.extracted_data?.location?.country || "ES";
         const emissionCalculations = await calculateFootprint(emissionLines, country);
         
-        // Extraemos los valores del objeto retornado
         const totalCO2 = emissionCalculations.total_kg; 
-        const resultsArray = emissionCalculations.items; // <-- Tu desglose para auditoría
+        const resultsArray = emissionCalculations.items;
 
         console.log(`🌍 [CLIMATIQ_DONE] | Total: ${totalCO2.toFixed(2)} kgCO2e | Líneas: ${resultsArray.length}`);
 
-        // --- FASE 4: GOLDEN RECORD (MAPPER) ---
-        const head = await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-        const orgId = head.Metadata?.['organization-id'] || 'GENERIC_ORG';
+        // --- FASE 4: IDENTIFICACIÓN DE ORGANIZACIÓN (LOGICA MEJORADA) ---
+        // 1. Intentar extraer del Path (ej: uploads/ID_CLIENTE/archivo.jpg)
+        const pathParts = key.split('/');
+        const orgIdFromPath = pathParts.length > 1 ? pathParts[1] : null;
 
+        // 2. Intentar extraer de Metadatos de S3
+        const head = await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+        const orgIdFromMeta = head.Metadata?.['organization-id'] || head.Metadata?.['organizationid'];
+
+        // 3. Selección final (Prioridad: Path > Meta > Fallback)
+        const finalOrgId = orgIdFromPath || orgIdFromMeta || 'UNKNOWN_ORG';
+
+        console.log(`🆔 [ORG_IDENTIFIED]: ${finalOrgId} (Source: ${orgIdFromPath ? 'Path' : 'Metadata'})`);
+
+        // --- FASE 5: GOLDEN RECORD (MAPPER) ---
         const goldenRecord = buildGoldenRecord(
-            `ORG#${orgId}`, 
+            `ORG#${finalOrgId}`, 
             key,
             aiAnalysis,
-            emissionCalculations // Pasamos el objeto completo (total + items)
+            emissionCalculations
         );
 
-        // --- FASE 5: DYNAMODB ---
+        // --- FASE 6: DYNAMODB ---
         await db.persistTransaction(goldenRecord);
         
-        return { statusCode: 200, body: JSON.stringify({ status: "SUCCESS", id: goldenRecord.SK }) };
+        const duration = (Date.now() - startTime) / 1000;
+        return { 
+            statusCode: 200, 
+            body: JSON.stringify({ 
+                status: "SUCCESS", 
+                org: finalOrgId,
+                sk: goldenRecord.SK,
+                duration: `${duration}s`
+            }) 
+        };
 
     } catch (error) {
-        console.error(`❌ [CRITICAL_FAILURE]:`, error);
-        return { statusCode: 500, body: JSON.stringify({ error: error.message }) };
+        console.error(`❌ [CRITICAL_FAILURE] [ID:${requestId}]:`, error);
+        return { 
+            statusCode: 500, 
+            body: JSON.stringify({ error: error.message, requestId }) 
+        };
     }
 };
