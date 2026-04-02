@@ -31,6 +31,8 @@ export const handler = async (event, context) => {
         
         console.log(`🤖 [AI_DONE] | Cat: ${aiAnalysis.category} | Vendor: ${aiAnalysis.extracted_data?.vendor?.name || 'N/A'} | Total: ${aiAnalysis.extracted_data?.amounts?.total || 0} ${aiAnalysis.extracted_data?.amounts?.currency || ''}`);
 
+        console.log("   [DEBUG_BEDROCK_LINES]:", JSON.stringify(aiAnalysis.emission_lines, null, 2));
+
         // --- FASE 3: CÁLCULO DE HUELLA (CLIMATIQ) ---
         const emissionLines = aiAnalysis.emission_lines || [];
         console.log(`   [3/5] [CLIMATIQ_START]: Calculando CO2 para ${emissionLines.length} líneas...`);
