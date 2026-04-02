@@ -23,7 +23,7 @@ export const persistTransaction = async (record) => {
                 Put: {
                     TableName: TABLE_NAME,
                     Item: record,
-                    ConditionExpression: "attribute_not_exists(SK)" // Evita duplicados por hash
+                    ConditionExpression: "attribute_not_exists(SK)" 
                 }
             },
             {
@@ -36,7 +36,9 @@ export const persistTransaction = async (record) => {
                             by_month = if_not_exists(by_month, :emptyMap),
                             by_service = if_not_exists(by_service, :emptyMap),
 
-                            by_month.#m = if_not_exists(by_month.#m, :emptyMetrics),
+                            // Actualizamos los campos finales directamente para evitar Overlap Error
+                            // Si el mes (#m) no existe dentro de by_month, DynamoDB lo creará 
+                            // al asignar sus hijos, siempre que by_month esté inicializado.
                             by_month.#m.co2 = if_not_exists(by_month.#m.co2, :zero) + :newCo2,
                             by_month.#m.spend = if_not_exists(by_month.#m.spend, :zero) + :newSpend,
                             
@@ -59,7 +61,6 @@ export const persistTransaction = async (record) => {
                         ":one": 1,
                         ":zero": 0,
                         ":emptyMap": {},
-                        ":emptyMetrics": { co2: 0, spend: 0 },
                         ":now": new Date().toISOString(),
                         ":fileName": metadata.filename
                     }
@@ -85,4 +86,5 @@ export const persistTransaction = async (record) => {
     }
 };
 
+// Exportación por defecto para evitar el error de "requested module does not provide an export named default"
 export default { persistTransaction };
