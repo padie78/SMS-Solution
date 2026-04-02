@@ -15,14 +15,12 @@ export const calculateFootprint = async (lines, country = "ES") => {
             // --- CONSTRUCCIÓN DEL PAYLOAD ---
             // Eliminamos data_version de aquí para evitar el error de la columna 117
             const body = {
-                emission_factor: {
-                    activity_id: strategy.activity_id,
-                    region: country || "ES"
-                },
-                parameters: {
-                    ...(unit === 'kWh' 
-                        ? { energy: value, energy_unit: 'kWh' } 
-                        : { weight: value, weight_unit: unit })
+                "emission_factor": {
+                    "data_version": "^3",
+                    "activity_id": "electricity-supply_grid-source_production_mix",
+                    "source": "MfE",
+                    "region": "NZ",
+                    "year": 2020
                 }
             };
 
