@@ -2,28 +2,32 @@ import { STRATEGIES } from "../constants/climatiq_catalog.js";
 
 /**
  * Servicio de Cálculo de Huella de Carbono (Climatiq API).
- * Ahora con LOGS detallados por línea de emisión.
+ * Versión adaptada con Token inyectado y data_version 32.32.
  */
 export const calculateFootprint = async (lines, country = "ES") => {
     console.log(`   [CLIMATIQ_START]: Procesando ${lines?.length || 0} líneas para región: ${country}`);
     
     let totalKg = 0;
     const items = [];
+    
+    // Token y Versión de API (Abril 2026)
+    const CLIMATIQ_TOKEN = "2E44QNZJMX5X5B6EM43E88KRZ8";
+    const DATA_VERSION = "32.32"; 
 
     if (!lines || !Array.isArray(lines) || lines.length === 0) {
-        console.warn(`   ⚠️ [CLIMATIQ_EMPTY]: No se recibieron líneas de emisión de la IA.`);
+        console.warn(`   ⚠️ [CLIMATIQ_EMPTY]: No se recibieron líneas de emisión.`);
         return { total_tons: 0, total_kg: 0, items: [] };
     }
 
     for (const [index, line] of lines.entries()) {
-        // Log de entrada para auditoría visual en CloudWatch
-        console.log(`      📝 [LINEA_${index + 1}]: ID: ${line.activity_id || 'N/A'} | Val: ${line.value} ${line.unit} | Desc: ${line.description?.substring(0, 30)}...`);
+        console.log(`      📝 [LINEA_${index + 1}]: ID: ${line.activity_id || 'N/A'} | Val: ${line.value} ${line.unit}`);
 
         try {
-            // Construimos el body dinámicamente según lo que extrajo Bedrock
+            // Construcción del Payload siguiendo el contrato de Climatiq v1
             const body = {
+                data_version: DATA_VERSION,
                 emission_factor: { 
-                    activity_id: line.activity_id || "electricity-supply_grid_mix", // Default seguro
+                    activity_id: line.activity_id || "electricity-supply_grid_mix",
                     region: country 
                 },
                 parameters: { 
@@ -32,21 +36,24 @@ export const calculateFootprint = async (lines, country = "ES") => {
                 }
             };
 
-            // Si la IA detectó que es consumo (kWh, kg, etc) y no dinero:
-            if (line.unit !== 'EUR' && line.unit !== 'USD') {
-                const unitType = line.unit === 'kWh' ? 'energy' : 'weight';
+            // Lógica de Swapping: Si es unidad física (kWh, kg, etc), cambiamos el parámetro
+            const physicalUnits = ['kWh', 'kg', 't', 'km', 'l', 'm3'];
+            if (physicalUnits.includes(line.unit.toLowerCase()) || (line.unit !== 'EUR' && line.unit !== 'USD')) {
+                let unitType = 'weight'; // Default
+                if (line.unit.toLowerCase() === 'kwh') unitType = 'energy';
+                if (line.unit.toLowerCase() === 'km') unitType = 'distance';
+                if (line.unit.toLowerCase() === 'l' || line.unit.toLowerCase() === 'm3') unitType = 'volume';
+
                 body.parameters = {
                     [unitType]: line.value,
-                    [`${unitType}_unit`]: line.unit
+                    [`${unitType}_unit`]: line.unit.toLowerCase()
                 };
             }
-
-            const token = "2E44QNZJMX5X5B6EM43E88KRZ8";
 
             const res = await fetch("https://api.climatiq.io/data/v1/estimate", {
                 method: "POST",
                 headers: { 
-                    "Authorization": `Bearer ${token?.trim()}`, // .trim() por seguridad
+                    "Authorization": `Bearer ${CLIMATIQ_TOKEN.trim()}`,
                     "Content-Type": "application/json" 
                 },
                 body: JSON.stringify(body)
@@ -75,7 +82,7 @@ export const calculateFootprint = async (lines, country = "ES") => {
         }
     }
 
-    console.log(`   [CLIMATIQ_END]: Total acumulado: ${totalKg.toFixed(4)} kgCO2e (${(totalKg / 1000).toFixed(6)} t)`);
+    console.log(`   [CLIMATIQ_END]: Proceso finalizado. Total: ${totalKg.toFixed(4)} kgCO2e`);
 
     return { 
         total_tons: totalKg / 1000, 
