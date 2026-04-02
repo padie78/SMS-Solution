@@ -14,8 +14,6 @@ export const persistTransaction = async (record) => {
     const service = ai_analysis.service_type || "unknown";
     const statsSK = `STATS#${year}`;
 
-    console.log(`   [DB_PERSIST]: Iniciando transacción atómica para ${SK}`);
-
     const params = {
         TransactItems: [
             {
@@ -29,10 +27,10 @@ export const persistTransaction = async (record) => {
                 Update: {
                     TableName: TABLE_NAME,
                     Key: { PK, SK: statsSK },
+                    // Eliminamos la inicialización de by_month y by_service de aquí
+                    // para evitar el solapamiento. Usamos una estructura de SET más directa.
                     UpdateExpression: `
                         SET 
-                            by_month = if_not_exists(by_month, :emptyMap),
-                            by_service = if_not_exists(by_service, :emptyMap),
                             by_month.#m.co2 = if_not_exists(by_month.#m.co2, :zero) + :newCo2,
                             by_month.#m.spend = if_not_exists(by_month.#m.spend, :zero) + :newSpend,
                             by_service.#s = if_not_exists(by_service.#s, :zero) + :newCo2,
@@ -51,7 +49,6 @@ export const persistTransaction = async (record) => {
                         ":newSpend": Number(extracted_data.total_amount),
                         ":one": 1,
                         ":zero": 0,
-                        ":emptyMap": {},
                         ":now": new Date().toISOString(),
                         ":fileName": metadata.filename
                     }
@@ -62,13 +59,21 @@ export const persistTransaction = async (record) => {
 
     try {
         await ddb.send(new TransactWriteCommand(params));
-        console.log(`   ✅ [DB_SUCCESS]: Factura ${SK} y Stats#${year} sincronizados.`);
+        console.log(`   ✅ [DB_SUCCESS]: Sincronización completa para ${SK}`);
         return { success: true };
     } catch (error) {
+        // Manejo de errores específico
         if (error.name === "TransactionCanceledException") {
-            const reason = error.CancellationReasons?.[1]?.Code;
-            if (reason === "ConditionalCheckFailed") {
-                console.warn(`⚠️ [DB_DUPLICATE]: El archivo ${metadata.filename} ya existe.`);
+            const reasons = error.CancellationReasons;
+            
+            // Si el error es ValidationException por ruta inexistente, 
+            // significa que es el primer registro del año y hay que inicializar los mapas.
+            if (error.message?.includes("document path") || reasons?.[1]?.Code === "ValidationError") {
+                return await initializeAndPersist(params, record);
+            }
+
+            if (reasons?.[0]?.Code === "ConditionalCheckFailed") {
+                console.warn(`⚠️ [DB_DUPLICATE]: El archivo ya existe.`);
                 return { skipped: true };
             }
         }
@@ -76,5 +81,36 @@ export const persistTransaction = async (record) => {
         throw error;
     }
 };
+
+/**
+ * Función de respaldo para inicializar el registro STATS si no existe el mapa padre
+ */
+async function initializeAndPersist(originalParams, record) {
+    const { PK, analytics_dimensions } = record;
+    const statsSK = `STATS#${analytics_dimensions.period_year}`;
+    
+    console.log(`   🔧 [DB_INIT]: Inicializando mapas base para ${statsSK}`);
+    
+    // Simplemente aseguramos que existan los mapas vacíos primero si la transacción falló
+    try {
+        await ddb.send(new TransactWriteCommand({
+            TransactItems: [
+                {
+                    Update: {
+                        TableName: TABLE_NAME,
+                        Key: { PK, SK: statsSK },
+                        UpdateExpression: "SET by_month = if_not_exists(by_month, :empty), by_service = if_not_exists(by_service, :empty)",
+                        ExpressionAttributeValues: { ":empty": {} }
+                    }
+                }
+            ]
+        }));
+        // Reintentamos la transacción original ahora que los mapas existen
+        return await ddb.send(new TransactWriteCommand(originalParams));
+    } catch (e) {
+        console.error("❌ [DB_INIT_FATAL]: No se pudo inicializar STATS", e.message);
+        throw e;
+    }
+}
 
 export default { persistTransaction };
