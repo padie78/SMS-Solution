@@ -1,95 +1,89 @@
-import crypto from 'crypto';
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 
-/**
- * Mapea la respuesta de la IA a un Golden Record para DynamoDB.
- * Implementa una estrategia de Deduplicación por Llave Natural (Vendor + Invoice Number).
- */
-export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
-    const now = new Date().toISOString();
+const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
+const ddb = DynamoDBDocumentClient.from(client, { 
+    marshallOptions: { removeUndefinedValues: true, convertEmptyValues: true } 
+});
+
+const TABLE_NAME = "sms-platform-dev-emissions";
+
+export const persistTransaction = async (record) => {
+    const { PK, analytics_dimensions, climatiq_result, extracted_data, ai_analysis, metadata } = record;
     
-    // 1. Extraer y normalizar datos de entrada (Rutas validadas por logs)
-    const extData = aiData.extracted_data || {};
-    const invoice = extData.invoice || {};
-    const totalObj = extData.total_amount || {};
-    const vendor = extData.vendor || {};
+    const year = analytics_dimensions.period_year;
+    const month = analytics_dimensions.period_month.toString().padStart(2, '0');
+    const service = (ai_analysis.service_type || "UNKNOWN").toUpperCase();
+    const statsSK = `STATS#${year}`;
 
-    // 2. Lógica de Deduplicación: Generación de la SK Natural
-    // Normalizamos eliminando espacios, símbolos y pasando a Mayúsculas
-    const vendorClean = (vendor.name || "UNKNOWN").replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    const numberClean = (invoice.number || "NONUM").replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    const invoiceDate = invoice.date || "0000-00-00";
+    const newCo2 = Number(climatiq_result.co2e || 0);
+    const newSpend = Number(extracted_data.total_amount || 0);
 
-    /**
-     * ESTRATEGIA DE LLAVE ÚNICA (SK):
-     * Al usar los datos reales de la factura, el ConditionExpression: "attribute_not_exists(SK)"
-     * de tu base de datos detendrá cualquier intento de duplicar el gasto en los STATS.
-     * Ejemplo: INV#ELEIA#9041N13179782023
-     */
-    const SK = `INV#${vendorClean}#${numberClean}`;
+    // Definimos los nombres de las columnas planas
+    const monthCo2Key = `month_${month}_co2`;
+    const monthSpendKey = `month_${month}_spend`;
+    const serviceCo2Key = `service_${service}_co2`;
 
-    // 3. Sanitización de Datos Numéricos
-    const rawTotal = totalObj.total || 0;
-    const cleanAmount = typeof rawTotal === 'string' 
-        ? parseFloat(rawTotal.replace(/[^0-9.,]/g, '').replace(',', '.')) 
-        : Number(rawTotal);
-
-    const confidence = Number(aiData.confidence_score || 0);
-
-    // 4. Construcción del Objeto Final (Esquema de Tabla Única)
-    return {
-        PK: partitionKey,
-        SK: SK,
-
-        // Bloque IA: Metadatos para auditoría y validación de confianza
-        ai_analysis: {
-            activity_id: footprint.activity_id,
-            calculation_method: "consumption_based",
-            confidence_score: confidence,
-            insight_text: aiData.analysis_summary || `Processed invoice from ${vendor.name}`,
-            requires_review: (confidence < 0.8),
-            service_type: (aiData.category || "ELEC").toUpperCase(),
-            unit: aiData.emission_lines?.[0]?.unit || "kWh",
-            value: Number(aiData.emission_lines?.[0]?.value || 0),
-            year: invoiceDate.split('-')[0]
-        },
-
-        // Bloque Analítico: Facilita filtros en el Dashboard y STATS
-        analytics_dimensions: {
-            period_month: parseInt(invoiceDate.split('-')[1]) || 0,
-            period_year: parseInt(invoiceDate.split('-')[0]) || 0,
-            sector: "COMMERCIAL"
-        },
-
-        // Bloque Climatiq: Huella de Carbono calculada
-        climatiq_result: {
-            co2e: Number(footprint.total_kg || 0),
-            co2e_unit: "kg",
-            timestamp: now
-        },
-
-        // Bloque Extracted Data: Lo que se visualiza en la tabla de transacciones
-        extracted_data: {
-            billing_period: {
-                start: invoice.period_start || null,
-                end: invoice.period_end || null
+    const params = {
+        TransactItems: [
+            {
+                Put: {
+                    TableName: TABLE_NAME,
+                    Item: record,
+                    ConditionExpression: "attribute_not_exists(SK)" 
+                }
             },
-            currency: totalObj.currency || "EUR",
-            invoice_date: invoiceDate,
-            invoice_number: invoice.number || "NO-NUMBER",
-            total_amount: isNaN(cleanAmount) ? 0 : cleanAmount, // Garantizado como Número
-            vendor: vendor.name || "Unknown Vendor"
-        },
-
-        // Bloque de Metadatos: Trazabilidad del archivo original
-        metadata: {
-            filename: s3Key.split('/').pop(),
-            s3_key: s3Key,
-            status: "PROCESSED",
-            upload_date: now,
-            // Guardamos un hash técnico opcional para trazabilidad de archivos
-            technical_hash: crypto.createHash('sha256').update(s3Key).digest('hex').substring(0, 8)
-        }
+            {
+                Update: {
+                    TableName: TABLE_NAME,
+                    Key: { PK, SK: statsSK },
+                    // Estructura PLANA: Actualizamos todo en un solo paso atómico
+                    UpdateExpression: `
+                        SET #mCo2 = if_not_exists(#mCo2, :zero) + :newCo2,
+                            #mSpend = if_not_exists(#mSpend, :zero) + :newSpend,
+                            #sCo2 = if_not_exists(#sCo2, :zero) + :newCo2,
+                            total_co2e_kg = if_not_exists(total_co2e_kg, :zero) + :newCo2,
+                            total_spend = if_not_exists(total_spend, :zero) + :newSpend,
+                            invoice_count = if_not_exists(invoice_count, :zero) + :one,
+                            last_updated = :now,
+                            last_file_processed = :fileName
+                    `,
+                    ExpressionAttributeNames: { 
+                        "#mCo2": monthCo2Key,
+                        "#mSpend": monthSpendKey,
+                        "#sCo2": serviceCo2Key
+                    },
+                    ExpressionAttributeValues: {
+                        ":newCo2": newCo2,
+                        ":newSpend": newSpend,
+                        ":one": 1,
+                        ":zero": 0,
+                        ":now": new Date().toISOString(),
+                        ":fileName": metadata.filename
+                    }
+                }
+            }
+        ]
     };
+
+    try {
+        await ddb.send(new TransactWriteCommand(params));
+        console.log(`✅ [DB_SUCCESS]: Transacción y Stats Planos actualizados.`);
+        return { success: true };
+    } catch (error) {
+        if (error.name === "TransactionCanceledException") {
+            const reasons = error.CancellationReasons;
+            
+            // Si el ítem de Stats no existe, DynamoDB lo crea automáticamente con el Update.
+            // Pero si por alguna razón falla el esquema, aquí manejamos el error.
+            if (reasons?.[0]?.Code === "ConditionalCheckFailed") {
+                console.warn(`⚠️ [DB_DUPLICATE]: Factura ${record.SK} ya existe.`);
+                return { skipped: true };
+            }
+        }
+        console.error("❌ [DB_ERROR]:", error.message);
+        throw error;
+    }
 };
 
-export default { buildGoldenRecord };
+export default { persistTransaction };
