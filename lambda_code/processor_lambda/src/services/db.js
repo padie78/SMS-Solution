@@ -1,5 +1,5 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, TransactWriteCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
 const ddb = DynamoDBDocumentClient.from(client, { 
@@ -9,16 +9,20 @@ const ddb = DynamoDBDocumentClient.from(client, {
 const TABLE_NAME = "sms-platform-dev-emissions";
 
 export const persistTransaction = async (record) => {
-    const { PK, SK, analytics_dimensions, climatiq_result, extracted_data, ai_analysis, metadata } = record;
+    const { PK, analytics_dimensions, climatiq_result, extracted_data, ai_analysis, metadata } = record;
     
     const year = analytics_dimensions.period_year;
     const month = analytics_dimensions.period_month.toString().padStart(2, '0');
-    const service = (ai_analysis.service_type || "unknown").toUpperCase();
+    const service = (ai_analysis.service_type || "UNKNOWN").toUpperCase();
     const statsSK = `STATS#${year}`;
 
-    // Valores numéricos seguros
     const newCo2 = Number(climatiq_result.co2e || 0);
     const newSpend = Number(extracted_data.total_amount || 0);
+
+    // Definimos los nombres de las columnas planas
+    const monthCo2Key = `month_${month}_co2`;
+    const monthSpendKey = `month_${month}_spend`;
+    const serviceCo2Key = `service_${service}_co2`;
 
     const params = {
         TransactItems: [
@@ -33,23 +37,27 @@ export const persistTransaction = async (record) => {
                 Update: {
                     TableName: TABLE_NAME,
                     Key: { PK, SK: statsSK },
-                    // Usamos list_append o encadenamos inicializaciones si fuera necesario, 
-                    // pero para mapas anidados lo mejor es asegurar que el nivel superior exista.
+                    // Estructura PLANA: Actualizamos todo en un solo paso atómico
                     UpdateExpression: `
-                        SET by_month = if_not_exists(by_month, :emptyMap),
-                            by_service = if_not_exists(by_service, :emptyMap),
+                        SET #mCo2 = if_not_exists(#mCo2, :zero) + :newCo2,
+                            #mSpend = if_not_exists(#mSpend, :zero) + :newSpend,
+                            #sCo2 = if_not_exists(#sCo2, :zero) + :newCo2,
                             total_co2e_kg = if_not_exists(total_co2e_kg, :zero) + :newCo2,
                             total_spend = if_not_exists(total_spend, :zero) + :newSpend,
                             invoice_count = if_not_exists(invoice_count, :zero) + :one,
                             last_updated = :now,
                             last_file_processed = :fileName
                     `,
+                    ExpressionAttributeNames: { 
+                        "#mCo2": monthCo2Key,
+                        "#mSpend": monthSpendKey,
+                        "#sCo2": serviceCo2Key
+                    },
                     ExpressionAttributeValues: {
                         ":newCo2": newCo2,
                         ":newSpend": newSpend,
                         ":one": 1,
                         ":zero": 0,
-                        ":emptyMap": {},
                         ":now": new Date().toISOString(),
                         ":fileName": metadata.filename
                     }
@@ -60,71 +68,22 @@ export const persistTransaction = async (record) => {
 
     try {
         await ddb.send(new TransactWriteCommand(params));
-        
-        // SEGUNDO PASO: Actualizar los valores específicos dentro de los mapas
-        // DynamoDB no permite inicializar un mapa y sumar a un hijo en la misma Transact Item de forma sencilla
-        // Así que lo ideal es esta estructura de "Update" que ya tienes, pero con un fallback.
-        
-        await updateDetailedStats(PK, statsSK, month, service, newCo2, newSpend);
-        
-        console.log(`✅ [DB_SUCCESS]: ${SK} y ${statsSK} actualizados.`);
+        console.log(`✅ [DB_SUCCESS]: Transacción y Stats Planos actualizados.`);
         return { success: true };
     } catch (error) {
         if (error.name === "TransactionCanceledException") {
             const reasons = error.CancellationReasons;
             
-            // Si el error es en el ítem 1 (el Update de Stats)
-            if (reasons?.[1]?.Code === "ValidationError" || error.message?.includes("document path")) {
-                return await forceInitialStats(record);
-            }
-
+            // Si el ítem de Stats no existe, DynamoDB lo crea automáticamente con el Update.
+            // Pero si por alguna razón falla el esquema, aquí manejamos el error.
             if (reasons?.[0]?.Code === "ConditionalCheckFailed") {
-                console.warn(`⚠️ [DB_DUPLICATE]: Factura ya procesada anteriormente.`);
+                console.warn(`⚠️ [DB_DUPLICATE]: Factura ${record.SK} ya existe.`);
                 return { skipped: true };
             }
         }
+        console.error("❌ [DB_ERROR]:", error.message);
         throw error;
     }
 };
-
-// Función para actualizar los niveles profundos (mes y servicio)
-async function updateDetailedStats(PK, SK, month, service, co2, spend) {
-    const updateParams = {
-        TableName: TABLE_NAME,
-        Key: { PK, SK },
-        UpdateExpression: `
-            SET by_month.#m = if_not_exists(by_month.#m, :emptyData),
-                by_service.#s = if_not_exists(by_service.#s, :zero) + :co2
-        `,
-        ExpressionAttributeNames: { "#m": month, "#s": service },
-        ExpressionAttributeValues: {
-            ":co2": co2,
-            ":zero": 0,
-            ":emptyData": { co2: 0, spend: 0 }
-        }
-    };
-
-    // Aplicamos el incremento final al mes
-    const finalUpdate = {
-        TableName: TABLE_NAME,
-        Key: { PK, SK },
-        UpdateExpression: `
-            SET by_month.#m.co2 = by_month.#m.co2 + :co2,
-                by_month.#m.spend = by_month.#m.spend + :spend
-        `,
-        ExpressionAttributeNames: { "#m": month },
-        ExpressionAttributeValues: { ":co2": co2, ":spend": spend }
-    };
-
-    // Ejecutar secuencialmente para asegurar estructura
-    try {
-        // Primero aseguramos que existan las llaves del mes y el servicio
-        await ddb.send(new UpdateCommand(updateParams));
-        // Luego sumamos los valores
-        await ddb.send(new UpdateCommand(finalUpdate));
-    } catch (e) {
-        console.error("Error actualizando detalle de stats", e);
-    }
-}
 
 export default { persistTransaction };
