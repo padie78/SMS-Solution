@@ -8,7 +8,7 @@ export const calculateFootprint = async (lines, country = "ES") => {
     
     const items = [];
     // Nota: Mantén tu token en variables de entorno por seguridad
-    const CLIMATIQ_TOKEN = process.env.CLIMATIQ_TOKEN || "TU_TOKEN_AQUI"; 
+    const CLIMATIQ_TOKEN = process.env.CLIMATIQ_TOKEN || "2E44QNZJMX5X5B6EM43E88KRZ8"; 
 
     for (const line of lines) {
         try {
