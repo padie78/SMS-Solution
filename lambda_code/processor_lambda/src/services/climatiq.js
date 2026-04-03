@@ -39,6 +39,16 @@ export const calculateFootprint = async (lines, country = "ES") => {
             });
 
             const data = await res.json();
+
+            // --- LOG DE DEPURACIÓN (Añade esto) ---
+            console.log(`🔍 [CLIMATIQ_RESPONSE] para línea: ${line.description}`);
+            console.log(JSON.stringify({
+                co2e: data.co2e,
+                gases: data.constituent_gases, // Aquí verás CO2, CH4 y N2O
+                unit: data.co2e_unit
+            }, null, 2));
+            // ---------------------------------------
+
             if (!res.ok) throw new Error(data.message);
 
             // 1. Acumulamos el CO2e total
