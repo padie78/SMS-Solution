@@ -37,10 +37,13 @@ For each consumption line found, you MUST include a "category" field that matche
 2. DATES: YYYY-MM-DD.
 3. NUMBERS: Use floats/integers.
 4. UNITS: Use standard units (kWh, m3, kg, km, EUR, USD).
+5. PERIODS: You MUST extract "period_start" and "period_end". Look for "Periodo", "Desde/Hasta" or "Lectura". // 👈 NUEVA
+6. CONFIDENCE: Provide a "confidence_score" between 0.0 and 1.0 based on OCR quality. // 👈 NUEVA
 
 ### REQUIRED OUTPUT SCHEMA:
 {
   "category": "MAIN_CATEGORY_HERE",
+  "confidence_score": 0.95,
   "extracted_data": {
     "vendor": { "name": "string", "tax_id": "string" },
     "invoice": { 

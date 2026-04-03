@@ -17,20 +17,25 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
     // --- LÓGICA DE FILTRADO PARA EL CONSUMO ---
     const allLines = aiData.emission_lines || [];
     
-    // 2. Filtramos solo las líneas que son de consumo real (ej. kWh) 
-    // Ignoramos explícitamente EUR, €, etc., para que no ensucien el 'value'
     const consumptionLines = allLines.filter(line => {
         const u = (line.unit || '').toLowerCase();
         return u === 'kwh' || u === 'm3' || u === 'kg' || u === 'l';
     });
 
-    // 3. Sumamos solo los valores de consumo (Dará 1123 en tu factura de Fenosa)
     const totalValue = consumptionLines.reduce((acc, line) => acc + Number(line.value || 0), 0);
-    
-    // 4. Determinamos la unidad de visualización (priorizando kWh)
     const displayUnit = consumptionLines[0]?.unit || "kWh";
 
-    // 5. Huella y Gases (Viene de tu service corregido)
+    // --- LÓGICA DE CONFIANZA Y REVISIÓN (ACTUALIZADA) ---
+    // Usamos parseFloat para asegurar que tratamos con números decimales
+    const confidence = parseFloat(aiData.confidence_score) || 0;
+    
+    // Condición de revisión: 
+    // 1. Confianza IA < 0.8
+    // 2. O no hay consumo detectado (totalValue es 0)
+    // 3. O no se pudo extraer el periodo de facturación
+    const needsReview = confidence < 0.8 || totalValue === 0 || !invoice.period_start;
+
+    // --- HUELLA Y GASES ---
     const gases = footprint.constituent_gases || {};
     const totalCo2e = Number(footprint.total_kg || 0);
     const co2SafeValue = (gases.co2 && gases.co2 > 0) ? gases.co2 : totalCo2e;
@@ -40,19 +45,19 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
         SK: SK,
 
         ai_analysis: {
-            // Usamos el activity_id que ahora devuelve tu service corregido
             activity_id: footprint.activity_id || "electricity-supply_grid_es",
             calculation_method: "consumption_based",
-            confidence_score: Number(aiData.confidence_score || 0),
-            insight_text: aiData.analysis_summary || `Factura de ${vendor.name} procesada.`,
-            requires_review: (Number(aiData.confidence_score || 0) < 0.8),
+            confidence_score: confidence, // Ahora dinámico
+            insight_text: needsReview 
+                ? `Revisión requerida: ${confidence < 0.8 ? 'Baja confianza' : 'Datos incompletos'}.`
+                : aiData.analysis_summary || `Factura de ${vendor.name} procesada con éxito.`,
+            requires_review: needsReview, // Ahora dinámico basado en lógica de negocio
             service_type: (aiData.category || "ELEC").toUpperCase(),
-            unit: displayUnit, // Ahora será 'kWh' y no 'EUR'
-            value: totalValue,  // Ahora será '1123' y no '1189.57'
+            unit: displayUnit,
+            value: totalValue,
             year: invoiceDate.split('-')[0]
         },
 
-        // Mantenemos el detalle de TODAS las líneas (incluyendo las de EUR) para el usuario
         line_items: allLines.map((line, index) => ({
             id: index + 1,
             description: line.description,
@@ -77,6 +82,7 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
 
         extracted_data: {
             billing_period: {
+                // Ahora mapeamos los nuevos campos del Prompt
                 start: invoice.period_start || null,
                 end: invoice.period_end || null
             },
