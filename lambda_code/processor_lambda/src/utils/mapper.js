@@ -1,65 +1,63 @@
 import crypto from 'crypto';
 
-/**
- * Mapea la respuesta de Bedrock y Climatiq a un Golden Record.
- * Versión Híbrida: Totalización para Dashboards + Detalle para Auditoría.
- */
 export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
     const now = new Date().toISOString();
     
-    // 1. Extracción y Normalización de datos básicos
     const extData = aiData.extracted_data || {};
     const invoice = extData.invoice || {};
     const totalObj = extData.total_amount || {};
     const vendor = extData.vendor || {};
     const invoiceDate = invoice.date || "0000-00-00";
 
-    // 2. SK Natural para evitar duplicados (Vendor + Número de Factura)
+    // 1. SK Natural para evitar duplicados
     const vendorClean = (vendor.name || "UNKNOWN").replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     const numberClean = (invoice.number || "NONUM").replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     const SK = `INV#${vendorClean}#${numberClean}`;
 
-    // 3. Cálculo del Valor Agregado (Suma para el Dashboard)
-    const lines = aiData.emission_lines || [];
-    const totalValue = lines.reduce((acc, line) => acc + Number(line.value || 0), 0);
-    const displayUnit = lines[0]?.unit || "kWh";
+    // --- LÓGICA DE FILTRADO PARA EL CONSUMO ---
+    const allLines = aiData.emission_lines || [];
+    
+    // 2. Filtramos solo las líneas que son de consumo real (ej. kWh) 
+    // Ignoramos explícitamente EUR, €, etc., para que no ensucien el 'value'
+    const consumptionLines = allLines.filter(line => {
+        const u = (line.unit || '').toLowerCase();
+        return u === 'kwh' || u === 'm3' || u === 'kg' || u === 'l';
+    });
 
-    // 4. Lógica de Gases y Huella (con Fallback de seguridad)
+    // 3. Sumamos solo los valores de consumo (Dará 1123 en tu factura de Fenosa)
+    const totalValue = consumptionLines.reduce((acc, line) => acc + Number(line.value || 0), 0);
+    
+    // 4. Determinamos la unidad de visualización (priorizando kWh)
+    const displayUnit = consumptionLines[0]?.unit || "kWh";
+
+    // 5. Huella y Gases (Viene de tu service corregido)
     const gases = footprint.constituent_gases || {};
-    const totalCo2e = Number(footprint.total_kg || footprint.co2e || 0);
+    const totalCo2e = Number(footprint.total_kg || 0);
     const co2SafeValue = (gases.co2 && gases.co2 > 0) ? gases.co2 : totalCo2e;
 
-    // 5. Sanitización de montos y confianza
-    const confidence = Number(aiData.confidence_score || 0);
-    const cleanAmount = typeof totalObj.total === 'string' 
-        ? parseFloat(totalObj.total.replace(/[^0-9.,]/g, '').replace(',', '.')) 
-        : Number(totalObj.total || 0);
-
-    // 6. Construcción del Objeto Final
     return {
         PK: partitionKey,
         SK: SK,
 
-        // Resumen para analítica rápida
         ai_analysis: {
+            // Usamos el activity_id que ahora devuelve tu service corregido
             activity_id: footprint.activity_id || "electricity-supply_grid_es",
             calculation_method: "consumption_based",
-            confidence_score: confidence,
+            confidence_score: Number(aiData.confidence_score || 0),
             insight_text: aiData.analysis_summary || `Factura de ${vendor.name} procesada.`,
-            requires_review: (confidence < 0.8),
+            requires_review: (Number(aiData.confidence_score || 0) < 0.8),
             service_type: (aiData.category || "ELEC").toUpperCase(),
-            unit: displayUnit,
-            value: totalValue, // El total de 220
+            unit: displayUnit, // Ahora será 'kWh' y no 'EUR'
+            value: totalValue,  // Ahora será '1123' y no '1189.57'
             year: invoiceDate.split('-')[0]
         },
 
-        // --- NUEVO: DESGLOSE LÍNEA POR LÍNEA ---
-        // Esto permite que el usuario vea el detalle original en el frontend
-        line_items: lines.map((line, index) => ({
+        // Mantenemos el detalle de TODAS las líneas (incluyendo las de EUR) para el usuario
+        line_items: allLines.map((line, index) => ({
             id: index + 1,
-            description: line.description || "Consumo eléctrico",
+            description: line.description,
             value: Number(line.value || 0),
-            unit: line.unit || "kWh"
+            unit: line.unit || "EUR"
         })),
 
         analytics_dimensions: {
@@ -85,7 +83,7 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
             currency: totalObj.currency || "EUR",
             invoice_date: invoiceDate,
             invoice_number: invoice.number || "NO-NUMBER",
-            total_amount: isNaN(cleanAmount) ? 0 : cleanAmount,
+            total_amount: Number(totalObj.total || 0),
             vendor: vendor.name || "Unknown Vendor"
         },
 
@@ -98,5 +96,3 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
         }
     };
 };
-
-export default { buildGoldenRecord };
