@@ -2,6 +2,7 @@
  * @fileoverview Repository Layer - Capa de acceso a datos para DynamoDB.
  * Implementa el patrón de acceso optimizado para el proyecto SMS (Sustainability Management System).
  * Estructura: Single Table Design utilizando PK (ORG#ID) y SK (STATS# o INV#).
+ * * ACTUALIZACIÓN: Adaptado para seguridad Multi-tenant mediante inyección de orgId desde JWT.
  */
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
@@ -12,19 +13,26 @@ const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-centra
 const ddb = DynamoDBDocumentClient.from(client);
 const TABLE = process.env.DYNAMO_TABLE;
 
+/**
+ * Normaliza el ID de la organización asegurando el prefijo del Single Table Design.
+ * Evita duplicidad de prefijos si el token ya lo incluye.
+ * @param {string} id - ID proveniente del contexto del autorizador.
+ * @returns {string} PK formateada (ej: "ORG#123").
+ */
+const formatPK = (id) => id.startsWith('ORG#') ? id : `ORG#${id}`;
+
 export const repo = {
     /**
      * 1. DASHBOARD PRINCIPAL: Obtiene totales anuales pre-calculados.
-     * Esta es la consulta más eficiente y económica (GetItem - O(1)).
-     * @param {string} orgId - ID único de la organización (Partition Key).
-     * @param {string} year - Año de los datos (Parte de la Sort Key).
-     * @returns {Object|null} Objeto STATS con acumulados de CO2 y gasto.
+     * Patrón de acceso: Key Lookup (O(1)).
+     * @param {string} orgId - ID validado de la organización.
+     * @param {string} year - Año de los datos.
      */
-    getYearlyStats: async (orgId, year) => {
+    getStats: async (orgId, year) => {
         const { Item } = await ddb.send(new GetCommand({
             TableName: TABLE,
             Key: { 
-                PK: `ORG#${orgId}`, 
+                PK: formatPK(orgId), 
                 SK: `STATS#${year}` 
             }
         }));
@@ -33,17 +41,16 @@ export const repo = {
 
     /**
      * 2. BUSCADOR POR VENDOR: Búsqueda indexada por Sort Key.
-     * Aprovecha que el nombre del proveedor está al inicio de la SK para facturas.
+     * Utiliza la eficiencia de begins_with en la SK para filtrar proveedores rápidamente.
      * @param {string} orgId - ID de la organización.
-     * @param {string} vendorPrefix - Inicio del nombre del proveedor (ej: "GAS").
-     * @returns {Array} Colección de ítems que coinciden con el prefijo.
+     * @param {string} vendorPrefix - Prefijo del proveedor para la SK.
      */
     getInvoicesByVendor: async (orgId, vendorPrefix) => {
         const { Items } = await ddb.send(new QueryCommand({
             TableName: TABLE,
             KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
             ExpressionAttributeValues: {
-                ":pk": `ORG#${orgId}`,
+                ":pk": formatPK(orgId),
                 ":sk": `INV#${vendorPrefix.toUpperCase()}`
             }
         }));
@@ -52,17 +59,16 @@ export const repo = {
 
     /**
      * 3. MOTOR DE FILTROS AVANZADO: Búsqueda flexible multivariable.
-     * Utiliza FilterExpressions para navegar en atributos anidados (Mapas 'M').
+     * Aplica filtros sobre atributos anidados (Maps) tras la recuperación de la PK.
      * @param {string} orgId - ID de la organización.
-     * @param {Object} filters - Criterios: year, month, service, minSpend, start/end.
-     * @returns {Array} Facturas que cumplen con todos los criterios de filtrado.
+     * @param {Object} filters - Criterios de búsqueda (year, month, service, etc).
      */
     searchInvoices: async (orgId, filters) => {
-        // Inicializamos la expresión de filtrado obligatoria para registros de tipo factura
+        // El filtro base asegura que solo recuperamos registros de tipo factura (INV#)
         let filterExpr = ["begins_with(SK, :inv)"];
-        let exprValues = { ":pk": `ORG#${orgId}`, ":inv": "INV#" };
+        let exprValues = { ":pk": formatPK(orgId), ":inv": "INV#" };
 
-        // Filtrado por dimensiones analíticas (Mes/Año)
+        // Filtro por dimensiones de tiempo
         if (filters.year) {
             filterExpr.push("analytics_dimensions.M.period_year.N = :y");
             exprValues[":y"] = filters.year.toString();
@@ -72,19 +78,19 @@ export const repo = {
             exprValues[":m"] = filters.month.toString();
         }
 
-        // Filtrado por rubro (ELEC/GAS) definido por el análisis de IA
+        // Filtro por tipo de servicio analizado por IA
         if (filters.service) {
             filterExpr.push("ai_analysis.M.service_type.S = :s");
             exprValues[":s"] = filters.service.toUpperCase();
         }
 
-        // Filtro económico: Facturas mayores o iguales a un monto
+        // Filtro por umbral de gasto económico
         if (filters.minSpend) {
             filterExpr.push("extracted_data.M.total_amount.N >= :minS");
             exprValues[":minS"] = filters.minSpend.toString();
         }
 
-        // Filtro por rango de fechas del periodo de facturación real
+        // Filtro por rango de fechas (Periodo de facturación)
         if (filters.start && filters.end) {
             filterExpr.push("extracted_data.M.billing_period.M.start.S BETWEEN :st AND :en");
             exprValues[":st"] = filters.start;
@@ -103,11 +109,9 @@ export const repo = {
     },
 
     /**
-     * 4. AUDITORÍA: Identifica registros con baja fiabilidad.
-     * Permite al frontend listar facturas que requieren supervisión humana.
+     * 4. AUDITORÍA: Identifica registros con baja confianza de IA.
      * @param {string} orgId - ID de la organización.
-     * @param {number} threshold - Umbral de confianza (por defecto 0.8 / 80%).
-     * @returns {Array} Facturas con puntaje de confianza IA bajo.
+     * @param {number} threshold - Score de corte para auditoría.
      */
     getLowConfidenceInvoices: async (orgId, threshold = 0.8) => {
         const { Items } = await ddb.send(new QueryCommand({
@@ -115,7 +119,7 @@ export const repo = {
             KeyConditionExpression: "PK = :pk AND begins_with(SK, :inv)",
             FilterExpression: "ai_analysis.M.confidence_score.N < :t",
             ExpressionAttributeValues: {
-                ":pk": `ORG#${orgId}`, 
+                ":pk": formatPK(orgId), 
                 ":inv": "INV#", 
                 ":t": threshold.toString()
             }
