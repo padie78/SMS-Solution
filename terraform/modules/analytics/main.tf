@@ -103,6 +103,9 @@ resource "aws_instance" "grafana_server" {
   
   key_name               = var.key_name
 
+  # ESTA LÍNEA ES CLAVE
+  user_data_replace_on_change = true
+
   # Instalación automatizada de Grafana al arrancar
 user_data = <<-EOF
               #!/bin/bash
@@ -130,7 +133,7 @@ user_data = <<-EOF
               sudo systemctl start grafana-server
               sudo systemctl restart grafana-server
               EOF
-              
+
   tags = {
     Name        = "${var.project_name}-analytics-server"
     Environment = var.environment
