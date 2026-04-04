@@ -42,7 +42,16 @@ export const calculateFootprint = async (lines, country = "ES") => {
             let data;
             if (USE_MOCK) {
                 console.log(`   🛠️ [MOCK_ACTIVE]: Simulando estimación para "${line.description}"`);
-                data = CLIMATIQ_MOCK_RESPONSE; 
+                const co2Calculado = value * 0.129; 
+                data = {
+                    ...CLIMATIQ_MOCK_RESPONSE, // Traemos la estructura (activity_id, etc.)
+                    co2e: co2Calculado,        // Sobrescribimos con el valor proporcional
+                    constituent_gases: {
+                        co2: co2Calculado,
+                        ch4: 0,
+                        n2o: 0
+                    }
+    };
             } else {
                 // Llamada real a la API
                 const body = {
