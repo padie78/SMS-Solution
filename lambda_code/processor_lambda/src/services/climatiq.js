@@ -1,4 +1,5 @@
 import { STRATEGIES } from "../constants/climatiq_catalog.js";
+import { MOCK_EMISSION_FACTORS } from "../mocks/factors.js"; // <--- Importación limpia
 
 // 1. Define tu objeto Mock al principio del archivo
 const CLIMATIQ_MOCK_RESPONSE = {
@@ -42,7 +43,16 @@ export const calculateFootprint = async (lines, country = "ES") => {
             let data;
             if (USE_MOCK) {
                 console.log(`   🛠️ [MOCK_ACTIVE]: Simulando estimación para "${line.description}"`);
-                const co2Calculado = value * 0.129; 
+                // 1. Identificamos la categoría (ELEC, GAS, etc.)
+                const category = line.category?.toUpperCase() || "ELEC";
+                
+                // 2. Buscamos su factor específico en nuestro mapa
+                const factor = MOCK_EMISSION_FACTORS[category] || MOCK_EMISSION_FACTORS.DEFAULT;
+                
+                // 3. Calculamos
+                const co2Calculado = value * factor;
+                
+                
                 data = {
                     ...CLIMATIQ_MOCK_RESPONSE, // Traemos la estructura (activity_id, etc.)
                     co2e: co2Calculado,        // Sobrescribimos con el valor proporcional
