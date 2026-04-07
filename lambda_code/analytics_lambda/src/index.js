@@ -3,7 +3,7 @@
  * Este componente actúa como el "Dispatcher" central que conecta el esquema de AppSync
  * con la lógica de negocio del Analytics Service.
  */
-import { analyticsService } from './services/analyticsService.js';
+import { analyticsService } from './services/analytics.js'
 
 export const handler = async (event) => {
     console.log("GraphQL Request:", JSON.stringify(event, null, 2));
