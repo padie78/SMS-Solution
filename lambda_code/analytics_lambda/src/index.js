@@ -12,62 +12,76 @@ export const handler = async (event) => {
         // 1. SEGURIDAD MULTI-TENANT: Extraemos el orgId de los Claims de Cognito vía AppSync Identity
         //const orgId = event.identity?.claims['custom:orgId'];
         const orgId = "f3d4f8a2-90c1-708c-a446-2c8592524d62"; // Sin el ORG#
-        // 2. PARÁMETROS: Argumentos definidos en el Schema (.graphql)
+       // 2. PARÁMETROS
         const args = event.arguments || {};
-        
-        // 3. ROUTING: Identificamos qué Query se disparó desde el Frontend
         const methodName = event.info?.fieldName;
 
+        console.log(`Routing Request: [${methodName}] for Org: [${orgId}] with Args:`, JSON.stringify(args));
+
         if (!orgId) {
-            console.error("CRITICAL: No orgId found in identity claims.");
+            console.error("CRITICAL: No orgId found.");
             throw new Error("Unauthorized: Missing organization context.");
         }
 
+        let result;
+
         /**
          * DISPATCHER LOGIC
-         * Mapea cada 'fieldName' del Schema GraphQL a un método del Servicio.
          */
         switch (methodName) {
             
             case 'getYearlyKPI':
-                // Dashboard Estratégico: Scorecards superiores
-                return await analyticsService.getYearlyKPI(orgId, args.year);
+                console.log(`Invoking analyticsService.getYearlyKPI(${orgId}, ${args.year})`);
+                result = await analyticsService.getYearlyKPI(orgId, args.year);
+                break;
 
             case 'getMonthlyKPI':
-                // Dashboard Táctico: Comparativa MoM
                 if (!args.month) throw new Error("Month argument is required for MonthlyKPI");
-                return await analyticsService.getMonthlyKPI(orgId, args.year, args.month);
+                console.log(`Invoking analyticsService.getMonthlyKPI(${orgId}, ${args.year}, ${args.month})`);
+                result = await analyticsService.getMonthlyKPI(orgId, args.year, args.month);
+                break;
 
             case 'getEvolution':
-                // Series Temporales: Gráficos de barras/líneas
-                return await analyticsService.getEvolution(orgId, args.year, args.gasType || 'co2e');
+                console.log(`Invoking analyticsService.getEvolution(${orgId}, ${args.year}, ${args.gasType})`);
+                result = await analyticsService.getEvolution(orgId, args.year, args.gasType || 'co2e');
+                break;
 
             case 'getIntensity':
-                // KPI de Eficiencia: kgCO2e / $
-                return await analyticsService.getCarbonIntensity(orgId, args.year);
+                console.log(`Invoking analyticsService.getIntensity(${orgId}, ${args.year})`);
+                result = await analyticsService.getIntensity(orgId, args.year);
+                break;
 
             case 'getForecast':
-                // Business Intelligence: Proyección de cierre de año
-                return await analyticsService.getForecast(orgId, args.year);
+                console.log(`Invoking analyticsService.getForecast(${orgId}, ${args.year})`);
+                result = await analyticsService.getForecast(orgId, args.year);
+                break;
 
             case 'getAuditReport':
-                // Gobernanza: Facturas con baja confianza de IA
-                return await analyticsService.getAuditReport(orgId);
+                console.log(`Invoking analyticsService.getAuditReport(${orgId})`);
+                result = await analyticsService.getAuditReport(orgId);
+                break;
 
             case 'searchInvoices':
-                // Exploración: Motor de búsqueda para el DataGrid
-                // Pasamos todo el objeto args como filtros
-                return await analyticsService.searchInvoices(orgId, args);
+                console.log(`Invoking analyticsService.searchInvoices(${orgId}, filters)`);
+                result = await analyticsService.searchInvoices(orgId, args);
+                break;
 
             default:
-                console.warn(`Field name ${methodName} not recognized by the resolver.`);
-                throw new Error(`Field ${methodName} not implemented in the Orchestrator.`);
+                console.warn(`Field name ${methodName} not recognized.`);
+                throw new Error(`Field ${methodName} not implemented.`);
         }
 
-    } catch (error) {
-        console.error("[RESOLVER ERROR]:", error);
+        // LOG DE RESPUESTA: Aquí verás si el servicio devolvió ceros o datos reales
+        console.log(`--- SUCCESS: [${methodName}] Result ---`);
+        console.log(JSON.stringify(result, null, 2));
         
-        // En AppSync, lanzar un Error devuelve automáticamente un bloque "errors" en la respuesta GraphQL
+        return result;
+
+    } catch (error) {
+        console.error("--- ERROR EN RESOLVER ---");
+        console.error("Method:", event.info?.fieldName);
+        console.error("Details:", error);
+        
         throw new Error(error.message || "Internal Analytics Error");
     }
 };
