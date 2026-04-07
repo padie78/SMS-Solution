@@ -1,142 +1,42 @@
-# ==============================================================================
-# DATA SOURCES: Recuperamos la infraestructura default de AWS
-# ==============================================================================
-data "aws_vpc" "default" {
-  default = true
+resource "aws_appsync_graphql_api" "analytics_hub" {
+  name                = "sms-analytics-hub"
+  authentication_type = "API_KEY" # Cambiar a AMAZON_COGNITO_USER_POOLS luego
+  schema              = file("${path.module}/schema.graphql")
+
+  xray_enabled = true
 }
 
-# Buscamos una subnet pública en la VPC default para que la EC2 tenga salida a internet
-data "aws_subnets" "default" {
-  filter {
-    name   = "vpc-id"
-    values = [data.aws_vpc.default.id]
-  }
+# Key de la API (para pruebas rápidas)
+resource "aws_appsync_api_key" "hub_key" {
+  api_id = aws_appsync_graphql_api.analytics_hub.id
 }
 
-# ==============================================================================
-# SEGURIDAD: Security Group para Grafana
-# ==============================================================================
-resource "aws_security_group" "grafana_sg" {
-  name        = "${var.project_name}-grafana-sg-${var.environment}"
-  description = "Security Group para el dashboard de Grafana (Acceso restringido)"
-  vpc_id      = data.aws_vpc.default.id
+# Datasource: Link a la Lambda de Analytics
+resource "aws_appsync_datasource" "analytics_lambda_ds" {
+  api_id           = aws_appsync_graphql_api.analytics_hub.id
+  name             = "AnalyticsLambdaDS"
+  type             = "AWS_LAMBDA"
+  service_role_arn = aws_iam_role.appsync_runtime_role.arn
 
-  # Entrada: Solo permitimos el puerto 3000 desde TU IP
-  ingress {
-    description      = "Acceso a Grafana UI"
-    from_port        = 3000
-    to_port          = 3000
-    protocol         = "tcp"
-    cidr_blocks      = [var.allowed_ip_network] 
-  }
-
-  # Salida: Permitimos todo para que Grafana pueda descargar actualizaciones/plugins
-  egress {
-    from_port        = 0
-    to_port          = 0
-    protocol         = "-1"
-    cidr_blocks      = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name        = "${var.project_name}-grafana-sg"
-    Environment = var.environment
-  }
 }
 
-# ==============================================================================
-# IDENTIDAD: IAM Role para acceso nativo a DynamoDB
-# ==============================================================================
-resource "aws_iam_role" "grafana_role" {
-  name = "${var.project_name}-grafana-role-${var.environment}"
+# Resolver: Conecta la Query con la Lambda
+resource "aws_appsync_resolver" "analytics_query_resolver" {
+  api_id      = aws_appsync_graphql_api.analytics_hub.id
+  type        = "Query"
+  field       = "getOrganizationAnalytics"
+  data_source = aws_appsync_datasource.analytics_lambda_ds.name
 
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
-      Principal = { Service = "ec2.amazonaws.com" }
-    }]
-  })
+  request_template = <<EOF
+{
+    "version": "2017-02-28",
+    "operation": "Invoke",
+    "payload": {
+        "arguments": $util.toJson($context.arguments),
+        "identity": $util.toJson($context.identity)
+    }
 }
+EOF
 
-resource "aws_iam_role_policy" "grafana_dynamo_policy" {
-  name = "${var.project_name}-grafana-dynamo-policy"
-  role = aws_iam_role.grafana_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action   = [
-          "dynamodb:DescribeTable", 
-          "dynamodb:Scan", 
-          "dynamodb:Query", 
-          "dynamodb:GetItem"
-        ]
-        Effect   = "Allow"
-        Resource = [var.dynamodb_table_arn]
-      }
-    ]
-  })
-}
-
-resource "aws_iam_instance_profile" "grafana_profile" {
-  name = "${var.project_name}-grafana-profile-${var.environment}"
-  role = aws_iam_role.grafana_role.name
-}
-
-# ==============================================================================
-# CÓMPUTO: Instancia EC2 (Free Tier)
-# ==============================================================================
-resource "aws_instance" "grafana_server" {
-  ami                    = var.ami_id
-  instance_type          = "t3.micro"
-  
-  # Usamos la primera subnet disponible de la VPC default
-  subnet_id              = data.aws_subnets.default.ids[0]
-  vpc_security_group_ids = [aws_security_group.grafana_sg.id]
-  iam_instance_profile   = aws_iam_instance_profile.grafana_profile.name
-  
-  # Importante: Asignamos IP pública para que puedas entrar desde tu casa/oficina
-  associate_public_ip_address = true
-  
-  key_name               = var.key_name
-
-  # ESTA LÍNEA ES CLAVE
-  user_data_replace_on_change = true
-
-  # Instalación automatizada de Grafana al arrancar
-user_data = <<-EOF
-              #!/bin/bash
-              # 1. Forzar detención y limpieza total de versiones viejas
-              sudo systemctl stop grafana-server || true
-              sudo yum remove -y grafana
-              sudo rm -rf /usr/sbin/grafana-server # Limpieza manual si quedó rastro
-
-              # 2. Limpiar cache de yum para evitar conflictos
-              sudo yum clean all
-
-              # 3. Descarga directa de la v11.6.0
-              # Usamos -O para asegurar que el archivo se guarde con el nombre correcto
-              sudo wget https://dl.grafana.com/oss/release/grafana-11.6.0-1.x86_64.rpm -O /tmp/grafana-11.6.0.rpm
-
-              # 4. Instalación local forzada
-              sudo yum localinstall -y /tmp/grafana-11.6.0.rpm
-
-              # 5. Reinstalar plugins (se borran al hacer remove)
-              sudo grafana-cli plugins install yesoreyeram-infinity-datasource
-
-              # 6. Permisos y arranque
-              sudo chown -R grafana:grafana /var/lib/grafana
-              sudo systemctl daemon-reload
-              sudo systemctl enable grafana-server
-              sudo systemctl start grafana-server
-              EOF
-
-  tags = {
-    Name        = "${var.project_name}-analytics-server"
-    Environment = var.environment
-    Project     = var.project_name
-  }
+  response_template = "$util.toJson($context.result)"
 }

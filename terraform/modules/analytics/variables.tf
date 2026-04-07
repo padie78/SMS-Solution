@@ -1,30 +1,27 @@
-variable "project_name" {
-  type        = string
-  description = "Nombre del proyecto"
-}
+variable "project_name" { type = string }
+variable "environment"  { type = string }
 
-variable "environment" {
-  type        = string
-  description = "Entorno (dev/prod)"
-}
-
-variable "dynamodb_table_arn" {
-  type        = string
-}
-
-variable "ami_id" {
-  type        = string
-}
-
-variable "key_name" {
+variable "vpc_id" {
+  description = "ID de la VPC para la instancia de Grafana"
   type        = string
 }
 
 variable "allowed_ip_network" {
+  description = "CIDR de tu IP para acceso SSH/HTTP"
   type        = string
 }
 
-variable "vpc_id" {
+variable "dynamodb_table_arn" {
+  description = "ARN de la tabla para que Grafana lea datos"
   type        = string
-  description = "ID de la VPC por defecto en Frankfurt"
+}
+
+variable "ami_id" {
+  description = "AMI para la EC2 de Analytics"
+  type        = string
+}
+
+variable "key_name" {
+  description = "Nombre de la llave SSH"
+  type        = string
 }

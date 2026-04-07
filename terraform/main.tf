@@ -28,8 +28,8 @@ module "storage" {
   block_public_policy     = var.block_public_policy
   ignore_public_acls      = var.ignore_public_acls
   restrict_public_buckets = var.restrict_public_buckets
-  processor_lambda_arn  = module.compute.processor_lambda_arn
-  processor_lambda_name = module.compute.processor_lambda_name
+  processor_lambda_arn    = module.compute.processor_lambda_arn
+  processor_lambda_name   = module.compute.processor_lambda_name
 }
 
 module "database" {
@@ -70,7 +70,21 @@ module "compute" {
 }
 
 # ==============================================================================
-# 4. INFRAESTRUCTURA API (El "Edificio" del Gateway)
+# 4. ORQUESTACIÓN DE DATOS (GraphQL Hub - Reemplazo futuro de API Gateway)
+# ==============================================================================
+# Bloque de Analytics Hub
+module "analytics_hub" {
+  source                = "./modules/app_orchestrator"
+  project_name          = var.project_name
+  environment           = var.environment
+  analytics_lambda_arn  = module.compute.analytics_lambda_arn 
+  analytics_lambda_name = module.compute.analytics_lambda_name
+  cognito_user_pool_id  = module.auth.user_pool_id
+  cognito_region        = var.aws_region
+}
+
+# ==============================================================================
+# 5. INFRAESTRUCTURA API (Legacy / Gateway actual)
 # ==============================================================================
 module "compute_api" {
   source       = "./modules/compute_api"
@@ -90,7 +104,7 @@ module "compute_api" {
 }
 
 # ==============================================================================
-# 5. RUTAS Y CONECTIVIDAD (Capa de Aplicación)
+# 6. RUTAS Y CONECTIVIDAD (Capa de Aplicación REST)
 # ==============================================================================
 module "api" {
   source            = "./modules/api"
@@ -116,24 +130,16 @@ module "api" {
 }
 
 # ==============================================================================
-# 6. ANALÍTICA Y OBSERVABILIDAD (Capa de BI)
+# 7. ANALÍTICA Y OBSERVABILIDAD (Capa de BI)
 # ==============================================================================
-module "analytics" {
-  source             = "./modules/analytics"
-  project_name       = var.project_name
-  environment        = var.environment
+# module "analytics" {
+#   source             = "./modules/analytics"
+#   project_name       = var.project_name
+#   environment        = var.environment
 
-  # Al ser serverless, usamos la VPC default para la EC2 de Grafana
-  # Esta variable la puedes dejar vacía o pasar un ID específico
-  vpc_id             = var.vpc_id 
-  
-  # Tu IP pública (ej: "181.xx.xx.xx/32") para que solo TÚ entres al panel
-  allowed_ip_network = var.allowed_ip_network
-
-  # Conexión con Database
-  dynamodb_table_arn = module.database.table_arn
-
-  # Configuración de Cómputo
-  ami_id             = var.ami_id
-  key_name           = var.key_name 
-}
+#   vpc_id             = var.vpc_id 
+#   allowed_ip_network = var.allowed_ip_network
+#   dynamodb_table_arn = module.database.table_arn
+#   ami_id             = var.ami_id
+#   key_name           = var.key_name 
+# }
