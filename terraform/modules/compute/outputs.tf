@@ -28,3 +28,13 @@ output "query_lambda_arn" {
 output "query_lambda_name" {
   value = aws_lambda_function.processor.function_name
 }
+
+output "analytics_lambda_arn" {
+  description = "ARN de la función Lambda de Analytics"
+  value       = aws_lambda_function.analytics.arn 
+}
+
+output "analytics_lambda_name" {
+  description = "Nombre de la función Lambda de Analytics"
+  value       = aws_lambda_function.analytics.function_name
+}

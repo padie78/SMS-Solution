@@ -51,7 +51,7 @@ resource "aws_iam_role_policy" "appsync_lambda_invoke" {
 
 # 5. DataSource: Conexión con la Lambda de Analytics
 resource "aws_appsync_datasource" "analytics_lambda_ds" {
-  api_id           = aws_appsync_graphql_api.analytics_hub.id
+  api_id           = aws_appsync_graphql_api.app_orchestrator.id
   name             = "AnalyticsLambdaDS"
   type             = "AWS_LAMBDA"
   service_role_arn = aws_iam_role.appsync_runtime_role.arn
@@ -63,7 +63,7 @@ resource "aws_appsync_datasource" "analytics_lambda_ds" {
 
 # 6. Resolver: Mapeo de la Query al DataSource
 resource "aws_appsync_resolver" "analytics_query_resolver" {
-  api_id      = aws_appsync_graphql_api.analytics_hub.id
+  api_id      = aws_appsync_graphql_api.app_orchestrator.id
   type        = "Query"
   field       = "getOrganizationAnalytics"
   data_source = aws_appsync_datasource.analytics_lambda_ds.name

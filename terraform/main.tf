@@ -73,7 +73,7 @@ module "compute" {
 # 4. ORQUESTACIÓN DE DATOS (GraphQL Hub - Reemplazo futuro de API Gateway)
 # ==============================================================================
 # Bloque de Analytics Hub
-module "analytics_hub" {
+module "app_orchestrator" {
   source                = "./modules/app_orchestrator"
   project_name          = var.project_name
   environment           = var.environment

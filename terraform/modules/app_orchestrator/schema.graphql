@@ -1,0 +1,23 @@
+type AnalyticsReport {
+  orgId: ID!
+  year: String!
+  total_co2e_kg: Float
+  total_spend: Float
+}
+
+type S3UploadPayload {
+  uploadUrl: String!
+  fileKey: String!
+}
+
+type Query {
+  # El "Analytics Hub" original
+  getOrganizationAnalytics(orgId: ID!, year: String!): AnalyticsReport
+  
+  # La futura función para S3
+  getS3UploadUrl(fileName: String!, contentType: String!): S3UploadPayload
+}
+
+schema {
+  query: Query
+}
