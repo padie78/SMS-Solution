@@ -4,7 +4,7 @@
  * Realiza conversiones de tipos (DynamoDB Map/Number a Native JS) y lógica de filtrado post-query.
  */
 
-import { repo } from '../repository/dynamoDb.js';
+import { repo } from '../repository/dynamo.js';
 
 export const analyticsService = {
     
