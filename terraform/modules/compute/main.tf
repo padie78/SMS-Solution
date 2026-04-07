@@ -94,8 +94,6 @@ resource "aws_lambda_function" "analytics" {
       DYNAMO_TABLE = var.dynamo_table_name
     }
   }
-
-  source_code_hash = data.archive_file.analytics_zip.output_base64sha256
 }
 
 # ==============================================================================
