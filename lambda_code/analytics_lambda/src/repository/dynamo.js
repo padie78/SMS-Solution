@@ -74,26 +74,31 @@ export const repo = {
                 ":pk": formatPK(orgId),
                 ":skPrefix": "INV#" 
             },
-            // Definimos el mapa de nombres para palabras reservadas
-            ExpressionAttributeNames: {} 
+            ExpressionAttributeNames: {}
         };
+
+        // 1. Optimización de SK: Si filtran por año, lo añadimos al prefijo del SK
+        // Esto es mucho más rápido que un FilterExpression
+        if (filters.year && !filters.service) {
+             // Si el SK empieza con INV#2026...
+             // params.ExpressionAttributeValues[":skPrefix"] = `INV#${filters.year}`;
+        }
 
         let filterParts = [];
         
-        // Filtro por tipo de servicio
+        // 2. Filtro por Service (que está dentro del objeto ai_analysis)
         if (filters.service) {
             filterParts.push("ai_analysis.service_type = :service");
             params.ExpressionAttributeValues[":service"] = filters.service;
         }
 
-        // Filtro por Año (USANDO ALIAS PARA EVITAR PALABRA RESERVADA)
+        // 3. Filtro por campos con palabras reservadas (#yr y #mo)
         if (filters.year) {
-            filterParts.push("extracted_data.#yr = :year"); // Usamos #yr
-            params.ExpressionAttributeNames["#yr"] = "year"; // Mapeamos #yr a "year"
+            filterParts.push("extracted_data.#yr = :year");
+            params.ExpressionAttributeNames["#yr"] = "year"; 
             params.ExpressionAttributeValues[":year"] = filters.year;
         }
 
-        // Filtro por Mes (También es palabra reservada por seguridad)
         if (filters.month) {
             filterParts.push("extracted_data.#mo = :month");
             params.ExpressionAttributeNames["#mo"] = "month";
@@ -102,8 +107,10 @@ export const repo = {
 
         if (filterParts.length > 0) {
             params.FilterExpression = filterParts.join(" AND ");
-        } else {
-            // Si no hay filtros, limpiamos el mapa para evitar errores de Dynamo
+        }
+
+        // Limpieza de seguridad: Si no hay nombres de atributos, borramos el mapa
+        if (Object.keys(params.ExpressionAttributeNames).length === 0) {
             delete params.ExpressionAttributeNames;
         }
 
