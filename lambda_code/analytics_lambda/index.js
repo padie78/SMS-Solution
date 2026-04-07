@@ -21,7 +21,7 @@ export const handler = async (event) => {
         let result;
 
         // 4. Inyectamos el orgId del token en todas las llamadas al servicio
-     /**
+        /**
          * API ROUTER / DISPATCHER
          * Orquesta las peticiones hacia la Capa de Servicio basándose en el 'viewType'.
          * El 'orgId' inyectado desde el Token garantiza que un usuario solo acceda a su Tenant.
