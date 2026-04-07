@@ -64,47 +64,28 @@ export const repo = {
      * @param {Object} filters - Criterios de búsqueda (year, month, service, etc).
      */
     searchInvoices: async (orgId, filters) => {
-        // El filtro base asegura que solo recuperamos registros de tipo factura (INV#)
-        let filterExpr = ["begins_with(SK, :inv)"];
-        let exprValues = { ":pk": formatPK(orgId), ":inv": "INV#" };
-
-        // Filtro por dimensiones de tiempo
-        if (filters.year) {
-            filterExpr.push("analytics_dimensions.M.period_year.N = :y");
-            exprValues[":y"] = filters.year.toString();
-        }
-        if (filters.month) {
-            filterExpr.push("analytics_dimensions.M.period_month.N = :m");
-            exprValues[":m"] = filters.month.toString();
-        }
-
-        // Filtro por tipo de servicio analizado por IA
-        if (filters.service) {
-            filterExpr.push("ai_analysis.M.service_type.S = :s");
-            exprValues[":s"] = filters.service.toUpperCase();
-        }
-
-        // Filtro por umbral de gasto económico
-        if (filters.minSpend) {
-            filterExpr.push("extracted_data.M.total_amount.N >= :minS");
-            exprValues[":minS"] = filters.minSpend.toString();
-        }
-
-        // Filtro por rango de fechas (Periodo de facturación)
-        if (filters.start && filters.end) {
-            filterExpr.push("extracted_data.M.billing_period.M.start.S BETWEEN :st AND :en");
-            exprValues[":st"] = filters.start;
-            exprValues[":en"] = filters.end;
-        }
-
         const params = {
-            TableName: TABLE,
-            KeyConditionExpression: "PK = :pk",
-            FilterExpression: filterExpr.join(" AND "),
-            ExpressionAttributeValues: exprValues
+            TableName: process.env.DYNAMO_TABLE,
+            KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
+            ExpressionAttributeValues: {
+                ":pk": `ORG#${orgId}`,
+                ":skPrefix": "INV#" 
+            }
         };
 
-        const { Items } = await ddb.send(new QueryCommand(params));
+        let filterParts = [];
+        // Importante: Para filtrar por campos anidados (Map) en DynamoDB se usa el punto
+        if (filters.service) {
+            filterParts.push("ai_analysis.service_type = :service");
+            params.ExpressionAttributeValues[":service"] = filters.service;
+        }
+
+        if (filterParts.length > 0) {
+            params.FilterExpression = filterParts.join(" AND ");
+        }
+
+        // Aquí usamos ddbDocClient que ya debe estar definido arriba en este archivo
+        const { Items } = await ddbDocClient.send(new QueryCommand(params));
         return Items || [];
     },
 
