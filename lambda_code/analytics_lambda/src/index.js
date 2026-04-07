@@ -11,7 +11,7 @@ export const handler = async (event) => {
     try {
         // 1. SEGURIDAD MULTI-TENANT: Extraemos el orgId de los Claims de Cognito vía AppSync Identity
         //const orgId = event.identity?.claims['custom:orgId'];
-        const orgId = "f3d4f8a2-90c1-708c-a446-2c8592524d62";
+        const orgId = "ORG#f3d4f8a2-90c1-708c-a446-2c8592524d62";
         // 2. PARÁMETROS: Argumentos definidos en el Schema (.graphql)
         const args = event.arguments || {};
         
