@@ -146,24 +146,36 @@ export const analyticsService = {
     /**
      * 6. EXPLORACIÓN: Motor de búsqueda para el DataGrid.
      */
-    searchInvoices: async (orgId, args) => {
-        const invoices = await repo.searchInvoices(orgId, args);
-        return invoices.map(inv => {
-            const ai = inv.ai_analysis?.M || inv.ai_analysis || {};
-            const ext = inv.extracted_data?.M || inv.extracted_data || {};
-            const climatiq = inv.climatiq_result?.M || inv.climatiq_result || {};
+    // repository/dynamo.js
 
-            return {
-                id: inv.SK.S || inv.SK,
-                vendor: ext.vendor?.S || ext.vendor || "Desconocido",
-                service: ai.service_type?.S || ai.service_type || "N/A",
-                invoiceDate: ext.invoice_date?.S || ext.invoice_date || "N/A",
-                totalAmount: parseFloat(ext.total_amount?.N || ext.total_amount || 0),
-                emissions: parseFloat(climatiq.co2e?.N || climatiq.co2e || 0),
-                gasUnit: climatiq.co2e_unit?.S || climatiq.co2e_unit || "kg",
-                confidence: parseFloat(ai.confidence_score?.N || ai.confidence_score || 0),
-                requiresReview: ai.requires_review?.BOOL ?? ai.requires_review ?? false
-            };
-        });
+searchInvoices: async (orgId, filters) => {
+    const params = {
+        TableName: process.env.DYNAMO_TABLE,
+        KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
+        ExpressionAttributeValues: {
+            ":pk": `ORG#${orgId}`,
+            ":skPrefix": "INV#" // Buscamos solo items tipo Factura
+        }
+    };
+
+    // Si el usuario envió un ID específico, NO usamos FilterExpression para el SK
+    if (filters.id) {
+        params.KeyConditionExpression = "PK = :pk AND SK = :sk";
+        params.ExpressionAttributeValues[":sk"] = `INV#${filters.id}`;
     }
+
+    // Filtros para atributos que NO son clave (Service, Vendor, etc)
+    let filterParts = [];
+    if (filters.service) {
+        filterParts.push("ai_analysis.service_type = :service");
+        params.ExpressionAttributeValues[":service"] = filters.service;
+    }
+    
+    if (filterParts.length > 0) {
+        params.FilterExpression = filterParts.join(" AND ");
+    }
+
+    const { Items } = await ddbDocClient.send(new QueryCommand(params));
+    return Items || [];
+}
 };
