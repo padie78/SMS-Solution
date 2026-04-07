@@ -63,6 +63,9 @@ export const repo = {
      * @param {string} orgId - ID de la organización.
      * @param {Object} filters - Criterios de búsqueda (year, month, service, etc).
      */
+    /**
+     * 3. MOTOR DE FILTROS AVANZADO (Versión Final corregida)
+     */
     searchInvoices: async (orgId, filters) => {
         const params = {
             TableName: TABLE,
@@ -70,28 +73,40 @@ export const repo = {
             ExpressionAttributeValues: {
                 ":pk": formatPK(orgId),
                 ":skPrefix": "INV#" 
-            }
+            },
+            // Definimos el mapa de nombres para palabras reservadas
+            ExpressionAttributeNames: {} 
         };
 
         let filterParts = [];
         
-        // Filtro por tipo de servicio (ELEC, GAS, etc.)
+        // Filtro por tipo de servicio
         if (filters.service) {
             filterParts.push("ai_analysis.service_type = :service");
             params.ExpressionAttributeValues[":service"] = filters.service;
         }
 
-        // Si necesitas agregar filtros por año o mes en el futuro, se añaden aquí:
+        // Filtro por Año (USANDO ALIAS PARA EVITAR PALABRA RESERVADA)
         if (filters.year) {
-            filterParts.push("extracted_data.year = :year");
+            filterParts.push("extracted_data.#yr = :year"); // Usamos #yr
+            params.ExpressionAttributeNames["#yr"] = "year"; // Mapeamos #yr a "year"
             params.ExpressionAttributeValues[":year"] = filters.year;
+        }
+
+        // Filtro por Mes (También es palabra reservada por seguridad)
+        if (filters.month) {
+            filterParts.push("extracted_data.#mo = :month");
+            params.ExpressionAttributeNames["#mo"] = "month";
+            params.ExpressionAttributeValues[":month"] = filters.month;
         }
 
         if (filterParts.length > 0) {
             params.FilterExpression = filterParts.join(" AND ");
+        } else {
+            // Si no hay filtros, limpiamos el mapa para evitar errores de Dynamo
+            delete params.ExpressionAttributeNames;
         }
 
-        // Cambiado ddbDocClient por ddb para ser consistente con tu definición arriba
         const { Items } = await ddb.send(new QueryCommand(params));
         return Items || [];
     },
