@@ -76,6 +76,7 @@ resource "aws_lambda_function" "analytics" {
   # Este nombre coincide exactamente con lo que pide el outputs.tf
   function_name = "${var.project_name}-analytics-${var.environment}"
   filename      = data.archive_file.analytics_zip.output_path
+  source_code_hash = filebase64sha256("${path.module}/../analytics_lambda.zip")
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
   role          = var.lambda_role_arn
