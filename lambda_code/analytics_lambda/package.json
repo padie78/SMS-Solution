@@ -1,11 +1,23 @@
 {
-  "name": "analytics-lambda",
+  "name": "sms-analytics-orchestrator",
   "version": "1.0.0",
   "type": "module",
-  "description": "Lambda para el Orchestrator del SMS",
+  "description": "Orquestador de analiticas para la plataforma de sustentabilidad (SMS)",
   "main": "src/index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "test": "node --test src/**/*.test.js",
+    "lint": "npx eslint src/"
+  },
   "dependencies": {
-    "@aws-sdk/client-dynamodb": "^3.0.0",
-    "@aws-sdk/lib-dynamodb": "^3.0.0"
-  }
+    "@aws-sdk/client-dynamodb": "^3.540.0",
+    "@aws-sdk/lib-dynamodb": "^3.540.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.130"
+  },
+  "author": "Diego Hernan Liascovich",
+  "license": "ISC"
 }
