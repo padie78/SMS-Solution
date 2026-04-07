@@ -101,11 +101,6 @@ resource "aws_lambda_function" "analytics" {
 # 3. OBSERVABILIDAD (CloudWatch Log Groups)
 # ==============================================================================
 
-resource "aws_cloudwatch_log_group" "signer_logs" {
-  name              = "/aws/lambda/${var.project_name}-signer-${var.environment}"
-  retention_in_days = 14
-}
-
 resource "aws_cloudwatch_log_group" "processor_logs" {
   name              = "/aws/lambda/${var.project_name}-processor-${var.environment}"
   retention_in_days = 14
