@@ -12,20 +12,34 @@ export const analyticsService = {
      * Mapea los totales anuales desde el item SK: STATS#YYYY
      */
     getYearlyKPI: async (orgId, year) => {
+        console.log(`[SERVICE] getYearlyKPI invocado - Org: ${orgId}, Year: ${year}`);
+        
         const stats = await repo.getStats(orgId, year);
         
-        if (!stats) return null;
+        // LOG 1: Ver exactamente qué devolvió el repositorio antes de procesar
+        console.log("[SERVICE] Respuesta cruda del REPO:", JSON.stringify(stats, null, 2));
+        
+        if (!stats) {
+            console.warn(`[SERVICE] No se encontraron stats para Org: ${orgId} y Year: ${year}`);
+            return null;
+        }
 
-        return {
-            totalCo2e: parseFloat(stats.total_co2e_kg?.N || 0),
-            totalSpend: parseFloat(stats.total_spend?.N || 0),
-            invoiceCount: parseInt(stats.invoice_count?.N || 0),
-            lastFile: stats.last_file_processed?.S || "Ninguno",
+        // Realizamos el mapeo
+        const mappedResult = {
+            totalCo2e: parseFloat(stats.total_co2e_kg?.N || stats.total_co2e_kg || 0),
+            totalSpend: parseFloat(stats.total_spend?.N || stats.total_spend || 0),
+            invoiceCount: parseInt(stats.invoice_count?.N || stats.invoice_count || 0),
+            lastFile: stats.last_file_processed?.S || stats.last_file_processed || "Ninguno",
             byService: {
-                ELEC: parseFloat(stats.service_ELEC_co2e?.N || 0),
-                GAS: parseFloat(stats.service_GAS_co2e?.N || 0)
+                ELEC: parseFloat(stats.service_ELEC_co2e?.N || stats.service_ELEC_co2e || 0),
+                GAS: parseFloat(stats.service_GAS_co2e?.N || stats.service_GAS_co2e || 0)
             }
         };
+
+        // LOG 2: Ver el objeto final que se le entrega al Resolver
+        console.log("[SERVICE] Objeto mapeado enviado al Resolver:", JSON.stringify(mappedResult, null, 2));
+
+        return mappedResult;
     },
 
    /**
