@@ -1,21 +1,101 @@
-type AnalyticsReport {
-  orgId: ID!
-  year: String!
-  total_co2e_kg: Float
-  total_spend: Float
+# --- Tipos de Datos (Entidades) ---
+
+type YearlyKPI {
+  totalCo2e: Float
+  totalSpend: Float
+  invoiceCount: Int
+  lastFile: String
+  byService: ServiceBreakdown
 }
 
-type S3UploadPayload {
-  uploadUrl: String!
-  fileKey: String!
+type ServiceBreakdown {
+  ELEC: Float
+  GAS: Float
 }
+
+type MonthlyKPI {
+  month: String
+  year: String
+  emissions: KPIDetail
+  spend: KPIDetail
+  isEmissionsUp: Boolean
+  isSpendUp: Boolean
+}
+
+type KPIDetail {
+  value: Float
+  previousValue: Float
+  diffPercentage: Float
+}
+
+type EvolutionData {
+  label: String
+  emissions: Float
+  spend: Float
+}
+
+type IntensityReport {
+  year: String
+  ratio: Float
+  unit: String
+  label: String
+}
+
+type ForecastReport {
+  currentAccumulated: Float
+  monthsProcessed: Int
+  projectedYearlyTotal: Float
+  trend: String
+}
+
+type AuditItem {
+  id: ID!
+  vendor: String
+  score: Float
+  invoiceNumber: String
+  reason: String
+}
+
+type Invoice {
+  id: ID!
+  vendor: String
+  service: String
+  invoiceDate: String
+  totalAmount: Float
+  emissions: Float
+  gasUnit: String
+  confidence: Float
+  requiresReview: Boolean
+}
+
+# --- Consultas (Queries) ---
 
 type Query {
-  # El "Analytics Hub" original
-  getOrganizationAnalytics(orgId: ID!, year: String!): AnalyticsReport
-  
-  # La futura función para S3
-  getS3UploadUrl(fileName: String!, contentType: String!): S3UploadPayload
+  # 1. Estratégico (Scorecards)
+  getYearlyKPI(year: String!): YearlyKPI
+
+  # 2. Táctico (Comparativa MoM)
+  getMonthlyKPI(year: String!, month: String!): MonthlyKPI
+
+  # 3. Evolución (Gráficos ECharts)
+  getEvolution(year: String!, gasType: String): [EvolutionData]
+
+  # 4. Eficiencia (Benchmarking)
+  getIntensity(year: String!): IntensityReport
+
+  # 5. Business Intelligence (Proyección)
+  getForecast(year: String!): ForecastReport
+
+  # 6. Gobernanza (Auditoría)
+  getAuditReport: [AuditItem]
+
+  # 7. Exploración (DataGrid con filtros)
+  searchInvoices(
+    year: String, 
+    month: String, 
+    service: String, 
+    minSpend: Float
+  ): [Invoice]
 }
 
 schema {
