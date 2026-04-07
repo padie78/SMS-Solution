@@ -14,7 +14,7 @@ export const analyticsService = {
      * @param {string} year - Año de ejercicio (ej: "2026").
      * @returns {Promise<Object>} Totales de CO2e, gasto, conteo y desglose por rubro.
      */
-    getYearlySummary: async (orgId, year) => {
+    getYearlyKPI: async (orgId, year) => {
         const stats = await repo.getStats(orgId, year);
         
         // Manejo de estado vacío para evitar errores en el Frontend
@@ -39,7 +39,7 @@ export const analyticsService = {
      * @param {string} year - Año de consulta.
      * @param {string} month - Mes en formato "01", "02", etc.
      */
-    getMonthlySummary: async (orgId, year, month) => {
+    getMonthlyKPI: async (orgId, year, month) => {
         const stats = await repo.getStats(orgId, year);
         if (!stats) return { message: "No hay datos para este periodo", data: null };
 
@@ -118,7 +118,7 @@ export const analyticsService = {
      * @param {Object} filters - Criterios de búsqueda provenientes de los QueryParams.
      * @returns {Promise<Array<Object>>} Facturas mapeadas para la tabla principal.
      */
-    getAdvancedSearch: async (orgId, filters) => {
+    searchInvoices: async (orgId, filters) => {
         const invoices = await repo.searchInvoices(orgId, filters);
         
         // El gasType define qué campo del objeto climatiq_result vamos a visualizar
@@ -204,7 +204,7 @@ export const analyticsService = {
      * facilitando la toma de decisiones correctivas proactivas.
      * -------------------------------------------------------------------------
      */
-    getProjection: async (orgId, year) => {
+    getForecast: async (orgId, year) => {
         const stats = await repo.getStats(orgId, year);
         if (!stats) return { projectedCo2: 0, status: "Insufficient Data" };
 

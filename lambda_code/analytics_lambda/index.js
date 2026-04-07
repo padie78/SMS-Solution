@@ -31,12 +31,12 @@ export const handler = async (event) => {
             
             case 'getYearlyKPI':
                 // Dashboard Estratégico: Scorecards superiores
-                return await analyticsService.getYearlySummary(orgId, args.year);
+                return await analyticsService.getYearlyKPI(orgId, args.year);
 
             case 'getMonthlyKPI':
                 // Dashboard Táctico: Comparativa MoM
                 if (!args.month) throw new Error("Month argument is required for MonthlyKPI");
-                return await analyticsService.getMonthlySummary(orgId, args.year, args.month);
+                return await analyticsService.getMonthlyKPI(orgId, args.year, args.month);
 
             case 'getEvolution':
                 // Series Temporales: Gráficos de barras/líneas
@@ -48,7 +48,7 @@ export const handler = async (event) => {
 
             case 'getForecast':
                 // Business Intelligence: Proyección de cierre de año
-                return await analyticsService.getProjection(orgId, args.year);
+                return await analyticsService.getForecast(orgId, args.year);
 
             case 'getAuditReport':
                 // Gobernanza: Facturas con baja confianza de IA
@@ -57,7 +57,7 @@ export const handler = async (event) => {
             case 'searchInvoices':
                 // Exploración: Motor de búsqueda para el DataGrid
                 // Pasamos todo el objeto args como filtros
-                return await analyticsService.getAdvancedSearch(orgId, args);
+                return await analyticsService.searchInvoices(orgId, args);
 
             default:
                 console.warn(`Field name ${methodName} not recognized by the resolver.`);
