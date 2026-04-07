@@ -65,27 +65,34 @@ export const repo = {
      */
     searchInvoices: async (orgId, filters) => {
         const params = {
-            TableName: process.env.DYNAMO_TABLE,
+            TableName: TABLE,
             KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
             ExpressionAttributeValues: {
-                ":pk": `ORG#${orgId}`,
+                ":pk": formatPK(orgId),
                 ":skPrefix": "INV#" 
             }
         };
 
         let filterParts = [];
-        // Importante: Para filtrar por campos anidados (Map) en DynamoDB se usa el punto
+        
+        // Filtro por tipo de servicio (ELEC, GAS, etc.)
         if (filters.service) {
             filterParts.push("ai_analysis.service_type = :service");
             params.ExpressionAttributeValues[":service"] = filters.service;
+        }
+
+        // Si necesitas agregar filtros por año o mes en el futuro, se añaden aquí:
+        if (filters.year) {
+            filterParts.push("extracted_data.year = :year");
+            params.ExpressionAttributeValues[":year"] = filters.year;
         }
 
         if (filterParts.length > 0) {
             params.FilterExpression = filterParts.join(" AND ");
         }
 
-        // Aquí usamos ddbDocClient que ya debe estar definido arriba en este archivo
-        const { Items } = await ddbDocClient.send(new QueryCommand(params));
+        // Cambiado ddbDocClient por ddb para ser consistente con tu definición arriba
+        const { Items } = await ddb.send(new QueryCommand(params));
         return Items || [];
     },
 
