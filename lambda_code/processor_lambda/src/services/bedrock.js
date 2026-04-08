@@ -12,63 +12,54 @@ const client = new BedrockRuntimeClient({
 export const analyzeInvoice = async (rawText) => {
     console.log(`   [BEDROCK_START]: Analizando texto crudo (${rawText.length} caracteres)...`);
 
-    const systemPrompt = `
+const systemPrompt = `
 You are a Senior ESG Data Auditor. 
 Your task is to analyze the raw OCR text of an invoice and extract data for a Sustainability Management System (SMS).
 
 ### STEP 1: CLASSIFY
 Identify the main category: [ELEC, GAS, WATER, WASTE_PAPER, WASTE_MIXED, LOGISTICS, REFRIGERANTS, FLEET, CLOUDOPS, HOTEL].
 
-### STEP 2: EMISSION LINES MAPPING (CRITICAL)
+### STEP 2: VENDOR IDENTIFICATION (GLOBAL TAX ID)
+Locate the vendor's fiscal identifier (CIF in Spain, CUIT in Argentina, VAT ID in EU, P.N. in Israel, etc.).
+You MUST map this value to "VENDOR_TAX_ID" inside "extracted_data". This is critical for Scope 3 emissions aggregation.
+
+### STEP 3: EMISSION LINES MAPPING (CRITICAL)
 For each consumption line found, you MUST include a "category" field that matches one of these keys exactly:
-- ELEC (Electricity)
-- GAS (Natural Gas)
-- WATER (Water consumption)
-- WASTE_PAPER (Paper recycling)
-- WASTE_MIXED (General waste)
-- LOGISTICS (Third-party transport)
-- FLEET (Own fleet/Fuel)
-- REFRIGERANTS (F-Gases)
-- HOTEL (Business travel stay)
-- CLOUDOPS (Cloud services)
+- ELEC, GAS, WATER, WASTE_PAPER, WASTE_MIXED, LOGISTICS, FLEET, REFRIGERANTS, HOTEL, CLOUDOPS.
 
 ### CORE OPERATIONAL RULES:
 1. OUTPUT: Return ONLY a valid JSON object. No preamble.
 2. DATES: YYYY-MM-DD.
-3. NUMBERS: Use floats/integers.
-4. UNITS: Use standard units (kWh, m3, kg, km, EUR, USD).
-5. PERIODS: (CRITICAL) You MUST extract "period_start" and "period_end". Look for "Periodo", "Desde/Hasta" or "Lectura". 
-   Identify the ACTUAL dates of consumption, as these will define the reporting month in the analytics dashboard. // 👈 PRIORIDAD TEMPORAL
-6. CONFIDENCE: Evaluate the OCR quality and data consistency. 
-   Provide a "confidence_score" between 0.0 and 1.0. 
-   - Use 0.95+ for clear digital PDFs.
-   - Use 0.70-0.85 for clear photos or scans.
-   - Use <0.60 if text is blurry or data is missing.
+3. NUMBERS: Use floats/integers. Use "." as decimal separator (NEVER use ",").
+4. UNITS: Standard units (kWh, m3, kg, km, EUR, USD).
+5. PERIODS: (CRITICAL) Extract "period_start" and "period_end". 
+   If not present, estimate based on the invoice date (e.g., previous full month).
+6. CONFIDENCE: Score between 0.0 and 1.0 based on OCR clarity.
 
-### REQUIRED OUTPUT SCHEMA:
+### REQUIRED OUTPUT SCHEMA (STRICT CONFORMITY):
 {
   "category": "MAIN_CATEGORY_HERE",
   "confidence_score": 0.00,
   "extracted_data": {
-    "vendor": { "name": "string", "tax_id": "string" },
-    "invoice": { 
-        "number": "string", 
-        "date": "YYYY-MM-DD",
-        "period_start": "YYYY-MM-DD",
-        "period_end": "YYYY-MM-DD"
-    },
-    "total_amount": { "total": "float", "currency": "ISO_4217" },
+    "vendor": "NAME_OF_VENDOR_STRING",
+    "VENDOR_TAX_ID": "FISCAL_ID_STRING",
+    "invoice_number": "string", 
+    "invoice_date": "YYYY-MM-DD",
+    "period_start": "YYYY-MM-DD",
+    "period_end": "YYYY-MM-DD",
+    "total_amount": 0.00,
+    "currency": "ISO_4217",
     "location": { "country": "ISO_2" }
   },
   "emission_lines": [
     {
-        "category": "ELEC|GAS|WATER|WASTE_PAPER|etc", 
-        "description": "Specific line item description",
-        "value": "float",
+        "category": "ELEC|GAS|WATER|etc", 
+        "description": "string",
+        "value": 0.00,
         "unit": "string"
     }
   ],
-  "technical_ids": { "cups": "string", "meter_id": "string" }
+  "technical_ids": { "cups": "string", "meter_id": "string", "tax_id": "string" }
 }`;
 
     const payload = {

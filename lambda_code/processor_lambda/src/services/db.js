@@ -1,7 +1,8 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
+import crypto from "crypto";
 
-// Inicialización del cliente (Singleton interno para evitar errores de undefined)
+// Inicialización del cliente Singleton
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
 const ddb = DynamoDBDocumentClient.from(client, { 
     marshallOptions: { removeUndefinedValues: true, convertEmptyValues: true } 
@@ -10,8 +11,17 @@ const ddb = DynamoDBDocumentClient.from(client, {
 const TABLE_NAME = "sms-platform-dev-emissions";
 
 /**
+ * Genera un ID corto y único basado en un texto (Determinista).
+ * Si no hay Tax ID, el nombre del vendor siempre producirá el mismo Hash.
+ */
+const generateFallbackId = (text) => {
+    return crypto.createHash('shake256', { outputLength: 4 })
+                 .update(text.toLowerCase().trim())
+                 .digest('hex');
+};
+
+/**
  * Persistencia Atómica: Write-time Aggregation para SMS Platform.
- * Actualiza: Registro de factura, Stats Anuales, Sucursal, Activo y Proveedor.
  */
 export const persistTransaction = async (record) => {
     const { 
@@ -19,32 +29,40 @@ export const persistTransaction = async (record) => {
         analytics_dimensions, 
         climatiq_result, 
         extracted_data, 
-        ai_analysis, 
-        metadata 
+        ai_analysis 
     } = record;
     
-    // 1. Setup de Dimensiones y SKs
+    // 1. Normalización de Dimensiones
     const year = analytics_dimensions.period_year;
     const month = analytics_dimensions.period_month.toString().padStart(2, '0');
     const branchId = analytics_dimensions.branch_id; 
     const assetId = analytics_dimensions.asset_id;   
     
-    // Prioridad: Tax ID extraído por la IA. Fallback: Nombre normalizado.
-    const vendorId = extracted_data.VENDOR_TAX_ID || extracted_data.tax_id || extracted_data.vendor_id;
+    // 2. Lógica Global de Identificación de Vendor (CIF, CUIT, TaxID, etc.)
     const vendorName = extracted_data.vendor || extracted_data.vendor_name || "UNKNOWN_VENDOR";
+    
+    // Intentamos capturar cualquier identificador fiscal que la IA haya extraído
+    const rawTaxId = 
+        extracted_data.VENDOR_TAX_ID || 
+        extracted_data.tax_id || 
+        extracted_data.cif || 
+        extracted_data.cuit || 
+        extracted_data.vat_id;
+
+    // Si hay Tax ID, lo limpiamos. Si no, generamos un Hash basado en el nombre.
+    const vendorKeyIdentifier = rawTaxId 
+        ? rawTaxId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() 
+        : `HASH_${generateFallbackId(vendorName)}`;
+
     const service = (ai_analysis.service_type || "UNKNOWN").toUpperCase();
 
-    // Normalización de la SK del Vendor (Priorizamos el ID fiscal sin caracteres especiales)
-    const vendorKeyIdentifier = vendorId 
-        ? vendorId.replace(/[^a-zA-Z0-9]/g, '') 
-        : vendorName.replace(/\s+/g, '_').toUpperCase();
-
+    // 3. Definición de SKs
     const statsSK = `STATS#${year}`;
     const branchSK = `BRANCH#${branchId}`;
     const assetSK = `ASSET#${assetId}#YEAR#${year}`;
     const vendorSK = `VENDOR#${vendorKeyIdentifier}`;
 
-    // 2. Valores Numéricos
+    // 4. Valores Numéricos y Fechas
     const nCo2e = Number(climatiq_result.co2e || 0);
     const nSpend = Number(extracted_data.total_amount || 0);
     const confidence = Number(ai_analysis.confidence_score || 0);
@@ -52,7 +70,7 @@ export const persistTransaction = async (record) => {
 
     const transactItems = [
         {
-            // --- A. INSERTAR FACTURA (Idempotencia) ---
+            // --- A. INSERTAR FACTURA ---
             Put: {
                 TableName: TABLE_NAME,
                 Item: record,
@@ -60,7 +78,7 @@ export const persistTransaction = async (record) => {
             }
         },
         {
-            // --- B. STATS GLOBALES ---
+            // --- B. AGREGACIÓN GLOBAL (Anual/Mensual/Servicio) ---
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: statsSK },
@@ -80,18 +98,14 @@ export const persistTransaction = async (record) => {
                     "#sCo2e": `service_${service}_co2e`
                 },
                 ExpressionAttributeValues: { 
-                    ":nCo2e": nCo2e, 
-                    ":nSpend": nSpend, 
-                    ":conf": confidence,
-                    ":one": 1, 
-                    ":zero": 0, 
-                    ":now": now 
+                    ":nCo2e": nCo2e, ":nSpend": nSpend, ":conf": confidence,
+                    ":one": 1, ":zero": 0, ":now": now 
                 }
             }
         }
     ];
 
-    // --- C. ACTUALIZAR SUCURSAL ---
+    // --- C. AGREGACIÓN POR SUCURSAL ---
     if (branchId) {
         transactItems.push({
             Update: {
@@ -109,7 +123,7 @@ export const persistTransaction = async (record) => {
         });
     }
 
-    // --- D. ACTUALIZAR ACTIVO ---
+    // --- D. AGREGACIÓN POR ACTIVO ---
     if (assetId) {
         transactItems.push({
             Update: {
@@ -126,7 +140,7 @@ export const persistTransaction = async (record) => {
         });
     }
 
-    // --- E. ACTUALIZAR PROVEEDOR ---
+    // --- E. AGREGACIÓN POR PROVEEDOR (SCOPE 3) ---
     transactItems.push({
         Update: {
             TableName: TABLE_NAME,
@@ -135,7 +149,7 @@ export const persistTransaction = async (record) => {
                 SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e,
                     total_invoices = if_not_exists(total_invoices, :zero) + :one,
                     vendor_name = :vName,
-                    tax_id = :tId,
+                    tax_id_original = :tId,
                     last_invoice_date = :now,
                     service_type = :service
             `,
@@ -144,7 +158,7 @@ export const persistTransaction = async (record) => {
                 ":one": 1, 
                 ":zero": 0, 
                 ":vName": vendorName,
-                ":tId": vendorId || "N/A",
+                ":tId": rawTaxId || "NOT_EXTRACTED",
                 ":now": now, 
                 ":service": service 
             }
@@ -153,12 +167,12 @@ export const persistTransaction = async (record) => {
 
     try {
         await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
-        console.log(`✅ [DB_SUCCESS]: Factura persistida. Vendor SK: ${vendorSK}`);
+        console.log(`✅ [DB_SUCCESS]: Persistencia completa. VendorID: ${vendorKeyIdentifier}`);
         return { success: true };
     } catch (error) {
         if (error.name === "TransactionCanceledException") {
             if (error.CancellationReasons[0].Code === "ConditionalCheckFailed") {
-                console.warn(`⏭️ [SKIPPED]: Factura duplicada detectada.`);
+                console.warn(`⏭️ [SKIPPED]: Factura duplicada (SK: ${record.SK}).`);
                 return { success: false, reason: "DUPLICATE" };
             }
         }
