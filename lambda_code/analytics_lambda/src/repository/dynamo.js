@@ -109,24 +109,36 @@ export const repo = {
         console.log("JSON final enviado a DynamoDB SDK:", JSON.stringify(params, null, 2));
 
         try {
-            const result = await ddb.send(new QueryCommand(params));
-            console.log(`Resultado: ${result.Items?.length || 0} ítems recuperados de la tabla.`);
+            const { Items } = await ddb.send(new QueryCommand(params));
 
-            if (result.Items && result.Items.length > 0) {
-                const item = result.Items[0];
-                console.log("Validación de tipos en el primer ítem recuperado:");
-                console.log(`- period_year: ${item.analytics_dimensions?.period_year} (Tipo: ${typeof item.analytics_dimensions?.period_year})`);
-                console.log(`- period_month: ${item.analytics_dimensions?.period_month} (Tipo: ${typeof item.analytics_dimensions?.period_month})`);
-            } else {
-                console.warn("La consulta no devolvió resultados. Revisa que el orgId y los prefijos INV# sean correctos.");
-            }
+            // Mapeo con generación de Links de S3
+            const mappedItems = await Promise.all((Items || []).map(async (item) => {
+                let downloadUrl = null;
+                
+                // Si existe el key en S3, generamos un link válido por 1 hora
+                if (item.metadata?.s3_key) {
+                    const command = new GetObjectCommand({
+                        Bucket: BUCKET_NAME,
+                        Key: item.metadata.s3_key,
+                    });
+                    downloadUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+                }
 
-            console.log("--- [DEBUG END] searchInvoices ---");
-            return result.Items || [];
+                return {
+                    vendor: item.extracted_data?.vendor || "Desconocido",
+                    invoiceDate: item.extracted_data?.invoice_date,
+                    totalAmount: item.extracted_data?.total_amount,
+                    emissions: item.climatiq_result?.co2e,
+                    confidence: item.ai_analysis?.confidence_score,
+                    requiresReview: item.ai_analysis?.requires_review,
+                    pdfUrl: downloadUrl, // <--- Este es el link para la grilla
+                    id: item.SK
+                };
+            }));
 
+            return mappedItems;
         } catch (error) {
-            console.error("--- [DEBUG ERROR] Falló la ejecución en DynamoDB ---");
-            console.error("Mensaje:", error.message);
+            console.error("Error en searchInvoices:", error);
             throw error;
         }
     },
