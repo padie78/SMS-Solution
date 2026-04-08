@@ -1,80 +1,71 @@
 /**
  * @fileoverview Repository Layer - Capa de acceso a datos para DynamoDB.
- * Implementa el patrón de acceso optimizado para el proyecto SMS (Sustainability Management System).
- * Estructura: Single Table Design utilizando PK (ORG#ID) y SK (STATS# o INV#).
- * * ACTUALIZACIÓN: Adaptado para seguridad Multi-tenant mediante inyección de orgId desde JWT.
+ * Implementa logs detallados para depuración de rutas y tipos de datos.
  */
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
 
-// Configuración del cliente DynamoDB con el SDK v3
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
 const ddb = DynamoDBDocumentClient.from(client);
 const TABLE = process.env.DYNAMO_TABLE;
 
-/**
- * Normaliza el ID de la organización asegurando el prefijo del Single Table Design.
- * Evita duplicidad de prefijos si el token ya lo incluye.
- * @param {string} id - ID proveniente del contexto del autorizador.
- * @returns {string} PK formateada (ej: "ORG#123").
- */
 const formatPK = (id) => id.startsWith('ORG#') ? id : `ORG#${id}`;
 
 export const repo = {
     /**
-     * 1. DASHBOARD PRINCIPAL: Obtiene totales anuales pre-calculados.
-     * Patrón de acceso: Key Lookup (O(1)).
-     * @param {string} orgId - ID validado de la organización.
-     * @param {string} year - Año de los datos.
+     * 1. DASHBOARD PRINCIPAL: Obtiene totales anuales.
      */
     getStats: async (orgId, year) => {
-        const { Item } = await ddb.send(new GetCommand({
-            TableName: TABLE,
-            Key: { 
-                PK: formatPK(orgId), 
-                SK: `STATS#${year}` 
-            }
-        }));
-        return Item || null;
+        const pk = formatPK(orgId);
+        const sk = `STATS#${year}`;
+        console.log(`[REPO][getStats] Buscando PK: ${pk}, SK: ${sk}`);
+
+        try {
+            const { Item } = await ddb.send(new GetCommand({
+                TableName: TABLE,
+                Key: { PK: pk, SK: sk }
+            }));
+            console.log(`[REPO][getStats] ${Item ? 'Item encontrado' : 'Item NO encontrado'}`);
+            return Item || null;
+        } catch (error) {
+            console.error(`[REPO][getStats] ERROR:`, error.message);
+            throw error;
+        }
     },
 
     /**
      * 2. BUSCADOR POR VENDOR: Búsqueda indexada por Sort Key.
-     * Utiliza la eficiencia de begins_with en la SK para filtrar proveedores rápidamente.
-     * @param {string} orgId - ID de la organización.
-     * @param {string} vendorPrefix - Prefijo del proveedor para la SK.
      */
     getInvoicesByVendor: async (orgId, vendorPrefix) => {
-        const { Items } = await ddb.send(new QueryCommand({
-            TableName: TABLE,
-            KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
-            ExpressionAttributeValues: {
-                ":pk": formatPK(orgId),
-                ":sk": `INV#${vendorPrefix.toUpperCase()}`
-            }
-        }));
-        return Items || [];
+        const pk = formatPK(orgId);
+        const skPrefix = `INV#${vendorPrefix.toUpperCase()}`;
+        console.log(`[REPO][getByVendor] PK: ${pk}, SK prefix: ${skPrefix}`);
+
+        try {
+            const { Items } = await ddb.send(new QueryCommand({
+                TableName: TABLE,
+                KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
+                ExpressionAttributeValues: { ":pk": pk, ":sk": skPrefix }
+            }));
+            console.log(`[REPO][getByVendor] Items encontrados: ${Items?.length || 0}`);
+            return Items || [];
+        } catch (error) {
+            console.error(`[REPO][getByVendor] ERROR:`, error.message);
+            throw error;
+        }
     },
 
     /**
-     * 3. MOTOR DE FILTROS AVANZADO: Búsqueda flexible multivariable.
-     * Aplica filtros sobre atributos anidados (Maps) tras la recuperación de la PK.
-     * @param {string} orgId - ID de la organización.
-     * @param {Object} filters - Criterios de búsqueda (year, month, service, etc).
-     */
-    /**
-     * 3. MOTOR DE FILTROS AVANZADO (Versión Final corregida)
+     * 3. MOTOR DE FILTROS AVANZADO: Corregido según estructura real del JSON.
      */
     searchInvoices: async (orgId, filters) => {
-        console.log("--- [REPO START] searchInvoices ---");
-        
-        // Logueamos la identidad que recibimos y cómo se transforma
+        console.log("--- [DEBUG START] searchInvoices ---");
         const finalPK = formatPK(orgId);
-        console.log(`Identidad Recibida (orgId): "${orgId}"`);
-        console.log(`PK Generada para Query: "${finalPK}"`);
-        console.log(`Filtros Aplicados:`, JSON.stringify(filters));
         
+        console.log(`Config: { orgId: "${orgId}", finalPK: "${finalPK}", table: "${TABLE}" }`);
+        console.log(`Filtros crudos recibidos:`, JSON.stringify(filters));
+
         const params = {
             TableName: TABLE,
             KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
@@ -87,23 +78,26 @@ export const repo = {
 
         let filterParts = [];
         
-        // Filtro por Service
+        // Filtro por Service - En ai_analysis.service_type
         if (filters.service) {
+            console.log(`Agregando filtro Service: ${filters.service}`);
             filterParts.push("ai_analysis.service_type = :service");
-            params.ExpressionAttributeValues[":service"] = filters.service;
+            params.ExpressionAttributeValues[":service"] = filters.service.toUpperCase();
         }
 
-        // Filtro por campos con alias (#yr y #mo)
+        // Filtro por Año - En ai_analysis.year (Es un String "2026")
         if (filters.year) {
-            filterParts.push("extracted_data.#yr = :year");
+            console.log(`Agregando filtro Año: ${filters.year} (Tipo: ${typeof filters.year})`);
+            filterParts.push("ai_analysis.#yr = :year");
             params.ExpressionAttributeNames["#yr"] = "year"; 
-            params.ExpressionAttributeValues[":year"] = filters.year;
+            params.ExpressionAttributeValues[":year"] = filters.year.toString();
         }
 
+        // Filtro por Mes - En analytics_dimensions.period_month (Es un Número 4)
         if (filters.month) {
-            filterParts.push("extracted_data.#mo = :month");
-            params.ExpressionAttributeNames["#mo"] = "month";
-            params.ExpressionAttributeValues[":month"] = filters.month;
+            console.log(`Agregando filtro Mes: ${filters.month} (Tipo: ${typeof filters.month})`);
+            filterParts.push("analytics_dimensions.period_month = :month");
+            params.ExpressionAttributeValues[":month"] = Number(filters.month);
         }
 
         if (filterParts.length > 0) {
@@ -114,45 +108,57 @@ export const repo = {
             delete params.ExpressionAttributeNames;
         }
 
-        console.log("DynamoDB Params Finales:", JSON.stringify(params, null, 2));
+        console.log("Params finales enviados a DynamoDB:", JSON.stringify(params, null, 2));
 
         try {
             const result = await ddb.send(new QueryCommand(params));
-            
-            console.log(`Resultado DynamoDB: ${result.Items?.length || 0} items encontrados.`);
+            console.log(`DynamoDB Response: ${result.Items?.length || 0} items recuperados.`);
 
             if (result.Items && result.Items.length > 0) {
-                console.log("Muestra del primer item (Estructura real):", JSON.stringify(result.Items[0], null, 2));
+                const sample = result.Items[0];
+                console.log("Muestra estructura primer item (para validar rutas):");
+                console.log(`- SK: ${sample.SK}`);
+                console.log(`- ai_analysis.year: ${sample.ai_analysis?.year} (Tipo: ${typeof sample.ai_analysis?.year})`);
+                console.log(`- analytics_dimensions.period_month: ${sample.analytics_dimensions?.period_month} (Tipo: ${typeof sample.analytics_dimensions?.period_month})`);
             } else {
-                console.warn(`AVISO: La PK "${finalPK}" con prefijo "INV#" no devolvió resultados.`);
+                console.warn("QUERY VACÍA: Verifica si los tipos de datos (String vs Number) en el FilterExpression coinciden con la tabla.");
             }
 
-            console.log("--- [REPO END] searchInvoices ---");
+            console.log("--- [DEBUG END] searchInvoices ---");
             return result.Items || [];
 
         } catch (error) {
-            console.error("--- [REPO ERROR] Falló la Query a DynamoDB ---");
-            console.error("Mensaje de error:", error.message);
+            console.error("--- [DEBUG ERROR] searchInvoices ---");
+            console.error("Error completo:", error);
             throw error;
         }
     },
 
     /**
-     * 4. AUDITORÍA: Identifica registros con baja confianza de IA.
-     * @param {string} orgId - ID de la organización.
-     * @param {number} threshold - Score de corte para auditoría.
+     * 4. AUDITORÍA: Corregido para DocumentClient (sin .M o .N).
      */
-    getLowConfidenceInvoices: async (orgId, threshold = 0.8) => {
-        const { Items } = await ddb.send(new QueryCommand({
+    getLowConfidenceInvoices: async (orgId, threshold = 0.9) => {
+        const pk = formatPK(orgId);
+        console.log(`[REPO][Auditoría] Iniciando con threshold: ${threshold} para PK: ${pk}`);
+
+        const params = {
             TableName: TABLE,
             KeyConditionExpression: "PK = :pk AND begins_with(SK, :inv)",
-            FilterExpression: "ai_analysis.M.confidence_score.N < :t",
+            FilterExpression: "ai_analysis.confidence_score < :t",
             ExpressionAttributeValues: {
-                ":pk": formatPK(orgId), 
+                ":pk": pk, 
                 ":inv": "INV#", 
-                ":t": threshold.toString()
+                ":t": Number(threshold)
             }
-        }));
-        return Items || [];
+        };
+
+        try {
+            const { Items } = await ddb.send(new QueryCommand(params));
+            console.log(`[REPO][Auditoría] Casos sospechosos encontrados: ${Items?.length || 0}`);
+            return Items || [];
+        } catch (error) {
+            console.error(`[REPO][Auditoría] ERROR:`, error.message);
+            throw error;
+        }
     }
 };
