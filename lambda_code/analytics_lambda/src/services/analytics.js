@@ -174,9 +174,20 @@ export const analyticsService = {
         const totalCo2 = parseFloat(stats.total_co2e_kg || 0);
 
         return services.map(srv => {
+            // Buscamos los valores con fallback a 0
             const srvCo2 = parseFloat(stats[`service_${srv}_co2e`] || 0);
-            const srvSpend = parseFloat(stats[`service_${srv}_spend`] || 0) || (srv === 'ELEC' ? stats.total_spend * 0.6 : stats.total_spend * 0.4);
-
+            
+            // Intentamos obtener el spend específico del servicio, 
+            // si no existe, usamos un proporcional del spend total para no devolver null
+            let srvSpend = parseFloat(stats[`service_${srv}_spend`] || 0);
+            
+            if (srvSpend === 0 && stats.total_spend > 0) {
+                // Estimación lógica: si no hay desglose de spend, 
+                // prorrateamos según la proporción de emisiones
+                const proportion = totalCo2 > 0 ? (srvCo2 / totalCo2) : 0;
+                srvSpend = parseFloat(stats.total_spend) * proportion;
+            }
+            
             return {
                 serviceType: srv,
                 intensityRatio: srvSpend > 0 ? parseFloat((srvCo2 / srvSpend).toFixed(4)) : 0,
