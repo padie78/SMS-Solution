@@ -13,8 +13,8 @@ const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-centra
 const ddb = DynamoDBDocumentClient.from(client);
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION || "eu-central-1" });
-const BUCKET_NAME = process.env.ATTACHMENTS_BUCKET;
-const TABLE = process.env.DYNAMO_TABLE;
+const BUCKET_NAME = "sms-platform-dev-uploads"; // Pon aquí el nombre exacto de tu bucket de S3
+const TABLE = "sms-platform-dev-emissions";       // Pon aquí el nombre exacto de tu tabla de DynamoDB
 
 const formatPK = (id) => id.startsWith('ORG#') ? id : `ORG#${id}`;
 
