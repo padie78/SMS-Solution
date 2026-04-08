@@ -190,6 +190,7 @@ export const analyticsService = {
         const stats = await repo.getStats(orgId, year);
         const goals = await repo.getGoals(orgId, year);
 
+        // Si no hay stats, al menos devolvemos la meta
         const accumulated = parseFloat(stats?.total_co2e_kg || 0);
         const target = parseFloat(goals?.annualTargetEmissions || 2000);
 
@@ -197,20 +198,20 @@ export const analyticsService = {
             annualTargetEmissions: target,
             currentAccumulated: accumulated,
             remainingCarbonBudget: parseFloat((target - accumulated).toFixed(2)),
-            daysRemainingInYear: 365 - (new Date().getMonth() * 30), // Aproximación
-            burnRate: accumulated > 0 ? parseFloat((accumulated / (new Date().getMonth() + 1)).toFixed(2)) : 0,
-            isOnTrack: accumulated <= target
+            isOnTrack: accumulated <= target,
+            // Añadimos burnRate para evitar el null en el Schema
+            burnRate: accumulated > 0 ? parseFloat((accumulated / (new Date().getMonth() + 1)).toFixed(2)) : 0
         };
     },
 
     getOffsetEstimation: async (orgId, year) => {
         const stats = await repo.getStats(orgId, year);
+        // Si stats es null, total_co2e_kg será 0, evitando el error
         const totalTons = (parseFloat(stats?.total_co2e_kg || 0) / 1000);
-        const marketPrice = 25.50; // Precio ficticio por tonelada de CO2
+        const marketPrice = 25.0;
 
         return {
             totalTonsToOffset: parseFloat(totalTons.toFixed(3)),
-            estimatedMarketPrice: marketPrice,
             estimatedCostToNetZero: parseFloat((totalTons * marketPrice).toFixed(2))
         };
     },
