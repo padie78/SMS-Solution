@@ -67,32 +67,33 @@ export const repo = {
      * 3. MOTOR DE FILTROS AVANZADO (Versión Final corregida)
      */
     searchInvoices: async (orgId, filters) => {
+        console.log("--- [REPO START] searchInvoices ---");
+        
+        // Logueamos la identidad que recibimos y cómo se transforma
+        const finalPK = formatPK(orgId);
+        console.log(`Identidad Recibida (orgId): "${orgId}"`);
+        console.log(`PK Generada para Query: "${finalPK}"`);
+        console.log(`Filtros Aplicados:`, JSON.stringify(filters));
+        
         const params = {
             TableName: TABLE,
             KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
             ExpressionAttributeValues: {
-                ":pk": formatPK(orgId),
+                ":pk": finalPK,
                 ":skPrefix": "INV#" 
             },
             ExpressionAttributeNames: {}
         };
 
-        // 1. Optimización de SK: Si filtran por año, lo añadimos al prefijo del SK
-        // Esto es mucho más rápido que un FilterExpression
-        if (filters.year && !filters.service) {
-             // Si el SK empieza con INV#2026...
-             // params.ExpressionAttributeValues[":skPrefix"] = `INV#${filters.year}`;
-        }
-
         let filterParts = [];
         
-        // 2. Filtro por Service (que está dentro del objeto ai_analysis)
+        // Filtro por Service
         if (filters.service) {
             filterParts.push("ai_analysis.service_type = :service");
             params.ExpressionAttributeValues[":service"] = filters.service;
         }
 
-        // 3. Filtro por campos con palabras reservadas (#yr y #mo)
+        // Filtro por campos con alias (#yr y #mo)
         if (filters.year) {
             filterParts.push("extracted_data.#yr = :year");
             params.ExpressionAttributeNames["#yr"] = "year"; 
@@ -109,13 +110,31 @@ export const repo = {
             params.FilterExpression = filterParts.join(" AND ");
         }
 
-        // Limpieza de seguridad: Si no hay nombres de atributos, borramos el mapa
         if (Object.keys(params.ExpressionAttributeNames).length === 0) {
             delete params.ExpressionAttributeNames;
         }
 
-        const { Items } = await ddb.send(new QueryCommand(params));
-        return Items || [];
+        console.log("DynamoDB Params Finales:", JSON.stringify(params, null, 2));
+
+        try {
+            const result = await ddb.send(new QueryCommand(params));
+            
+            console.log(`Resultado DynamoDB: ${result.Items?.length || 0} items encontrados.`);
+
+            if (result.Items && result.Items.length > 0) {
+                console.log("Muestra del primer item (Estructura real):", JSON.stringify(result.Items[0], null, 2));
+            } else {
+                console.warn(`AVISO: La PK "${finalPK}" con prefijo "INV#" no devolvió resultados.`);
+            }
+
+            console.log("--- [REPO END] searchInvoices ---");
+            return result.Items || [];
+
+        } catch (error) {
+            console.error("--- [REPO ERROR] Falló la Query a DynamoDB ---");
+            console.error("Mensaje de error:", error.message);
+            throw error;
+        }
     },
 
     /**
