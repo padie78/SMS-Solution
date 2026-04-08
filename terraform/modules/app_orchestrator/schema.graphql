@@ -62,10 +62,12 @@ type Invoice {
   invoiceDate: String
   totalAmount: Float
   emissions: Float
-  confidence: Float
+  consumption: Float      # <--- Nuevo: El valor 1700.75
+  unit: String             # <--- Nuevo: kWh o m3
+  confidence: Float        # <--- Nuevo: Score de la IA
+  pdfUrl: String
   requiresReview: Boolean
-  pdfUrl: String     # <--- OBLIGATORIO para el link de la grilla
-  serviceType: String # Útil para mostrar el icono de Gas o Electricidad
+  service: String
 }
 
 # --- Consultas (Queries) ---
