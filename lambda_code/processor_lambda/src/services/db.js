@@ -146,3 +146,5 @@ export const persistTransaction = async (record) => {
         throw error;
     }
 };
+
+export default { persistTransaction };
