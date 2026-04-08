@@ -279,28 +279,64 @@ export const analyticsService = {
         };
     },
 
-    getVendorRanking: async (orgId, year, limit = 5) => {
+   getVendorRanking: async (orgId, year, limit = 5) => {
+        console.log(`[VENDOR_RANKING] Iniciando para Org: ${orgId}, Año: ${year}`);
+        
+        // 1. Log de Volumen de Datos
         const invoices = await repo.getYearlyInvoicesRaw(orgId, year);
-        const totalOrgCo2 = invoices.reduce((acc, inv) => acc + (inv.climatiq_result?.co2e || 0), 0);
+        console.log(`[VENDOR_RANKING] Ítems recuperados de DynamoDB: ${invoices.length}`);
 
+        if (invoices.length === 0) {
+            console.warn(`[VENDOR_RANKING] No se encontraron facturas para el año ${year}`);
+            return [];
+        }
+
+        // 2. Cálculo de Total CO2 con validación de tipos
+        const totalOrgCo2 = invoices.reduce((acc, inv) => {
+            const val = parseFloat(inv.climatiq_result?.co2e || 0);
+            return acc + (isNaN(val) ? 0 : val);
+        }, 0);
+        
+        console.log(`[VENDOR_RANKING] CO2 Total Anual Calculado: ${totalOrgCo2.toFixed(2)} kg`);
+
+        // 3. Agregación por Vendor
         const rankingMap = invoices.reduce((acc, inv) => {
             const name = inv.extracted_data?.vendor || "Unknown";
-            if (!acc[name]) acc[name] = { vendorName: name, totalCo2e: 0, totalInvoices: 0, conf: 0 };
+            const co2 = parseFloat(inv.climatiq_result?.co2e || 0);
+            const score = parseFloat(inv.ai_analysis?.confidence_score || 0);
 
-            acc[name].totalCo2e += (inv.climatiq_result?.co2e || 0);
+            if (!acc[name]) {
+                acc[name] = { vendorName: name, totalCo2e: 0, totalInvoices: 0, conf: 0 };
+            }
+
+            acc[name].totalCo2e += isNaN(co2) ? 0 : co2;
             acc[name].totalInvoices += 1;
-            acc[name].conf += (inv.ai_analysis?.confidence_score || 0);
+            acc[name].conf += isNaN(score) ? 0 : score;
+            
             return acc;
         }, {});
 
-        return Object.values(rankingMap)
-            .map(v => ({
-                ...v,
-                percentageOfTotalOrgEmissions: totalOrgCo2 > 0 ? parseFloat(((v.totalCo2e / totalOrgCo2) * 100).toFixed(2)) : 0,
-                averageConfidence: parseFloat((v.conf / v.totalInvoices).toFixed(2))
-            }))
+        console.log(`[VENDOR_RANKING] Total de proveedores únicos encontrados: ${Object.keys(rankingMap).length}`);
+
+        // 4. Mapeo y Ordenamiento
+        const finalRanking = Object.values(rankingMap)
+            .map(v => {
+                const percentage = totalOrgCo2 > 0 ? ((v.totalCo2e / totalOrgCo2) * 100) : 0;
+                const avgConf = v.totalInvoices > 0 ? (v.conf / v.totalInvoices) : 0;
+                
+                return {
+                    vendorName: v.vendorName,
+                    totalCo2e: parseFloat(v.totalCo2e.toFixed(2)),
+                    totalInvoices: v.totalInvoices,
+                    percentageOfTotalOrgEmissions: parseFloat(percentage.toFixed(2)),
+                    averageConfidence: parseFloat(avgConf.toFixed(2))
+                };
+            })
             .sort((a, b) => b.totalCo2e - a.totalCo2e)
             .slice(0, limit);
+
+        console.log(`[VENDOR_RANKING] Resultado Final (Top ${limit}):`, JSON.stringify(finalRanking));
+        return finalRanking;
     },
 
     searchInvoices: async (orgId, args) => {
