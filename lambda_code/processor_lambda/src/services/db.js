@@ -1,101 +1,148 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
-
-const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
-const ddb = DynamoDBDocumentClient.from(client, { 
-    marshallOptions: { removeUndefinedValues: true, convertEmptyValues: true } 
-});
-
-const TABLE_NAME = "sms-platform-dev-emissions";
+import { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 
 /**
- * Persiste el Golden Record y actualiza los acumuladores anuales (STATS).
- * La consistencia temporal depende de analytics_dimensions definida en el Mapper.
+ * Persistencia Atómica: Write-time Aggregation para SMS Platform.
+ * Este método asegura que la data esté pre-calculada para consultas instantáneas.
  */
 export const persistTransaction = async (record) => {
-    const { PK, analytics_dimensions, climatiq_result, extracted_data, ai_analysis, metadata } = record;
+    const { 
+        PK, 
+        analytics_dimensions, 
+        climatiq_result, 
+        extracted_data, 
+        ai_analysis, 
+        metadata 
+    } = record;
     
-    // Extraemos las dimensiones temporales (Ya corregidas por el Mapper)
+    // 1. Setup de Dimensiones Temporales y de Negocio
     const year = analytics_dimensions.period_year;
     const month = analytics_dimensions.period_month.toString().padStart(2, '0');
-    
+    const branchId = analytics_dimensions.branch_id; 
+    const assetId = analytics_dimensions.asset_id;   
+    const vendorName = extracted_data.vendor_name || "UNKNOWN_VENDOR";
     const service = (ai_analysis.service_type || "UNKNOWN").toUpperCase();
+
+    // 2. Normalización de SKs
     const statsSK = `STATS#${year}`;
+    const branchSK = `BRANCH#${branchId}`;
+    const assetSK = `ASSET#${assetId}#YEAR#${year}`;
+    const vendorSK = `VENDOR#${vendorName.replace(/\s+/g, '_').toUpperCase()}`;
 
-    // Normalización de valores numéricos para evitar errores de tipo en DynamoDB
+    // 3. Valores Numéricos
     const nCo2e = Number(climatiq_result.co2e || 0);
-    const nCo2  = Number(climatiq_result.co2 || 0);
-    const nCh4  = Number(climatiq_result.ch4 || 0);
-    const nN2o  = Number(climatiq_result.n2o || 0);
     const nSpend = Number(extracted_data.total_amount || 0);
+    const confidence = Number(ai_analysis.confidence_score || 0);
+    const now = new Date().toISOString();
 
-    const params = {
-        TransactItems: [
-            {
-                // 1. INSERTAR EL REGISTRO DE LA FACTURA (Idempotencia por SK)
-                Put: {
-                    TableName: TABLE_NAME,
-                    Item: record,
-                    ConditionExpression: "attribute_not_exists(SK)" 
-                }
-            },
-            {
-                // 2. ACTUALIZAR ESTADÍSTICAS (Atribución por mes de consumo)
-                Update: {
-                    TableName: TABLE_NAME,
-                    Key: { PK, SK: statsSK },
-                    UpdateExpression: `
-                        SET #mCo2e = if_not_exists(#mCo2e, :zero) + :nCo2e,
-                            #mCo2  = if_not_exists(#mCo2, :zero) + :nCo2,
-                            #mCh4  = if_not_exists(#mCh4, :zero) + :nCh4,
-                            #mN2o  = if_not_exists(#mN2o, :zero) + :nN2o,
-                            #mSpend = if_not_exists(#mSpend, :zero) + :nSpend,
-                            #sCo2e = if_not_exists(#sCo2e, :zero) + :nCo2e,
-                            total_co2e_kg = if_not_exists(total_co2e_kg, :zero) + :nCo2e,
-                            total_spend = if_not_exists(total_spend, :zero) + :nSpend,
-                            invoice_count = if_not_exists(invoice_count, :zero) + :one,
-                            last_updated = :now,
-                            last_file_processed = :fileName
-                    `,
-                    ExpressionAttributeNames: { 
-                        "#mCo2e": `month_${month}_co2e`, // ej: month_03_co2e
-                        "#mCo2":  `month_${month}_co2`,
-                        "#mCh4":  `month_${month}_ch4`,
-                        "#mN2o":  `month_${month}_n2o`,
-                        "#mSpend": `month_${month}_spend`,
-                        "#sCo2e": `service_${service}_co2e`
-                    },
-                    ExpressionAttributeValues: {
-                        ":nCo2e": nCo2e,
-                        ":nCo2":  nCo2,
-                        ":nCh4":  nCh4,
-                        ":nN2o":  nN2o,
-                        ":nSpend": nSpend,
-                        ":one": 1,
-                        ":zero": 0,
-                        ":now": new Date().toISOString(),
-                        ":fileName": metadata.filename
-                    }
+    const transactItems = [
+        {
+            // --- A. INSERTAR LA FACTURA (Idempotencia) ---
+            Put: {
+                TableName: TABLE_NAME,
+                Item: record,
+                ConditionExpression: "attribute_not_exists(SK)" 
+            }
+        },
+        {
+            // --- B. STATS GLOBALES (Anual + Mensual + Service) ---
+            Update: {
+                TableName: TABLE_NAME,
+                Key: { PK, SK: statsSK },
+                UpdateExpression: `
+                    SET #mCo2e = if_not_exists(#mCo2e, :zero) + :nCo2e,
+                        #mSpend = if_not_exists(#mSpend, :zero) + :nSpend,
+                        #sCo2e = if_not_exists(#sCo2e, :zero) + :nCo2e,
+                        total_co2e_kg = if_not_exists(total_co2e_kg, :zero) + :nCo2e,
+                        total_spend = if_not_exists(total_spend, :zero) + :nSpend,
+                        invoice_count = if_not_exists(invoice_count, :zero) + :one,
+                        avg_confidence = (if_not_exists(avg_confidence, :zero) + :conf) / if_not_exists(invoice_count, :one),
+                        last_updated = :now
+                `,
+                ExpressionAttributeNames: { 
+                    "#mCo2e": `month_${month}_co2e`,
+                    "#mSpend": `month_${month}_spend`,
+                    "#sCo2e": `service_${service}_co2e`
+                },
+                ExpressionAttributeValues: { 
+                    ":nCo2e": nCo2e, 
+                    ":nSpend": nSpend, 
+                    ":conf": confidence,
+                    ":one": 1, 
+                    ":zero": 0, 
+                    ":now": now 
                 }
             }
-        ]
-    };
+        }
+    ];
+
+    // --- C. ACTUALIZAR SUCURSAL (Branch Efficiency) ---
+    if (branchId) {
+        transactItems.push({
+            Update: {
+                TableName: TABLE_NAME,
+                Key: { PK, SK: branchSK },
+                UpdateExpression: `
+                    SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e,
+                        total_spend = if_not_exists(total_spend, :zero) + :nSpend,
+                        #mCo2e = if_not_exists(#mCo2e, :zero) + :nCo2e,
+                        last_updated = :now
+                `,
+                ExpressionAttributeNames: { "#mCo2e": `month_${month}_co2e` },
+                ExpressionAttributeValues: { ":nCo2e": nCo2e, ":nSpend": nSpend, ":zero": 0, ":now": now }
+            }
+        });
+    }
+
+    // --- D. ACTUALIZAR ACTIVO (Asset Monitoring) ---
+    if (assetId) {
+        transactItems.push({
+            Update: {
+                TableName: TABLE_NAME,
+                Key: { PK, SK: assetSK },
+                UpdateExpression: `
+                    SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e,
+                        #mCo2e = if_not_exists(#mCo2e, :zero) + :nCo2e,
+                        last_updated = :now
+                `,
+                ExpressionAttributeNames: { "#mCo2e": `month_${month}_co2e` },
+                ExpressionAttributeValues: { ":nCo2e": nCo2e, ":zero": 0, ":now": now }
+            }
+        });
+    }
+
+    // --- E. ACTUALIZAR PROVEEDOR (Vendor Ranking / Scope 3) ---
+    transactItems.push({
+        Update: {
+            TableName: TABLE_NAME,
+            Key: { PK, SK: vendorSK },
+            UpdateExpression: `
+                SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e,
+                    total_invoices = if_not_exists(total_invoices, :zero) + :one,
+                    last_invoice_date = :now,
+                    service_type = :service
+            `,
+            ExpressionAttributeValues: { 
+                ":nCo2e": nCo2e, 
+                ":one": 1, 
+                ":zero": 0, 
+                ":now": now, 
+                ":service": service 
+            }
+        }
+    });
 
     try {
-        await ddb.send(new TransactWriteCommand(params));
-        console.log(`✅ [DB_SUCCESS]: Record ${record.SK} persistido en mes ${month}.`);
+        await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
+        console.log(`✅ [TRANSACTION_COMPLETE]: Idempotencia verificada y 5 agregadores actualizados para ${record.SK}`);
         return { success: true };
     } catch (error) {
         if (error.name === "TransactionCanceledException") {
-            const reasons = error.CancellationReasons;
-            if (reasons?.[0]?.Code === "ConditionalCheckFailed") {
-                console.warn(`⚠️ [DB_DUPLICATE]: La factura ${record.SK} ya existe. Saltando actualización de Stats.`);
-                return { skipped: true };
+            if (error.CancellationReasons[0].Code === "ConditionalCheckFailed") {
+                console.warn(`⏭️ [SKIPPED]: Factura duplicada detectada.`);
+                return { success: false, reason: "DUPLICATE" };
             }
         }
-        console.error("❌ [DB_ERROR]:", error.message);
+        console.error("❌ [TRANSACTION_FAILED]:", error);
         throw error;
     }
 };
-
-export default { persistTransaction };
