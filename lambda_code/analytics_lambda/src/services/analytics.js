@@ -145,25 +145,19 @@ export const analyticsService = {
 
     /**
      * 6. EXPLORACIÓN: Motor de búsqueda para el DataGrid.
+     * Simplificado: El mapeo principal ya ocurre en el REPO.
      */
     searchInvoices: async (orgId, args) => {
+        // El repo ya devuelve un array de objetos limpios con pdfUrl
         const invoices = await repo.searchInvoices(orgId, args);
-        return invoices.map(inv => {
-            const ai = inv.ai_analysis?.M || inv.ai_analysis || {};
-            const ext = inv.extracted_data?.M || inv.extracted_data || {};
-            const climatiq = inv.climatiq_result?.M || inv.climatiq_result || {};
-
-            return {
-                id: inv.SK.S || inv.SK,
-                vendor: ext.vendor?.S || ext.vendor || "Desconocido",
-                service: ai.service_type?.S || ai.service_type || "N/A",
-                invoiceDate: ext.invoice_date?.S || ext.invoice_date || "N/A",
-                totalAmount: parseFloat(ext.total_amount?.N || ext.total_amount || 0),
-                emissions: parseFloat(climatiq.co2e?.N || climatiq.co2e || 0),
-                gasUnit: climatiq.co2e_unit?.S || climatiq.co2e_unit || "kg",
-                confidence: parseFloat(ai.confidence_score?.N || ai.confidence_score || 0),
-                requiresReview: ai.requires_review?.BOOL ?? ai.requires_review ?? false
-            };
-        });
+        
+        // Si quieres asegurar consistencia o renombrar algún campo extra:
+        return invoices.map(inv => ({
+            ...inv,
+            // Si el repo devuelve 'id', lo usamos. Si no, usamos 'SK'
+            id: inv.id || inv.SK, 
+            // Aseguramos que el service se llame 'service' para la UI
+            service: inv.service || inv.serviceType || "N/A"
+        }));
     }
 };
