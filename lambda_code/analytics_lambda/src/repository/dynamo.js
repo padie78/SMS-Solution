@@ -73,6 +73,7 @@ export const repo = {
     let filterParts = [];
 
     // --- Filtros Existentes ---
+   // --- Filtros de Identidad y Tiempo ---
     if (filters.service) {
         filterParts.push("ai_analysis.service_type = :service");
         params.ExpressionAttributeValues[":service"] = filters.service.toUpperCase();
@@ -81,33 +82,32 @@ export const repo = {
         filterParts.push("analytics_dimensions.period_year = :year");
         params.ExpressionAttributeValues[":year"] = Number(filters.year);
     }
-
-    // --- Filtros NUEVOS e Interesantes ---
-    
-    // 1. Por nombre de Vendor (Búsqueda parcial)
-    if (filters.vendor) {
-        filterParts.push("contains(extracted_data.vendor, :vendor)");
-        params.ExpressionAttributeValues[":vendor"] = filters.vendor.toUpperCase();
+    if (filters.month) {
+        filterParts.push("analytics_dimensions.period_month = :month");
+        params.ExpressionAttributeValues[":month"] = Number(filters.month);
     }
 
-    // 2. Por umbral de CO2 (High Impact)
+    // --- Filtros de Rango de Gasto (Spend) ---
+    if (filters.minSpend) {
+        filterParts.push("extracted_data.total_amount >= :minS");
+        params.ExpressionAttributeValues[":minS"] = Number(filters.minSpend);
+    }
+    if (filters.maxSpend) {
+        filterParts.push("extracted_data.total_amount <= :maxS");
+        params.ExpressionAttributeValues[":maxS"] = Number(filters.maxSpend);
+    }
+
+    // --- Filtros de Rango de Emisiones (CO2e) ---
     if (filters.minEmissions) {
         filterParts.push("climatiq_result.co2e >= :minE");
         params.ExpressionAttributeValues[":minE"] = Number(filters.minEmissions);
     }
-
-    // 3. Solo facturas que requieren revisión humana
-    if (filters.needsReview === true) {
-        filterParts.push("ai_analysis.requires_review = :review");
-        params.ExpressionAttributeValues[":review"] = true;
+    if (filters.maxEmissions) {
+        filterParts.push("climatiq_result.co2e <= :maxE");
+        params.ExpressionAttributeValues[":maxE"] = Number(filters.maxEmissions);
     }
 
-    // 4. Por Sector (Comercial/Industrial)
-    if (filters.sector) {
-        filterParts.push("analytics_dimensions.sector = :sector");
-        params.ExpressionAttributeValues[":sector"] = filters.sector;
-    }
-
+    // Unimos todas las partes con AND
     if (filterParts.length > 0) {
         params.FilterExpression = filterParts.join(" AND ");
     }

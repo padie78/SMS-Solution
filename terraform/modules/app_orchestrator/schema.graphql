@@ -92,12 +92,17 @@ type Query {
   getAuditReport: [AuditItem]
 
   # 7. Exploración (DataGrid con filtros)
+  type Query {
   searchInvoices(
-    year: String, 
-    month: String, 
-    service: String, 
-    minSpend: Float
+    year: String,
+    month: String,
+    service: String,
+    minSpend: Float,
+    maxSpend: Float,      # Nuevo
+    minEmissions: Float,  # Nuevo
+    maxEmissions: Float   # Nuevo
   ): [Invoice]
+}
 }
 
 schema {

@@ -6,14 +6,14 @@
 import { repo } from '../repository/dynamo.js';
 
 export const analyticsService = {
-    
+
     /**
      * 1. ESTRATÉGICO: Totales anuales para Scorecards.
      */
     getYearlyKPI: async (orgId, year) => {
         console.log(`[SERVICE] getYearlyKPI - Org: ${orgId}, Year: ${year}`);
         const stats = await repo.getStats(orgId, year);
-        
+
         if (!stats) {
             console.warn(`[SERVICE] No stats found for Org: ${orgId}`);
             return null;
@@ -31,9 +31,9 @@ export const analyticsService = {
         };
     },
 
-   /**
-     * 2. TÁCTICO: Comparativa MoM con manejo de meses vacíos.
-     */
+    /**
+      * 2. TÁCTICO: Comparativa MoM con manejo de meses vacíos.
+      */
     getMonthlyKPI: async (orgId, year, month) => {
         const stats = await repo.getStats(orgId, year);
         if (!stats) return null;
@@ -41,7 +41,7 @@ export const analyticsService = {
         const currentM = month.toString().padStart(2, '0');
         const monthInt = parseInt(currentM);
         const prevMonthStr = (monthInt - 1).toString().padStart(2, '0');
-        
+
         // Helper para extraer valor de Dynamo (maneja .N o valor directo)
         const getVal = (m, type) => parseFloat(stats[`month_${m}_${type}`]?.N || stats[`month_${m}_${type}`] || 0);
 
@@ -77,7 +77,7 @@ export const analyticsService = {
     getEvolution: async (orgId, year, gasType = 'co2e') => {
         const stats = await repo.getStats(orgId, year);
         const months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
-        
+
         if (!stats) return months.map(m => ({ label: `Mes ${m}`, emissions: 0, spend: 0 }));
 
         return months.map(m => ({
@@ -150,28 +150,31 @@ export const analyticsService = {
     searchInvoices: async (orgId, args) => {
         // El repo ya devuelve un array de objetos limpios con pdfUrl
         const invoices = await repo.searchInvoices(orgId, args);
-        
+
         // Si quieres asegurar consistencia o renombrar algún campo extra:
         return invoices.map(inv => {
-    return {
-        ...inv,
-        // Priorizamos el ID que viene del repo mapeado
-        id: inv.id || inv.SK, 
-        
-        // Mapeo de campos de negocio para el DataGrid
-        service: inv.service || "N/A",
-        
-        // Estos campos vienen del repo, nos aseguramos de que existan
-        consumption: inv.consumption || 0,
-        unit: inv.unit || "kWh",
-        
-        // Metadatos para badges visuales (Rojo si confidence < 0.9)
-        confidence: inv.confidence ?? 1.0,
-        requiresReview: inv.requiresReview ?? false,
-        
-        // El link firmado que ya rescatamos
-        pdfUrl: inv.pdfUrl || null
-    };
-});
+            return {
+                ...inv,
+                // Identificador único para el DataGrid
+                id: inv.id || inv.SK,
+
+                // --- SECCIÓN DINERO (Spend) ---
+                // Asegúrate de que el nombre coincida con el Schema de GraphQL
+                totalAmount: parseFloat(inv.totalAmount || 0),
+
+                // --- SECCIÓN SOSTENIBILIDAD ---
+                emissions: parseFloat(inv.emissions || 0),
+                consumption: parseFloat(inv.consumption || 0),
+                unit: inv.unit || "kWh",
+
+                // --- SECCIÓN INTELIGENCIA (IA) ---
+                confidence: inv.confidence ?? 0,
+                requiresReview: inv.requiresReview ?? false,
+
+                // --- RECURSOS ---
+                pdfUrl: inv.pdfUrl || null,
+                service: inv.service || "N/A"
+            };
+        });
     }
 };
