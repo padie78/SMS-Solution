@@ -59,13 +59,13 @@ type AuditItem {
 type Invoice {
   id: ID!
   vendor: String
-  service: String
   invoiceDate: String
   totalAmount: Float
   emissions: Float
-  gasUnit: String
   confidence: Float
   requiresReview: Boolean
+  pdfUrl: String     # <--- OBLIGATORIO para el link de la grilla
+  serviceType: String # Útil para mostrar el icono de Gas o Electricidad
 }
 
 # --- Consultas (Queries) ---
