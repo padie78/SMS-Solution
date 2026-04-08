@@ -66,7 +66,7 @@ export const analyticsService = {
     getEvolution: async (orgId, year) => {
         const stats = await repo.getStats(orgId, year);
         const months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
-        
+
         if (!stats) return months.map(m => ({ label: `Mes ${m}`, emissions: 0, spend: 0 }));
 
         return months.map(m => ({
@@ -121,18 +121,21 @@ export const analyticsService = {
         const [currentStats, prevStats] = await repo.getStatsForYears(orgId, yearsToCompare);
 
         const mStr = month.toString().padStart(2, '0');
-        
+
         const current = {
             emissions: parseFloat(currentStats?.[`month_${mStr}_co2e`] || 0),
             spend: parseFloat(currentStats?.[`month_${mStr}_spend`] || 0)
         };
+
+        // Si prevStats es null (porque no existe 2025), inicializamos en cero
         const previous = {
             emissions: parseFloat(prevStats?.[`month_${mStr}_co2e`] || 0),
             spend: parseFloat(prevStats?.[`month_${mStr}_spend`] || 0)
         };
 
-        const diffE = previous.emissions === 0 ? 100 : ((current.emissions - previous.emissions) / previous.emissions) * 100;
-        const diffS = previous.spend === 0 ? 100 : ((current.spend - previous.spend) / previous.spend) * 100;
+        // Evitamos división por cero si no hay 2025
+        const diffE = previous.emissions === 0 ? (current.emissions > 0 ? 100 : 0) : ((current.emissions - previous.emissions) / previous.emissions) * 100;
+        const diffS = previous.spend === 0 ? (current.spend > 0 ? 100 : 0) : ((current.spend - previous.spend) / previous.spend) * 100;
 
         return {
             month,
@@ -140,7 +143,8 @@ export const analyticsService = {
             previousYear: previous,
             diffPercentageEmissions: parseFloat(diffE.toFixed(2)),
             diffPercentageSpend: parseFloat(diffS.toFixed(2)),
-            efficiencyImprovement: (current.emissions / Math.max(current.spend, 1)) < (previous.emissions / Math.max(previous.spend, 1))
+            // Si no hay datos previos, no podemos asegurar una mejora de eficiencia
+            efficiencyImprovement: previous.spend > 0 ? (current.emissions / current.spend) < (previous.emissions / previous.spend) : false
         };
     },
 
@@ -172,8 +176,8 @@ export const analyticsService = {
 
         return services.map(srv => {
             const srvCo2 = parseFloat(stats[`service_${srv}_co2e`] || 0);
-            const srvSpend = parseFloat(stats[`service_${srv}_spend`] || 0) || (srv === 'ELEC' ? stats.total_spend * 0.6 : stats.total_spend * 0.4); 
-            
+            const srvSpend = parseFloat(stats[`service_${srv}_spend`] || 0) || (srv === 'ELEC' ? stats.total_spend * 0.6 : stats.total_spend * 0.4);
+
             return {
                 serviceType: srv,
                 intensityRatio: srvSpend > 0 ? parseFloat((srvCo2 / srvSpend).toFixed(4)) : 0,
@@ -185,9 +189,9 @@ export const analyticsService = {
     getGoalTracking: async (orgId, year) => {
         const stats = await repo.getStats(orgId, year);
         const goals = await repo.getGoals(orgId, year);
-        
+
         const accumulated = parseFloat(stats?.total_co2e_kg || 0);
-        const target = parseFloat(goals?.annualTargetEmissions || 2000); 
+        const target = parseFloat(goals?.annualTargetEmissions || 2000);
 
         return {
             annualTargetEmissions: target,
@@ -237,7 +241,7 @@ export const analyticsService = {
         return {
             averageConfidence: parseFloat(avgConf.toFixed(2)),
             totalPendingReview: pending,
-            automatedProcessRate: parseFloat((( (total - pending) / total) * 100).toFixed(2))
+            automatedProcessRate: parseFloat((((total - pending) / total) * 100).toFixed(2))
         };
     },
 
@@ -248,7 +252,7 @@ export const analyticsService = {
         const rankingMap = invoices.reduce((acc, inv) => {
             const name = inv.extracted_data?.vendor || "Unknown";
             if (!acc[name]) acc[name] = { vendorName: name, totalCo2e: 0, totalInvoices: 0, conf: 0 };
-            
+
             acc[name].totalCo2e += (inv.climatiq_result?.co2e || 0);
             acc[name].totalInvoices += 1;
             acc[name].conf += (inv.ai_analysis?.confidence_score || 0);
