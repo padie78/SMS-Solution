@@ -117,15 +117,18 @@ export const analyticsService = {
     },
 
     getYearOverYear: async (orgId, month, year) => {
+        console.log(`[YoY] Iniciando cálculo - Org: ${orgId}, Mes: ${month}, Año: ${year}`);
+
         const yearsToCompare = [year.toString(), (year - 1).toString()];
         const results = await repo.getStatsForYears(orgId, yearsToCompare);
-        
-        // Manejo seguro de nulos si el año no existe en Dynamo
-        const currentStats = results[0] || {}; 
+
+        console.log(`[YoY] Datos recuperados de Repo:`, JSON.stringify(results));
+
+        const currentStats = results[0] || {};
         const prevStats = results[1] || {};
 
         const mStr = month.toString().padStart(2, '0');
-        
+
         const current = {
             emissions: parseFloat(currentStats[`month_${mStr}_co2e`] || 0),
             spend: parseFloat(currentStats[`month_${mStr}_spend`] || 0)
@@ -135,16 +138,21 @@ export const analyticsService = {
             spend: parseFloat(prevStats[`month_${mStr}_spend`] || 0)
         };
 
+        console.log(`[YoY] Comparando Actual:`, current, `vs Previo:`, previous);
+
         const diffE = previous.emissions === 0 ? (current.emissions > 0 ? 100 : 0) : ((current.emissions - previous.emissions) / previous.emissions) * 100;
 
-        return {
-            month,
+        const response = {
+            month: parseInt(month),
             currentYear: current,
             previousYear: previous,
             diffPercentageEmissions: parseFloat(diffE.toFixed(2)),
-            diffPercentageSpend: 0, // Simplificado para el ejemplo
+            diffPercentageSpend: 0,
             efficiencyImprovement: previous.spend > 0 ? (current.emissions / current.spend) < (previous.emissions / previous.spend) : false
         };
+
+        console.log(`[YoY] Resultado Final enviado al Resolver:`, JSON.stringify(response));
+        return response;
     },
 
     /**
@@ -176,18 +184,18 @@ export const analyticsService = {
         return services.map(srv => {
             // Buscamos los valores con fallback a 0
             const srvCo2 = parseFloat(stats[`service_${srv}_co2e`] || 0);
-            
+
             // Intentamos obtener el spend específico del servicio, 
             // si no existe, usamos un proporcional del spend total para no devolver null
             let srvSpend = parseFloat(stats[`service_${srv}_spend`] || 0);
-            
+
             if (srvSpend === 0 && stats.total_spend > 0) {
                 // Estimación lógica: si no hay desglose de spend, 
                 // prorrateamos según la proporción de emisiones
                 const proportion = totalCo2 > 0 ? (srvCo2 / totalCo2) : 0;
                 srvSpend = parseFloat(stats.total_spend) * proportion;
             }
-            
+
             return {
                 serviceType: srv,
                 intensityRatio: srvSpend > 0 ? parseFloat((srvCo2 / srvSpend).toFixed(4)) : 0,
@@ -197,31 +205,48 @@ export const analyticsService = {
     },
 
     getGoalTracking: async (orgId, year) => {
-        const stats = await repo.getStats(orgId, year) || {}; // Fallback a objeto vacío
-        const goals = await repo.getGoals(orgId, year) || {};
+        console.log(`[GOALS] Buscando Stats y Metas para ${year}`);
         
-        const accumulated = parseFloat(stats.total_co2e_kg || 0);
-        const target = parseFloat(goals.annualTargetEmissions || 2000); 
+        const [stats, goals] = await Promise.all([
+            repo.getStats(orgId, year),
+            repo.getGoals(orgId, year)
+        ]);
 
-        return {
+        console.log(`[GOALS] Stats de Dynamo:`, JSON.stringify(stats));
+        console.log(`[GOALS] Metas de Dynamo:`, JSON.stringify(goals));
+
+        const accumulated = parseFloat(stats?.total_co2e_kg || 0);
+        const target = parseFloat(goals?.annualTargetEmissions || 2000); 
+
+        const result = {
             annualTargetEmissions: target,
             currentAccumulated: accumulated,
             remainingCarbonBudget: parseFloat((target - accumulated).toFixed(2)),
             isOnTrack: accumulated <= target,
             burnRate: accumulated > 0 ? parseFloat((accumulated / (new Date().getMonth() + 1)).toFixed(2)) : 0
         };
+
+        console.log(`[GOALS] Resultado procesado:`, JSON.stringify(result));
+        return result;
     },
 
     getOffsetEstimation: async (orgId, year) => {
+        console.log(`[OFFSET] Calculando estimación para ${year}`);
+        
         const stats = await repo.getStats(orgId, year) || {};
+        console.log(`[OFFSET] Stats recuperados:`, JSON.stringify(stats));
+
         const totalTons = (parseFloat(stats.total_co2e_kg || 0) / 1000);
         const marketPrice = 25.0; 
 
-        return {
+        const result = {
             totalTonsToOffset: parseFloat(totalTons.toFixed(3)),
             estimatedMarketPrice: marketPrice,
             estimatedCostToNetZero: parseFloat((totalTons * marketPrice).toFixed(2))
         };
+
+        console.log(`[OFFSET] Resultado final:`, JSON.stringify(result));
+        return result;
     },
 
     /**
