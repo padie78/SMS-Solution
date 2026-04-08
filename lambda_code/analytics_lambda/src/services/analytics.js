@@ -77,14 +77,27 @@ export const analyticsService = {
     },
 
     getQuarterlyBreakdown: async (orgId, year) => {
+        // 1. Obtener el registro maestro (YEAR#2026#METRIC#TOTAL)
         const stats = await repo.getStats(orgId, year);
-        if (!stats) return null;
 
-        const getQ = (m1, m2, m3) => ({
-            emissions: (parseFloat(stats[`month_${m1}_co2e`] || 0) + parseFloat(stats[`month_${m2}_co2e`] || 0) + parseFloat(stats[`month_${m3}_co2e`] || 0)),
-            spend: (parseFloat(stats[`month_${m1}_spend`] || 0) + parseFloat(stats[`month_${m2}_spend`] || 0) + parseFloat(stats[`month_${m3}_spend`] || 0))
-        });
+        // Si el registro no existe en DynamoDB, devolvemos null (esto disparó tu error anterior)
+        if (!stats || !stats.MonthlyBreakdown) return null;
 
+        const breakdown = stats.MonthlyBreakdown;
+
+        // 2. Helper para sumar meses dentro del mapa MonthlyBreakdown
+        const getQ = (m1, m2, m3) => {
+            const months = [m1, m2, m3];
+            return months.reduce((acc, month) => {
+                const data = breakdown[month] || { emissions: 0, spend: 0 };
+                return {
+                    emissions: acc.emissions + (parseFloat(data.emissions) || 0),
+                    spend: acc.spend + (parseFloat(data.spend) || 0)
+                };
+            }, { emissions: 0, spend: 0 });
+        };
+
+        // 3. Retorno estructurado para GraphQL
         return {
             q1: getQ("01", "02", "03"),
             q2: getQ("04", "05", "06"),
@@ -206,7 +219,7 @@ export const analyticsService = {
 
     getGoalTracking: async (orgId, year) => {
         console.log(`[GOALS] Buscando Stats y Metas para ${year}`);
-        
+
         const [stats, goals] = await Promise.all([
             repo.getStats(orgId, year),
             repo.getGoals(orgId, year)
@@ -216,7 +229,7 @@ export const analyticsService = {
         console.log(`[GOALS] Metas de Dynamo:`, JSON.stringify(goals));
 
         const accumulated = parseFloat(stats?.total_co2e_kg || 0);
-        const target = parseFloat(goals?.annualTargetEmissions || 2000); 
+        const target = parseFloat(goals?.annualTargetEmissions || 2000);
 
         const result = {
             annualTargetEmissions: target,
@@ -232,12 +245,12 @@ export const analyticsService = {
 
     getOffsetEstimation: async (orgId, year) => {
         console.log(`[OFFSET] Calculando estimación para ${year}`);
-        
+
         const stats = await repo.getStats(orgId, year) || {};
         console.log(`[OFFSET] Stats recuperados:`, JSON.stringify(stats));
 
         const totalTons = (parseFloat(stats.total_co2e_kg || 0) / 1000);
-        const marketPrice = 25.0; 
+        const marketPrice = 25.0;
 
         const result = {
             totalTonsToOffset: parseFloat(totalTons.toFixed(3)),
@@ -279,9 +292,9 @@ export const analyticsService = {
         };
     },
 
-   getVendorRanking: async (orgId, year, limit = 5) => {
+    getVendorRanking: async (orgId, year, limit = 5) => {
         console.log(`[VENDOR_RANKING] Iniciando para Org: ${orgId}, Año: ${year}`);
-        
+
         // 1. Log de Volumen de Datos
         const invoices = await repo.getYearlyInvoicesRaw(orgId, year);
         console.log(`[VENDOR_RANKING] Ítems recuperados de DynamoDB: ${invoices.length}`);
@@ -296,7 +309,7 @@ export const analyticsService = {
             const val = parseFloat(inv.climatiq_result?.co2e || 0);
             return acc + (isNaN(val) ? 0 : val);
         }, 0);
-        
+
         console.log(`[VENDOR_RANKING] CO2 Total Anual Calculado: ${totalOrgCo2.toFixed(2)} kg`);
 
         // 3. Agregación por Vendor
@@ -312,7 +325,7 @@ export const analyticsService = {
             acc[name].totalCo2e += isNaN(co2) ? 0 : co2;
             acc[name].totalInvoices += 1;
             acc[name].conf += isNaN(score) ? 0 : score;
-            
+
             return acc;
         }, {});
 
@@ -323,7 +336,7 @@ export const analyticsService = {
             .map(v => {
                 const percentage = totalOrgCo2 > 0 ? ((v.totalCo2e / totalOrgCo2) * 100) : 0;
                 const avgConf = v.totalInvoices > 0 ? (v.conf / v.totalInvoices) : 0;
-                
+
                 return {
                     vendorName: v.vendorName,
                     totalCo2e: parseFloat(v.totalCo2e.toFixed(2)),
