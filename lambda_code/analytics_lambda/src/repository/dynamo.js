@@ -1,6 +1,6 @@
 /**
  * @fileoverview Repository Layer - Capa de acceso a datos para DynamoDB.
- * Implementa logs detallados para depuración de rutas y tipos de datos.
+ * Adaptado para soportar el Schema extendido de Sostenibilidad (KPIs, Auditoría, Forecast).
  */
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
@@ -8,27 +8,40 @@ import { DynamoDBDocumentClient, GetCommand, QueryCommand } from "@aws-sdk/lib-d
 import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
-// Configuración de Clientes
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
 const ddb = DynamoDBDocumentClient.from(client);
-
 const s3Client = new S3Client({ region: process.env.AWS_REGION || "eu-central-1" });
-const BUCKET_NAME = "sms-platform-dev-uploads"; // Pon aquí el nombre exacto de tu bucket de S3
-const TABLE = "sms-platform-dev-emissions";       // Pon aquí el nombre exacto de tu tabla de DynamoDB
+
+const BUCKET_NAME = "sms-platform-dev-uploads";
+const TABLE = "sms-platform-dev-emissions";
 
 const formatPK = (id) => id.startsWith('ORG#') ? id : `ORG#${id}`;
 
+/**
+ * Helper para generar URLs firmadas de S3 de forma segura
+ */
+const generateSignedUrl = async (s3Key) => {
+    if (!s3Key) return null;
+    try {
+        const command = new GetObjectCommand({ Bucket: BUCKET_NAME, Key: s3Key });
+        return await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+    } catch (err) {
+        console.error(`[S3_ERROR]:`, err.message);
+        return null;
+    }
+};
+
 export const repo = {
     /**
-     * 1. DASHBOARD PRINCIPAL: Obtiene totales anuales.
+     * 1. STATS (Estratégico & KPIs Anuales/Mensuales)
+     * Soporta: getYearlyKPI, getMonthlyKPI, getEvolution, getIntensity, getForecast
      */
     getStats: async (orgId, year) => {
         const pk = formatPK(orgId);
-        const sk = `STATS#${year}`;
         try {
             const { Item } = await ddb.send(new GetCommand({
                 TableName: TABLE,
-                Key: { PK: pk, SK: sk }
+                Key: { PK: pk, SK: `STATS#${year}` }
             }));
             return Item || null;
         } catch (error) {
@@ -38,144 +51,171 @@ export const repo = {
     },
 
     /**
-     * 2. BUSCADOR POR VENDOR
+     * 2. COMPARATIVA INTERANUAL (YoY)
+     * Soporta: getYearOverYear
      */
-    getInvoicesByVendor: async (orgId, vendorPrefix) => {
+    getStatsForYears: async (orgId, years = []) => {
         const pk = formatPK(orgId);
-        const skPrefix = `INV#${vendorPrefix.toUpperCase()}`;
         try {
-            const { Items } = await ddb.send(new QueryCommand({
-                TableName: TABLE,
-                KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
-                ExpressionAttributeValues: { ":pk": pk, ":sk": skPrefix }
-            }));
-            return Items || [];
+            const promises = years.map(year => 
+                ddb.send(new GetCommand({
+                    TableName: TABLE,
+                    Key: { PK: pk, SK: `STATS#${year}` }
+                }))
+            );
+            const results = await Promise.all(promises);
+            return results.map(r => r.Item || null);
         } catch (error) {
-            console.error(`[REPO][getByVendor] ERROR:`, error.message);
+            console.error(`[REPO][getStatsForYears] ERROR:`, error.message);
             throw error;
         }
     },
 
     /**
-     * 3. MOTOR DE FILTROS AVANZADO (Corregido y Mapeado)
+     * 3. GOBERNANZA Y AUDITORÍA
+     * Soporta: getAuditReport, getAuditQueue, dataQualitySummary
      */
-    searchInvoices: async (orgId, filters) => {
-    const finalPK = formatPK(orgId);
-    const params = {
-        TableName: TABLE,
-        KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
-        ExpressionAttributeValues: {
-            ":pk": finalPK,
-            ":skPrefix": "INV#" 
-        }
-    };
-
-    let filterParts = [];
-
-    // --- Filtros Existentes ---
-   // --- Filtros de Identidad y Tiempo ---
-    if (filters.service) {
-        filterParts.push("ai_analysis.service_type = :service");
-        params.ExpressionAttributeValues[":service"] = filters.service.toUpperCase();
-    }
-    if (filters.year) {
-        filterParts.push("analytics_dimensions.period_year = :year");
-        params.ExpressionAttributeValues[":year"] = Number(filters.year);
-    }
-    if (filters.month) {
-        filterParts.push("analytics_dimensions.period_month = :month");
-        params.ExpressionAttributeValues[":month"] = Number(filters.month);
-    }
-
-    // --- Filtros de Rango de Gasto (Spend) ---
-    if (filters.minSpend) {
-        filterParts.push("extracted_data.total_amount >= :minS");
-        params.ExpressionAttributeValues[":minS"] = Number(filters.minSpend);
-    }
-    if (filters.maxSpend) {
-        filterParts.push("extracted_data.total_amount <= :maxS");
-        params.ExpressionAttributeValues[":maxS"] = Number(filters.maxSpend);
-    }
-
-    // --- Filtros de Rango de Emisiones (CO2e) ---
-    if (filters.minEmissions) {
-        filterParts.push("climatiq_result.co2e >= :minE");
-        params.ExpressionAttributeValues[":minE"] = Number(filters.minEmissions);
-    }
-    if (filters.maxEmissions) {
-        filterParts.push("climatiq_result.co2e <= :maxE");
-        params.ExpressionAttributeValues[":maxE"] = Number(filters.maxEmissions);
-    }
-
-    // Unimos todas las partes con AND
-    if (filterParts.length > 0) {
-        params.FilterExpression = filterParts.join(" AND ");
-    }
-        
-    try {
-            const result = await ddb.send(new QueryCommand(params));
-            const rawItems = result.Items || [];
-
-            // MAPEADO DE DATOS Y GENERACIÓN DE PDF LINK
-            const mappedItems = await Promise.all(rawItems.map(async (item) => {
-                let signedUrl = null;
-
-                // Validación de Bucket Name para evitar error "HTTP label: Bucket"
-                if (BUCKET_NAME && item.metadata?.s3_key) {
-                    try {
-                        const command = new GetObjectCommand({
-                            Bucket: BUCKET_NAME,
-                            Key: item.metadata.s3_key,
-                        });
-                        signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
-                    } catch (s3Err) {
-                        console.error(`S3 Error para ${item.SK}:`, s3Err.message);
-                    }
-                }
-
-                // Retornamos objeto plano (Sin .S, .M ni .N)
-                return {
-                    id: item.SK,
-                    vendor: item.extracted_data?.vendor || "N/A",
-                    invoiceDate: item.extracted_data?.invoice_date,
-                    totalAmount: item.extracted_data?.total_amount,
-                    emissions: item.climatiq_result?.co2e,
-                    confidence: item.ai_analysis?.confidence_score,
-                    requiresReview: item.ai_analysis?.requires_review || false,
-                    pdfUrl: signedUrl 
-                };
-            }));
-
-            console.log("--- [REPO END] searchInvoices ---");
-            return mappedItems;
-
-        } catch (error) {
-            console.error("--- [REPO ERROR] ---", error.message);
-            throw error;
-        }
-    },
-
-    /**
-     * 4. AUDITORÍA
-     */
-    getLowConfidenceInvoices: async (orgId, threshold = 0.9) => {
+    getInvoicesForAudit: async (orgId, filters = {}) => {
         const pk = formatPK(orgId);
         const params = {
             TableName: TABLE,
-            KeyConditionExpression: "PK = :pk AND begins_with(SK, :inv)",
-            FilterExpression: "ai_analysis.confidence_score < :t",
-            ExpressionAttributeValues: {
-                ":pk": pk, 
-                ":inv": "INV#", 
-                ":t": Number(threshold)
-            }
+            KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
+            ExpressionAttributeValues: { ":pk": pk, ":sk": "INV#" }
         };
 
+        let filterParts = [];
+        if (filters.year) {
+            filterParts.push("analytics_dimensions.period_year = :y");
+            params.ExpressionAttributeValues[":y"] = Number(filters.year);
+        }
+        if (filters.month) {
+            filterParts.push("analytics_dimensions.period_month = :m");
+            params.ExpressionAttributeValues[":m"] = Number(filters.month);
+        }
+        if (filters.onlyRequiresReview) {
+            filterParts.push("ai_analysis.requires_review = :r");
+            params.ExpressionAttributeValues[":r"] = true;
+        }
+
+        if (filterParts.length > 0) params.FilterExpression = filterParts.join(" AND ");
+
+        try {
+            const { Items } = await ddb.send(new QueryCommand(params));
+            // Mapeamos para incluir la URL del PDF solo en auditoría
+            return await Promise.all((Items || []).map(async (item) => ({
+                ...item,
+                pdfUrl: await generateSignedUrl(item.metadata?.s3_key)
+            })));
+        } catch (error) {
+            console.error(`[REPO][getInvoicesForAudit] ERROR:`, error.message);
+            throw error;
+        }
+    },
+
+    /**
+     * 4. PROVEEDORES Y RANKING
+     * Soporta: getVendorRanking
+     */
+    getYearlyInvoicesRaw: async (orgId, year) => {
+        const pk = formatPK(orgId);
+        const params = {
+            TableName: TABLE,
+            KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
+            FilterExpression: "analytics_dimensions.period_year = :y",
+            ExpressionAttributeValues: {
+                ":pk": pk,
+                ":sk": "INV#",
+                ":y": Number(year)
+            }
+        };
         try {
             const { Items } = await ddb.send(new QueryCommand(params));
             return Items || [];
         } catch (error) {
-            console.error(`[REPO][Auditoría] ERROR:`, error.message);
+            console.error(`[REPO][getYearlyInvoicesRaw] ERROR:`, error.message);
+            throw error;
+        }
+    },
+
+    /**
+     * 5. METAS Y CONFIGURACIÓN
+     * Soporta: getGoalTracking, getOffsetEstimation
+     */
+    getGoals: async (orgId, year) => {
+        const pk = formatPK(orgId);
+        try {
+            const { Item } = await ddb.send(new GetCommand({
+                TableName: TABLE,
+                Key: { PK: pk, SK: `CONFIG#METAS#${year}` }
+            }));
+            return Item || null;
+        } catch (error) {
+            console.error(`[REPO][getGoals] ERROR:`, error.message);
+            return null;
+        }
+    },
+
+    /**
+     * 6. EXPLORACIÓN (DataGrid Avanzado)
+     * Soporta: searchInvoices
+     */
+    searchInvoices: async (orgId, filters) => {
+        const pk = formatPK(orgId);
+        const params = {
+            TableName: TABLE,
+            KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
+            ExpressionAttributeValues: { ":pk": pk, ":skPrefix": "INV#" }
+        };
+
+        let filterParts = [];
+        if (filters.service) {
+            filterParts.push("ai_analysis.service_type = :service");
+            params.ExpressionAttributeValues[":service"] = filters.service.toUpperCase();
+        }
+        if (filters.year) {
+            filterParts.push("analytics_dimensions.period_year = :year");
+            params.ExpressionAttributeValues[":year"] = Number(filters.year);
+        }
+        if (filters.month) {
+            filterParts.push("analytics_dimensions.period_month = :month");
+            params.ExpressionAttributeValues[":month"] = Number(filters.month);
+        }
+        if (filters.minSpend) {
+            filterParts.push("extracted_data.total_amount >= :minS");
+            params.ExpressionAttributeValues[":minS"] = Number(filters.minSpend);
+        }
+        if (filters.maxSpend) {
+            filterParts.push("extracted_data.total_amount <= :maxS");
+            params.ExpressionAttributeValues[":maxS"] = Number(filters.maxSpend);
+        }
+        if (filters.minEmissions) {
+            filterParts.push("climatiq_result.co2e >= :minE");
+            params.ExpressionAttributeValues[":minE"] = Number(filters.minEmissions);
+        }
+        if (filters.maxEmissions) {
+            filterParts.push("climatiq_result.co2e <= :maxE");
+            params.ExpressionAttributeValues[":maxE"] = Number(filters.maxEmissions);
+        }
+
+        if (filterParts.length > 0) params.FilterExpression = filterParts.join(" AND ");
+
+        try {
+            const { Items } = await ddb.send(new QueryCommand(params));
+            return await Promise.all((Items || []).map(async (item) => ({
+                id: item.SK,
+                vendor: item.extracted_data?.vendor || "N/A",
+                invoiceDate: item.extracted_data?.invoice_date,
+                totalAmount: item.extracted_data?.total_amount,
+                emissions: item.climatiq_result?.co2e,
+                consumption: item.ai_analysis?.value, // Nuevo: Mapeo del valor de consumo
+                unit: item.ai_analysis?.unit,        // Nuevo: m3, kWh, etc.
+                confidence: item.ai_analysis?.confidence_score,
+                requiresReview: item.ai_analysis?.requires_review || false,
+                service: item.ai_analysis?.service_type,
+                pdfUrl: await generateSignedUrl(item.metadata?.s3_key)
+            })));
+        } catch (error) {
+            console.error(`[REPO][searchInvoices] ERROR:`, error.message);
             throw error;
         }
     }

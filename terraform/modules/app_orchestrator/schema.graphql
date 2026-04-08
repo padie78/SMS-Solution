@@ -1,4 +1,4 @@
-# --- Tipos de Datos (Entidades) ---
+# --- 1. Tipos de Datos (Entidades) ---
 
 type YearlyKPI {
   totalCo2e: Float
@@ -41,6 +41,12 @@ type IntensityReport {
   label: String
 }
 
+type ServiceIntensity {
+  serviceType: String
+  intensityRatio: Float
+  totalContributionPercentage: Float
+}
+
 type ForecastReport {
   currentAccumulated: Float
   monthsProcessed: Int
@@ -54,6 +60,13 @@ type AuditItem {
   score: Float
   invoiceNumber: String
   reason: String
+  pdfUrl: String
+}
+
+type DataQualitySummary {
+  averageConfidence: Float
+  totalPendingReview: Int
+  automatedProcessRate: Float
 }
 
 type Invoice {
@@ -62,44 +75,100 @@ type Invoice {
   invoiceDate: String
   totalAmount: Float
   emissions: Float
-  consumption: Float      # <--- Nuevo: El valor 1700.75
-  unit: String             # <--- Nuevo: kWh o m3
-  confidence: Float        # <--- Nuevo: Score de la IA
+  consumption: Float
+  unit: String
+  confidence: Float
   pdfUrl: String
   requiresReview: Boolean
   service: String
 }
 
-# --- Consultas (Queries) ---
+type YoYComparison {
+  month: Int
+  currentYear: YearData
+  previousYear: YearData
+  diffPercentageEmissions: Float
+  diffPercentageSpend: Float
+  efficiencyImprovement: Boolean
+}
+
+type YearData {
+  emissions: Float
+  spend: Float
+}
+
+type VendorRanking {
+  vendorName: String
+  totalCo2e: Float
+  totalInvoices: Int
+  percentageOfTotalOrgEmissions: Float
+  averageConfidence: Float
+  lastInvoiceDate: String
+}
+
+type GoalStatus {
+  annualTargetEmissions: Float
+  currentAccumulated: Float
+  remainingCarbonBudget: Float
+  daysRemainingInYear: Int
+  burnRate: Float
+  isOnTrack: Boolean
+}
+
+type OffsetEstimation {
+  totalTonsToOffset: Float
+  estimatedMarketPrice: Float
+  estimatedCostToNetZero: Float
+}
+
+type QuarterlyBreakdown {
+  q1: QuarterData
+  q2: QuarterData
+  q3: QuarterData
+  q4: QuarterData
+}
+
+type QuarterData {
+  emissions: Float
+  spend: Float
+}
+
+# --- 2. Definición de Consultas (Queries) ---
 
 type Query {
-  # 1. Estratégico (Scorecards)
+  # Scorecards Principales
   getYearlyKPI(year: String!): YearlyKPI
-
-  # 2. Táctico (Comparativa MoM)
   getMonthlyKPI(year: String!, month: String!): MonthlyKPI
-
-  # 3. Evolución (Gráficos ECharts)
+  
+  # Análisis de Tendencias y Proyecciones
   getEvolution(year: String!, gasType: String): [EvolutionData]
-
-  # 4. Eficiencia (Benchmarking)
-  getIntensity(year: String!): IntensityReport
-
-  # 5. Business Intelligence (Proyección)
   getForecast(year: String!): ForecastReport
-
-  # 6. Gobernanza (Auditoría)
+  getQuarterlyBreakdown(year: String!): QuarterlyBreakdown
+  getYearOverYear(month: Int!, year: Int!): YoYComparison
+  
+  # Eficiencia y Metas
+  getIntensity(year: String!): IntensityReport
+  getIntensityByService(year: String!): [ServiceIntensity]
+  getGoalTracking(year: String!): GoalStatus
+  getOffsetEstimation(year: String!): OffsetEstimation
+  
+  # Gobernanza y Auditoría
   getAuditReport: [AuditItem]
+  getAuditQueue(month: String!, year: String!): [AuditItem]
+  dataQualitySummary(month: String!, year: String!): DataQualitySummary
+  
+  # Proveedores
+  getVendorRanking(limit: Int): [VendorRanking]
 
-  # 7. Exploración (DataGrid con filtros)
+  # Exploración DataGrid
   searchInvoices(
-    year: String,
-    month: String,
-    service: String,
-    minSpend: Float,
-    maxSpend: Float,      # Nuevo
-    minEmissions: Float,  # Nuevo
-    maxEmissions: Float   # Nuevo
+    year: String
+    month: String
+    service: String
+    minSpend: Float
+    maxSpend: Float
+    minEmissions: Float
+    maxEmissions: Float
   ): [Invoice]
 }
 
