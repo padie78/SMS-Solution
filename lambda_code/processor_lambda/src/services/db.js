@@ -177,3 +177,6 @@ export const persistTransaction = async (record) => {
         throw error;
     }
 };
+
+// Al final de todo tu archivo db.js
+export default { persistTransaction };
