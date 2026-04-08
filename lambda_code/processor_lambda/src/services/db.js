@@ -8,15 +8,21 @@ const ddb = DynamoDBDocumentClient.from(client, {
 
 const TABLE_NAME = "sms-platform-dev-emissions";
 
+/**
+ * Persiste el Golden Record y actualiza los acumuladores anuales (STATS).
+ * La consistencia temporal depende de analytics_dimensions definida en el Mapper.
+ */
 export const persistTransaction = async (record) => {
     const { PK, analytics_dimensions, climatiq_result, extracted_data, ai_analysis, metadata } = record;
     
+    // Extraemos las dimensiones temporales (Ya corregidas por el Mapper)
     const year = analytics_dimensions.period_year;
     const month = analytics_dimensions.period_month.toString().padStart(2, '0');
+    
     const service = (ai_analysis.service_type || "UNKNOWN").toUpperCase();
     const statsSK = `STATS#${year}`;
 
-    // 1. Extraemos todos los valores de gases del registro (vienen del nuevo Mapper)
+    // Normalización de valores numéricos para evitar errores de tipo en DynamoDB
     const nCo2e = Number(climatiq_result.co2e || 0);
     const nCo2  = Number(climatiq_result.co2 || 0);
     const nCh4  = Number(climatiq_result.ch4 || 0);
@@ -26,7 +32,7 @@ export const persistTransaction = async (record) => {
     const params = {
         TransactItems: [
             {
-                // INSERTAR TRANSACCIÓN (Idempotencia basada en SK Natural)
+                // 1. INSERTAR EL REGISTRO DE LA FACTURA (Idempotencia por SK)
                 Put: {
                     TableName: TABLE_NAME,
                     Item: record,
@@ -34,7 +40,7 @@ export const persistTransaction = async (record) => {
                 }
             },
             {
-                // ACTUALIZAR ESTADÍSTICAS ANUALES (Estructura Plana)
+                // 2. ACTUALIZAR ESTADÍSTICAS (Atribución por mes de consumo)
                 Update: {
                     TableName: TABLE_NAME,
                     Key: { PK, SK: statsSK },
@@ -52,7 +58,7 @@ export const persistTransaction = async (record) => {
                             last_file_processed = :fileName
                     `,
                     ExpressionAttributeNames: { 
-                        "#mCo2e": `month_${month}_co2e`,
+                        "#mCo2e": `month_${month}_co2e`, // ej: month_03_co2e
                         "#mCo2":  `month_${month}_co2`,
                         "#mCh4":  `month_${month}_ch4`,
                         "#mN2o":  `month_${month}_n2o`,
@@ -77,13 +83,13 @@ export const persistTransaction = async (record) => {
 
     try {
         await ddb.send(new TransactWriteCommand(params));
-        console.log(`✅ [DB_SUCCESS]: Transacción guardada y Stats de gases actualizados.`);
+        console.log(`✅ [DB_SUCCESS]: Record ${record.SK} persistido en mes ${month}.`);
         return { success: true };
     } catch (error) {
         if (error.name === "TransactionCanceledException") {
             const reasons = error.CancellationReasons;
             if (reasons?.[0]?.Code === "ConditionalCheckFailed") {
-                console.warn(`⚠️ [DB_DUPLICATE]: Factura ${record.SK} ya existe. Abortando para evitar duplicidad de gases.`);
+                console.warn(`⚠️ [DB_DUPLICATE]: La factura ${record.SK} ya existe. Saltando actualización de Stats.`);
                 return { skipped: true };
             }
         }

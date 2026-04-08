@@ -7,7 +7,7 @@ const client = new BedrockRuntimeClient({
 
 /**
  * Servicio de Auditoría GenAI (Claude 3 Haiku).
- * Adaptado para inyectar 'category' en cada línea de emisión para el Mapper de Climatiq.
+ * Mantiene las reglas originales e integra la prioridad de atribución temporal.
  */
 export const analyzeInvoice = async (rawText) => {
     console.log(`   [BEDROCK_START]: Analizando texto crudo (${rawText.length} caracteres)...`);
@@ -37,7 +37,8 @@ For each consumption line found, you MUST include a "category" field that matche
 2. DATES: YYYY-MM-DD.
 3. NUMBERS: Use floats/integers.
 4. UNITS: Use standard units (kWh, m3, kg, km, EUR, USD).
-5. PERIODS: You MUST extract "period_start" and "period_end". Look for "Periodo", "Desde/Hasta" or "Lectura". // 👈 NUEVA
+5. PERIODS: (CRITICAL) You MUST extract "period_start" and "period_end". Look for "Periodo", "Desde/Hasta" or "Lectura". 
+   Identify the ACTUAL dates of consumption, as these will define the reporting month in the analytics dashboard. // 👈 PRIORIDAD TEMPORAL
 6. CONFIDENCE: Evaluate the OCR quality and data consistency. 
    Provide a "confidence_score" between 0.0 and 1.0. 
    - Use 0.95+ for clear digital PDFs.
@@ -95,7 +96,7 @@ For each consumption line found, you MUST include a "category" field that matche
         const responseBody = JSON.parse(new TextDecoder().decode(response.body));
         let resultText = responseBody.content[0].text.trim();
 
-        // Limpieza de JSON (Haiku a veces añade pequeñas explicaciones)
+        // Limpieza de JSON
         const jsonStart = resultText.indexOf('{');
         const jsonEnd = resultText.lastIndexOf('}');
         if (jsonStart === -1) throw new Error("No JSON found");
