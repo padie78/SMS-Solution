@@ -123,19 +123,20 @@ export const persistTransaction = async (record) => {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: factorSK },
                 UpdateExpression: `
-            SET last_factor_used = :factor,
-                #src = :source,
-                unit = :unit,
-                last_applied = :now
-        `,
-                ExpressionAttributeNames: {
-                    "#src": "source" // Mapeo de la palabra reservada
+                    SET last_factor_used = :factor,
+                        #src = :source,
+                        #unt = :unit,
+                        last_applied = :now
+                `,
+                ExpressionAttributeNames: { 
+                    "#src": "source",
+                    "#unt": "unit"  // Alias para evitar el reserved keyword 'unit'
                 },
-                ExpressionAttributeValues: {
+                ExpressionAttributeValues: { 
                     ":factor": safeFactor,
                     ":source": "Climatiq API",
                     ":unit": ai_analysis?.unit || "unit",
-                    ":now": now
+                    ":now": now 
                 }
             }
         }
