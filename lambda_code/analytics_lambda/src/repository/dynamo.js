@@ -5,8 +5,14 @@
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
+
+const s3Client = new S3Client({ region: process.env.AWS_REGION || "eu-central-1" });
+const BUCKET_NAME = process.env.ATTACHMENTS_BUCKET;
+
 const ddb = DynamoDBDocumentClient.from(client);
 const TABLE = process.env.DYNAMO_TABLE;
 
@@ -57,78 +63,90 @@ export const repo = {
     },
 
     /**
-     * 3. MOTOR DE FILTROS AVANZADO: Corregido según estructura real del JSON.
-     */
-    /**
      * 3. MOTOR DE FILTROS AVANZADO: Búsqueda flexible multivariable.
      * Ajustado a analytics_dimensions (Valores Numéricos).
      */
-    searchInvoices: async (orgId, filters) => {
-        console.log("--- [DEBUG START] searchInvoices ---");
-        const finalPK = formatPK(orgId);
-        
-        console.log(`Identidad: ${finalPK}`);
-        console.log(`Filtros de entrada:`, JSON.stringify(filters));
 
-        const params = {
-            TableName: TABLE,
-            KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
-            ExpressionAttributeValues: {
-                ":pk": finalPK,
-                ":skPrefix": "INV#" 
+// ... dentro de tu objeto repo:
+
+searchInvoices: async (orgId, filters) => {
+    console.log("--- [DEBUG START] searchInvoices ---");
+    const finalPK = formatPK(orgId);
+    
+    const params = {
+        TableName: TABLE,
+        KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
+        ExpressionAttributeValues: {
+            ":pk": finalPK,
+            ":skPrefix": "INV#" 
+        }
+    };
+
+    let filterParts = [];
+    
+    if (filters.service) {
+        filterParts.push("ai_analysis.service_type = :service");
+        params.ExpressionAttributeValues[":service"] = filters.service.toUpperCase();
+    }
+
+    if (filters.year) {
+        filterParts.push("analytics_dimensions.period_year = :year");
+        params.ExpressionAttributeValues[":year"] = Number(filters.year);
+    }
+
+    if (filters.month) {
+        filterParts.push("analytics_dimensions.period_month = :month");
+        params.ExpressionAttributeValues[":month"] = Number(filters.month);
+    }
+
+    if (filterParts.length > 0) {
+        params.FilterExpression = filterParts.join(" AND ");
+    }
+
+    try {
+        const result = await ddb.send(new QueryCommand(params));
+        console.log(`Resultado DynamoDB: ${result.Items?.length || 0} ítems.`);
+
+        // --- MAPEO DE DATOS Y GENERACIÓN DE PDF LINK ---
+        const mappedItems = await Promise.all((result.Items || []).map(async (item) => {
+            let signedUrl = null;
+
+            // Generamos el link si existe la key en metadata
+            if (item.metadata?.s3_key) {
+                try {
+                    const command = new GetObjectCommand({
+                        Bucket: BUCKET_NAME,
+                        Key: item.metadata.s3_key,
+                    });
+                    // El link expira en 1 hora (3600 seg)
+                    signedUrl = await getSignedUrl(s3Client, command, { expiresIn: 3600 });
+                } catch (s3Err) {
+                    console.error("Error generando URL firmada:", s3Err.message);
+                }
             }
-        };
 
-        let filterParts = [];
+            // Retornamos el objeto aplanado para GraphQL
+            return {
+                id: item.SK,
+                vendor: item.extracted_data?.vendor || "N/A",
+                invoiceDate: item.extracted_data?.invoice_date,
+                totalAmount: item.extracted_data?.total_amount,
+                emissions: item.climatiq_result?.co2e,
+                confidence: item.ai_analysis?.confidence_score,
+                requiresReview: item.ai_analysis?.requires_review,
+                pdfUrl: signedUrl // <--- Aquí está el link que faltaba
+            };
+        }));
+
+        console.log("Muestra del primer ítem mapeado:", JSON.stringify(mappedItems[0], null, 2));
+        console.log("--- [DEBUG END] searchInvoices ---");
         
-        // 1. Filtro por Service (ELEC/GAS) - String en ai_analysis
-        if (filters.service) {
-            console.log(`Filtrando por Servicio: ${filters.service}`);
-            filterParts.push("ai_analysis.service_type = :service");
-            params.ExpressionAttributeValues[":service"] = filters.service.toUpperCase();
-        }
+        return mappedItems;
 
-        // 2. Filtro por Año - AHORA EN analytics_dimensions.period_year (NUMBER)
-        if (filters.year) {
-            console.log(`Filtrando por Año: ${filters.year} (Convirtiendo a Number)`);
-            filterParts.push("analytics_dimensions.period_year = :year");
-            params.ExpressionAttributeValues[":year"] = Number(filters.year);
-        }
-
-        // 3. Filtro por Mes - EN analytics_dimensions.period_month (NUMBER)
-        if (filters.month) {
-            console.log(`Filtrando por Mes: ${filters.month} (Convirtiendo a Number)`);
-            filterParts.push("analytics_dimensions.period_month = :month");
-            params.ExpressionAttributeValues[":month"] = Number(filters.month);
-        }
-
-        if (filterParts.length > 0) {
-            params.FilterExpression = filterParts.join(" AND ");
-        }
-
-        console.log("JSON final enviado a DynamoDB SDK:", JSON.stringify(params, null, 2));
-
-        try {
-            const result = await ddb.send(new QueryCommand(params));
-            console.log(`Resultado: ${result.Items?.length || 0} ítems recuperados de la tabla.`);
-
-            if (result.Items && result.Items.length > 0) {
-                const item = result.Items[0];
-                console.log("Validación de tipos en el primer ítem recuperado:");
-                console.log(`- period_year: ${item.analytics_dimensions?.period_year} (Tipo: ${typeof item.analytics_dimensions?.period_year})`);
-                console.log(`- period_month: ${item.analytics_dimensions?.period_month} (Tipo: ${typeof item.analytics_dimensions?.period_month})`);
-            } else {
-                console.warn("La consulta no devolvió resultados. Revisa que el orgId y los prefijos INV# sean correctos.");
-            }
-
-            console.log("--- [DEBUG END] searchInvoices ---");
-            return result.Items || [];
-
-        } catch (error) {
-            console.error("--- [DEBUG ERROR] Falló la ejecución en DynamoDB ---");
-            console.error("Mensaje:", error.message);
-            throw error;
-        }
+    } catch (error) {
+        console.error("--- [DEBUG ERROR] ---", error.message);
+        throw error;
+    }
     },
 
     /**
