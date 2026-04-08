@@ -2,9 +2,9 @@ import { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 
 /**
  * Persistencia Atómica: Write-time Aggregation para SMS Platform.
- * Este método asegura que la data esté pre-calculada para consultas instantáneas.
+ * El nombre de la tabla está hardcodeado para asegurar consistencia inmediata.
  */
-export const persistTransaction = async (record) => {
+export const persistTransaction = async (record, ddb) => {
     const { 
         PK, 
         analytics_dimensions, 
@@ -38,7 +38,7 @@ export const persistTransaction = async (record) => {
         {
             // --- A. INSERTAR LA FACTURA (Idempotencia) ---
             Put: {
-                TableName: TABLE_NAME,
+                TableName: "sms-platform-dev-emissions",
                 Item: record,
                 ConditionExpression: "attribute_not_exists(SK)" 
             }
@@ -46,7 +46,7 @@ export const persistTransaction = async (record) => {
         {
             // --- B. STATS GLOBALES (Anual + Mensual + Service) ---
             Update: {
-                TableName: TABLE_NAME,
+                TableName: "sms-platform-dev-emissions",
                 Key: { PK, SK: statsSK },
                 UpdateExpression: `
                     SET #mCo2e = if_not_exists(#mCo2e, :zero) + :nCo2e,
@@ -79,7 +79,7 @@ export const persistTransaction = async (record) => {
     if (branchId) {
         transactItems.push({
             Update: {
-                TableName: TABLE_NAME,
+                TableName: "sms-platform-dev-emissions",
                 Key: { PK, SK: branchSK },
                 UpdateExpression: `
                     SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e,
@@ -97,7 +97,7 @@ export const persistTransaction = async (record) => {
     if (assetId) {
         transactItems.push({
             Update: {
-                TableName: TABLE_NAME,
+                TableName: "sms-platform-dev-emissions",
                 Key: { PK, SK: assetSK },
                 UpdateExpression: `
                     SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e,
@@ -113,7 +113,7 @@ export const persistTransaction = async (record) => {
     // --- E. ACTUALIZAR PROVEEDOR (Vendor Ranking / Scope 3) ---
     transactItems.push({
         Update: {
-            TableName: TABLE_NAME,
+            TableName: "sms-platform-dev-emissions",
             Key: { PK, SK: vendorSK },
             UpdateExpression: `
                 SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e,
@@ -133,7 +133,7 @@ export const persistTransaction = async (record) => {
 
     try {
         await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
-        console.log(`✅ [TRANSACTION_COMPLETE]: Idempotencia verificada y 5 agregadores actualizados para ${record.SK}`);
+        console.log(`✅ [TRANSACTION_COMPLETE]: Factura ${record.SK} procesada en sms-platform-dev-emissions`);
         return { success: true };
     } catch (error) {
         if (error.name === "TransactionCanceledException") {
