@@ -2,7 +2,6 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import crypto from "crypto";
 
-// Inicialización del cliente Singleton
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
 const ddb = DynamoDBDocumentClient.from(client, { 
     marshallOptions: { removeUndefinedValues: true, convertEmptyValues: true } 
@@ -10,10 +9,6 @@ const ddb = DynamoDBDocumentClient.from(client, {
 
 const TABLE_NAME = "sms-platform-dev-emissions";
 
-/**
- * Genera un ID corto y único basado en un texto (Determinista).
- * Si no hay Tax ID, el nombre del vendor siempre producirá el mismo Hash.
- */
 const generateFallbackId = (text) => {
     return crypto.createHash('shake256', { outputLength: 4 })
                  .update(text.toLowerCase().trim())
@@ -21,48 +16,47 @@ const generateFallbackId = (text) => {
 };
 
 /**
- * Persistencia Atómica: Write-time Aggregation para SMS Platform.
+ * Determina el Scope según el tipo de servicio (Lógica de Negocio ESG)
  */
+const getScopeByService = (service) => {
+    const scopeMap = {
+        'ELEC': 'scope_2',
+        'GAS': 'scope_1',
+        'FLEET': 'scope_1',
+        'REFRIGERANTS': 'scope_1',
+        'WATER': 'scope_3',
+        'LOGISTICS': 'scope_3',
+        'CLOUDOPS': 'scope_3',
+        'WASTE_PAPER': 'scope_3',
+        'WASTE_MIXED': 'scope_3'
+    };
+    return scopeMap[service] || 'scope_3';
+};
+
 export const persistTransaction = async (record) => {
-    const { 
-        PK, 
-        analytics_dimensions, 
-        climatiq_result, 
-        extracted_data, 
-        ai_analysis 
-    } = record;
+    const { PK, analytics_dimensions, climatiq_result, extracted_data, ai_analysis } = record;
     
-    // 1. Normalización de Dimensiones
     const year = analytics_dimensions.period_year;
     const month = analytics_dimensions.period_month.toString().padStart(2, '0');
     const branchId = analytics_dimensions.branch_id; 
     const assetId = analytics_dimensions.asset_id;   
+    const service = (ai_analysis.service_type || "UNKNOWN").toUpperCase();
+    const scopeField = getScopeByService(service);
     
-    // 2. Lógica Global de Identificación de Vendor (CIF, CUIT, TaxID, etc.)
-    const vendorName = extracted_data.vendor || extracted_data.vendor_name || "UNKNOWN_VENDOR";
-    
-    // Intentamos capturar cualquier identificador fiscal que la IA haya extraído
-    const rawTaxId = 
-        extracted_data.VENDOR_TAX_ID || 
-        extracted_data.tax_id || 
-        extracted_data.cif || 
-        extracted_data.cuit || 
-        extracted_data.vat_id;
-
-    // Si hay Tax ID, lo limpiamos. Si no, generamos un Hash basado en el nombre.
+    const rawTaxId = extracted_data.VENDOR_TAX_ID || extracted_data.tax_id || extracted_data.cif;
+    const vendorName = extracted_data.vendor || "UNKNOWN_VENDOR";
     const vendorKeyIdentifier = rawTaxId 
         ? rawTaxId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() 
         : `HASH_${generateFallbackId(vendorName)}`;
 
-    const service = (ai_analysis.service_type || "UNKNOWN").toUpperCase();
-
-    // 3. Definición de SKs
+    // --- Definición de SKs (Nuevas Estructuras Incluidas) ---
     const statsSK = `STATS#${year}`;
     const branchSK = `BRANCH#${branchId}`;
     const assetSK = `ASSET#${assetId}#YEAR#${year}`;
     const vendorSK = `VENDOR#${vendorKeyIdentifier}`;
+    const scopeSK = `SCOPE#YEAR#${year}`;
+    const factorSK = `FACTOR#SERVICE#${service}#REGION#${extracted_data.location?.country || 'GLOBAL'}`;
 
-    // 4. Valores Numéricos y Fechas
     const nCo2e = Number(climatiq_result.co2e || 0);
     const nSpend = Number(extracted_data.total_amount || 0);
     const confidence = Number(ai_analysis.confidence_score || 0);
@@ -70,7 +64,6 @@ export const persistTransaction = async (record) => {
 
     const transactItems = [
         {
-            // --- A. INSERTAR FACTURA ---
             Put: {
                 TableName: TABLE_NAME,
                 Item: record,
@@ -78,7 +71,7 @@ export const persistTransaction = async (record) => {
             }
         },
         {
-            // --- B. AGREGACIÓN GLOBAL (Anual/Mensual/Servicio) ---
+            // --- B. AGREGACIÓN GLOBAL + BUDGET TRACKING ---
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: statsSK },
@@ -102,83 +95,85 @@ export const persistTransaction = async (record) => {
                     ":one": 1, ":zero": 0, ":now": now 
                 }
             }
+        },
+        {
+            // --- D. AGREGADO POR SCOPE (Compliance SEC/CSRD) ---
+            Update: {
+                TableName: TABLE_NAME,
+                Key: { PK, SK: scopeSK },
+                UpdateExpression: `
+                    SET #scopeField = if_not_exists(#scopeField, :zero) + :nCo2e,
+                        total_year_co2e = if_not_exists(total_year_co2e, :zero) + :nCo2e,
+                        last_updated = :now
+                `,
+                ExpressionAttributeNames: { "#scopeField": scopeField },
+                ExpressionAttributeValues: { ":nCo2e": nCo2e, ":zero": 0, ":now": now }
+            }
+        },
+        {
+            // --- E. HISTÓRICO DE FACTORES (Auditabilidad) ---
+            Update: {
+                TableName: TABLE_NAME,
+                Key: { PK, SK: factorSK },
+                UpdateExpression: `
+                    SET last_factor_used = :factor,
+                        source = :source,
+                        unit = :unit,
+                        last_applied = :now
+                `,
+                ExpressionAttributeValues: { 
+                    ":factor": nCo2e / (Number(ai_analysis.value) || 1),
+                    ":source": "Climatiq API",
+                    ":unit": ai_analysis.unit || "kWh",
+                    ":now": now 
+                }
+            }
         }
     ];
 
-    // --- C. AGREGACIÓN POR SUCURSAL ---
+    // --- AGREGACIÓN POR SUCURSAL, ASSET Y VENDOR (Se mantienen igual) ---
     if (branchId) {
         transactItems.push({
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: branchSK },
-                UpdateExpression: `
-                    SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e,
-                        total_spend = if_not_exists(total_spend, :zero) + :nSpend,
-                        #mCo2e = if_not_exists(#mCo2e, :zero) + :nCo2e,
-                        last_updated = :now
-                `,
+                UpdateExpression: `SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e, total_spend = if_not_exists(total_spend, :zero) + :nSpend, #mCo2e = if_not_exists(#mCo2e, :zero) + :nCo2e, last_updated = :now`,
                 ExpressionAttributeNames: { "#mCo2e": `month_${month}_co2e` },
                 ExpressionAttributeValues: { ":nCo2e": nCo2e, ":nSpend": nSpend, ":zero": 0, ":now": now }
             }
         });
     }
 
-    // --- D. AGREGACIÓN POR ACTIVO ---
     if (assetId) {
         transactItems.push({
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: assetSK },
-                UpdateExpression: `
-                    SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e,
-                        #mCo2e = if_not_exists(#mCo2e, :zero) + :nCo2e,
-                        last_updated = :now
-                `,
+                UpdateExpression: `SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e, #mCo2e = if_not_exists(#mCo2e, :zero) + :nCo2e, last_updated = :now`,
                 ExpressionAttributeNames: { "#mCo2e": `month_${month}_co2e` },
                 ExpressionAttributeValues: { ":nCo2e": nCo2e, ":zero": 0, ":now": now }
             }
         });
     }
 
-    // --- E. AGREGACIÓN POR PROVEEDOR (SCOPE 3) ---
     transactItems.push({
         Update: {
             TableName: TABLE_NAME,
             Key: { PK, SK: vendorSK },
-            UpdateExpression: `
-                SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e,
-                    total_invoices = if_not_exists(total_invoices, :zero) + :one,
-                    vendor_name = :vName,
-                    tax_id_original = :tId,
-                    last_invoice_date = :now,
-                    service_type = :service
-            `,
-            ExpressionAttributeValues: { 
-                ":nCo2e": nCo2e, 
-                ":one": 1, 
-                ":zero": 0, 
-                ":vName": vendorName,
-                ":tId": rawTaxId || "NOT_EXTRACTED",
-                ":now": now, 
-                ":service": service 
-            }
+            UpdateExpression: `SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e, total_invoices = if_not_exists(total_invoices, :zero) + :one, vendor_name = :vName, tax_id_original = :tId, last_invoice_date = :now, service_type = :service`,
+            ExpressionAttributeValues: { ":nCo2e": nCo2e, ":one": 1, ":zero": 0, ":vName": vendorName, ":tId": rawTaxId || "NOT_EXTRACTED", ":now": now, ":service": service }
         }
     });
 
     try {
         await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
-        console.log(`✅ [DB_SUCCESS]: Persistencia completa. VendorID: ${vendorKeyIdentifier}`);
         return { success: true };
     } catch (error) {
         if (error.name === "TransactionCanceledException") {
             if (error.CancellationReasons[0].Code === "ConditionalCheckFailed") {
-                console.warn(`⏭️ [SKIPPED]: Factura duplicada (SK: ${record.SK}).`);
                 return { success: false, reason: "DUPLICATE" };
             }
         }
-        console.error("❌ [DB_ERROR]:", error.message);
         throw error;
     }
 };
-
-export default { persistTransaction };
