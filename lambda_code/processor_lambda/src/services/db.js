@@ -28,7 +28,7 @@ export const persistTransaction = async (record) => {
     const month = analytics_dimensions.period_month.toString().padStart(2, '0');
     const branchId = analytics_dimensions.branch_id; 
     const assetId = analytics_dimensions.asset_id;   
-    const vendorName = extracted_data.vendor_name || "UNKNOWN_VENDOR";
+    const vendorName = extracted_data.vendor || "UNKNOWN_VENDOR";
     const service = (ai_analysis.service_type || "UNKNOWN").toUpperCase();
 
     const statsSK = `STATS#${year}`;
