@@ -28,13 +28,21 @@ export const persistTransaction = async (record) => {
     const month = analytics_dimensions.period_month.toString().padStart(2, '0');
     const branchId = analytics_dimensions.branch_id; 
     const assetId = analytics_dimensions.asset_id;   
-    const vendorName = extracted_data.vendor || "UNKNOWN_VENDOR";
+    
+    // Prioridad: Tax ID extraído por la IA. Fallback: Nombre normalizado.
+    const vendorId = extracted_data.VENDOR_TAX_ID || extracted_data.tax_id || extracted_data.vendor_id;
+    const vendorName = extracted_data.vendor || extracted_data.vendor_name || "UNKNOWN_VENDOR";
     const service = (ai_analysis.service_type || "UNKNOWN").toUpperCase();
+
+    // Normalización de la SK del Vendor (Priorizamos el ID fiscal sin caracteres especiales)
+    const vendorKeyIdentifier = vendorId 
+        ? vendorId.replace(/[^a-zA-Z0-9]/g, '') 
+        : vendorName.replace(/\s+/g, '_').toUpperCase();
 
     const statsSK = `STATS#${year}`;
     const branchSK = `BRANCH#${branchId}`;
     const assetSK = `ASSET#${assetId}#YEAR#${year}`;
-    const vendorSK = `VENDOR#${vendorName.replace(/\s+/g, '_').toUpperCase()}`;
+    const vendorSK = `VENDOR#${vendorKeyIdentifier}`;
 
     // 2. Valores Numéricos
     const nCo2e = Number(climatiq_result.co2e || 0);
@@ -52,7 +60,7 @@ export const persistTransaction = async (record) => {
             }
         },
         {
-            // --- B. STATS GLOBALES (Sin división para evitar ValidationException) ---
+            // --- B. STATS GLOBALES ---
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: statsSK },
@@ -126,6 +134,8 @@ export const persistTransaction = async (record) => {
             UpdateExpression: `
                 SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e,
                     total_invoices = if_not_exists(total_invoices, :zero) + :one,
+                    vendor_name = :vName,
+                    tax_id = :tId,
                     last_invoice_date = :now,
                     service_type = :service
             `,
@@ -133,6 +143,8 @@ export const persistTransaction = async (record) => {
                 ":nCo2e": nCo2e, 
                 ":one": 1, 
                 ":zero": 0, 
+                ":vName": vendorName,
+                ":tId": vendorId || "N/A",
                 ":now": now, 
                 ":service": service 
             }
@@ -141,7 +153,7 @@ export const persistTransaction = async (record) => {
 
     try {
         await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
-        console.log(`✅ [DB_SUCCESS]: Factura ${record.SK} persistida y agregadores actualizados.`);
+        console.log(`✅ [DB_SUCCESS]: Factura persistida. Vendor SK: ${vendorSK}`);
         return { success: true };
     } catch (error) {
         if (error.name === "TransactionCanceledException") {
