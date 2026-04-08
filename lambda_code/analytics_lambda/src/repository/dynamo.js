@@ -59,12 +59,16 @@ export const repo = {
     /**
      * 3. MOTOR DE FILTROS AVANZADO: Corregido según estructura real del JSON.
      */
+    /**
+     * 3. MOTOR DE FILTROS AVANZADO: Búsqueda flexible multivariable.
+     * Ajustado a analytics_dimensions (Valores Numéricos).
+     */
     searchInvoices: async (orgId, filters) => {
         console.log("--- [DEBUG START] searchInvoices ---");
         const finalPK = formatPK(orgId);
         
-        console.log(`Config: { orgId: "${orgId}", finalPK: "${finalPK}", table: "${TABLE}" }`);
-        console.log(`Filtros crudos recibidos:`, JSON.stringify(filters));
+        console.log(`Identidad: ${finalPK}`);
+        console.log(`Filtros de entrada:`, JSON.stringify(filters));
 
         const params = {
             TableName: TABLE,
@@ -72,30 +76,28 @@ export const repo = {
             ExpressionAttributeValues: {
                 ":pk": finalPK,
                 ":skPrefix": "INV#" 
-            },
-            ExpressionAttributeNames: {}
+            }
         };
 
         let filterParts = [];
         
-        // Filtro por Service - En ai_analysis.service_type
+        // 1. Filtro por Service (ELEC/GAS) - String en ai_analysis
         if (filters.service) {
-            console.log(`Agregando filtro Service: ${filters.service}`);
+            console.log(`Filtrando por Servicio: ${filters.service}`);
             filterParts.push("ai_analysis.service_type = :service");
             params.ExpressionAttributeValues[":service"] = filters.service.toUpperCase();
         }
 
-        // Filtro por Año - En ai_analysis.year (Es un String "2026")
+        // 2. Filtro por Año - AHORA EN analytics_dimensions.period_year (NUMBER)
         if (filters.year) {
-            console.log(`Agregando filtro Año: ${filters.year} (Tipo: ${typeof filters.year})`);
-            filterParts.push("ai_analysis.#yr = :year");
-            params.ExpressionAttributeNames["#yr"] = "year"; 
-            params.ExpressionAttributeValues[":year"] = filters.year.toString();
+            console.log(`Filtrando por Año: ${filters.year} (Convirtiendo a Number)`);
+            filterParts.push("analytics_dimensions.period_year = :year");
+            params.ExpressionAttributeValues[":year"] = Number(filters.year);
         }
 
-        // Filtro por Mes - En analytics_dimensions.period_month (Es un Número 4)
+        // 3. Filtro por Mes - EN analytics_dimensions.period_month (NUMBER)
         if (filters.month) {
-            console.log(`Agregando filtro Mes: ${filters.month} (Tipo: ${typeof filters.month})`);
+            console.log(`Filtrando por Mes: ${filters.month} (Convirtiendo a Number)`);
             filterParts.push("analytics_dimensions.period_month = :month");
             params.ExpressionAttributeValues[":month"] = Number(filters.month);
         }
@@ -104,32 +106,27 @@ export const repo = {
             params.FilterExpression = filterParts.join(" AND ");
         }
 
-        if (Object.keys(params.ExpressionAttributeNames).length === 0) {
-            delete params.ExpressionAttributeNames;
-        }
-
-        console.log("Params finales enviados a DynamoDB:", JSON.stringify(params, null, 2));
+        console.log("JSON final enviado a DynamoDB SDK:", JSON.stringify(params, null, 2));
 
         try {
             const result = await ddb.send(new QueryCommand(params));
-            console.log(`DynamoDB Response: ${result.Items?.length || 0} items recuperados.`);
+            console.log(`Resultado: ${result.Items?.length || 0} ítems recuperados de la tabla.`);
 
             if (result.Items && result.Items.length > 0) {
-                const sample = result.Items[0];
-                console.log("Muestra estructura primer item (para validar rutas):");
-                console.log(`- SK: ${sample.SK}`);
-                console.log(`- ai_analysis.year: ${sample.ai_analysis?.year} (Tipo: ${typeof sample.ai_analysis?.year})`);
-                console.log(`- analytics_dimensions.period_month: ${sample.analytics_dimensions?.period_month} (Tipo: ${typeof sample.analytics_dimensions?.period_month})`);
+                const item = result.Items[0];
+                console.log("Validación de tipos en el primer ítem recuperado:");
+                console.log(`- period_year: ${item.analytics_dimensions?.period_year} (Tipo: ${typeof item.analytics_dimensions?.period_year})`);
+                console.log(`- period_month: ${item.analytics_dimensions?.period_month} (Tipo: ${typeof item.analytics_dimensions?.period_month})`);
             } else {
-                console.warn("QUERY VACÍA: Verifica si los tipos de datos (String vs Number) en el FilterExpression coinciden con la tabla.");
+                console.warn("La consulta no devolvió resultados. Revisa que el orgId y los prefijos INV# sean correctos.");
             }
 
             console.log("--- [DEBUG END] searchInvoices ---");
             return result.Items || [];
 
         } catch (error) {
-            console.error("--- [DEBUG ERROR] searchInvoices ---");
-            console.error("Error completo:", error);
+            console.error("--- [DEBUG ERROR] Falló la ejecución en DynamoDB ---");
+            console.error("Mensaje:", error.message);
             throw error;
         }
     },
