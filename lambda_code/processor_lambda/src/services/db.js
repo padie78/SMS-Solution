@@ -15,9 +15,6 @@ const generateFallbackId = (text) => {
         .digest('hex');
 };
 
-/**
- * Determina el Scope según el tipo de servicio (Lógica de Negocio ESG)
- */
 const getScopeByService = (service) => {
     const scopeMap = {
         'ELEC': 'scope_2',
@@ -36,7 +33,7 @@ const getScopeByService = (service) => {
 export const persistTransaction = async (record) => {
     const { PK, analytics_dimensions, climatiq_result, extracted_data, ai_analysis } = record;
 
-    // 1. Validaciones de Datos y Normalización
+    // 1. Validaciones y Normalización
     const year = analytics_dimensions?.period_year || new Date().getFullYear();
     const month = (analytics_dimensions?.period_month || (new Date().getMonth() + 1)).toString().padStart(2, '0');
     const branchId = analytics_dimensions?.branch_id;
@@ -50,22 +47,22 @@ export const persistTransaction = async (record) => {
         ? rawTaxId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
         : `HASH_${generateFallbackId(vendorName)}`;
 
-    // 2. Definición de SKs
+    // 2. Definición de SKs (Incluyendo el nuevo Budget SK)
     const statsSK = `STATS#${year}`;
+    const scopeSK = `SCOPE#YEAR#${year}`;
+    const budgetSK = `BUDGET#YEAR#${year}`; // <--- Nuevo SK para metas
+    const factorSK = `FACTOR#SERVICE#${service}#REGION#${extracted_data?.location?.country || 'GLOBAL'}`;
     const branchSK = `BRANCH#${branchId}`;
     const assetSK = `ASSET#${assetId}#YEAR#${year}`;
     const vendorSK = `VENDOR#${vendorKeyIdentifier}`;
-    const scopeSK = `SCOPE#YEAR#${year}`;
-    const factorSK = `FACTOR#SERVICE#${service}#REGION#${extracted_data?.location?.country || 'GLOBAL'}`;
 
-    // 3. Sanitización de Números (Previene NaN en la DB)
+    // 3. Sanitización de Números
     const nCo2e = Number(climatiq_result?.co2e || 0);
     const nSpend = Number(extracted_data?.total_amount || 0);
     const confidence = Number(ai_analysis?.confidence_score || 0);
     const consumptionVal = Number(ai_analysis?.value || 0);
     const now = new Date().toISOString();
 
-    // Cálculo seguro del factor de emisión
     const safeFactor = (nCo2e > 0 && consumptionVal > 0) ? (nCo2e / consumptionVal) : 0;
 
     const transactItems = [
@@ -104,7 +101,7 @@ export const persistTransaction = async (record) => {
             }
         },
         {
-            // --- C. AGREGADO POR SCOPE (Compliance CSRD/SEC) ---
+            // --- C. AGREGADO POR SCOPE ---
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: scopeSK },
@@ -118,7 +115,25 @@ export const persistTransaction = async (record) => {
             }
         },
         {
-            // --- D. HISTÓRICO DE FACTORES (Auditabilidad) ---
+            // --- D. PRESUPUESTO ANUAL (Budget Management) ---
+            Update: {
+                TableName: TABLE_NAME,
+                Key: { PK, SK: budgetSK },
+                UpdateExpression: `
+                    SET current_usage_kg = if_not_exists(current_usage_kg, :zero) + :nCo2e,
+                        last_updated = :now,
+                        year_reference = :year
+                `,
+                ExpressionAttributeValues: { 
+                    ":nCo2e": nCo2e, 
+                    ":zero": 0, 
+                    ":now": now,
+                    ":year": year
+                }
+            }
+        },
+        {
+            // --- E. HISTÓRICO DE FACTORES ---
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: factorSK },
@@ -128,10 +143,7 @@ export const persistTransaction = async (record) => {
                         #unt = :unit,
                         last_applied = :now
                 `,
-                ExpressionAttributeNames: { 
-                    "#src": "source",
-                    "#unt": "unit"  // Alias para evitar el reserved keyword 'unit'
-                },
+                ExpressionAttributeNames: { "#src": "source", "#unt": "unit" },
                 ExpressionAttributeValues: { 
                     ":factor": safeFactor,
                     ":source": "Climatiq API",
@@ -142,7 +154,7 @@ export const persistTransaction = async (record) => {
         }
     ];
 
-    // --- E. AGREGACIONES OPCIONALES (Branch/Asset/Vendor) ---
+    // --- F. AGREGACIONES OPCIONALES ---
     if (branchId) {
         transactItems.push({
             Update: {
@@ -182,21 +194,13 @@ export const persistTransaction = async (record) => {
 
     try {
         await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
-        console.log(`✅ [DB_SUCCESS]: Invoice ${record.SK} and aggregations updated.`);
         return { success: true };
     } catch (error) {
         if (error.name === "TransactionCanceledException") {
-            const reasons = error.CancellationReasons;
-            if (reasons[0]?.Code === "ConditionalCheckFailed") {
-                console.warn(`⏭️ [DUPLICATE]: Invoice SK: ${record.SK} already exists.`);
-                return { success: false, reason: "DUPLICATE" };
-            }
-            console.error("❌ [TRANSACTION_CANCELED]:", JSON.stringify(reasons));
+            console.error("❌ [TRANSACTION_CANCELED]:", JSON.stringify(error.CancellationReasons));
         }
-        console.error("❌ [DB_FATAL_ERROR]:", error);
         throw error;
     }
 };
 
-// Al final de todo tu archivo db.js
 export default { persistTransaction };
