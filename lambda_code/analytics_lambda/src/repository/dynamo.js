@@ -60,37 +60,59 @@ export const repo = {
      * 3. MOTOR DE FILTROS AVANZADO (Corregido y Mapeado)
      */
     searchInvoices: async (orgId, filters) => {
-        console.log("--- [REPO START] searchInvoices ---");
-        const finalPK = formatPK(orgId);
+    const finalPK = formatPK(orgId);
+    const params = {
+        TableName: TABLE,
+        KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
+        ExpressionAttributeValues: {
+            ":pk": finalPK,
+            ":skPrefix": "INV#" 
+        }
+    };
+
+    let filterParts = [];
+
+    // --- Filtros Existentes ---
+    if (filters.service) {
+        filterParts.push("ai_analysis.service_type = :service");
+        params.ExpressionAttributeValues[":service"] = filters.service.toUpperCase();
+    }
+    if (filters.year) {
+        filterParts.push("analytics_dimensions.period_year = :year");
+        params.ExpressionAttributeValues[":year"] = Number(filters.year);
+    }
+
+    // --- Filtros NUEVOS e Interesantes ---
+    
+    // 1. Por nombre de Vendor (Búsqueda parcial)
+    if (filters.vendor) {
+        filterParts.push("contains(extracted_data.vendor, :vendor)");
+        params.ExpressionAttributeValues[":vendor"] = filters.vendor.toUpperCase();
+    }
+
+    // 2. Por umbral de CO2 (High Impact)
+    if (filters.minEmissions) {
+        filterParts.push("climatiq_result.co2e >= :minE");
+        params.ExpressionAttributeValues[":minE"] = Number(filters.minEmissions);
+    }
+
+    // 3. Solo facturas que requieren revisión humana
+    if (filters.needsReview === true) {
+        filterParts.push("ai_analysis.requires_review = :review");
+        params.ExpressionAttributeValues[":review"] = true;
+    }
+
+    // 4. Por Sector (Comercial/Industrial)
+    if (filters.sector) {
+        filterParts.push("analytics_dimensions.sector = :sector");
+        params.ExpressionAttributeValues[":sector"] = filters.sector;
+    }
+
+    if (filterParts.length > 0) {
+        params.FilterExpression = filterParts.join(" AND ");
+    }
         
-        const params = {
-            TableName: TABLE,
-            KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
-            ExpressionAttributeValues: {
-                ":pk": finalPK,
-                ":skPrefix": "INV#" 
-            }
-        };
-
-        let filterParts = [];
-        if (filters.service) {
-            filterParts.push("ai_analysis.service_type = :service");
-            params.ExpressionAttributeValues[":service"] = filters.service.toUpperCase();
-        }
-        if (filters.year) {
-            filterParts.push("analytics_dimensions.period_year = :year");
-            params.ExpressionAttributeValues[":year"] = Number(filters.year);
-        }
-        if (filters.month) {
-            filterParts.push("analytics_dimensions.period_month = :month");
-            params.ExpressionAttributeValues[":month"] = Number(filters.month);
-        }
-
-        if (filterParts.length > 0) {
-            params.FilterExpression = filterParts.join(" AND ");
-        }
-
-        try {
+    try {
             const result = await ddb.send(new QueryCommand(params));
             const rawItems = result.Items || [];
 

@@ -152,12 +152,26 @@ export const analyticsService = {
         const invoices = await repo.searchInvoices(orgId, args);
         
         // Si quieres asegurar consistencia o renombrar algún campo extra:
-        return invoices.map(inv => ({
-            ...inv,
-            // Si el repo devuelve 'id', lo usamos. Si no, usamos 'SK'
-            id: inv.id || inv.SK, 
-            // Aseguramos que el service se llame 'service' para la UI
-            service: inv.service || inv.serviceType || "N/A"
-        }));
+        return invoices.map(inv => {
+    return {
+        ...inv,
+        // Priorizamos el ID que viene del repo mapeado
+        id: inv.id || inv.SK, 
+        
+        // Mapeo de campos de negocio para el DataGrid
+        service: inv.service || "N/A",
+        
+        // Estos campos vienen del repo, nos aseguramos de que existan
+        consumption: inv.consumption || 0,
+        unit: inv.unit || "kWh",
+        
+        // Metadatos para badges visuales (Rojo si confidence < 0.9)
+        confidence: inv.confidence ?? 1.0,
+        requiresReview: inv.requiresReview ?? false,
+        
+        // El link firmado que ya rescatamos
+        pdfUrl: inv.pdfUrl || null
+    };
+});
     }
 };
