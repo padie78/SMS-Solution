@@ -133,34 +133,192 @@ type QuarterData {
   spend: Float
 }
 
+type Branch {
+  id: ID!
+  name: String!
+  city: String!
+  totalCo2e: Float
+  intensityRatio: Float
+}
+
+# --- Nuevos Tipos para BI Avanzado ---
+
+type BenchmarkData {
+  userIntensity: Float
+  industryAverage: Float
+  percentile: Int
+  status: String # e.g., "Above Average", "Below Average"
+}
+
+type Anomaly {
+  id: ID!
+  date: String
+  service: String
+  vendor: String
+  detectedValue: Float
+  expectedValue: Float
+  severity: String # "LOW", "MEDIUM", "HIGH"
+  reason: String
+}
+
+type ComplianceReport {
+  totalSuppliers: Int
+  compliantSuppliers: Int # Proveedores con data real (Scope 3)
+  percentage: Float
+  missingDataImpact: Float # Estimación de CO2 basado en promedios por falta de data real
+}
+
+# --- Entidad Asset (Activo específico) ---
+type Asset {
+  id: ID!
+  name: String!
+  type: AssetType! # e.g., VEHICLE, BUILDING, MACHINERY, REFRIGERATION
+  status: String   # e.g., ACTIVE, MAINTENANCE, DECOMMISSIONED
+  totalCo2e: Float
+  intensityRatio: Float # Eficiencia propia del activo
+  history: [AssetHistoryPoint] # Historial de emisiones
+}
+
+enum AssetType {
+  VEHICLE
+  BUILDING
+  MACHINERY
+  DATA_CENTER
+  OTHER
+}
+
+type AssetHistoryPoint {
+  date: String
+  emissions: Float
+  spend: Float
+}
+
 # --- 2. Definición de Consultas (Queries) ---
 
 type Query {
-  # Scorecards Principales
+  # --- Scorecards Principales ---
+  
+  """
+  Obtiene el acumulado anual de CO2e, gasto total y desglose por servicios (ELEC/GAS).
+  Uso: Scorecards principales del Dashboard.
+  """
   getYearlyKPI(year: String!): YearlyKPI
+  
+  """
+  Compara el mes solicitado contra el anterior inmediato.
+  Uso: Widgets de 'Pulso Operativo' con indicadores de flecha arriba/abajo.
+  """
   getMonthlyKPI(year: String!, month: String!): MonthlyKPI
   
-  # Análisis de Tendencias y Proyecciones
+  # --- Análisis de Tendencias y Proyecciones ---
+  
+  """
+  Devuelve un array de datos mensuales para gráficos de líneas o barras.
+  Uso: Gráfico histórico de Emisiones vs Gasto.
+  """
   getEvolution(year: String!, gasType: String): [EvolutionData]
+  
+  """
+  Predicción basada en el ritmo de consumo actual (Burn Rate).
+  Uso: Indicador de 'Radar de Riesgo' para fin de año.
+  """
   getForecast(year: String!): ForecastReport
+  
+  """
+  Agrupa los datos en Q1, Q2, Q3 y Q4.
+  Uso: Reportes para el Directorio y cierres trimestrales.
+  """
   getQuarterlyBreakdown(year: String!): QuarterlyBreakdown
+  
+  """
+  Compara un mes específico contra el mismo mes del año anterior.
+  Uso: Reportes de cumplimiento normativo (ISO 14064).
+  """
   getYearOverYear(month: Int!, year: Int!): YoYComparison
   
-  # Eficiencia y Metas
+  # --- Eficiencia, Metas y ROI Económico ---
+  
+  """
+  Calcula la relación entre kg de CO2 y dólares gastados.
+  Uso: Métrica de eficiencia de 'Negocio Limpio'.
+  """
   getIntensity(year: String!): IntensityReport
+  
+  """
+  Desglosa la eficiencia de carbono por cada tipo de servicio.
+  Uso: Identificar si el problema de intensidad es el Gas o la Luz.
+  """
   getIntensityByService(year: String!): [ServiceIntensity]
+  
+  """
+  Estado actual frente a la meta establecida al inicio del año.
+  Uso: Barra de progreso Net Zero / Presupuesto de Carbono.
+  """
   getGoalTracking(year: String!): GoalStatus
+  
+  """
+  Estimación monetaria basada en precios de mercado para compensar la huella actual.
+  Uso: Planificación financiera para compra de bonos de carbono.
+  """
   getOffsetEstimation(year: String!): OffsetEstimation
   
-  # Gobernanza y Auditoría
+  """
+  Calcula kg de CO2 reducidos por cada dólar invertido en proyectos sostenibles.
+  Uso: Justificación de inversiones (Business Case) para el CFO.
+  """
+  getCarbonROI(year: String!): Float
+  
+  """
+  Compara la intensidad de la empresa contra promedios de su sector industrial.
+  Uso: Posicionamiento competitivo en sostenibilidad.
+  """
+  getIndustryBenchmark(year: String!): BenchmarkData
+  
+  # --- Gobernanza, Auditoría e Insights de IA ---
+  
+  """
+  Reporte técnico de todas las validaciones de documentos.
+  """
   getAuditReport: [AuditItem]
+  
+  """
+  Lista de facturas con confianza baja o errores detectados por la IA.
+  Uso: Bandeja de entrada para el auditor humano.
+  """
   getAuditQueue(month: String!, year: String!): [AuditItem]
+  
+  """
+  Métricas sobre el rendimiento de la IA (Textract/Bedrock).
+  Uso: Dashboard de control de calidad de datos.
+  """
   dataQualitySummary(month: String!, year: String!): DataQualitySummary
   
-  # Proveedores
+  """
+  Detecta desviaciones estadísticas inusuales en los consumos.
+  Uso: Detección temprana de fugas de energía o errores de facturación.
+  """
+  getAnomalies(year: String!, month: String!): [Anomaly]
+  
+  # --- Proveedores y Cumplimiento (Scope 3) ---
+  
+  """
+  Ranking de los proveedores con mayor impacto ambiental.
+  Uso: Decisiones de Supply Chain y renegociación de contratos.
+  """
   getVendorRanking(limit: Int): [VendorRanking]
+  
+  """
+  % de proveedores que reportan datos reales vs. factores estimados.
+  Uso: Mejora de la precisión del inventario de carbono (Scope 3).
+  """
+  getSupplierCompliance(year: String!): ComplianceReport
 
-  # Exploración DataGrid
+  # --- Exploración y Auditoría ---
+  
+  """
+  Buscador universal de facturas procesadas con filtros avanzados.
+  Uso: DataGrid principal y descarga de evidencias (PDF).
+  """
   searchInvoices(
     year: String
     month: String
@@ -170,6 +328,31 @@ type Query {
     minEmissions: Float
     maxEmissions: Float
   ): [Invoice]
+
+  # --- Multitenancy (Sucursales/Branches) ---
+  
+  """
+  Compara el desempeño ambiental entre diferentes plantas o sedes.
+  Uso: Benchmark interno y gamificación de sostenibilidad.
+  """
+  getBranchRanking(year: String!): [Branch]
+  
+  """
+  KPIs detallados filtrados para una ubicación física específica.
+  Uso: Vista de administrador local de planta.
+  """
+  getBranchKPI(branchId: ID!, year: String!): YearlyKPI
+
+  Lista todos los activos de una sucursal específica con sus métricas.
+  Uso: Vista de inventario de activos por planta.
+  """
+  getBranchAssets(branchId: ID!, year: String!): [Asset]
+
+  """
+  Obtiene el detalle profundo y el historial de emisiones de un activo único.
+  Uso: Drill-down para mantenimiento preventivo o auditoría de activo.
+  """
+  getAssetDetail(assetId: ID!, year: String!): Asset
 }
 
 schema {
