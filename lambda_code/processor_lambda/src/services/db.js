@@ -1,10 +1,16 @@
-import { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
+
+// Inicialización interna para evitar el error de 'undefined'
+const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
+const ddb = DynamoDBDocumentClient.from(client, { 
+    marshallOptions: { removeUndefinedValues: true, convertEmptyValues: true } 
+});
 
 /**
  * Persistencia Atómica: Write-time Aggregation para SMS Platform.
- * El nombre de la tabla está hardcodeado para asegurar consistencia inmediata.
  */
-export const persistTransaction = async (record, ddb) => {
+export const persistTransaction = async (record) => {
     const { 
         PK, 
         analytics_dimensions, 
@@ -14,7 +20,7 @@ export const persistTransaction = async (record, ddb) => {
         metadata 
     } = record;
     
-    // 1. Setup de Dimensiones Temporales y de Negocio
+    // 1. Setup de Dimensiones
     const year = analytics_dimensions.period_year;
     const month = analytics_dimensions.period_month.toString().padStart(2, '0');
     const branchId = analytics_dimensions.branch_id; 
@@ -36,7 +42,6 @@ export const persistTransaction = async (record, ddb) => {
 
     const transactItems = [
         {
-            // --- A. INSERTAR LA FACTURA (Idempotencia) ---
             Put: {
                 TableName: "sms-platform-dev-emissions",
                 Item: record,
@@ -44,7 +49,6 @@ export const persistTransaction = async (record, ddb) => {
             }
         },
         {
-            // --- B. STATS GLOBALES (Anual + Mensual + Service) ---
             Update: {
                 TableName: "sms-platform-dev-emissions",
                 Key: { PK, SK: statsSK },
@@ -64,18 +68,13 @@ export const persistTransaction = async (record, ddb) => {
                     "#sCo2e": `service_${service}_co2e`
                 },
                 ExpressionAttributeValues: { 
-                    ":nCo2e": nCo2e, 
-                    ":nSpend": nSpend, 
-                    ":conf": confidence,
-                    ":one": 1, 
-                    ":zero": 0, 
-                    ":now": now 
+                    ":nCo2e": nCo2e, ":nSpend": nSpend, ":conf": confidence,
+                    ":one": 1, ":zero": 0, ":now": now 
                 }
             }
         }
     ];
 
-    // --- C. ACTUALIZAR SUCURSAL (Branch Efficiency) ---
     if (branchId) {
         transactItems.push({
             Update: {
@@ -93,7 +92,6 @@ export const persistTransaction = async (record, ddb) => {
         });
     }
 
-    // --- D. ACTUALIZAR ACTIVO (Asset Monitoring) ---
     if (assetId) {
         transactItems.push({
             Update: {
@@ -110,7 +108,6 @@ export const persistTransaction = async (record, ddb) => {
         });
     }
 
-    // --- E. ACTUALIZAR PROVEEDOR (Vendor Ranking / Scope 3) ---
     transactItems.push({
         Update: {
             TableName: "sms-platform-dev-emissions",
@@ -121,19 +118,14 @@ export const persistTransaction = async (record, ddb) => {
                     last_invoice_date = :now,
                     service_type = :service
             `,
-            ExpressionAttributeValues: { 
-                ":nCo2e": nCo2e, 
-                ":one": 1, 
-                ":zero": 0, 
-                ":now": now, 
-                ":service": service 
-            }
+            ExpressionAttributeValues: { ":nCo2e": nCo2e, ":one": 1, ":zero": 0, ":now": now, ":service": service }
         }
     });
 
     try {
+        // Ahora ddb ya existe globalmente en el archivo
         await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
-        console.log(`✅ [TRANSACTION_COMPLETE]: Factura ${record.SK} procesada en sms-platform-dev-emissions`);
+        console.log(`✅ [TRANSACTION_COMPLETE]: Factura ${record.SK} procesada.`);
         return { success: true };
     } catch (error) {
         if (error.name === "TransactionCanceledException") {
