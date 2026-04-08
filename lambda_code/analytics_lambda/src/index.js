@@ -1,18 +1,18 @@
 /**
  * @fileoverview AppSync Resolver Handler - Orquestador de Consultas GraphQL.
- * Este componente actúa como el "Dispatcher" central que conecta el esquema de AppSync
- * con la lógica de negocio del Analytics Service.
+ * Este componente actúa como el "Dispatcher" central que conecta AppSync con el Analytics Service.
  */
-import { analyticsService } from './services/analytics.js'
+import { analyticsService } from './services/analytics.js';
 
 export const handler = async (event) => {
+    // Console log inicial para debug en CloudWatch
     console.log("GraphQL Request:", JSON.stringify(event, null, 2));
 
     try {
-        // 1. SEGURIDAD MULTI-TENANT: Extraemos el orgId de los Claims de Cognito vía AppSync Identity
-        //const orgId = event.identity?.claims['custom:orgId'];
-        const orgId = "f3d4f8a2-90c1-708c-a446-2c8592524d62"; // Sin el ORG#
-       // 2. PARÁMETROS
+        // 1. SEGURIDAD MULTI-TENANT: El orgId debe ser consistente con tu DynamoDB (ORG#id)
+        const orgId = "f3d4f8a2-90c1-708c-a446-2c8592524d62"; 
+        
+        // 2. PARÁMETROS
         const args = event.arguments || {};
         const methodName = event.info?.fieldName;
 
@@ -27,51 +27,85 @@ export const handler = async (event) => {
 
         /**
          * DISPATCHER LOGIC
+         * Mapea cada query del Schema de GraphQL a una función del Service.
          */
         switch (methodName) {
             
+            // --- SCORECARDS ---
             case 'getYearlyKPI':
-                console.log(`Invoking analyticsService.getYearlyKPI(${orgId}, ${args.year})`);
                 result = await analyticsService.getYearlyKPI(orgId, args.year);
                 break;
 
             case 'getMonthlyKPI':
-                if (!args.month) throw new Error("Month argument is required for MonthlyKPI");
-                console.log(`Invoking analyticsService.getMonthlyKPI(${orgId}, ${args.year}, ${args.month})`);
+                if (!args.month) throw new Error("Month argument is required for getMonthlyKPI");
                 result = await analyticsService.getMonthlyKPI(orgId, args.year, args.month);
                 break;
 
+            // --- TENDENCIAS Y COMPARATIVAS ---
             case 'getEvolution':
-                console.log(`Invoking analyticsService.getEvolution(${orgId}, ${args.year}, ${args.gasType})`);
-                result = await analyticsService.getEvolution(orgId, args.year, args.gasType || 'co2e');
+                result = await analyticsService.getEvolution(orgId, args.year);
                 break;
 
+            case 'getQuarterlyBreakdown':
+                result = await analyticsService.getQuarterlyBreakdown(orgId, args.year);
+                break;
+
+            case 'getYearOverYear':
+                // Nota: Aseguramos que month y year sean enteros si el service lo requiere
+                result = await analyticsService.getYearOverYear(orgId, parseInt(args.month), parseInt(args.year));
+                break;
+
+            // --- EFICIENCIA Y METAS ---
             case 'getIntensity':
-                console.log(`Invoking analyticsService.getIntensity(${orgId}, ${args.year})`);
                 result = await analyticsService.getIntensity(orgId, args.year);
                 break;
 
+            case 'getIntensityByService':
+                result = await analyticsService.getIntensityByService(orgId, args.year);
+                break;
+
+            case 'getGoalTracking':
+                result = await analyticsService.getGoalTracking(orgId, args.year);
+                break;
+
+            case 'getOffsetEstimation':
+                result = await analyticsService.getOffsetEstimation(orgId, args.year);
+                break;
+
             case 'getForecast':
-                console.log(`Invoking analyticsService.getForecast(${orgId}, ${args.year})`);
                 result = await analyticsService.getForecast(orgId, args.year);
                 break;
 
+            // --- GOBERNANZA Y AUDITORÍA ---
             case 'getAuditReport':
-                console.log(`Invoking analyticsService.getAuditReport(${orgId})`);
-                result = await analyticsService.getAuditReport(orgId);
+                // Soporta tanto la versión global como la filtrada (Queue)
+                result = await analyticsService.getAuditQueue(orgId, args.year, args.month);
                 break;
 
+            case 'getAuditQueue':
+                result = await analyticsService.getAuditQueue(orgId, args.year, args.month);
+                break;
+
+            case 'dataQualitySummary':
+                result = await analyticsService.dataQualitySummary(orgId, args.year, args.month);
+                break;
+
+            // --- PROVEEDORES ---
+            case 'getVendorRanking':
+                result = await analyticsService.getVendorRanking(orgId, args.year, args.limit || 5);
+                break;
+
+            // --- EXPLORACIÓN ---
             case 'searchInvoices':
-                console.log(`Invoking analyticsService.searchInvoices(${orgId}, filters)`);
                 result = await analyticsService.searchInvoices(orgId, args);
                 break;
 
             default:
                 console.warn(`Field name ${methodName} not recognized.`);
-                throw new Error(`Field ${methodName} not implemented.`);
+                throw new Error(`Field ${methodName} not implemented in Resolver.`);
         }
 
-        // LOG DE RESPUESTA: Aquí verás si el servicio devolvió ceros o datos reales
+        // LOG FINAL DE RESPUESTA
         console.log(`--- SUCCESS: [${methodName}] Result ---`);
         console.log(JSON.stringify(result, null, 2));
         
@@ -80,8 +114,9 @@ export const handler = async (event) => {
     } catch (error) {
         console.error("--- ERROR EN RESOLVER ---");
         console.error("Method:", event.info?.fieldName);
-        console.error("Details:", error);
+        console.error("Details:", error.message);
         
+        // AppSync capturará este error y lo mostrará en el array "errors" de la respuesta
         throw new Error(error.message || "Internal Analytics Error");
     }
 };
