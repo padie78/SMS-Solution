@@ -3,16 +3,16 @@ import { DynamoDBDocumentClient, TransactWriteCommand } from "@aws-sdk/lib-dynam
 import crypto from "crypto";
 
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
-const ddb = DynamoDBDocumentClient.from(client, { 
-    marshallOptions: { removeUndefinedValues: true, convertEmptyValues: true } 
+const ddb = DynamoDBDocumentClient.from(client, {
+    marshallOptions: { removeUndefinedValues: true, convertEmptyValues: true }
 });
 
 const TABLE_NAME = "sms-platform-dev-emissions";
 
 const generateFallbackId = (text) => {
     return crypto.createHash('shake256', { outputLength: 4 })
-                 .update(text.toLowerCase().trim())
-                 .digest('hex');
+        .update(text.toLowerCase().trim())
+        .digest('hex');
 };
 
 /**
@@ -35,19 +35,19 @@ const getScopeByService = (service) => {
 
 export const persistTransaction = async (record) => {
     const { PK, analytics_dimensions, climatiq_result, extracted_data, ai_analysis } = record;
-    
+
     // 1. Validaciones de Datos y Normalización
     const year = analytics_dimensions?.period_year || new Date().getFullYear();
     const month = (analytics_dimensions?.period_month || (new Date().getMonth() + 1)).toString().padStart(2, '0');
-    const branchId = analytics_dimensions?.branch_id; 
-    const assetId = analytics_dimensions?.asset_id;   
+    const branchId = analytics_dimensions?.branch_id;
+    const assetId = analytics_dimensions?.asset_id;
     const service = (ai_analysis?.service_type || "UNKNOWN").toUpperCase();
     const scopeField = getScopeByService(service);
-    
+
     const rawTaxId = extracted_data?.VENDOR_TAX_ID || extracted_data?.tax_id || extracted_data?.cif;
     const vendorName = extracted_data?.vendor || "UNKNOWN_VENDOR";
-    const vendorKeyIdentifier = rawTaxId 
-        ? rawTaxId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase() 
+    const vendorKeyIdentifier = rawTaxId
+        ? rawTaxId.replace(/[^a-zA-Z0-9]/g, '').toUpperCase()
         : `HASH_${generateFallbackId(vendorName)}`;
 
     // 2. Definición de SKs
@@ -74,7 +74,7 @@ export const persistTransaction = async (record) => {
             Put: {
                 TableName: TABLE_NAME,
                 Item: record,
-                ConditionExpression: "attribute_not_exists(SK)" 
+                ConditionExpression: "attribute_not_exists(SK)"
             }
         },
         {
@@ -92,14 +92,14 @@ export const persistTransaction = async (record) => {
                         total_confidence_points = if_not_exists(total_confidence_points, :zero) + :conf,
                         last_updated = :now
                 `,
-                ExpressionAttributeNames: { 
+                ExpressionAttributeNames: {
                     "#mCo2e": `month_${month}_co2e`,
                     "#mSpend": `month_${month}_spend`,
                     "#sCo2e": `service_${service}_co2e`
                 },
-                ExpressionAttributeValues: { 
+                ExpressionAttributeValues: {
                     ":nCo2e": nCo2e, ":nSpend": nSpend, ":conf": confidence,
-                    ":one": 1, ":zero": 0, ":now": now 
+                    ":one": 1, ":zero": 0, ":now": now
                 }
             }
         },
@@ -123,16 +123,19 @@ export const persistTransaction = async (record) => {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: factorSK },
                 UpdateExpression: `
-                    SET last_factor_used = :factor,
-                        source = :source,
-                        unit = :unit,
-                        last_applied = :now
-                `,
-                ExpressionAttributeValues: { 
+            SET last_factor_used = :factor,
+                #src = :source,
+                unit = :unit,
+                last_applied = :now
+        `,
+                ExpressionAttributeNames: {
+                    "#src": "source" // Mapeo de la palabra reservada
+                },
+                ExpressionAttributeValues: {
                     ":factor": safeFactor,
                     ":source": "Climatiq API",
                     ":unit": ai_analysis?.unit || "unit",
-                    ":now": now 
+                    ":now": now
                 }
             }
         }
@@ -168,10 +171,10 @@ export const persistTransaction = async (record) => {
             TableName: TABLE_NAME,
             Key: { PK, SK: vendorSK },
             UpdateExpression: `SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e, total_invoices = if_not_exists(total_invoices, :zero) + :one, vendor_name = :vName, tax_id_original = :tId, last_invoice_date = :now, service_type = :service`,
-            ExpressionAttributeValues: { 
-                ":nCo2e": nCo2e, ":one": 1, ":zero": 0, 
-                ":vName": vendorName, ":tId": rawTaxId || "NOT_EXTRACTED", 
-                ":now": now, ":service": service 
+            ExpressionAttributeValues: {
+                ":nCo2e": nCo2e, ":one": 1, ":zero": 0,
+                ":vName": vendorName, ":tId": rawTaxId || "NOT_EXTRACTED",
+                ":now": now, ":service": service
             }
         }
     });
