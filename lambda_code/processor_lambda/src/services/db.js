@@ -12,42 +12,23 @@ const ddb = DynamoDBDocumentClient.from(client, {
 
 const TABLE_NAME = "sms-platform-dev-emissions";
 
-/**
- * Mapeo de Scopes por tipo de servicio
- */
-const getScopeByService = (service) => {
-    const scopeMap = { 
-        'ELEC': '2', 'GAS': '1', 'FLEET': '1', 
-        'REFRIGERANTS': '1', 'WATER': '3', 
-        'LOGISTICS': '3', 'CLOUDOPS': '3' 
-    };
-    return scopeMap[service.toUpperCase()] || '3';
-};
-
-/**
- * PERSIST TRANSACTION (Principal - Usada por el IA Pipeline)
- * Mantiene tu lógica de agregación de estadísticas intacta.
- */
 export const persistTransaction = async (record) => {
-    const { PK, SK, extracted_data, analytics_dimensions, climatiq_result, ai_analysis } = record;
+    const { PK, SK, extracted_data, analytics_dimensions, climatiq_result, ai_analysis, analytics_dimensions: dims } = record;
     const now = new Date();
     const isoNow = now.toISOString();
 
-    // 1. Extracción de valores numéricos (Gasto y Carbono)
     const nSpend = Number(extracted_data?.total_amount || 0);
     const nCo2e = Number(climatiq_result?.co2e || 0);
     
-    // 2. Lógica de Estadísticas y Tiempos
     const year = analytics_dimensions?.period_year || now.getFullYear();
     const monthVal = analytics_dimensions?.period_month || (now.getMonth() + 1);
     const monthStr = monthVal.toString().padStart(2, '0');
     const quarter = Math.floor((monthVal - 1) / 3) + 1;
 
-    // 3. Identificadores según nuevo esquema
-    const service = (ai_analysis?.service_type || "UNKNOWN").toUpperCase();
     const taxId = String(extracted_data?.VENDOR_TAX_ID || "UNKNOWN").replace(/[^a-zA-Z0-9]/g, '');
+    const branchId = record.analytics_dimensions?.branch_id || "MAIN";
+    const assetId = record.analytics_dimensions?.asset_id || "GENERIC_ASSET";
 
-    // Helper interno para las actualizaciones de Stats
     const createStatsUpdate = (sk, includeMeta = false) => ({
         Update: {
             TableName: TABLE_NAME,
@@ -60,67 +41,63 @@ export const persistTransaction = async (record) => {
                     ${includeMeta ? ', year_ref = :year, quarter_ref = :q, month_ref = :m' : ''}
             `,
             ExpressionAttributeValues: {
-                ":nCo2e": nCo2e, 
-                ":nSpend": nSpend, 
-                ":one": 1, 
-                ":zero": 0, 
-                ":now": isoNow,
+                ":nCo2e": nCo2e, ":nSpend": nSpend, ":one": 1, ":zero": 0, ":now": isoNow,
                 ...(includeMeta && { ":year": year, ":q": quarter, ":m": monthVal })
             }
         }
     });
 
     const transactItems = [
-        // A. La Factura: INVOICE#${date}#${invId}
-        {
-            Put: {
-                TableName: TABLE_NAME,
-                Item: record,
-                ConditionExpression: "attribute_not_exists(SK)"
-            }
-        },
-        // B. Estadísticas (Agregación Mensual, Trimestral y Anual)
+        // 1. INVOICE
+        { Put: { TableName: TABLE_NAME, Item: record, ConditionExpression: "attribute_not_exists(SK)" } },
+        
+        // 2. STATS (Tu lógica original)
         createStatsUpdate(`STATS#YEAR#${year}#QUARTER#${quarter}#MONTH#${monthStr}`, true),
         createStatsUpdate(`STATS#YEAR#${year}#QUARTER#${quarter}#TOTAL`),
         createStatsUpdate(`STATS#YEAR#${year}#TOTAL`),
         
-        // C. Registro del Vendor: VENDOR#${taxId}#INFO
+        // 3. VENDOR#TAXID#INFO
         {
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: `VENDOR#${taxId}#INFO` },
-                UpdateExpression: `
-                    SET total_co2e_contribution = if_not_exists(total_co2e_contribution, :zero) + :nCo2e,
-                        vendor_name = :vName,
-                        tax_id = :tId,
-                        last_active = :now
-                `,
-                ExpressionAttributeValues: {
-                    ":nCo2e": nCo2e, 
-                    ":vName": extracted_data?.vendor || "UNKNOWN", 
-                    ":tId": taxId,
-                    ":zero": 0, ":now": isoNow
-                }
+                UpdateExpression: `SET total_co2e_contribution = if_not_exists(total_co2e_contribution, :zero) + :nCo2e, vendor_name = :vName, last_active = :now`,
+                ExpressionAttributeValues: { ":nCo2e": nCo2e, ":vName": extracted_data?.vendor || "UNKNOWN", ":zero": 0, ":now": isoNow }
+            }
+        },
+
+        // 4. BRANCH#ID#INFO (Auto-creación/update al procesar factura)
+        {
+            Update: {
+                TableName: TABLE_NAME,
+                Key: { PK, SK: `BRANCH#${branchId}#INFO` },
+                UpdateExpression: "SET last_invoice_date = :now, branch_status = :active",
+                ExpressionAttributeValues: { ":now": isoNow, ":active": "ACTIVE" }
+            }
+        },
+
+        // 5. ASSET#ID#INFO (Auto-creación/update al procesar factura)
+        {
+            Update: {
+                TableName: TABLE_NAME,
+                Key: { PK, SK: `ASSET#${assetId}#INFO` },
+                UpdateExpression: "SET last_reading = :now, service_type = :svc",
+                ExpressionAttributeValues: { ":now": isoNow, ":svc": ai_analysis?.service_type || "UNKNOWN" }
             }
         }
     ];
 
     try {
         await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
-        console.log(`✅ [DB_SUCCESS]: Record & Stats updated. SK: ${SK} | Spend: ${nSpend}`);
+        console.log(`✅ [DB_SYNC]: Transaction complete. Invoice, Stats, Vendor, Branch and Asset updated.`);
         return { success: true };
     } catch (error) {
-        if (error.name === "TransactionCanceledException") {
-            console.warn("⚠️ [DB_DUP]: Factura duplicada o conflicto.");
-            return { success: false, reason: "CANCELLED" };
-        }
+        if (error.name === "TransactionCanceledException") return { success: false, reason: "CANCELLED" };
         throw error;
     }
 };
 
-/**
- * MÉTODOS COMPLEMENTARIOS (Entidades, Telemetría, Factores)
- */
+// MÉTODOS PARA CREACIÓN MANUAL (Desde la API de administración)
 export const saveEntity = async (orgId, type, id, data) => {
     const skMap = {
         'METADATA': `METADATA#INFO`,
@@ -156,10 +133,4 @@ export const saveEmissionFactor = async (year, orgId = 'GLOBAL', data) => {
     }));
 };
 
-// Exportación por defecto compatible con tu index.js actual
-export default { 
-    persistTransaction,
-    saveEntity,
-    saveTelemetry,
-    saveEmissionFactor
-};
+export default { persistTransaction, saveEntity, saveTelemetry, saveEmissionFactor };
