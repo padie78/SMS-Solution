@@ -1,38 +1,42 @@
 import crypto from 'crypto';
 
 /**
- * Mapeador de "Golden Record"
- * Convierte la salida de Bedrock y Climatiq en un formato estandarizado para DynamoDB.
+ * Mapeador de "Golden Record" - Versión Blindada
+ * Resuelve el error de HASH en SK y fuerza la categoría ELEC si detecta kWh.
  */
 export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
     const now = new Date().toISOString();
     
-    // 1. Normalización de la entrada (Soporte para esquema Senior y Legacy)
-    const source = aiData.source_data || {};
-    const meta = aiData.analytics_metadata || {};
-    const extracted = aiData.extracted_data || {};
+    // 1. Logs de Debug (Míralos en CloudWatch si el SK sigue fallando)
+    console.log(`[MAPPER_START]: Procesando ${s3Key}`);
+
+    // 2. Normalización de entrada (Soporte para objeto directo o string)
+    const data = typeof aiData === 'string' ? JSON.parse(aiData) : aiData;
     
-    // 2. Extracción de Identificadores Clave (Deduplicación)
-    // Buscamos el Tax ID en todos los lugares posibles
-    const rawTaxId = source.vendor?.tax_id || 
-                     aiData.technical_ids?.tax_id || 
+    const source = data.source_data || {};
+    const meta = data.analytics_metadata || {};
+    const extracted = data.extracted_data || {};
+    const vendor = source.vendor || {};
+
+    // 3. Extracción de Identificadores (Sin posibilidad de HASH externo)
+    // Buscamos Tax ID con fallback agresivo
+    const rawTaxId = vendor.tax_id || 
+                     data.technical_ids?.tax_id || 
                      extracted.VENDOR_TAX_ID || 
                      extracted.tax_id || 
-                     "NO_TAX_ID";
+                     "NOTAXID";
 
-    // Buscamos el Nombre del Vendor
-    const vendorName = (typeof source.vendor === 'object' ? source.vendor.name : null) || 
+    const vendorName = (typeof vendor === 'object' ? vendor.name : null) || 
                        extracted.vendor || 
-                       "UNKNOWN_VENDOR";
+                       "UNKNOWNVENDOR";
 
-    // Buscamos el Número de Factura
     const invoiceNum = source.invoice_number || 
                        extracted.invoice_number || 
                        `NONUM-${Date.now()}`;
 
-    // 3. Construcción del Sort Key (SK) Limpio
-    // Prioridad: TaxID -> VendorName (si no hay TaxID)
-    const vendorPart = (rawTaxId !== "NO_TAX_ID" ? rawTaxId : vendorName)
+    // 4. Construcción del Sort Key (SK) - Lógica limpia
+    // Reemplazamos caracteres no alfanuméricos para evitar errores en Dynamo
+    const vendorPart = String(rawTaxId !== "NOTAXID" ? rawTaxId : vendorName)
         .replace(/[^a-zA-Z0-9]/g, '')
         .toUpperCase();
     
@@ -40,45 +44,47 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
         .replace(/[^a-zA-Z0-9]/g, '')
         .toUpperCase();
 
+    // El SK final se construye aquí. Si sale HASH es porque vino en el string original.
     const SK = `INV#${vendorPart}#${numberPart}`;
 
-    // 4. Lógica de Atribución Temporal
+    // 5. Lógica de Atribución Temporal
     const invoiceDate = source.invoice_date || extracted.invoice_date || "0000-00-00";
     const pStart = source.billing_period?.start || extracted.period_start;
-    const pEnd = source.billing_period?.end || extracted.period_end;
 
-    // Priorizamos los datos calculados por la IA en analytics_metadata
     const yearRef = meta.year || (pStart ? pStart.split('-')[0] : invoiceDate.split('-')[0]) || 0;
     const monthRef = meta.month || (pStart ? pStart.split('-')[1] : invoiceDate.split('-')[1]) || 0;
 
-    // 5. Procesamiento de Consumo Físico
-    const allLines = aiData.emission_lines || [];
-    // Sumamos todos los valores de las líneas (P1, P2, P3, etc.)
+    // 6. Procesamiento de Consumo y Categoría (AUTO-CORRECCIÓN)
+    const allLines = data.emission_lines || [];
     const totalValue = allLines.reduce((acc, line) => acc + (Number(line.value) || 0), 0);
     const displayUnit = allLines[0]?.unit || "kWh";
 
-    // 6. Lógica de Revisión y Confianza
-    const confidence = meta.confidence_level === 'HIGH' ? 0.95 : (parseFloat(aiData.confidence_score) || 0.7);
+    // Si la IA dice OTHERS pero hay kWh, forzamos ELEC
+    let serviceType = (meta.category || extracted.service_type || "OTHERS").toUpperCase();
+    if (serviceType === "OTHERS" && displayUnit.toLowerCase() === 'kwh') {
+        serviceType = "ELEC";
+    }
+
+    // 7. Lógica de Revisión
+    const confidence = meta.confidence_level === 'HIGH' ? 0.95 : (parseFloat(data.confidence_score) || 0.7);
     const needsReview = meta.anomaly_flag || totalValue === 0 || !pStart;
 
-    // 7. Retorno del Objeto Final (Estructura DynamoDB)
+    // 8. Retorno del Objeto Final
     return {
         PK: partitionKey,
         SK: SK,
 
-        // Datos para lógica de negocio y cálculos
         ai_analysis: {
-            activity_id: footprint.activity_id || "genérica",
+            activity_id: footprint?.activity_id || "genérica",
             calculation_method: "consumption_based",
             confidence_score: confidence,
             requires_review: needsReview,
-            service_type: (meta.category || extracted.service_type || "ELEC").toUpperCase(),
+            service_type: serviceType,
             unit: displayUnit,
             value: totalValue,
             year: parseInt(yearRef)
         },
 
-        // Datos para agregaciones y filtros en Dashboard
         analytics_dimensions: {
             period_month: parseInt(monthRef),
             period_year: parseInt(yearRef),
@@ -87,33 +93,29 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
             asset_id: meta.service_id || "GENERIC_ASSET"
         },
 
-        // Resultados del motor de emisiones (Climatiq)
         climatiq_result: {
-            co2e: Number(footprint.total_kg || 0),
+            co2e: Number(footprint?.total_kg || 0),
             co2e_unit: "kg",
             timestamp: now,
-            audit_trail: footprint.items || [] 
+            audit_trail: footprint?.items || [] 
         },
 
-        // Datos extraídos para visualización en UI
         extracted_data: {
             vendor: vendorName,
             VENDOR_TAX_ID: rawTaxId,
             total_amount: Number(source.total_amount?.total_with_tax || extracted.total_amount || 0),
             invoice_date: invoiceDate,
-            billing_period: { start: pStart, end: pEnd },
+            billing_period: { start: pStart, end: source.billing_period?.end || extracted.period_end },
             location: source.location || { country: meta.country_code || "ES" }
         },
 
-        // Metadatos técnicos
         metadata: {
             filename: s3Key.split('/').pop(),
             s3_key: s3Key,
             status: "PROCESSED",
             upload_date: now,
             technical_hash: crypto.createHash('sha256').update(s3Key).digest('hex').substring(0, 8),
-            // Guardamos el razonamiento de la IA para auditoría
-            thought_process: aiData.audit_thought_process || meta.reasoning
+            thought_process: data.audit_thought_process || meta.reasoning
         }
     };
 };
