@@ -94,6 +94,7 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
             VENDOR_TAX_ID: vendorTaxId || techTaxId,
             invoice_number: invoiceNum,
             invoice_date: invoiceDate,
+            total_amount: Number(totalAmount), // <--- ESTA LÍNEA FALTA O ESTÁ MAL
             billing_period: { start: pStart, end: source.billing_period?.end }
         },
         metadata: {
