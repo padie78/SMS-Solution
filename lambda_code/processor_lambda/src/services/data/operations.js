@@ -6,67 +6,48 @@ import { TABLE_NAME } from "./client.js";
  * Implementa el patrón "Pre-aggregated Reports" para máximo rendimiento en lectura.
  */
 export const buildStatsOps = (PK, year, month, quarter, nCo2e, nSpend, isoNow) => {
-    // 1. Sanitización de entradas (Crítico para evitar fallos en transacciones)
     const amountCo2 = Number(nCo2e) || 0;
     const amountSpend = Number(nSpend) || 0;
     const mStr = month.toString().padStart(2, '0');
 
-    // 2. Definición de los tres niveles de agregación
     const targets = [
         { 
             sk: `STATS#YEAR#${year}#QUARTER#${quarter}#MONTH#${mStr}`, 
             type: 'MONTHLY',
-            labels: { ":y": year, ":q": quarter, ":m": month } 
+            labels: { ":y": year, ":q": quarter, ":m": month },
+            setters: "year_ref = :y, quarter_ref = :q, month_ref = :m"
         },
         { 
             sk: `STATS#YEAR#${year}#QUARTER#${quarter}#TOTAL`, 
             type: 'QUARTERLY',
-            labels: { ":y": year, ":q": quarter } 
+            labels: { ":y": year, ":q": quarter },
+            setters: "year_ref = :y, quarter_ref = :q"
         },
         { 
             sk: `STATS#YEAR#${year}#TOTAL`, 
             type: 'ANNUAL',
-            labels: { ":y": year } 
+            labels: { ":y": year },
+            setters: "year_ref = :y"
         }
     ];
 
-    return targets.map(({ sk, type, labels }) => {
-        // Construimos dinámicamente las referencias de tiempo para facilitar filtros posteriores
-        const timeRefSetter = Object.keys(labels)
-            .map(key => `${key.substring(2)}_ref = ${key}`)
-            .join(', ');
-
-        return {
-            Update: {
-                TableName: TABLE_NAME,
-                Key: { PK, SK: sk },
-                /**
-                 * SET:
-                 * - Acumulamos CO2 y Gasto.
-                 * - Incrementamos contador de facturas.
-                 * - Guardamos el tipo de registro para facilitar escaneos de GSI.
-                 * - Actualizamos referencias temporales (year_ref, month_ref, etc).
-                 */
-                UpdateExpression: `
-                    SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e,
-                        total_spend = if_not_exists(total_spend, :zero) + :nSpend,
-                        invoice_count = if_not_exists(invoice_count, :zero) + :one,
-                        stats_type = :sType,
-                        last_updated = :now,
-                        ${timeRefSetter}
-                `,
-                ExpressionAttributeValues: {
-                    ":nCo2e": amountCo2,
-                    ":nSpend": amountSpend,
-                    ":one": 1,
-                    ":zero": 0,
-                    ":now": isoNow,
-                    ":sType": type,
-                    ...labels
-                }
+    return targets.map(({ sk, type, labels, setters }) => ({
+        Update: {
+            TableName: TABLE_NAME,
+            Key: { PK, SK: sk },
+            // Eliminamos los saltos de línea innecesarios que a veces causan errores de parsing
+            UpdateExpression: `SET total_co2e = if_not_exists(total_co2e, :zero) + :nCo2e, total_spend = if_not_exists(total_spend, :zero) + :nSpend, invoice_count = if_not_exists(invoice_count, :zero) + :one, stats_type = :sType, last_updated = :now, ${setters}`,
+            ExpressionAttributeValues: {
+                ":nCo2e": amountCo2,
+                ":nSpend": amountSpend,
+                ":one": 1,
+                ":zero": 0,
+                ":now": isoNow,
+                ":sType": type,
+                ...labels
             }
-        };
-    });
+        }
+    }));
 };
 
 // --- 2. OPERACIÓN DE VENDOR (Proveedores) ---
