@@ -53,13 +53,13 @@ export const persistTransaction = async (record) => {
         // --- NUEVOS KPIs INTEGRADOS ---
         
         // 1. KPI de Salud del Activo: Actualiza el estado basado en el análisis de la factura
-        buildAssetHealthOp(PK, aId, record.ai_analysis?.health_status || "OPERATIONAL", isoNow)
+        //buildAssetHealthOp(PK, aId, record.ai_analysis?.health_status || "OPERATIONAL", isoNow)
     ];
 
     // 2. KPI de Metas: Solo si la factura está vinculada a una meta de reducción
-    if (goalId) {
-        transactItems.push(buildGoalUpdateOp(PK, goalId, nCo2e, isoNow));
-    }
+    // if (goalId) {
+    //     transactItems.push(buildGoalUpdateOp(PK, goalId, nCo2e, isoNow));
+    // }
 
     try {
         console.log(`📡 [DB_ATTEMPT]: Persistiendo factura y KPIs para ${aId}`);
