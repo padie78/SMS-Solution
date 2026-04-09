@@ -3,7 +3,6 @@ import {
     DynamoDBDocumentClient, 
     TransactWriteCommand
 } from "@aws-sdk/lib-dynamodb";
-import crypto from "crypto";
 
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
 const ddb = DynamoDBDocumentClient.from(client, {
@@ -18,19 +17,27 @@ const getScopeByService = (service) => {
 };
 
 export const persistTransaction = async (record) => {
-    // 1. Usamos el SK que ya viene del Mapper (PROHIBIDO SOBRESCRIBIRLO)
     const { PK, SK } = record;
     
-    // Extraemos datos para las estadísticas
+    // Extraemos datos del objeto record (ya mapeado)
     const { 
-        source_data, 
         analytics_metadata, 
         climatiq_result, 
-        emission_lines,
+        extracted_data, // <--- Usamos esto para el Spend
         technical_ids 
     } = record;
 
     const now = new Date();
+
+    // 1. CORRECCIÓN CRÍTICA: Extracción del Spend
+    // Buscamos en el dato mapeado primero, luego en el original como fallback
+    const nSpend = Number(
+        extracted_data?.total_amount || 
+        record.source_data?.total_amount?.total_with_tax || 
+        0
+    );
+
+    console.log(`💰 [DB_STATS_DEBUG]: SK=${SK} | Spend detectado=${nSpend} | CO2=${climatiq_result?.co2e}`);
 
     // 2. Normalización de Dimensiones Temporales
     const year = analytics_metadata?.year || now.getFullYear();
@@ -40,24 +47,20 @@ export const persistTransaction = async (record) => {
         ? parseInt(analytics_metadata.quarter.replace('Q', '')) 
         : Math.floor((monthVal - 1) / 3) + 1;
 
-    // 3. Identificadores para registros de soporte (Stats/Vendors)
-    const service = (analytics_metadata?.category || "UNKNOWN").toUpperCase();
+    // 3. Identificadores para registros de soporte
+    const service = (analytics_metadata?.service_type || "UNKNOWN").toUpperCase();
     const scopeNum = analytics_metadata?.scope || getScopeByService(service);
-    
-    // Extraemos el identificador del Vendor del SK ya existente (para consistencia)
-    // El SK viene como INV#VENDOR_ID#INVOICE_NUM
     const vendorKeyIdentifier = SK.split('#')[1] || "UNKNOWN";
 
     const statsMonthSK   = `STATS#YEAR#${year}#QUARTER#${quarter}#MONTH#${monthStr}`;
     const statsQuarterSK = `STATS#YEAR#${year}#QUARTER#${quarter}#TOTAL`;
     const statsYearSK    = `STATS#YEAR#${year}#TOTAL`;
     const scopeSK = `SCOPE#YEAR#${year}#TYPE#${scopeNum}`;
-    const factorSK = `FACTOR#SERVICE#${service}#REGION#${source_data?.location?.country || 'GLOBAL'}`;
+    const factorSK = `FACTOR#SERVICE#${service}#REGION#${extracted_data?.location?.country || 'GLOBAL'}`;
 
-    // 4. Valores Numéricos
+    // 4. Valores Numéricos Sanitizados
     const nCo2e = Number(climatiq_result?.co2e || 0);
-    const nSpend = Number(source_data?.total_amount?.total_with_tax || 0);
-    const consumptionVal = emission_lines?.reduce((acc, line) => acc + (Number(line.value) || 0), 0) || 0;
+    const consumptionVal = Number(record.ai_analysis?.value || 0);
     const isoNow = now.toISOString();
     const safeFactor = (nCo2e > 0 && consumptionVal > 0) ? (nCo2e / consumptionVal) : 0;
 
@@ -73,8 +76,11 @@ export const persistTransaction = async (record) => {
                     ${includeMeta ? ', year_ref = :year, quarter_ref = :q, month_ref = :m' : ''}
             `,
             ExpressionAttributeValues: {
-                ":nCo2e": nCo2e, ":nSpend": nSpend, ":one": 1, 
-                ":zero": 0, ":now": isoNow,
+                ":nCo2e": nCo2e, 
+                ":nSpend": nSpend, // <--- Ahora pasará el valor real
+                ":one": 1, 
+                ":zero": 0, 
+                ":now": isoNow,
                 ...(includeMeta && { ":year": year, ":q": quarter, ":m": monthVal })
             }
         }
@@ -84,7 +90,7 @@ export const persistTransaction = async (record) => {
         {
             Put: {
                 TableName: TABLE_NAME,
-                Item: record, // USAMOS EL RECORD ORIGINAL SIN TOCAR EL SK
+                Item: record,
                 ConditionExpression: "attribute_not_exists(SK)"
             }
         },
@@ -106,15 +112,6 @@ export const persistTransaction = async (record) => {
         {
             Update: {
                 TableName: TABLE_NAME,
-                Key: { PK, SK: factorSK },
-                UpdateExpression: `SET last_factor_value = :factor, service_type = :svc, #regAlias = :reg, last_applied = :now`,
-                ExpressionAttributeNames: { "#regAlias": "region" },
-                ExpressionAttributeValues: { ":factor": safeFactor, ":svc": service, ":reg": source_data?.location?.country || 'GLOBAL', ":now": isoNow }
-            }
-        },
-        {
-            Update: {
-                TableName: TABLE_NAME,
                 Key: { PK, SK: `VENDOR#${vendorKeyIdentifier}` },
                 UpdateExpression: `
                     SET total_co2e_contribution = if_not_exists(total_co2e_contribution, :zero) + :nCo2e,
@@ -124,8 +121,8 @@ export const persistTransaction = async (record) => {
                 `,
                 ExpressionAttributeValues: {
                     ":nCo2e": nCo2e, 
-                    ":vName": source_data?.vendor?.name || "UNKNOWN_VENDOR", 
-                    ":tId": source_data?.vendor?.tax_id || technical_ids?.tax_id || "N/A",
+                    ":vName": extracted_data?.vendor || "UNKNOWN", 
+                    ":tId": extracted_data?.VENDOR_TAX_ID || "N/A",
                     ":zero": 0, ":now": isoNow
                 }
             }
@@ -134,7 +131,7 @@ export const persistTransaction = async (record) => {
 
     try {
         await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
-        console.log(`✅ [DB_SYNC]: Transaction complete. SK: ${SK}`);
+        console.log(`✅ [DB_SYNC]: Transaction complete. SK: ${SK} | Spend: ${nSpend}`);
         return { success: true };
     } catch (error) {
         if (error.name === "TransactionCanceledException") {
