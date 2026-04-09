@@ -126,19 +126,24 @@ export const persistTransaction = async (record) => {
             }
         },
         {
-            // E. Factor de Emisión Usado (Auditoría)
+            // E. Factor de Emisión Usado (Auditoría) - CORREGIDO
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: factorSK },
                 UpdateExpression: `
                     SET last_factor_value = :factor,
                         service_type = :svc,
-                        region = :reg,
+                        #regAlias = :reg,
                         last_applied = :now
                 `,
+                ExpressionAttributeNames: { 
+                    "#regAlias": "region"  // Mapeamos la palabra reservada
+                },
                 ExpressionAttributeValues: { 
-                    ":factor": safeFactor, ":svc": service,
-                    ":reg": extracted_data?.location?.country || 'GLOBAL', ":now": isoNow 
+                    ":factor": safeFactor, 
+                    ":svc": service,
+                    ":reg": extracted_data?.location?.country || 'GLOBAL', 
+                    ":now": isoNow 
                 }
             }
         }
