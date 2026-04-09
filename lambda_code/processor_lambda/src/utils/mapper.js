@@ -3,43 +3,42 @@ import crypto from 'crypto';
 export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
     const now = new Date().toISOString();
     
-    // 1. Extraemos la data del nuevo esquema plano
-    const extData = aiData.extracted_data || {};
+    // --- NUEVO MAPEO PARA EL PROMPT SENIOR ---
+    // En lugar de aiData.extracted_data, usamos los nuevos bloques:
+    const source = aiData.source_data || {};
+    const meta = aiData.analytics_metadata || {};
+    const vendor = source.vendor || {};
     
-    // Campos directos del nuevo prompt
-    const invoiceDate = extData.invoice_date || "0000-00-00";
-    const pStart = extData.period_start; 
-    const pEnd = extData.period_end;
-    const vendorName = extData.vendor || "UNKNOWN_VENDOR";
-    const taxId = extData.VENDOR_TAX_ID || "NO_TAX_ID";
+    // 1. Extraemos la data para compatibilidad
+    const invoiceDate = source.invoice_date || "0000-00-00";
+    // El nuevo prompt usa billing_period.start en lugar de period_start
+    const pStart = source.billing_period?.start; 
+    const pEnd = source.billing_period?.end;
+    const vendorName = vendor.name || "UNKNOWN_VENDOR";
+    const taxId = vendor.tax_id || aiData.technical_ids?.tax_id || "NO_TAX_ID";
 
-    // 2. Lógica de Atribución Temporal
-    const referenceDate = pStart || invoiceDate; 
-    const [yearRef, monthRef] = referenceDate.split('-');
+    // 2. Lógica de Atribución Temporal (Usamos los datos de analytics_metadata que ya vienen limpios)
+    const yearRef = meta.year || (pStart ? pStart.split('-')[0] : invoiceDate.split('-')[0]);
+    const monthRef = meta.month || (pStart ? pStart.split('-')[1] : invoiceDate.split('-')[1]);
 
-    // 3. Generación de SK de Factura (Deduplicación)
-    // Usamos el TaxID o el nombre para que la SK de la factura sea única
+    // 3. Generación de SK de Factura
     const vendorClean = (taxId !== "NO_TAX_ID" ? taxId : vendorName)
         .replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
-    const numberClean = (extData.invoice_number || "NONUM")
+    const numberClean = (source.invoice_number || "NONUM")
         .replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     
     const SK = `INV#${vendorClean}#${numberClean}`;
 
     // 4. Procesamiento de Líneas de Consumo
     const allLines = aiData.emission_lines || [];
-    const consumptionLines = allLines.filter(line => {
-        const u = (line.unit || '').toLowerCase();
-        return ['kwh', 'm3', 'kg', 'l'].includes(u);
-    });
-    
-    const totalValue = consumptionLines.reduce((acc, line) => acc + Number(line.value || 0), 0);
-    const displayUnit = consumptionLines[0]?.unit || "kWh";
+    // Sumamos todos los valores físicos de las líneas encontradas
+    const totalValue = allLines.reduce((acc, line) => acc + (Number(line.value) || 0), 0);
+    const displayUnit = allLines[0]?.unit || "kWh";
 
     // 5. Lógica de Revisión y Confianza
-    const confidence = parseFloat(aiData.confidence_score) || 0;
+    const confidence = meta.confidence_level === 'HIGH' ? 0.95 : 0.7;
     const hasDates = !!(pStart && pEnd);
-    const needsReview = confidence < 0.8 || totalValue === 0 || !hasDates;
+    const needsReview = meta.anomaly_flag || totalValue === 0 || !hasDates;
 
     return {
         PK: partitionKey,
@@ -50,7 +49,7 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
             calculation_method: "consumption_based",
             confidence_score: confidence,
             requires_review: needsReview,
-            service_type: (aiData.category || "ELEC").toUpperCase(),
+            service_type: (meta.category || "ELEC").toUpperCase(),
             unit: displayUnit,
             value: totalValue,
             year: parseInt(yearRef) || 0
@@ -60,8 +59,8 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
             period_month: parseInt(monthRef) || 0,
             period_year: parseInt(yearRef) || 0,
             sector: "COMMERCIAL",
-            branch_id: "MAIN", // O extraer de metadata si lo tienes
-            asset_id: "GENERIC_ASSET"
+            branch_id: meta.facility_id || "MAIN",
+            asset_id: meta.service_id || "GENERIC_ASSET"
         },
 
         climatiq_result: {
@@ -70,11 +69,13 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
             timestamp: now
         },
 
-        // IMPORTANTE: Mantenemos la estructura que espera db.js
+        // Mantenemos extraído para que db.js no rompa, pero con la data nueva
         extracted_data: {
-            ...extData, // Pasamos todo lo que extrajo la IA (incluyendo VENDOR_TAX_ID)
-            total_amount: Number(extData.total_amount || 0), // Aseguramos que sea número
-            vendor: vendorName // Aseguramos que sea el string del nombre
+            vendor: vendorName,
+            VENDOR_TAX_ID: taxId,
+            total_amount: Number(source.total_amount?.total_with_tax || 0),
+            invoice_date: invoiceDate,
+            location: source.location || { country: meta.country_code || "ES" }
         },
 
         metadata: {
@@ -82,7 +83,9 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
             s3_key: s3Key,
             status: "PROCESSED",
             upload_date: now,
-            technical_hash: crypto.createHash('sha256').update(s3Key).digest('hex').substring(0, 8)
+            technical_hash: crypto.createHash('sha256').update(s3Key).digest('hex').substring(0, 8),
+            // Guardamos el pensamiento de la IA por si hay que auditar errores
+            thought_process: aiData.audit_thought_process
         }
     };
 };
