@@ -1,9 +1,9 @@
 import { extractText } from "./apis/textract.js";
 import { identifyCategory } from "./ia/classifier.js";
-import bedrock from "./ia/bedrock.js";
+import { analyzeInvoice } from "./ia/bedrock.js";
 import { calculateFootprint } from "./apis/climatiq.js";
 import { buildGoldenRecord } from "../utils/mapper.js";
-import db from "./db/db.js";
+import { persistTransaction } from "./data/db.js";
 
 /**
  * Orquestador del flujo de negocio: OCR -> Clasificación -> IA -> Cálculo -> DB
@@ -18,7 +18,7 @@ export const processInvoicePipeline = async (bucket, key, orgId) => {
         console.log(`[PIPELINE] 1. Contexto: Cat detectada "${detectedCategory}"`);
 
         // --- FASE 2: INTELIGENCIA ARTIFICIAL ---
-        const aiAnalysis = await bedrock.analyzeInvoice(ocrData.rawText, detectedCategory);
+        const aiAnalysis = await analyzeInvoice(ocrData.rawText, detectedCategory);
         
         const aiCat = aiAnalysis?.category || 'N/A';
         const aiConf = (aiAnalysis?.confidence_score || 0).toFixed(2);
@@ -51,7 +51,7 @@ export const processInvoicePipeline = async (bucket, key, orgId) => {
         console.log(`   🏢 Vendor: ${goldenRecord.extracted_data?.vendor || 'Unknown'}`);
         console.log(`------------------------------------------`);
 
-        await db.persistTransaction(goldenRecord);
+        await persistTransaction(goldenRecord);
         console.log(`[PIPELINE] 5. Éxito: Registro y estadísticas actualizadas en DB.`);
 
         return goldenRecord;
