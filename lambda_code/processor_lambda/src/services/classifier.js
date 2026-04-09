@@ -4,7 +4,6 @@ import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedroc
 const client = new BedrockRuntimeClient({ region: "eu-central-1" });
 
 export const identifyCategory = async (rawTextSnippet) => {
-    if (!rawTextSnippet || rawTextSnippet.length < 10) return "OTHERS";
 
     console.log(`   [CLASSIFIER_START]: Clasificando...`);
 
