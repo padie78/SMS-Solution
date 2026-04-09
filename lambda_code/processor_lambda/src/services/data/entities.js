@@ -2,26 +2,27 @@ import { PutCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, TABLE_NAME } from "./client.js";
 
 /**
- * Guarda o actualiza entidades administrativas (Manual)
- * @param {string} orgId - ID de la organización (ej: 'CLIENTE_1')
- * @param {string} type - Tipo de entidad (USER, BRANCH, ASSET, GOAL, BUDGET, METADATA)
- * @param {string} id - Identificador único de la entidad o referencia temporal
- * @param {object} data - Atributos de la entidad
+ * Guarda o actualiza entidades administrativas y de negocio
+ * Cubre: METADATA, USER, BRANCH, ASSET, GOAL, BUDGET, VENDOR, INVOICE, STATS
  */
 export const saveEntity = async (orgId, type, id, data) => {
+    // Mapeo exhaustivo de Sort Keys según tu esquema
     const skMap = {
         'METADATA': `METADATA#INFO`,
         'USER':     `USER#${id}#PROFILE`,
         'BRANCH':   `BRANCH#${id}#INFO`,
         'ASSET':    `ASSET#${id}#INFO`,
         'GOAL':     `GOAL#${id}`,
-        'BUDGET':   `BUDGET#YEAR#${id}` // Aquí id suele ser el año (ej: 2026)
+        'BUDGET':   `BUDGET#YEAR#${id}`,
+        'VENDOR':   `VENDOR#${id}#INFO`,     // id = taxId
+        'INVOICE':  `INVOICE#${id}`,          // id = date#invId
+        'STATS':    `STATS#YEAR#${id}`        // id = year#MONTH#month
     };
 
     const SK = skMap[type.toUpperCase()];
-    if (!SK) throw new Error(`Entidad no soportada: ${type}`);
+    if (!SK) throw new Error(`❌ Entidad no soportada o tipo inválido: ${type}`);
 
-    console.log(`📝 [DB_ENTITY]: Guardando ${type} con SK: ${SK}`);
+    console.log(`📝 [DB_ENTITY]: Persistiendo ${type} | SK: ${SK}`);
 
     return ddb.send(new PutCommand({
         TableName: TABLE_NAME,
@@ -35,17 +36,21 @@ export const saveEntity = async (orgId, type, id, data) => {
 };
 
 /**
- * Guarda datos de telemetría o salud de activos
+ * Guarda datos de telemetría, salud y sensores
+ * Cubre: HEALTH, BASELINE, SENSOR
  */
-export const saveTelemetry = async (orgId, assetId, type, data) => {
+export const saveTelemetry = async (orgId, targetId, type, data) => {
     const skMap = {
-        'HEALTH':   `ASSET#${assetId}#HEALTH`,
-        'BASELINE': `ASSET#${assetId}#BASELINE`,
-        'SENSOR':   `SENSOR#${assetId}#DATA`
+        'HEALTH':   `ASSET#${targetId}#HEALTH`,
+        'BASELINE': `ASSET#${targetId}#BASELINE`,
+        'SENSOR':   `SENSOR#${targetId}#DATA`
     };
 
     const SK = skMap[type.toUpperCase()];
+    if (!SK) throw new Error(`❌ Tipo de telemetría no soportado: ${type}`);
     
+    console.log(`📡 [DB_TELEMETRY]: Registrando ${type} para ${targetId}`);
+
     return ddb.send(new PutCommand({
         TableName: TABLE_NAME,
         Item: { 
@@ -58,16 +63,20 @@ export const saveTelemetry = async (orgId, assetId, type, data) => {
 };
 
 /**
- * Guarda factores de emisión (Globales o Personalizados por Org)
+ * Guarda factores de emisión personalizados o globales
+ * Cubre: EMISSION_FACTOR#YEAR#${year}#CUSTOM
  */
 export const saveEmissionFactor = async (year, orgId = 'GLOBAL', data) => {
     const pk = orgId === 'GLOBAL' ? 'GLOBAL' : `ORG#${orgId}`;
+    const SK = `EMISSION_FACTOR#YEAR#${year}#CUSTOM`;
     
+    console.log(`🌍 [DB_FACTOR]: Guardando factor ${year} en ${pk}`);
+
     return ddb.send(new PutCommand({
         TableName: TABLE_NAME,
         Item: { 
             PK: pk, 
-            SK: `EMISSION_FACTOR#YEAR#${year}#CUSTOM`, 
+            SK: SK, 
             ...data,
             updatedAt: new Date().toISOString()
         }
