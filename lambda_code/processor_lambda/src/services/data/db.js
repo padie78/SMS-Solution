@@ -1,6 +1,6 @@
 import { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, TABLE_NAME } from "./client.js";
-import { buildStatsOps, buildVendorOp, buildInfrastructureOps } from "./operations.js";
+import { buildStatsOps, buildVendorOp, buildInfrastructureOps, buildBudgetUpdateOp } from "./operations.js";
 import { saveEntity } from "./entities.js"; // El archivo con PutCommands manuales
 
 export const persistTransaction = async (record) => {
