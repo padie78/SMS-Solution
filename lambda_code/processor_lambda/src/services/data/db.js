@@ -1,75 +1,58 @@
 import { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, TABLE_NAME } from "./client.js";
-import { 
-    buildStatsOps, 
-    buildVendorOp, 
-    buildInfrastructureOps, 
-    buildBudgetUpdateOp,
-    buildGoalUpdateOp,
-    buildAssetHealthOp 
-} from "./operations.js";
-import { saveEntity } from "./entities.js";
+import { buildStatsOps, buildVendorOp, buildInfrastructureOps } from "./operations.js";
+import { saveEntity } from "./entities.js"; // El archivo con PutCommands manuales
 
 export const persistTransaction = async (record) => {
     const { PK, SK, extracted_data, analytics_dimensions, climatiq_result, ai_analysis } = record;
     const now = new Date();
     const isoNow = now.toISOString();
 
-    // 1. Preparación y extracción segura de variables
+    // Preparación de variables
     const nSpend = Number(extracted_data?.total_amount || 0);
     const nCo2e = Number(climatiq_result?.co2e || 0);
     const year = analytics_dimensions?.period_year || now.getFullYear();
     const month = analytics_dimensions?.period_month || (now.getMonth() + 1);
     const quarter = Math.floor((month - 1) / 3) + 1;
 
-    // 2. Normalización de IDs y nombres (Evita el error de variables no definidas)
     const taxId = String(extracted_data?.VENDOR_TAX_ID || "UNKNOWN").replace(/[^a-zA-Z0-9]/g, '');
-    const vName = extracted_data?.vendor || "UNKNOWN_VENDOR";
-    const bId = analytics_dimensions?.branch_id || "MAIN";
-    const aId = analytics_dimensions?.asset_id || "GENERIC_ASSET";
-    const sType = ai_analysis?.service_type || "UNKNOWN";
-    
-    // Determinamos un estado de salud inicial basado en el análisis
-    const healthStatus = ai_analysis?.anomaly_detected ? "WARNING" : "OPERATIONAL";
+    const branchId = analytics_dimensions?.branch_id || "MAIN";
+    const assetId = analytics_dimensions?.asset_id || "GENERIC_ASSET";
 
+    // Unificamos todas las operaciones en una sola transacción atómica
+    // En src/services/db/db.js
     const transactItems = [
-        // A. Factura Original
+        // A. Registro de la Factura (Evita duplicados con ConditionExpression)
         {
             Put: {
                 TableName: TABLE_NAME,
-                Item: { ...record, timestamp: isoNow, entity_type: "INVOICE" },
+                Item: {
+                    ...record,
+                    timestamp: isoNow,
+                    entity_type: "INVOICE"
+                },
                 ConditionExpression: "attribute_not_exists(SK)"
             }
         },
 
-        // B. Agregados temporales (3 registros: Mes, Q, Año)
+        // B. Estadísticas Agregadas (Mes, Trimestre, Año)
         ...buildStatsOps(PK, year, month, quarter, nCo2e, nSpend, isoNow),
 
-        // C. Proveedor
-        buildVendorOp(PK, taxId, vName, nCo2e, isoNow),
+        // C. Perfil del Proveedor (Acumulados y Nombre)
+        buildVendorOp(PK, taxId, vendorName, nCo2e, isoNow),
 
-        // D. Sucursal y Activo (2 registros)
-        ...buildInfrastructureOps(PK, bId, aId, sType, isoNow),
+        // D. Infraestructura (Sucursal y Activo)
+        ...buildInfrastructureOps(PK, branchId, assetId, serviceType, isoNow),
 
-        // E. Presupuesto Anual
+        // E. Control de Presupuesto (Consumo vs Meta Anual)
         buildBudgetUpdateOp(PK, year, nCo2e, isoNow),
-        
-        // F. Meta de reducción (Usamos el año como ID de meta anual por defecto)
-        buildGoalUpdateOp(PK, `ANNUAL_GOAL_${year}`, nCo2e, isoNow),
-        
-        // G. Salud del Activo
-        buildAssetHealthOp(PK, aId, healthStatus, isoNow)
     ];
 
     try {
         await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
-        console.log(`✅ [DB_SYNC]: ${SK} persistido con éxito.`);
         return { success: true };
     } catch (error) {
-        if (error.name === "TransactionCanceledException") {
-            console.error("❌ [DB_CANCELLED]:", error.CancellationReasons);
-            return { success: false, reason: "CANCELLED", detail: error.CancellationReasons };
-        }
+        if (error.name === "TransactionCanceledException") return { success: false, reason: "CANCELLED" };
         throw error;
     }
 };
