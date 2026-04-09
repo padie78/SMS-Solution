@@ -1,6 +1,7 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 // IMPORTANTE: Integramos tus nuevas reglas
-import { buildSystemPrompt } from './bedrock-prompts.js'; 
+import { buildSystemPrompt } from './bedrock-prompt.js'; 
+
 
 const client = new BedrockRuntimeClient({
     region: process.env.AWS_REGION || "us-east-1",
