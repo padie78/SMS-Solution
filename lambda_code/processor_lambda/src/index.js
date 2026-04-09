@@ -1,115 +1,58 @@
-import { extractText } from "./services/textract.js";
-import bedrock from "./services/bedrock.js";
-import { calculateFootprint } from "./services/climatiq.js";
-import { buildGoldenRecord } from "./utils/mapper.js";
-import db from "./services/db.js";
-import { S3Client, HeadObjectCommand } from "@aws-sdk/client-s3";
-import { identifyCategory } from "./services/classifier.js";
+import { getOrganizationId } from "./utils/s3Helper.js";
+import { processInvoicePipeline } from "./services/pipeline.js";
 
-const s3 = new S3Client({});
-
+/**
+ * Entry Point (AWS Lambda)
+ * Su única misión es extraer el contexto de infraestructura 
+ * y delegar la lógica de negocio al pipeline.
+ */
 export const handler = async (event, context) => {
     const startTime = Date.now();
+    const requestId = context.awsRequestId;
+
+    // 1. Parsear el evento de S3
     const record = event.Records[0];
     const bucket = record.s3.bucket.name;
     const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
-    const requestId = context.awsRequestId;
 
-    console.log(`🚀 [PIPELINE_START]: Procesando s3://${bucket}/${key}`);
+    console.log(`\n🚀 [INBOUND_EVENT] | Req: ${requestId}`);
+    console.log(`📂 [LOCATION]      | s3://${bucket}/${key}`);
 
     try {
-        // --- FASE 1: OCR ---
-        const ocrData = await extractText(bucket, key);
+        // 2. Identificar Organización (Capa de Infraestructura)
+        const orgId = await getOrganizationId(bucket, key);
+        console.log(`🆔 [ORG_CONTEXT]   | ${orgId}`);
 
+        // 3. EJECUTAR PIPELINE (Capa de Lógica de Negocio)
+        // Pasamos solo lo necesario para que el pipeline haga su magia
+        const result = await processInvoicePipeline(bucket, key, orgId);
 
-        // 2. Identificar categoría ANTES del análisis profundo
-        const detectedCategory = await identifyCategory(ocrData.rawText);
+        const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.log(`✅ [FLOW_COMPLETE] | SK: ${result.SK} | Duration: ${duration}s\n`);
 
-        // --- FASE 2: IA ANALYSIS ---
-        const aiAnalysis = await bedrock.analyzeInvoice(ocrData.rawText, detectedCategory);
-        console.log("CHECK_TYPE:", typeof aiAnalysis);
-
-        
-        // index.js - Línea 26 corregida
-        console.log(`🤖 [AI_ANALYSIS_DONE]: Categoría: ${aiAnalysis?.category || 'N/A'} | Confianza: ${aiAnalysis?.confidence_score?.toFixed(2) || '0.00'}`);
-
-        // E inspeccionamos TODO el objeto para ver qué envió la IA realmente
-        console.log("🔍 [FULL_AI_RESPONSE]:", JSON.stringify(aiAnalysis, null, 2));
-
-        // --- FASE 3: CLIMATIQ CALCULATION ---
-        const emissionLines = (aiAnalysis.emission_lines || []).map(line => ({
-            ...line,
-            category: line.category || aiAnalysis.category || "ELEC"
-        }));
-
-        const country = aiAnalysis.extracted_data?.location?.country || "ES";
-        const emissionCalculations = await calculateFootprint(emissionLines, country);
-        
-        const totalCO2 = emissionCalculations.total_kg; 
-        const resultsArray = emissionCalculations.items;
-
-        console.log(`🌍 [CLIMATIQ_DONE] | Total: ${totalCO2.toFixed(2)} kgCO2e | Líneas: ${resultsArray.length}`);
-
-        // --- FASE 4: IDENTIFICACIÓN DE ORGANIZACIÓN (LOGICA MEJORADA) ---
-        // 1. Intentar extraer del Path (ej: uploads/ID_CLIENTE/archivo.jpg)
-        const pathParts = key.split('/');
-        const orgIdFromPath = pathParts.length > 1 ? pathParts[1] : null;
-
-        // 2. Intentar extraer de Metadatos de S3
-        const head = await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
-        const orgIdFromMeta = head.Metadata?.['organization-id'] || head.Metadata?.['organizationid'];
-
-        // 3. Selección final (Prioridad: Path > Meta > Fallback)
-        const finalOrgId = orgIdFromPath || orgIdFromMeta || 'UNKNOWN_ORG';
-
-        console.log(`🆔 [ORG_IDENTIFIED]: ${finalOrgId} (Source: ${orgIdFromPath ? 'Path' : 'Metadata'})`);
-
-        // --- FASE 5: GOLDEN RECORD (MAPPER) ---
-        // --- FASE 5: GOLDEN RECORD (MAPPER) ---
-        
-        // LOG DE DIAGNÓSTICO PRE-MAPPER
-        console.log("======= [PRE-MAPPER INSPECTION] =======");
-        console.log("1. PK_DATA (finalOrgId):", finalOrgId);
-        console.log("2. S3_KEY:", key);
-        console.log("3. AI_ANALYSIS_TYPE:", typeof aiAnalysis);
-        console.log("4. AI_ANALYSIS_CONTENT:", {
-            vendor_tax_id: aiAnalysis?.source_data?.vendor?.tax_id,
-            tech_tax_id: aiAnalysis?.technical_ids?.tax_id,
-            invoice_num: aiAnalysis?.source_data?.invoice_number,
-            vendor_name: aiAnalysis?.source_data?.vendor?.name
-        });
-        console.log("5. EMISSION_CALCS (Footprint):", {
-            total_kg: emissionCalculations?.total_kg,
-            activity_id: emissionCalculations?.activity_id
-        });
-        console.log("=======================================");
-
-        const goldenRecord = buildGoldenRecord(
-            `ORG#${finalOrgId}`, 
-            key,
-            aiAnalysis,
-            emissionCalculations
-        );
-
-        // --- FASE 6: DYNAMODB ---
-        await db.persistTransaction(goldenRecord);
-        
-        const duration = (Date.now() - startTime) / 1000;
-        return { 
-            statusCode: 200, 
-            body: JSON.stringify({ 
-                status: "SUCCESS", 
-                org: finalOrgId,
-                sk: goldenRecord.SK,
+        return {
+            statusCode: 200,
+            body: JSON.stringify({
+                status: "SUCCESS",
+                org: orgId,
+                sk: result.SK,
                 duration: `${duration}s`
-            }) 
+            })
         };
 
     } catch (error) {
-        console.error(`❌ [CRITICAL_FAILURE] [ID:${requestId}]:`, error);
-        return { 
-            statusCode: 500, 
-            body: JSON.stringify({ error: error.message, requestId }) 
+        // Manejo de errores centralizado
+        console.error(`\n❌ [PIPELINE_CRASH]`);
+        console.error(`ID: ${requestId}`);
+        console.error(`Reason: ${error.message}\n`);
+
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ 
+                error: error.message, 
+                requestId,
+                path: key 
+            })
         };
     }
 };

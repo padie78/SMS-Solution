@@ -1,5 +1,5 @@
-import { STRATEGIES } from "../constants/climatiq_catalog.js";
-import { MOCK_EMISSION_FACTORS } from "../mocks/factors.js"; // <--- Importación limpia
+import { STRATEGIES } from "../../constants/climatiq_catalog.js";
+import { MOCK_EMISSION_FACTORS } from "../../mocks/factors.js"; // <--- Importación limpia
 
 // 1. Define tu objeto Mock al principio del archivo
 const CLIMATIQ_MOCK_RESPONSE = {

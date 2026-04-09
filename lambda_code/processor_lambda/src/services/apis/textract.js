@@ -40,7 +40,7 @@ export const extractText = async (bucket, key) => {
 
         return {
             rawText,
-            queryHints: {}, // Objeto vacío para mantener compatibilidad con el resto del flujo
+            queryHints: {},
             category: "OTHERS"
         };
 
