@@ -1,3 +1,8 @@
+import { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
+import { ddb, TABLE_NAME } from "./client.js";
+import { buildStatsOps, buildVendorOp, buildInfrastructureOps } from "./operations.js";
+import { saveEntity } from "./entities.js"; // El archivo con PutCommands manuales
+
 export const persistTransaction = async (record) => {
     // Extraemos PK y SK directamente del record generado
     const { PK, SK, extracted_data, analytics_dimensions } = record;
