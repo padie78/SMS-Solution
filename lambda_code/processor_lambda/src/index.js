@@ -23,6 +23,8 @@ export const handler = async (event, context) => {
         // --- FASE 2: IA ANALYSIS ---
         const aiAnalysis = await bedrock.analyzeInvoice(ocrData.rawText);
 
+        console.log("CHECK_TYPE:", typeof aiAnalysis);
+
         
         // index.js - Línea 26 corregida
         console.log(`🤖 [AI_ANALYSIS_DONE]: Categoría: ${aiAnalysis?.category || 'N/A'} | Confianza: ${aiAnalysis?.confidence_score?.toFixed(2) || '0.00'}`);
