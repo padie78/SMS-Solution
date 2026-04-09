@@ -25,10 +25,10 @@ export const handler = async (event, context) => {
 
         
         // index.js - Línea 26 corregida
-console.log(`🤖 [AI_ANALYSIS_DONE]: Categoría: ${aiAnalysis?.category || 'N/A'} | Confianza: ${aiAnalysis?.confidence_score?.toFixed(2) || '0.00'}`);
+        console.log(`🤖 [AI_ANALYSIS_DONE]: Categoría: ${aiAnalysis?.category || 'N/A'} | Confianza: ${aiAnalysis?.confidence_score?.toFixed(2) || '0.00'}`);
 
-// E inspeccionamos TODO el objeto para ver qué envió la IA realmente
-console.log("🔍 [FULL_AI_RESPONSE]:", JSON.stringify(aiAnalysis, null, 2));
+        // E inspeccionamos TODO el objeto para ver qué envió la IA realmente
+        console.log("🔍 [FULL_AI_RESPONSE]:", JSON.stringify(aiAnalysis, null, 2));
 
         // --- FASE 3: CLIMATIQ CALCULATION ---
         const emissionLines = (aiAnalysis.emission_lines || []).map(line => ({
