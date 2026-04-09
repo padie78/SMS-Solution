@@ -1,7 +1,5 @@
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
-// IMPORTANTE: Integramos tus nuevas reglas
 import { buildSystemPrompt } from './bedrock-prompt.js'; 
-
 
 const client = new BedrockRuntimeClient({
     region: process.env.AWS_REGION || "us-east-1",
@@ -10,18 +8,17 @@ const client = new BedrockRuntimeClient({
 
 /**
  * Servicio de Auditoría GenAI (Claude 3 Haiku).
- * Ahora utiliza prompts dinámicos por categoría para evitar errores de unidades.
+ * Extrae y garantiza un Objeto JSON listo para el Mapper.
  */
 export const analyzeInvoice = async (rawText, category = 'OTHERS') => {
     console.log(`   [BEDROCK_START]: Analizando categoría ${category} (${rawText.length} caracteres)...`);
 
-    // 1. Obtenemos el prompt blindado que definimos antes
     const dynamicSystemPrompt = buildSystemPrompt(category);
 
     const payload = {
         anthropic_version: "bedrock-2023-05-31",
         max_tokens: 2500,
-        temperature: 0, // Mantenemos 0 para máxima consistencia técnica
+        temperature: 0, 
         system: dynamicSystemPrompt,
         messages: [
             {
@@ -44,28 +41,39 @@ export const analyzeInvoice = async (rawText, category = 'OTHERS') => {
 
         const response = await client.send(command);
         const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+        
+        // 1. Extraemos el texto de la respuesta de Claude
         let resultText = responseBody.content[0].text.trim();
 
-        // 2. Limpieza y extracción del JSON
-        const jsonStart = resultText.indexOf('{');
-        const jsonEnd = resultText.lastIndexOf('}');
-        if (jsonStart === -1) {
+        // 2. Limpieza de Markdown y extracción de JSON
+        // A veces Claude envuelve el JSON en ```json ... ```
+        const jsonMatch = resultText.match(/\{[\s\S]*\}/);
+        if (!jsonMatch) {
             console.error("DEBUG: Full response without JSON:", resultText);
             throw new Error("No JSON found in Bedrock response");
         }
 
-        const finalData = JSON.parse(resultText.substring(jsonStart, jsonEnd + 1));
+        // 3. PARSE FINAL: Convertimos el string en Objeto JS
+        const finalData = JSON.parse(jsonMatch[0]);
 
-        // 3. Post-procesamiento: Aseguramos que los valores sean numéricos
+        // 4. Post-procesamiento: Normalización de datos críticos
+        // Bedrock a veces devuelve números como strings, aquí los forzamos
         if (finalData.emission_lines) {
             finalData.emission_lines = finalData.emission_lines.map(line => ({
                 ...line,
-                value: Number(line.value) || 0
+                value: Number(line.value) || 0,
+                confidence_score: Number(line.confidence_score) || 0
             }));
         }
 
-        console.log(`   [BEDROCK_END]: Análisis completado. Categoría detectada: ${finalData.category}`);
+        // Normalizamos también el monto total si existe
+        if (finalData.source_data?.total_amount) {
+            finalData.source_data.total_amount.total_with_tax = Number(finalData.source_data.total_amount.total_with_tax) || 0;
+        }
+
+        console.log(`   [BEDROCK_END]: Análisis completado. Categoría detectada: ${finalData.analytics_metadata?.category || 'N/A'}`);
         
+        // Retornamos un OBJETO, no un STRING
         return finalData;
 
     } catch (error) {
