@@ -65,6 +65,25 @@ export const handler = async (event, context) => {
         console.log(`🆔 [ORG_IDENTIFIED]: ${finalOrgId} (Source: ${orgIdFromPath ? 'Path' : 'Metadata'})`);
 
         // --- FASE 5: GOLDEN RECORD (MAPPER) ---
+        // --- FASE 5: GOLDEN RECORD (MAPPER) ---
+        
+        // LOG DE DIAGNÓSTICO PRE-MAPPER
+        console.log("======= [PRE-MAPPER INSPECTION] =======");
+        console.log("1. PK_DATA (finalOrgId):", finalOrgId);
+        console.log("2. S3_KEY:", key);
+        console.log("3. AI_ANALYSIS_TYPE:", typeof aiAnalysis);
+        console.log("4. AI_ANALYSIS_CONTENT:", {
+            vendor_tax_id: aiAnalysis?.source_data?.vendor?.tax_id,
+            tech_tax_id: aiAnalysis?.technical_ids?.tax_id,
+            invoice_num: aiAnalysis?.source_data?.invoice_number,
+            vendor_name: aiAnalysis?.source_data?.vendor?.name
+        });
+        console.log("5. EMISSION_CALCS (Footprint):", {
+            total_kg: emissionCalculations?.total_kg,
+            activity_id: emissionCalculations?.activity_id
+        });
+        console.log("=======================================");
+
         const goldenRecord = buildGoldenRecord(
             `ORG#${finalOrgId}`, 
             key,
