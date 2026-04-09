@@ -4,6 +4,7 @@ import { calculateFootprint } from "./services/climatiq.js";
 import { buildGoldenRecord } from "./utils/mapper.js";
 import db from "./services/db.js";
 import { S3Client, HeadObjectCommand } from "@aws-sdk/client-s3";
+import { identifyCategory } from "./services/classifier.js";
 
 const s3 = new S3Client({});
 
@@ -20,9 +21,12 @@ export const handler = async (event, context) => {
         // --- FASE 1: OCR ---
         const ocrData = await extractText(bucket, key);
 
-        // --- FASE 2: IA ANALYSIS ---
-        const aiAnalysis = await bedrock.analyzeInvoice(ocrData.rawText);
 
+        // 2. Identificar categoría ANTES del análisis profundo
+        const detectedCategory = await identifyCategory(ocrData.rawText);
+
+        // --- FASE 2: IA ANALYSIS ---
+        const aiAnalysis = await bedrock.analyzeInvoice(ocrData.rawText, detectedCategory);
         console.log("CHECK_TYPE:", typeof aiAnalysis);
 
         
