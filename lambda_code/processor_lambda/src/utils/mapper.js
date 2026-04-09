@@ -49,6 +49,10 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
     const meta = data.analytics_metadata || {};
     const extracted = data.extracted_data || {};
 
+    const totalAmountValue = source.total_amount?.total_with_tax || 
+                             source.total_amount || 
+                             extracted.total_amount || 0;
+
     const invoiceDate = source.invoice_date || extracted.invoice_date || "0000-00-00";
     const pStart = source.billing_period?.start || extracted.period_start;
     const yearRef = meta.year || (pStart ? pStart.split('-')[0] : invoiceDate.split('-')[0]) || 0;
@@ -95,6 +99,7 @@ export const buildGoldenRecord = (partitionKey, s3Key, aiData, footprint) => {
             invoice_number: invoiceNum,
             invoice_date: invoiceDate,
             total_amount: Number(totalAmount), // <--- ESTA LÍNEA FALTA O ESTÁ MAL
+            total_amount: Number(totalAmountValue), // <--- USAMOS LA VARIABLE DEFINIDA ARRIBA
             billing_period: { start: pStart, end: source.billing_period?.end }
         },
         metadata: {
