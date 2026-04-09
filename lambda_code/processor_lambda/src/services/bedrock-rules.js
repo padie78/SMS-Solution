@@ -3,9 +3,10 @@
  */
 export const CATEGORY_RULES = {
     ELEC: {
-        focus: "Extract Active Energy (kWh). Identify CUPS/Meter ID.",
-        scope: "SCOPE_2",
+        focus: "Extract Active Energy (kWh). Ignore monetary values for emission lines. Sum P1, P2, P3 consumption.",
+        scope: "2", // Coincidente con tu lógica de persistencia
         strategy: "ELECTRICITY",
+        allowed_units: "kWh", // <--- CRÍTICO para el prompt
         metadata: {
             meter_id: "string (CUPS)",
             is_renewable: "boolean",
@@ -16,8 +17,9 @@ export const CATEGORY_RULES = {
     },
     GAS: {
         focus: "Extract Natural Gas consumption (kWh or m3). Identify Meter Serial.",
-        scope: "SCOPE_1",
+        scope: "1",
         strategy: "STATIONARY_COMBUSTION",
+        allowed_units: "kWh|m3",
         metadata: {
             meter_id: "string",
             conversion_factor: "float",
@@ -26,9 +28,10 @@ export const CATEGORY_RULES = {
         }
     },
     LOGISTICS: {
-        focus: "Extract Weight and Distance for Freight/Shipments.",
-        scope: "SCOPE_3",
+        focus: "Extract Weight (tons) and Distance (km) for Freight/Shipments.",
+        scope: "3",
         strategy: "TRANSPORTATION",
+        allowed_units: "tkm|km|kg|t",
         metadata: {
             weight_tons: "float",
             distance_km: "float",
@@ -39,8 +42,9 @@ export const CATEGORY_RULES = {
     },
     REFRIGERANTS: {
         focus: "Identify F-Gas type and recharge weight for HVAC maintenance.",
-        scope: "SCOPE_1",
+        scope: "1",
         strategy: "FUGITIVE_EMISSIONS",
+        allowed_units: "kg|lb",
         metadata: {
             gas_type: "string (e.g. R-410A, R-134a)",
             recharge_weight_kg: "float",
@@ -50,8 +54,9 @@ export const CATEGORY_RULES = {
     },
     WASTE: {
         focus: "Extract waste weight and disposal method.",
-        scope: "SCOPE_3",
+        scope: "3",
         strategy: "WASTE_MANAGEMENT",
+        allowed_units: "kg|t",
         metadata: {
             waste_type: "string (PAPER, PLASTIC, HAZARDOUS)",
             disposal_method: "string (RECYCLING, LANDFILL, INCINERATION)",
@@ -60,8 +65,9 @@ export const CATEGORY_RULES = {
     },
     OTHERS: {
         focus: "General audit of consumption and accounting data.",
-        scope: "SCOPE_3",
+        scope: "3",
         strategy: "OTHER_INDIRECT",
+        allowed_units: "kWh|m3|L|kg|t|km|unit",
         metadata: {
             service_id: "string",
             general_description: "string"
@@ -69,5 +75,4 @@ export const CATEGORY_RULES = {
     }
 };
 
-// Exportación por defecto para mantener compatibilidad total
 export default { CATEGORY_RULES };
