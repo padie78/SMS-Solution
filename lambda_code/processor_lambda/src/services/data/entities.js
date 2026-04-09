@@ -16,7 +16,8 @@ export const saveEntity = async (orgId, type, id, data) => {
         'BUDGET':   `BUDGET#YEAR#${id}`,
         'VENDOR':   `VENDOR#${id}#INFO`,     // id = taxId
         'INVOICE':  `INVOICE#${id}`,          // id = date#invId
-        'STATS':    `STATS#YEAR#${id}`        // id = year#MONTH#month
+        'STATS':    `STATS#YEAR#${id}`,        // id = year#MONTH#month
+        'KPI_SUMMARY': `KPI#${id}`, // id puede ser 'GLOBAL', 'SUCURSALES', 'ACTIVOS'
     };
 
     const SK = skMap[type.toUpperCase()];

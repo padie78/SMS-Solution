@@ -272,3 +272,27 @@ export const buildAssetHealthOp = (PK, assetId, healthStatus, isoNow) => {
         }
     };
 };
+
+/**
+ * Genera un resumen ejecutivo de KPIs para el Dashboard
+ */
+export const buildKpiSummaryOp = (PK, data) => {
+    return {
+        Update: {
+            TableName: TABLE_NAME,
+            Key: { PK, SK: `KPI#GLOBAL#SUMMARY` },
+            UpdateExpression: `
+                SET carbon_intensity = :ci,
+                    budget_burn_rate = :bbr,
+                    health_index = :hi,
+                    updated_at = :now
+            `,
+            ExpressionAttributeValues: {
+                ":ci": data.totalCo2 / data.totalM2,
+                ":bbr": (data.currentCons / data.budgetLimit) * 100,
+                ":hi": data.healthyAssets / data.totalAssets,
+                ":now": new Date().toISOString()
+            }
+        }
+    };
+};
