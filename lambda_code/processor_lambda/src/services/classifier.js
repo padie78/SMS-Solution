@@ -1,86 +1,68 @@
 // 1. Importaciones ESM
 import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedrock-runtime";
 
-/**
- * Reutilizamos el cliente fuera del handler para optimizar Warm Starts.
- */
 const client = new BedrockRuntimeClient({ region: "eu-central-1" });
 
-/**
- * Identifica la categoría de la factura mediante análisis semántico ligero.
- * @param {string} rawTextSnippet - Primeros N caracteres del OCR.
- * @returns {Promise<string>} - Categoría normalizada para el router de Textract.
- */
 export const identifyCategory = async (rawTextSnippet) => {
-    console.log(`   [CLASSIFIER_START]: Analizando fragmento de texto...`);
+    if (!rawTextSnippet || rawTextSnippet.length < 10) return "OTHERS";
 
-    // Definimos el diccionario de categorías para el prompt y la validación
+    console.log(`   [CLASSIFIER_START]: Clasificando...`);
+
     const CATEGORIES = {
-        ELEC: "Electricity, Utility, Luz, Endesa, Iberdrola",
-        GAS: "Natural Gas, Gas Natural, Naturgy",
-        LOGISTICS: "Freight, Transport, Logistics, Envío, Camión",
+        ELEC: "Electricity, Utility, Luz, Endesa, Iberdrola, kWh, Energía Activa",
+        GAS: "Natural Gas, Gas Natural, Naturgy, m3, kWh Gas",
+        LOGISTICS: "Freight, Transport, Logistics, Envío, Camión, Gasoil A",
         WASTE: "Waste management, Recycling, Basura, Contenedor",
-        WATER: "Water supply, Agua, Canal Isabel II",
-        REFRIGERANTS: "HVAC, Gas recharge, Aire Acondicionado, R-410A",
-        FLEET_FUEL: "Gasoline, Diesel, Repsol, Shell, Fuel for vehicles",
+        WATER: "Water supply, Agua, Canal Isabel II, m3",
+        REFRIGERANTS: "HVAC, Gas recharge, Aire Acondicionado, R-410A, R-134a",
+        FLEET_FUEL: "Gasoline, Diesel, Repsol, Shell, Fuel for vehicles, Litros",
         BIOMASS: "Pellets, Wood chips, Biomassa",
         HOTEL: "Accommodation, Hotel stay, Noches de hotel",
         CLOUDOPS: "AWS, Azure, Google Cloud, Cloud Services",
         OTHERS: "General / Unknown"
     };
 
-    const prompt = `Analyze this invoice text and return ONLY the category key from this list: 
-    ${Object.keys(CATEGORIES).join(", ")}.
-    
-    Context clues: ${JSON.stringify(CATEGORIES)}
-
-    Invoice Text Snippet:
-    ${rawTextSnippet.substring(0, 1500)}`;
-
-    const command = new InvokeModelCommand({
-        modelId: "anthropic.claude-3-haiku-20240307-v1:0",
-        contentType: "application/json",
-        accept: "application/json",
-        body: JSON.stringify({
-            anthropic_version: "bedrock-2023-05-31",
-            max_tokens: 50, // Aumentamos ligeramente para evitar cortes en el JSON de respuesta
-            messages: [
-                {
-                    role: "user",
-                    content: [
-                        {
-                            type: "text",
-                            text: prompt
-                        }
-                    ]
-                }
-            ],
-            temperature: 0
-        })
-    });
+    // Usamos el formato de System Prompt para mayor control
+    const payload = {
+        anthropic_version: "bedrock-2023-05-31",
+        max_tokens: 20,
+        temperature: 0,
+        system: `You are a document classifier. Return ONLY the category key from the provided list. 
+                 If you see 'kWh' and 'Energía', you MUST return 'ELEC'. 
+                 Valid keys: ${Object.keys(CATEGORIES).join(", ")}.`,
+        messages: [
+            {
+                role: "user",
+                content: [{ 
+                    type: "text", 
+                    text: `Classify this invoice text:\n\n${rawTextSnippet.substring(0, 1500)}` 
+                }]
+            }
+        ]
+    };
 
     try {
+        const command = new InvokeModelCommand({
+            modelId: "anthropic.claude-3-haiku-20240307-v1:0",
+            contentType: "application/json",
+            accept: "application/json",
+            body: JSON.stringify(payload)
+        });
+
         const response = await client.send(command);
         const responseBody = JSON.parse(new TextDecoder().decode(response.body));
+        const result = responseBody.content[0].text.trim().toUpperCase();
         
-        // Limpiamos la respuesta (Claude Haiku a veces es verboso)
-        let category = responseBody.content[0].text.trim().toUpperCase();
-        
-        // Regex para extraer solo la clave (ej: "La categoría es ELEC" -> "ELEC")
-        const match = category.match(/[A-Z_]{3,}/);
-        const extractedKey = match ? match[0] : "OTHERS";
-
-        // Validación final contra el diccionario de claves
-        const finalCategory = CATEGORIES[extractedKey] ? extractedKey : "OTHERS";
+        // Extraemos solo la palabra de la lista (por si Claude responde "Category: ELEC")
+        const finalCategory = Object.keys(CATEGORIES).find(key => result.includes(key)) || "OTHERS";
         
         console.log(`   [CLASSIFIER_END]: Categoría resuelta -> ${finalCategory}`);
         return finalCategory;
 
     } catch (error) {
-        console.error(`🚨 [CLASSIFIER_ERROR]: Fallo en Bedrock, usando fallback OTHERS.`, error.message);
+        console.error(`🚨 [CLASSIFIER_ERROR]: Fallback a OTHERS.`, error.message);
         return "OTHERS";
     }
 };
 
-// 2. Exportación por defecto para mantener consistencia con index.js
 export default { identifyCategory };
