@@ -17,52 +17,37 @@ const getScopeByService = (service) => {
 };
 
 export const persistTransaction = async (record) => {
-    const { PK, SK } = record;
-    
-    // Extraemos datos del objeto record (ya mapeado)
+    // 1. Extraemos los campos del registro ya procesado por el Mapper
     const { 
-        analytics_metadata, 
-        climatiq_result, 
-        extracted_data, // <--- Usamos esto para el Spend
-        technical_ids 
+        PK, 
+        SK, 
+        extracted_data, 
+        analytics_dimensions, 
+        climatiq_result,
+        ai_analysis 
     } = record;
 
     const now = new Date();
-
-    // 1. CORRECCIÓN CRÍTICA: Extracción del Spend
-    // Buscamos en el dato mapeado primero, luego en el original como fallback
-    const nSpend = Number(
-        extracted_data?.total_amount || 
-        record.source_data?.total_amount?.total_with_tax || 
-        0
-    );
-
-    console.log(`💰 [DB_STATS_DEBUG]: SK=${SK} | Spend detectado=${nSpend} | CO2=${climatiq_result?.co2e}`);
-
-    // 2. Normalización de Dimensiones Temporales
-    const year = analytics_metadata?.year || now.getFullYear();
-    const monthVal = analytics_metadata?.month || (now.getMonth() + 1);
-    const monthStr = monthVal.toString().padStart(2, '0');
-    const quarter = analytics_metadata?.quarter 
-        ? parseInt(analytics_metadata.quarter.replace('Q', '')) 
-        : Math.floor((monthVal - 1) / 3) + 1;
-
-    // 3. Identificadores para registros de soporte
-    const service = (analytics_metadata?.service_type || "UNKNOWN").toUpperCase();
-    const scopeNum = analytics_metadata?.scope || getScopeByService(service);
-    const vendorKeyIdentifier = SK.split('#')[1] || "UNKNOWN";
-
-    const statsMonthSK   = `STATS#YEAR#${year}#QUARTER#${quarter}#MONTH#${monthStr}`;
-    const statsQuarterSK = `STATS#YEAR#${year}#QUARTER#${quarter}#TOTAL`;
-    const statsYearSK    = `STATS#YEAR#${year}#TOTAL`;
-    const scopeSK = `SCOPE#YEAR#${year}#TYPE#${scopeNum}`;
-    const factorSK = `FACTOR#SERVICE#${service}#REGION#${extracted_data?.location?.country || 'GLOBAL'}`;
-
-    // 4. Valores Numéricos Sanitizados
-    const nCo2e = Number(climatiq_result?.co2e || 0);
-    const consumptionVal = Number(record.ai_analysis?.value || 0);
     const isoNow = now.toISOString();
-    const safeFactor = (nCo2e > 0 && consumptionVal > 0) ? (nCo2e / consumptionVal) : 0;
+
+    // 2. EXTRACCIÓN GARANTIZADA DEL MONTO (SPEND)
+    // El Mapper lo guarda en record.extracted_data.total_amount
+    const nSpend = Number(extracted_data?.total_amount || 0);
+    const nCo2e = Number(climatiq_result?.co2e || 0);
+
+    // Log de diagnóstico para confirmar que el valor llega a la DB
+    console.log(`💰 [DB_PERSIST]: SK=${SK} | Spend=${nSpend} | CO2=${nCo2e}`);
+
+    // 3. Normalización Temporal (Usamos lo que el Mapper ya calculó en analytics_dimensions)
+    const year = analytics_dimensions?.period_year || now.getFullYear();
+    const monthVal = analytics_dimensions?.period_month || (now.getMonth() + 1);
+    const monthStr = monthVal.toString().padStart(2, '0');
+    const quarter = Math.floor((monthVal - 1) / 3) + 1;
+
+    // 4. Identificadores de Soporte
+    const service = (ai_analysis?.service_type || "UNKNOWN").toUpperCase();
+    const scopeNum = getScopeByService(service);
+    const vendorKeyIdentifier = SK.split('#')[1] || "UNKNOWN";
 
     const createStatsUpdate = (sk, includeMeta = false) => ({
         Update: {
@@ -77,7 +62,7 @@ export const persistTransaction = async (record) => {
             `,
             ExpressionAttributeValues: {
                 ":nCo2e": nCo2e, 
-                ":nSpend": nSpend, // <--- Ahora pasará el valor real
+                ":nSpend": nSpend, 
                 ":one": 1, 
                 ":zero": 0, 
                 ":now": isoNow,
@@ -90,17 +75,17 @@ export const persistTransaction = async (record) => {
         {
             Put: {
                 TableName: TABLE_NAME,
-                Item: record,
+                Item: record, // Guardamos el Golden Record completo
                 ConditionExpression: "attribute_not_exists(SK)"
             }
         },
-        createStatsUpdate(statsMonthSK, true),
-        createStatsUpdate(statsQuarterSK),
-        createStatsUpdate(statsYearSK),
+        createStatsUpdate(`STATS#YEAR#${year}#QUARTER#${quarter}#MONTH#${monthStr}`, true),
+        createStatsUpdate(`STATS#YEAR#${year}#QUARTER#${quarter}#TOTAL`),
+        createStatsUpdate(`STATS#YEAR#${year}#TOTAL`),
         {
             Update: {
                 TableName: TABLE_NAME,
-                Key: { PK, SK: scopeSK },
+                Key: { PK, SK: `SCOPE#YEAR#${year}#TYPE#${scopeNum}` },
                 UpdateExpression: `
                     SET co2e_accumulated = if_not_exists(co2e_accumulated, :zero) + :nCo2e,
                         scope_type = :sNum,
@@ -131,13 +116,14 @@ export const persistTransaction = async (record) => {
 
     try {
         await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
-        console.log(`✅ [DB_SYNC]: Transaction complete. SK: ${SK} | Spend: ${nSpend}`);
+        console.log(`✅ [DB_SYNC]: Transaction complete. SK: ${SK} | Total Spend Updated: ${nSpend}`);
         return { success: true };
     } catch (error) {
         if (error.name === "TransactionCanceledException") {
-            console.warn("⚠️ [DB_DUP/CANCEL]:", error.CancellationReasons.map(r => r.Code));
+            console.warn("⚠️ [DB_DUP/CANCEL]: Factura ya procesada o conflicto de transacción.");
             return { success: false, reason: "CANCELLED" };
         }
+        console.error("❌ [DB_FATAL]:", error);
         throw error;
     }
 };
