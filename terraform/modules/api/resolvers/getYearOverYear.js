@@ -42,21 +42,30 @@ export function request(ctx) {
 export function response(ctx) {
     const items = ctx.result.data["SustainabilityManagementSystem"] || [];
     
-    // Recuperamos años para identificar los registros en el array de resultados
+    // Convertimos a número para comparar con year_ref que es 'N' en Dynamo
     const cYear = ctx.arguments.year * 1;
     const pYear = cYear - 1;
 
-    // Buscamos los registros (en Dynamo están como Number: year_ref)
-    const currentData = items.find(i => i.year_ref === cYear) || {};
-    const previousData = items.find(i => i.year_ref === pYear) || {};
+    let currentData = {};
+    let previousData = {};
 
-    // Valores base
+    // Reemplazamos el .find() por un bucle tradicional para evitar el ReferenceError
+    for (const item of items) {
+        if (item.year_ref === cYear) {
+            currentData = item;
+        }
+        if (item.year_ref === pYear) {
+            previousData = item;
+        }
+    }
+
+    // Valores base extraídos de los registros encontrados
     const cEmissions = currentData.total_co2e || 0;
     const pEmissions = previousData.total_co2e || 0;
     const cSpend = currentData.total_spend || 0;
     const pSpend = previousData.total_spend || 0;
 
-    // Cálculo de diferencias porcentuales
+    // Función de cálculo de diferencia
     const getDiff = (curr, prev) => {
         if (prev === 0) return 0;
         return ((curr - prev) / prev) * 100;
@@ -64,9 +73,9 @@ export function response(ctx) {
 
     const diffEmissions = getDiff(cEmissions, pEmissions);
 
-    // 5. Retorno estructurado según tu nuevo Schema
+    // Retorno final según tu Schema
     return {
-        month: ctx.arguments.month, // Retorna el String original ("5")
+        month: ctx.arguments.month,
         currentYear: {
             emissions: cEmissions,
             spend: cSpend
