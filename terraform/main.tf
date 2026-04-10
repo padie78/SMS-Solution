@@ -5,6 +5,7 @@ module "iam" {
   source       = "./modules/iam"
   project_name = var.project_name
   environment  = var.environment
+  dynamo_table_arn = module.database.table_arn
 }
 
 module "auth" {
