@@ -32,10 +32,6 @@ jobs:
         run: terraform init -input=false
         working-directory: ./terraform
 
-      - name: Terraform Import Role
-        run: terraform import module.api.aws_iam_role.appsync_runtime_role sms-platform-appsync-runtime-role-dev
-        continue-on-error: true # Para que no falle si ya se importó  
-
       - name: Terraform Plan
         # Quitamos el -var-file si tu archivo se llama terraform.tfvars (lo toma solo)
         # Agregamos -input=false para que no se cuelgue 6 minutos si falta algo

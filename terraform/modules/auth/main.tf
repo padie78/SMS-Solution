@@ -31,6 +31,7 @@ resource "aws_cognito_user_pool" "main" {
 }
 
 # 2. El Client (Lo que el Frontend o Postman usarán)
+# 2. El Client (Lo que el Frontend o Postman usarán)
 resource "aws_cognito_user_pool_client" "client" {
   name         = "${var.project_name}-${var.environment}-client"
   user_pool_id = aws_cognito_user_pool.main.id
@@ -39,8 +40,22 @@ resource "aws_cognito_user_pool_client" "client" {
   explicit_auth_flows = [
     "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_REFRESH_TOKEN_AUTH",
-    "ALLOW_ADMIN_USER_PASSWORD_AUTH" # Útil para tus pruebas por CLI
+    "ALLOW_ADMIN_USER_PASSWORD_AUTH"
   ]
+
+  # --- SOLUCIÓN AL ERROR DE RANGO ---
+  # Definimos tiempos estándar: 24h para acceso e ID, 30 días para refresh
+  refresh_token_validity = 30
+  access_token_validity  = 24
+  id_token_validity      = 24
+
+  # Es fundamental definir las unidades para que AWS no se confunda
+  token_validity_units {
+    refresh_token = "days"
+    access_token  = "hours"
+    id_token      = "hours"
+  }
+  # ----------------------------------
 
   prevent_user_existence_errors = "ENABLED"
 }
