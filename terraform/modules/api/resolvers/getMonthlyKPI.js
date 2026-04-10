@@ -15,7 +15,7 @@ export function request(ctx) {
         util.error("El mes no es un número válidoc", "ValidationError");
     }
 
-    // Lógica de Quarter (Trimestre) con comparacdiones directas
+    // Lógica de Quarter (Trimestre) con comparaciones directas
     let q = "1";
     if (mNum > 3) q = "2";
     if (mNum > 6) q = "3";

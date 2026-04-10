@@ -114,7 +114,7 @@ type ForecastReport {
 }
 
 type YoYComparison {
-  month: Int
+  month: String
   currentYear: YearData
   previousYear: YearData
   diffPercentageEmissions: Float
@@ -272,7 +272,7 @@ type Query {
   getEvolution(year: String!, serviceType: String): [EvolutionData]
   getForecast(year: String!): ForecastReport
   getQuarterlyBreakdown(year: String!): QuarterlyBreakdown
-  getYearOverYear(month: Int!, year: Int!): YoYComparison
+  getYearOverYear(year: String!, month: String!): YoYComparison
   getIntensity(year: String!): IntensityReport
   getIntensityByService(year: String!): [ServiceIntensity]
   
