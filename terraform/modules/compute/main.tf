@@ -20,11 +20,7 @@ data "archive_file" "processor_zip" {
   output_path = "${path.module}/zips/processor.zip"
 }
 
-data "archive_file" "api_lambda_zip" {
-  type        = "zip"
-  source_dir  = "${path.root}/../lambda_code/api_lambda"
-  output_path = "${path.module}/zips/api_lambda.zip"
-}
+
 
 # ==============================================================================
 # 2. CONFIGURACIÓN DE LAMBDAS
