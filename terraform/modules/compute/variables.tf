@@ -83,5 +83,5 @@ variable "bedrock_model_id" {
 
 variable "processor_role_arn" {
   description = "ARN del rol de IAM para la lambda processor"
-  type        = String
+  type        = string
 }
