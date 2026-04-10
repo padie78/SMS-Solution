@@ -29,7 +29,7 @@ resource "aws_appsync_api_key" "hub_key" {
 # 2. ROL DE IAM PARA RUNTIME
 # ==============================================================================
 resource "aws_iam_role" "appsync_runtime_role" {
-  name = "${var.project_name}-appsync-runtime-role-${var.environment}"
+  name = "${var.project_name}-appsync-runtime-role-V2-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
