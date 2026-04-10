@@ -1,12 +1,10 @@
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    // 1. Extraer y limpiar argumentos
-    const year = ctx.arguments.year;
-    const month = ctx.arguments.month;
+    const { year, month } = ctx.arguments;
     const orgId = ctx.identity?.claims?.['custom:organization_id'] || "f3d4f8a2-90c1-708c-a446-2c8592524d62";
     
-    // 2. Normalizar Mes y Quarter
+    // Normalizar Mes
     const mNum = parseInt(month, 10);
     if (isNaN(mNum)) {
         util.error("El mes proporcionado no es válido: " + month, "ValidationError");
@@ -15,12 +13,9 @@ export function request(ctx) {
     const q = Math.ceil(mNum / 3);
     const mm = mNum < 10 ? "0" + mNum : "" + mNum;
 
-    // 3. Construir la SK EXACTA
+    // Construcción de llaves
     const pk = "ORG#" + orgId;
     const sk = "STATS#YEAR#" + year + "#QUARTER#" + q + "#MONTH#" + mm;
-
-    // Log para debug (Ver en CloudWatch Logs)
-    console.log("Buscando Mensual -> PK: " + pk + " | SK: " + sk);
 
     return {
         operation: 'GetItem',
@@ -39,8 +34,6 @@ export function response(ctx) {
     const res = ctx.result;
 
     if (!res) {
-        // Log si no encuentra nada
-        console.log("No se encontró registro para los argumentos dados.");
         return null;
     }
 
