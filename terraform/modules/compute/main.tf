@@ -113,5 +113,3 @@ resource "aws_cloudwatch_log_group" "api_lambda_logs" {
   name              = "/aws/lambda/${var.project_name}-api-${var.environment}"
   retention_in_days = 14
 }
-
-# Eliminamos el log group de analytics ya que la lambda no existe

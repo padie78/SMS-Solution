@@ -148,6 +148,15 @@ type QuarterlyBreakdown {
   total: Float
 }
 
+# --- RESPUESTAS DE ACCIÓN ---
+
+type PresignedUrlResponse {
+  uploadURL: String!
+  key: String!       # Añadido para que el cliente sepa dónde quedó el archivo
+  userId: String!
+  message: String
+}
+
 # --- OPERACIÓN Y AUDITORÍA ---
 
 type Invoice {
@@ -281,6 +290,9 @@ type Query {
 }
 
 type Mutation {
+  # Generación de URL firmada para subida de facturas (OCR)
+  getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
+  
   # Hierarchy CRUD
   createBranch(orgId: ID!, input: CreateBranchInput!): Branch
   updateBranch(orgId: ID!, branchId: ID!, input: UpdateBranchInput!): Branch

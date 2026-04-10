@@ -1,51 +1,33 @@
 const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
-// Configuración del cliente S3 (Reutilizado entre invocaciones)
 const s3Client = new S3Client({ region: process.env.AWS_REGION || "eu-central-1" });
 
 exports.handler = async (event) => {
-    console.log("Evento recibido:", JSON.stringify(event));
+    console.log("Evento recibido desde AppSync:", JSON.stringify(event, null, 2));
 
     try {
-        // 1. Extraer Identidad (Compatible con HTTP API y JWT Authorizer)
-        const claims = event.requestContext?.authorizer?.jwt?.claims || 
-                       event.requestContext?.authorizer?.claims;
+        // 1. Extraer Identidad (En AppSync viene en event.identity)
+        // Usamos el 'sub' (ID único) del usuario logueado en Cognito
+        const userId = event.identity?.claims?.sub;
 
-        if (!claims) {
-            return {
-                statusCode: 401,
-                body: JSON.stringify({ message: "Unauthorized: No identity context found" })
-            };
+        if (!userId) {
+            throw new Error("Unauthorized: No identity context found");
         }
 
-        // El 'sub' es el ID único del usuario en Cognito
-        const userId = claims.sub;
-
-        // 2. Parsear el Body
-        if (!event.body) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({ message: "Missing request body" })
-            };
-        }
-
-        const { fileName, fileType } = JSON.parse(event.body);
+        // 2. Extraer Argumentos (En AppSync NO hay body, hay arguments)
+        const { fileName, fileType } = event.arguments;
 
         if (!fileName) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({ message: "fileName is required" })
-            };
+            throw new Error("fileName is required");
         }
 
         // 3. Generación de Key Estratégica
-        // IMPORTANTE: Empezamos con 'uploads/' para que coincida con el trigger de Terraform
         const cleanFileName = fileName.replace(/\s+/g, '_').toLowerCase();
         const timestamp = Date.now();
         const key = `uploads/${userId}/${timestamp}-${cleanFileName}`;
 
-        console.log(`Generando URL para: ${key}`);
+        console.log(`Generando URL para usuario ${userId}: ${key}`);
 
         // 4. Preparar el comando de S3
         const command = new PutObjectCommand({
@@ -57,31 +39,18 @@ exports.handler = async (event) => {
         // 5. Generar la Presigned URL (Válida por 5 minutos)
         const uploadURL = await getSignedUrl(s3Client, command, { expiresIn: 300 });
 
+        // 6. Respuesta limpia para GraphQL
+        // AppSync no necesita statusCode ni headers, solo el objeto que pide el schema
         return {
-            statusCode: 200,
-            headers: {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                uploadURL,
-                key,
-                userId,
-                message: "URL generada exitosamente. Use el método PUT para subir el archivo."
-            })
+            uploadURL,
+            key,
+            userId,
+            message: "URL generada exitosamente."
         };
 
     } catch (error) {
-        console.error("Error crítico en Signer:", error);
-        return {
-            statusCode: 500,
-            headers: { "Access-Control-Allow-Origin": "*" },
-            body: JSON.stringify({ 
-                message: "Internal server error",
-                requestId: event.requestContext?.requestId 
-            })
-        };
+        console.error("Error en Signer:", error.message);
+        // AppSync capturará este error y lo mostrará en el array de "errors" de GraphQL
+        throw new Error(error.message);
     }
 };
