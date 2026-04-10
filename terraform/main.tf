@@ -110,16 +110,16 @@ resource "aws_appsync_resolver" "get_yearly_kpi" {
 }
 
 # Ejemplo para activos de sucursal
-resource "aws_appsync_resolver" "get_branch_assets" {
-  api_id      = module.api.appsync_id
-  data_source = module.api.dynamodb_datasource_name
-  type        = "Query"
-  field       = "getBranchAssets"
-  kind        = "UNIT"
-  code        = file("${path.module}/resolvers/getBranchAssets.js")
+# resource "aws_appsync_resolver" "get_branch_assets" {
+#   api_id      = module.api.appsync_id
+#   data_source = module.api.dynamodb_datasource_name
+#   type        = "Query"
+#   field       = "getBranchAssets"
+#   kind        = "UNIT"
+#   code        = file("${path.module}/resolvers/getBranchAssets.js")
 
-  runtime {
-    name            = "APPSYNC_JS"
-    runtime_version = "1.0.0"
-  }
-}
+#   runtime {
+#     name            = "APPSYNC_JS"
+#     runtime_version = "1.0.0"
+#   }
+# }
