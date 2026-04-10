@@ -85,7 +85,3 @@ variable "processor_role_arn" {
   description = "ARN del rol de IAM para la lambda processor"
   type        = string
 }
-
-variable "processor_role_arn" {
-  type = string
-}
