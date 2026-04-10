@@ -1,40 +1,41 @@
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    const year = ctx.arguments.year;
-    const month = ctx.arguments.month;
+    const { year, month } = ctx.arguments;
     const orgId = ctx.identity?.claims?.['custom:organization_id'] || "f3d4f8a2-90c1-708c-a446-2c8592524d62";
-    
+
+    // Lógica de Quarter y Formateo de mes
     const mNum = parseInt(month, 10);
     const q = Math.ceil(mNum / 3);
-    const mm = mNum < 10 ? "0" + mNum : "" + mNum;
+    const mm = mNum < 10 ? `0${mNum}` : `${mNum}`;
 
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({
-            PK: "ORG#" + orgId,
-            SK: "STATS#YEAR#" + year + "#QUARTER#" + q + "#MONTH#" + mm
+            PK: `ORG#${orgId}`,
+            SK: `STATS#YEAR#${year}#QUARTER#${q}#MONTH#${mm}`
         }),
     };
 }
 
 export function response(ctx) {
-    if (ctx.error) {
-        util.error(ctx.error.message, ctx.error.type);
+    const { result, error } = ctx;
+
+    if (error) {
+        util.error(error.message, error.type);
     }
 
-    const res = ctx.result;
-    if (!res) {
+    if (!result) {
         return null;
     }
 
     return {
-        totalCo2e: res.total_co2e || 0,
-        totalSpend: res.total_spend || 0,
-        invoiceCount: res.invoice_count || 0,
-        lastFile: "Actualizado",
+        totalCo2e: result.total_co2e,
+        totalSpend: result.total_spend,
+        invoiceCount: result.invoice_count,
+        lastFile: "Ver historial",
         byService: {
-            ELEC: res.total_co2e || 0,
+            ELEC: result.total_co2e,
             GAS: 0
         }
     };
