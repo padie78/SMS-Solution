@@ -1,20 +1,20 @@
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    // Usamos la misma desestructuración que te funcionó en Año
     const { year, month } = ctx.arguments;
     const orgId = ctx.identity?.claims?.['custom:organization_id'] || "f3d4f8a2-90c1-708c-a446-2c8592524d62";
 
-    // Reemplazamos Math.ceil y lógica compleja por algo más directo
-    // que AppSync valide sin problemas:
-    const m = parseInt(month, 10);
+    // Forzamos que month sea número para el cálculo
+    const mNum = parseInt(month, 10);
+    
+    // Cálculo de Quarter (1, 2, 3 o 4)
     let q = 1;
-    if (m > 3) q = 2;
-    if (m > 6) q = 3;
-    if (m > 9) q = 4;
+    if (mNum > 3) q = 2;
+    if (mNum > 6) q = 3;
+    if (mNum > 9) q = 4;
 
-    // Formateo de mes con padding manual simple
-    const mm = m < 10 ? `0${m}` : `${m}`;
+    // El padding "03" es String porque es parte de la SK (que es un String)
+    const mm = mNum < 10 ? `0${mNum}` : `${mNum}`;
 
     return {
         operation: 'GetItem',
@@ -36,11 +36,13 @@ export function response(ctx) {
         return null;
     }
 
+    // AppSync convierte automáticamente los tipos "N" de DynamoDB a números de JS.
+    // Solo nos aseguramos de que los nombres coincidan con tu Schema (camelCase).
     return {
         totalCo2e: result.total_co2e,
         totalSpend: result.total_spend,
         invoiceCount: result.invoice_count,
-        lastFile: "Ver historial",
+        lastFile: result.last_updated ? `Actualizado el ${result.last_updated}` : "Ver historial",
         byService: {
             ELEC: result.total_co2e,
             GAS: 0
