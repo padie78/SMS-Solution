@@ -4,46 +4,51 @@ export function request(ctx) {
     const { year, month } = ctx.arguments;
     const orgId = ctx.identity?.claims?.['custom:organization_id'] || "f3d4f8a2-90c1-708c-a446-2c8592524d62";
     
-    const monthNum = parseInt(month, 10);
-    const quarter = Math.ceil(monthNum / 3);
-    const monthStr = monthNum < 10 ? `0${monthNum}` : `${monthNum}`;
+    // Convertimos a número para asegurar el cálculo
+    const mNum = parseInt(month, 10);
+    const q = Math.ceil(mNum / 3);
+    
+    // AppSync JS a veces falla con padStart en el despliegue inicial. 
+    // Usamos una lógica más básica y segura:
+    const mm = mNum < 10 ? "0" + mNum : "" + mNum;
 
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({
-            PK: `ORG#${orgId}`,
-            SK: `STATS#YEAR#${year}#QUARTER#${quarter}#MONTH#${monthStr}`
+            PK: "ORG#" + orgId,
+            SK: "STATS#YEAR#" + year + "#QUARTER#" + q + "#MONTH#" + mm
         }),
     };
 }
 
 export function response(ctx) {
     const { result } = ctx;
-    if (!result) return null;
 
-    // Lógica para determinar si subió (asumiendo que tienes previous_value en la DB)
-    // Si no tienes el valor anterior aún, lo seteamos por defecto en false
-    const emissionsValue = result.total_co2e || 0;
-    const previousEmissions = result.previous_total_co2e || 0;
-    
-    const spendValue = result.total_spend || 0;
-    const previousSpend = result.previous_total_spend || 0;
+    if (!result) {
+        return null;
+    }
+
+    // Usamos valores por defecto (|| 0) para evitar que GraphQL reciba undefined 
+    // en campos obligatorios (Float/Int).
+    const eVal = result.total_co2e || 0;
+    const ePrev = result.previous_total_co2e || 0;
+    const sVal = result.total_spend || 0;
+    const sPrev = result.previous_total_spend || 0;
 
     return {
-        month: `${result.month_ref}`,
-        year: `${result.year_ref}`,
+        month: "" + (result.month_ref || ""),
+        year: "" + (result.year_ref || ""),
         emissions: {
-            value: emissionsValue,
-            previousValue: previousEmissions,
+            value: eVal,
+            previousValue: ePrev,
             diffPercentage: result.emissions_diff || 0
         },
         spend: {
-            value: spendValue,
-            previousValue: previousSpend,
+            value: sVal,
+            previousValue: sPrev,
             diffPercentage: result.spend_diff || 0
         },
-        // Calculamos los booleanos dinámicamente
-        isEmissionsUp: emissionsValue > previousEmissions,
-        isSpendUp: spendValue > previousSpend
+        isEmissionsUp: eVal > ePrev,
+        isSpendUp: sVal > sPrev
     };
 }
