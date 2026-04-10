@@ -105,7 +105,9 @@ resource "aws_appsync_resolver" "kpi_resolvers" {
   for_each = toset([
     "getYearlyKPI", 
     "getQuarterlyKPI", 
-    "getMonthlyKPI"
+    "getMonthlyKPI",
+    "getYearOverYear"
+    
   ])
 
   api_id      = aws_appsync_graphql_api.api.id
