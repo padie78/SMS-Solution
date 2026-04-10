@@ -80,3 +80,8 @@ variable "bedrock_model_id" {
   type        = string 
   description = "ID del modelo de Amazon Bedrock (ej. anthropic.claude-3-haiku)"
 }
+
+variable "processor_role_arn" {
+  description = "ARN del rol de IAM para la lambda processor"
+  type        = String
+}
