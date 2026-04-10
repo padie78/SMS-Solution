@@ -78,7 +78,7 @@ resource "aws_lambda_function" "processor" {
 
 # --- LAMBDA 3: API_LAMBDA (CRUD / Mutations) ---
 resource "aws_lambda_function" "api_lambda" {
-  function_name = "${var.project_name}-api-lambda-${var.environment}"
+  function_name = "${var.project_name}-api-${var.environment}"
   filename      = data.archive_file.api_lambda_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
@@ -110,7 +110,7 @@ resource "aws_cloudwatch_log_group" "processor_logs" {
 }
 
 resource "aws_cloudwatch_log_group" "api_lambda_logs" {
-  name              = "/aws/lambda/${var.project_name}-api-lambda-${var.environment}"
+  name              = "/aws/lambda/${var.project_name}-api-${var.environment}"
   retention_in_days = 14
 }
 
