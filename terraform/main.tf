@@ -126,22 +126,22 @@ resource "aws_appsync_resolver" "get_quarterly_kpi" {
   }
 }
 
-resource "aws_appsync_resolver" "get_monthly_kpi" {
-  api_id      = module.api.appsync_id
-  data_source = module.api.dynamodb_datasource_name
+# resource "aws_appsync_resolver" "get_monthly_kpi" {
+#   api_id      = module.api.appsync_id
+#   data_source = module.api.dynamodb_datasource_name
   
-  type  = "Query"
-  field = "getMonthlyKPI" # Debe coincidir con tu schema.graphql
-  kind = "UNIT"
+#   type  = "Query"
+#   field = "getMonthlyKPI" # Debe coincidir con tu schema.graphql
+#   kind = "UNIT"
 
-  # Ruta al archivo que creamos anteriormente con la lógica del Quarter automático
-  code = file("${path.module}/resolvers/getMonthlyKPI.js")
+#   # Ruta al archivo que creamos anteriormente con la lógica del Quarter automático
+#   code = file("${path.module}/resolvers/getMonthlyKPI.js")
 
-  runtime {
-    name            = "APPSYNC_JS"
-    runtime_version = "1.0.0"
-  }
-}
+#   runtime {
+#     name            = "APPSYNC_JS"
+#     runtime_version = "1.0.0"
+#   }
+# }
 
 # Ejemplo para activos de sucursal
 # resource "aws_appsync_resolver" "get_branch_assets" {
