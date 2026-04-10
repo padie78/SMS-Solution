@@ -140,6 +140,15 @@ type ServiceIntensity {
   totalContributionPercentage: Float
 }
 
+# Agregado para resolver error de compilación
+type QuarterlyBreakdown {
+  Q1: Float
+  Q2: Float
+  Q3: Float
+  Q4: Float
+  total: Float
+}
+
 # --- OPERACIÓN Y AUDITORÍA ---
 
 type Invoice {
@@ -222,6 +231,14 @@ input CreateAssetInput {
   serviceType: String!
   meterId: String
   ghgScope: Int
+}
+
+# Agregado para resolver error de compilación
+input UpdateAssetInput {
+  name: String
+  status: String
+  serviceType: String
+  meterId: String
 }
 
 input UpdateOrgConfigInput {
