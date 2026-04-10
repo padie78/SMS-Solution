@@ -2,9 +2,9 @@
 # 1. SEGURIDAD E IDENTIDAD (Cimientos)
 # ==============================================================================
 module "iam" {
-  source           = "./modules/iam"
-  project_name     = var.project_name
-  environment      = var.environment
+  source       = "./modules/iam"
+  project_name = var.project_name
+  environment  = var.environment
   dynamo_table_arn = module.database.table_arn
 }
 
@@ -37,9 +37,9 @@ module "database" {
   source             = "./modules/database"
   project_name       = var.project_name
   environment        = var.environment
-  table_name         = local.table_name
-  billing_mode       = var.billing_mode
-  enable_ttl         = var.enable_ttl
+  table_name         = local.table_name 
+  billing_mode       = var.billing_mode 
+  enable_ttl         = var.enable_ttl   
   ttl_attribute_name = var.ttl_attribute_name
 }
 
@@ -50,7 +50,7 @@ module "compute" {
   source       = "./modules/compute"
   project_name = var.project_name
   environment  = var.environment
-
+  
   # Seguridad: Inyectamos el rol generado dinámicamente
   api_lambda_role_arn        = module.iam.api_lambda_role_arn
   invoice_processor_role_arn = module.iam.invoice_processor_role_arn
@@ -64,29 +64,29 @@ module "compute" {
   dynamo_table_arn  = module.database.table_arn
 
   # Configuración de la API de Emisiones y Bedrock
-  emissions_api_key = var.emissions_api_key
-  emissions_api_url = var.emissions_api_url
-  bedrock_model_id  = var.bedrock_model_id
-
+  emissions_api_key   = var.emissions_api_key
+  emissions_api_url   = var.emissions_api_url
+  bedrock_model_id    = var.bedrock_model_id
+  
   # Runtime y Arquitectura
   lambda_architecture = var.lambda_architecture
-}
+} 
 
 # ==============================================================================
 # 4. ORQUESTACIÓN DE DATOS (GraphQL Hub - Reemplazo futuro de API Gateway)
 # ==============================================================================
 # Bloque de Analytics Hub
 module "app_orchestrator" {
-  source       = "./modules/app_orchestrator"
-  project_name = var.project_name
-  environment  = var.environment
-
+  source               = "./modules/app_orchestrator"
+  project_name         = var.project_name
+  environment          = var.environment
+  
   # La Lambda ahora viene del módulo compute
-  api_lambda_arn = module.compute.api_lambda_arn
-
+  api_lambda_arn       = module.compute.api_lambda_arn
+  
   # ESTO ES LO QUE FALTA: Conexión con el módulo database
-  dynamo_table_name = module.database.table_name
-  dynamo_table_arn  = module.database.table_arn
+  dynamo_table_name    = module.database.table_name
+  dynamo_table_arn     = module.database.table_arn
 
   # Autenticación
   cognito_user_pool_id = module.auth.user_pool_id
@@ -101,7 +101,7 @@ module "compute_api" {
   project_name = var.project_name
   environment  = var.environment
 
-  auto_deploy = var.auto_deploy
+  auto_deploy     = var.auto_deploy
 
   # Configuración de CORS para el Frontend
   api_cors_origins = var.cors_origins
@@ -110,66 +110,53 @@ module "compute_api" {
   api_cors_max_age = var.api_cors_max_age
 
   # Seguridad: Rol para el Authorizer/Invocación
-  lambda_role_arn = module.iam.lambda_role_arn
+  lambda_role_arn  = module.iam.lambda_role_arn
 }
 
 # ==============================================================================
 # 6. RUTAS Y CONECTIVIDAD (Capa de Aplicación REST)
 # ==============================================================================
 module "api" {
-  source       = "./modules/api"
-  project_name = var.project_name
-  environment  = var.environment
+  source            = "./modules/api"
+  project_name      = var.project_name
+  environment       = var.environment
 
   # Conexión con Cognito para Auth
   cognito_user_pool_arn = module.auth.user_pool_arn
   cognito_client_id     = module.auth.client_id
   cognito_endpoint      = module.auth.user_pool_endpoint
-
+  
   # Infraestructura API Gateway
   api_id            = module.compute_api.api_id
   api_execution_arn = module.compute_api.api_execution_arn
-
+  
   # Conexión con Lambdas (Signer para S3 y Processor para IA)
   signer_lambda_arn  = module.compute.signer_lambda_arn
   signer_lambda_name = module.compute.signer_lambda_name
 
   # Endpoints configurables
   query_route_path  = var.query_route_path
-  signer_route_path = var.signer_route_path
+  signer_route_path = var.signer_route_path 
 }
 
 resource "aws_appsync_resolver" "get_yearly_kpi" {
-  api_id      = aws_appsync_graphql_api.app_orchestrator.id
+  # MAL: api_id = aws_appsync_graphql_api.sustainability_api.id
+  api_id      = module.app_orchestrator.appsync_id 
+  
+  # MAL: data_source = aws_appsync_datasource.dynamodb_stats.name
+  data_source = module.app_orchestrator.dynamodb_datasource_name
+
   type        = "Query"
   field       = "getYearlyKPI"
   kind        = "UNIT"
-  data_source = aws_appsync_datasource.analytics_lambda_ds.name
-
-  # Usamos <<EOF para el código JavaScript
-  code = <<EOF
-import { util } from '@aws-appsync/utils';
-
-export function request(ctx) {
-  return {
-    operation: 'Invoke',
-    payload: {
-      year: ctx.arguments.year,
-      method: 'getYearlyKPI'
-    },
-  };
-}
-
-export function response(ctx) {
-  return ctx.result;
-}
-EOF
+  code        = file("${path.module}/resolvers/getYearlyKPI.js")
 
   runtime {
     name            = "APPSYNC_JS"
     runtime_version = "1.0.0"
   }
 }
+
 # resource "aws_appsync_resolver" "get_branch_assets" {
 #   api_id      = module.app_orchestrator.appsync_api_id
 #   type        = "Query"
