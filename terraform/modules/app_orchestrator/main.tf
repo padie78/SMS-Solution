@@ -12,7 +12,7 @@ resource "aws_appsync_api_key" "hub_key" {
   expires = timeadd(timestamp(), "8760h") 
 }
 
-# 3. Rol de IAM para AppSync (Acceso a Lambda y DynamoDB)
+# 3. Rol de IAM para AppSync- (Acceso a Lambda y DynamoDB)
 resource "aws_iam_role" "appsync_runtime_role" {
   name = "${var.project_name}-appsync-runtime-role-${var.environment}"
 
