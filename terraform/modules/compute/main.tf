@@ -14,10 +14,10 @@ data "archive_file" "processor_zip" {
   output_path = "${path.module}/zips/processor.zip"
 }
 
-data "archive_file" "analytics_zip" {
+data "archive_file" "api_lambda_zip" {
   type        = "zip"
-  source_dir  = "${path.module}/../../../lambda_code/analytics_lambda"
-  output_path = "${path.module}/zips/analytics.zip"
+  source_dir  = "${path.module}/../../../lambda_code/api_lambda"
+  output_path = "${path.module}/zips/api_lambda.zip"
 }
 
 # ==============================================================================
@@ -71,21 +71,20 @@ resource "aws_lambda_function" "processor" {
   source_code_hash = data.archive_file.processor_zip.output_base64sha256
 }
 
-# --- LAMBDA 3: ANALYTICS (Lectura de métricas para el Dashboard) ---
-resource "aws_lambda_function" "analytics" {
-  # Este nombre coincide exactamente con lo que pide el outputs.tf
-  function_name = "${var.project_name}-analytics-${var.environment}"
-  filename      = data.archive_file.analytics_zip.output_path
+# --- LAMBDA 3: API_LAMBDA (CRUD / Mutations para AppSync) ---
+resource "aws_lambda_function" "api_lambda" {
+  function_name = "${var.project_name}-api-lambda-${var.environment}"
+  filename      = data.archive_file.api_lambda_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
-  role          = var.lambda_role_arn
-  timeout       = 30 
+  role          = var.api_lambda_role_arn
+  timeout       = 10 # CRUD debe ser rápido
   memory_size   = 256
   architectures = [var.lambda_architecture]
 
   logging_config {
     log_format = "JSON"
-    log_group  = aws_cloudwatch_log_group.analytics_logs.name
+    log_group  = aws_cloudwatch_log_group.api_lambda_logs.name
   }
 
   environment {
@@ -94,7 +93,7 @@ resource "aws_lambda_function" "analytics" {
     }
   }
 
-  source_code_hash = data.archive_file.analytics_zip.output_base64sha256
+  source_code_hash = data.archive_file.api_lambda_zip.output_base64sha256
 }
 
 # ==============================================================================
@@ -108,5 +107,10 @@ resource "aws_cloudwatch_log_group" "processor_logs" {
 
 resource "aws_cloudwatch_log_group" "analytics_logs" {
   name              = "/aws/lambda/${var.project_name}-analytics-${var.environment}"
+  retention_in_days = 14
+}
+
+resource "aws_cloudwatch_log_group" "api_lambda_logs" {
+  name              = "/aws/lambda/${var.project_name}-api-lambda-${var.environment}"
   retention_in_days = 14
 }

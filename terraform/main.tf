@@ -51,7 +51,9 @@ module "compute" {
   environment  = var.environment
   
   # Seguridad: Inyectamos el rol generado dinámicamente
-  lambda_role_arn = module.iam.lambda_role_arn
+  api_lambda_role_arn        = module.iam.api_lambda_role_arn
+  invoice_processor_role_arn = module.iam.invoice_processor_role_arn
+  lambda_role_arn            = module.iam.lambda_role_arn
 
   # Infraestructura: Conexión con Storage y Database
   upload_bucket_arn  = module.storage.bucket_arn
@@ -66,8 +68,8 @@ module "compute" {
   bedrock_model_id    = var.bedrock_model_id
   
   # Runtime y Arquitectura
-  lambda_architecture = var.lambda_architecture 
-}
+  lambda_architecture = var.lambda_architecture
+} 
 
 # ==============================================================================
 # 4. ORQUESTACIÓN DE DATOS (GraphQL Hub - Reemplazo futuro de API Gateway)
@@ -129,17 +131,33 @@ module "api" {
   signer_route_path = var.signer_route_path 
 }
 
-# ==============================================================================
-# 7. ANALÍTICA Y OBSERVABILIDAD (Capa de BI)
-# ==============================================================================
-# module "analytics" {
-#   source             = "./modules/analytics"
-#   project_name       = var.project_name
-#   environment        = var.environment
+resource "aws_appsync_resolver" "get_yearly_kpi" {
+  api_id      = aws_appsync_graphql_api.sustainability_api.id
+  type        = "Query"
+  field       = "getYearlyKPI"
+  kind        = "UNIT"
+  data_source = aws_appsync_datasource.dynamodb_stats.name
 
-#   vpc_id             = var.vpc_id 
-#   allowed_ip_network = var.allowed_ip_network
-#   dynamodb_table_arn = module.database.table_arn
-#   ami_id             = var.ami_id
-#   key_name           = var.key_name 
+  # Aquí cargamos el código JS externo
+  code = file("${path.module}/resolvers/getYearlyKPI.js")
+
+  runtime {
+    name            = "APPSYNC_JS"
+    runtime_version = "1.0.0"
+  }
+}
+
+# resource "aws_appsync_resolver" "get_branch_assets" {
+#   api_id      = module.app_orchestrator.appsync_api_id
+#   type        = "Query"
+#   field       = "getBranchAssets"
+#   kind        = "UNIT"
+#   data_source = module.app_orchestrator.ds_dynamodb_name
+
+#   code = file("${path.module}/resolvers/getBranchAssets.js")
+
+#   runtime {
+#     name            = "APPSYNC_JS"
+#     runtime_version = "1.0.0"
+#   }
 # }
