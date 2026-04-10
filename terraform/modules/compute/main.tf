@@ -2,21 +2,22 @@
 # 1. EMPAQUETADO DE CÓDIGO (ZIPs)
 # ==============================================================================
 
+# Ajustamos la ruta a ../../ para subir desde el módulo a la raíz del proyecto
 data "archive_file" "signer_zip" {
   type        = "zip"
-  source_dir  = "${path.module}/../../../lambda_code/signer_lambda"
+  source_dir  = "${path.module}/../../lambda_code/signer_lambda"
   output_path = "${path.module}/zips/signer.zip"
 }
 
 data "archive_file" "processor_zip" {
   type        = "zip"
-  source_dir  = "${path.module}/../../../lambda_code/processor_lambda"
+  source_dir  = "${path.module}/../../lambda_code/processor_lambda"
   output_path = "${path.module}/zips/processor.zip"
 }
 
 data "archive_file" "api_lambda_zip" {
   type        = "zip"
-  source_dir  = "${path.module}/../../../lambda_code/api_lambda"
+  source_dir  = "${path.module}/../../lambda_code/api_lambda"
   output_path = "${path.module}/zips/api_lambda.zip"
 }
 
@@ -24,13 +25,13 @@ data "archive_file" "api_lambda_zip" {
 # 2. CONFIGURACIÓN DE LAMBDAS
 # ==============================================================================
 
-# --- LAMBDA 1: SIGNER (Genera URL Firmadas para S3) ---
+# --- LAMBDA 1: SIGNER (Genera URL Firmadas) ---
 resource "aws_lambda_function" "signer" {
   function_name = "${var.project_name}-signer-${var.environment}"
   filename      = data.archive_file.signer_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
-  role          = var.lambda_role_arn
+  role          = var.lambda_role_arn # Usa el rol genérico
   architectures = [var.lambda_architecture]
 
   environment {
@@ -38,17 +39,16 @@ resource "aws_lambda_function" "signer" {
       UPLOAD_BUCKET = var.upload_bucket_name
     }
   }
-
   source_code_hash = data.archive_file.signer_zip.output_base64sha256
 }
 
-# --- LAMBDA 2: PROCESSOR (IA, OCR y Escritura en DynamoDB) ---
+# --- LAMBDA 2: PROCESSOR (IA, OCR y Escritura) ---
 resource "aws_lambda_function" "processor" {
   function_name = "${var.project_name}-processor-${var.environment}"
   filename      = data.archive_file.processor_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
-  role          = var.lambda_role_arn
+  role          = var.invoice_processor_role_arn # <--- ROL ESPECIALIZADO
   timeout       = 60 
   memory_size   = 512 
   architectures = [var.lambda_architecture]
@@ -67,18 +67,17 @@ resource "aws_lambda_function" "processor" {
       AWS_NODEJS_CONNECTION_REUSE_ENABLED = "1"
     }
   }
-
   source_code_hash = data.archive_file.processor_zip.output_base64sha256
 }
 
-# --- LAMBDA 3: API_LAMBDA (CRUD / Mutations para AppSync) ---
+# --- LAMBDA 3: API_LAMBDA (CRUD / Mutations) ---
 resource "aws_lambda_function" "api_lambda" {
   function_name = "${var.project_name}-api-lambda-${var.environment}"
   filename      = data.archive_file.api_lambda_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
-  role          = var.api_lambda_role_arn
-  timeout       = 10 # CRUD debe ser rápido
+  role          = var.api_lambda_role_arn # <--- ROL ESPECIALIZADO
+  timeout       = 10 
   memory_size   = 256
   architectures = [var.lambda_architecture]
 
@@ -92,12 +91,11 @@ resource "aws_lambda_function" "api_lambda" {
       DYNAMO_TABLE = var.dynamo_table_name
     }
   }
-
   source_code_hash = data.archive_file.api_lambda_zip.output_base64sha256
 }
 
 # ==============================================================================
-# 3. OBSERVABILIDAD (CloudWatch Log Groups)
+# 3. OBSERVABILIDAD
 # ==============================================================================
 
 resource "aws_cloudwatch_log_group" "processor_logs" {
@@ -105,12 +103,9 @@ resource "aws_cloudwatch_log_group" "processor_logs" {
   retention_in_days = 14
 }
 
-resource "aws_cloudwatch_log_group" "analytics_logs" {
-  name              = "/aws/lambda/${var.project_name}-analytics-${var.environment}"
-  retention_in_days = 14
-}
-
 resource "aws_cloudwatch_log_group" "api_lambda_logs" {
   name              = "/aws/lambda/${var.project_name}-api-lambda-${var.environment}"
   retention_in_days = 14
 }
+
+# Eliminamos el log group de analytics ya que la lambda no existe
