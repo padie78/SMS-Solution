@@ -55,7 +55,7 @@ module "compute" {
   api_lambda_role_arn        = module.iam.api_lambda_role_arn
   invoice_processor_role_arn = module.iam.invoice_processor_role_arn
   lambda_role_arn            = module.iam.lambda_role_arn
-  processor_role_arn = aws_iam_role.invoice_processor_role.arn
+  processor_role_arn = module.iam.invoice_processor_role_arn
 
   # Infraestructura: Conexión con Storage y Database
   upload_bucket_arn  = module.storage.bucket_arn
