@@ -101,6 +101,28 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
   data_source = aws_appsync_datasource.api_lambda_ds.name
 }
 
+resource "aws_appsync_resolver" "kpi_resolvers" {
+  for_each = toset([
+    "getYearlyKPI", 
+    "getQuarterlyKPI", 
+    "getMonthlyKPI"
+  ])
+
+  api_id      = aws_appsync_graphql_api.api.id
+  type        = "Query"
+  field       = each.key
+  data_source = aws_appsync_datasource.dynamodb_ds.name # Tu DS de Dynamo
+  kind        = "UNIT"
+
+  # Asumiendo que guardas los .js dentro de la carpeta del módulo
+  code = file("${path.module}/resolvers/${each.key}.js")
+
+  runtime {
+    name            = "APPSYNC_JS"
+    runtime_version = "1.0.0"
+  }
+}
+
 resource "aws_appsync_resolver" "get_url_resolver" {
   api_id      = aws_appsync_graphql_api.api.id
   type        = "Mutation"
