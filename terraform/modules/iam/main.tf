@@ -62,11 +62,23 @@ resource "aws_iam_policy" "api_dynamo_permissions" {
   name   = "${var.project_name}-api-dynamo-policy-${var.environment}"
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:DeleteItem"]
-      Resource = [var.dynamo_table_arn, "${var.dynamo_table_arn}/index/*"]
-    }]
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "dynamodb:PutItem", 
+          "dynamodb:GetItem", 
+          "dynamodb:UpdateItem", 
+          "dynamodb:Query", 
+          "dynamodb:DeleteItem"
+        ]
+        # Usamos format para asegurar que la estructura sea limpia
+        Resource = [
+          var.dynamo_table_arn,
+          format("%s/index/*", var.dynamo_table_arn)
+        ]
+      }
+    ]
   })
 }
 
