@@ -265,7 +265,7 @@ type Query {
   getAssetDetail(assetId: ID!, year: String!): Asset
 
 
-  # Analytics
+  # Analytics3
   getYearlyKPI(year: String!): YearlyKPI
   getQuarterlyKPI(year: String!, quarter: String!): YearlyKPI
   getMonthlyKPI(year: String!, month: String!): YearlyKPI
