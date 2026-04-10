@@ -42,38 +42,40 @@ export function request(ctx) {
 export function response(ctx) {
     const items = ctx.result.data["SustainabilityManagementSystem"] || [];
     
-    // Convertimos a número para comparar con year_ref que es 'N' en Dynamo
+    // Coerción a número para comparar con year_ref (que es numérico en DB)
     const cYear = ctx.arguments.year * 1;
     const pYear = cYear - 1;
 
     let currentData = {};
     let previousData = {};
 
-    // Reemplazamos el .find() por un bucle tradicional para evitar el ReferenceError
-    for (const item of items) {
+    // Usamos el bucle for más básico posible. 
+    // Esto evita cualquier ReferenceError con iteradores de ES6.
+    for (let i = 0; i < items.length; i++) {
+        const item = items[i];
         if (item.year_ref === cYear) {
             currentData = item;
-        }
-        if (item.year_ref === pYear) {
+        } else if (item.year_ref === pYear) {
             previousData = item;
         }
     }
 
-    // Valores base extraídos de los registros encontrados
+    // Extraemos valores con fallback a 0
     const cEmissions = currentData.total_co2e || 0;
     const pEmissions = previousData.total_co2e || 0;
     const cSpend = currentData.total_spend || 0;
     const pSpend = previousData.total_spend || 0;
 
-    // Función de cálculo de diferencia
+    // Cálculo de diferencias
     const getDiff = (curr, prev) => {
-        if (prev === 0) return 0;
+        if (!prev || prev === 0) return 0;
         return ((curr - prev) / prev) * 100;
     };
 
     const diffEmissions = getDiff(cEmissions, pEmissions);
+    const diffSpend = getDiff(cSpend, pSpend);
 
-    // Retorno final según tu Schema
+    // Retorno final exacto a tu Schema
     return {
         month: ctx.arguments.month,
         currentYear: {
@@ -85,7 +87,7 @@ export function response(ctx) {
             spend: pSpend
         },
         diffPercentageEmissions: diffEmissions,
-        diffPercentageSpend: getDiff(cSpend, pSpend),
+        diffPercentageSpend: diffSpend,
         efficiencyImprovement: diffEmissions < 0
     };
 }
