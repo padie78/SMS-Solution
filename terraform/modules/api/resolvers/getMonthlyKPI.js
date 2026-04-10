@@ -1,16 +1,26 @@
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    const { year } = ctx.arguments;
-    // Asumimos que el orgId viene de las claims del token (Cognito) 
-    // o puedes usar el que pasaste de prueba
+    // Usamos la misma desestructuración que te funcionó en Año
+    const { year, month } = ctx.arguments;
     const orgId = ctx.identity?.claims?.['custom:organization_id'] || "f3d4f8a2-90c1-708c-a446-2c8592524d62";
+
+    // Reemplazamos Math.ceil y lógica compleja por algo más directo
+    // que AppSync valide sin problemas:
+    const m = parseInt(month, 10);
+    let q = 1;
+    if (m > 3) q = 2;
+    if (m > 6) q = 3;
+    if (m > 9) q = 4;
+
+    // Formateo de mes con padding manual simple
+    const mm = m < 10 ? `0${m}` : `${m}`;
 
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({
             PK: `ORG#${orgId}`,
-            SK: `STATS#YEAR#${year}#TOTAL`
+            SK: `STATS#YEAR#${year}#QUARTER#${q}#MONTH#${mm}`
         }),
     };
 }
@@ -26,15 +36,13 @@ export function response(ctx) {
         return null;
     }
 
-    // Mapeo manual de snake_case (DB) a camelCase (GraphQL)
-    // El runtime de AppSync ya maneja la conversión de tipos de DynamoDB
     return {
         totalCo2e: result.total_co2e,
         totalSpend: result.total_spend,
         invoiceCount: result.invoice_count,
-        lastFile: "Ver historial", // Campo estático o mapeado
+        lastFile: "Ver historial",
         byService: {
-            ELEC: result.total_co2e, // Ajustar según disponibilidad en DB
+            ELEC: result.total_co2e,
             GAS: 0
         }
     };
