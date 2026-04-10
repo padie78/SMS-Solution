@@ -140,7 +140,6 @@ type ServiceIntensity {
   totalContributionPercentage: Float
 }
 
-# Agregado para resolver error de compilación
 type QuarterlyBreakdown {
   Q1: Float
   Q2: Float
@@ -233,7 +232,6 @@ input CreateAssetInput {
   ghgScope: Int
 }
 
-# Agregado para resolver error de compilación
 input UpdateAssetInput {
   name: String
   status: String
@@ -290,6 +288,7 @@ type Mutation {
 
   createAsset(orgId: ID!, branchId: ID!, input: CreateAssetInput!): Asset
   updateAsset(orgId: ID!, assetId: ID!, input: UpdateAssetInput!): Asset
+  deleteAsset(orgId: ID!, assetId: ID!): Boolean
   
   # Settings
   updateOrgConfig(orgId: ID!, input: UpdateOrgConfigInput!): Organization
