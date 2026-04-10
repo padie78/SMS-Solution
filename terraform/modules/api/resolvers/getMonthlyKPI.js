@@ -1,54 +1,41 @@
 import { util } from '@aws-appsync/utils';
 
 export function request(ctx) {
-    const { year, month } = ctx.arguments;
+    const { year } = ctx.arguments;
+    // Asumimos que el orgId viene de las claims del token (Cognito) 
+    // o puedes usar el que pasaste de prueba
     const orgId = ctx.identity?.claims?.['custom:organization_id'] || "f3d4f8a2-90c1-708c-a446-2c8592524d62";
-    
-    // Convertimos a número para asegurar el cálculo
-    const mNum = parseInt(month, 10);
-    const q = Math.ceil(mNum / 3);
-    
-    // AppSync JS a veces falla con padStart en el despliegue inicial. 
-    // Usamos una lógica más básica y segura:
-    const mm = mNum < 10 ? "0" + mNum : "" + mNum;
 
     return {
         operation: 'GetItem',
         key: util.dynamodb.toMapValues({
-            PK: "ORG#" + orgId,
-            SK: "STATS#YEAR#" + year + "#QUARTER#" + q + "#MONTH#" + mm
+            PK: `ORG#${orgId}`,
+            SK: `STATS#YEAR#${year}#TOTAL`
         }),
     };
 }
 
 export function response(ctx) {
-    const { result } = ctx;
+    const { result, error } = ctx;
+
+    if (error) {
+        util.error(error.message, error.type);
+    }
 
     if (!result) {
         return null;
     }
 
-    // Usamos valores por defecto (|| 0) para evitar que GraphQL reciba undefined 
-    // en campos obligatorios (Float/Int).
-    const eVal = result.total_co2e || 0;
-    const ePrev = result.previous_total_co2e || 0;
-    const sVal = result.total_spend || 0;
-    const sPrev = result.previous_total_spend || 0;
-
+    // Mapeo manual de snake_case (DB) a camelCase (GraphQL)
+    // El runtime de AppSync ya maneja la conversión de tipos de DynamoDB
     return {
-        month: "" + (result.month_ref || ""),
-        year: "" + (result.year_ref || ""),
-        emissions: {
-            value: eVal,
-            previousValue: ePrev,
-            diffPercentage: result.emissions_diff || 0
-        },
-        spend: {
-            value: sVal,
-            previousValue: sPrev,
-            diffPercentage: result.spend_diff || 0
-        },
-        isEmissionsUp: eVal > ePrev,
-        isSpendUp: sVal > sPrev
+        totalCo2e: result.total_co2e,
+        totalSpend: result.total_spend,
+        invoiceCount: result.invoice_count,
+        lastFile: "Ver historial", // Campo estático o mapeado
+        byService: {
+            ELEC: result.total_co2e, // Ajustar según disponibilidad en DB
+            GAS: 0
+        }
     };
 }
