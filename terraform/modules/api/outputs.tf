@@ -30,6 +30,11 @@ output "appsync_arn" {
   value       = aws_appsync_graphql_api.api.arn
 }
 
+output "appsync_url" {
+  description = "La URL del endpoint de AppSync"
+  value       = aws_appsync_graphql_api.api.uris["GRAPHQL"]
+}
+
 # ==============================================================================
 # 3. DATA SOURCES (Nombres exactos para tus Resolvers)
 # ==============================================================================
