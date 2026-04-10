@@ -3,21 +3,26 @@
 # ==============================================================================
 
 # Ajustamos la ruta a ../../ para subir desde el módulo a la raíz del proyecto
+# ==============================================================================
+# 1. EMPAQUETADO DE CÓDIGO (ZIPs)
+# ==============================================================================
+
 data "archive_file" "signer_zip" {
   type        = "zip"
-  source_dir  = "${path.module}/../../lambda_code/signer_lambda"
+  # path.root apunta a la raíz donde ejecutas terraform plan
+  source_dir  = "${path.root}/../lambda_code/signer_lambda"
   output_path = "${path.module}/zips/signer.zip"
 }
 
 data "archive_file" "processor_zip" {
   type        = "zip"
-  source_dir  = "${path.module}/../../lambda_code/processor_lambda"
+  source_dir  = "${path.root}/../lambda_code/processor_lambda"
   output_path = "${path.module}/zips/processor.zip"
 }
 
 data "archive_file" "api_lambda_zip" {
   type        = "zip"
-  source_dir  = "${path.module}/../../lambda_code/api_lambda"
+  source_dir  = "${path.root}/../lambda_code/api_lambda"
   output_path = "${path.module}/zips/api_lambda.zip"
 }
 
