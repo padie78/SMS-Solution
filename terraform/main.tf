@@ -139,14 +139,16 @@ module "api" {
 }
 
 resource "aws_appsync_resolver" "get_yearly_kpi" {
-  api_id      = aws_appsync_graphql_api.sustainability_api.id
+  # MAL: api_id = aws_appsync_graphql_api.sustainability_api.id
+  api_id      = module.app_orchestrator.appsync_id 
+  
+  # MAL: data_source = aws_appsync_datasource.dynamodb_stats.name
+  data_source = module.app_orchestrator.dynamodb_datasource_name
+
   type        = "Query"
   field       = "getYearlyKPI"
   kind        = "UNIT"
-  data_source = aws_appsync_datasource.dynamodb_stats.name
-
-  # Aquí cargamos el código JS externo
-  code = file("${path.module}/resolvers/getYearlyKPI.js")
+  code        = file("${path.module}/resolvers/getYearlyKPI.js")
 
   runtime {
     name            = "APPSYNC_JS"
