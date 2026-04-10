@@ -115,6 +115,7 @@ resource "aws_appsync_resolver" "get_quarterly_kpi" {
   
   type  = "Query"            # El tipo en el schema
   field = "getQuarterlyKPI"  # El nombre exacto del query en el schema
+  kind = "UNIT"
 
   # Aquí es donde se hace el "Attach" automático al archivo
   code = file("${path.module}/resolvers/getQuarterlyKPI.js")
@@ -131,6 +132,7 @@ resource "aws_appsync_resolver" "get_monthly_kpi" {
   
   type  = "Query"
   field = "getMonthlyKPI" # Debe coincidir con tu schema.graphql
+  kind = "UNIT"
 
   # Ruta al archivo que creamos anteriormente con la lógica del Quarter automático
   code = file("${path.module}/resolvers/getMonthlyKPI.js")
