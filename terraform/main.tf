@@ -76,13 +76,20 @@ module "compute" {
 # ==============================================================================
 # Bloque de Analytics Hub
 module "app_orchestrator" {
-  source                = "./modules/app_orchestrator"
-  project_name          = var.project_name
-  environment           = var.environment
-  analytics_lambda_arn  = module.compute.analytics_lambda_arn 
-  analytics_lambda_name = module.compute.analytics_lambda_name
-  cognito_user_pool_id  = module.auth.user_pool_id
-  cognito_region        = var.aws_region
+  source               = "./modules/app_orchestrator"
+  project_name         = var.project_name
+  environment          = var.environment
+  
+  # La Lambda ahora viene del módulo compute
+  api_lambda_arn       = module.compute.api_lambda_arn
+  
+  # ESTO ES LO QUE FALTA: Conexión con el módulo database
+  dynamo_table_name    = module.database.table_name
+  dynamo_table_arn     = module.database.table_arn
+
+  # Autenticación
+  cognito_user_pool_id = module.auth.user_pool_id
+  cognito_region       = var.aws_region
 }
 
 # ==============================================================================

@@ -1,97 +1,100 @@
 # 1. API GraphQL (AppSync)
 resource "aws_appsync_graphql_api" "app_orchestrator" {
-  name                = "${var.project_name}-analytics-hub-${var.environment}"
-  authentication_type = "API_KEY" # Cambiar a AMAZON_COGNITO_USER_POOLS para producción
+  name                = "${var.project_name}-hub-${var.environment}"
+  authentication_type = "API_KEY" 
   schema              = file("${path.module}/schema.graphql")
-
-  xray_enabled = true
-
-  tags = {
-    Name        = "${var.project_name}-analytics-hub"
-    Environment = var.environment
-  }
+  xray_enabled        = true
 }
 
-# 2. Key de la API (Para pruebas iniciales)
+# 2. Key de la API
 resource "aws_appsync_api_key" "hub_key" {
   api_id  = aws_appsync_graphql_api.app_orchestrator.id
-  expires = timeadd(timestamp(), "8760h") # Expira en 1 año
+  expires = timeadd(timestamp(), "8760h") 
 }
 
-# 3. Rol de IAM para que AppSync invoque la Lambda
+# 3. Rol de IAM para AppSync (Acceso a Lambda y DynamoDB)
 resource "aws_iam_role" "appsync_runtime_role" {
-  name = "${var.project_name}-appsync-lambda-role-${var.environment}"
+  name = "${var.project_name}-appsync-runtime-role-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Action = "sts:AssumeRole"
       Effect = "Allow"
-      Principal = {
-        Service = "appsync.amazonaws.com"
-      }
+      Principal = { Service = "appsync.amazonaws.com" }
     }]
   })
 }
 
-# 4. Política para permitir la invocación de la Lambda específica
-resource "aws_iam_role_policy" "appsync_lambda_invoke" {
-  name = "AppSyncInvokeAnalyticsLambda"
-  role = aws_iam_role.appsync_runtime_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Action   = "lambda:InvokeFunction"
-      Effect   = "Allow"
-      Resource = var.analytics_lambda_arn
-    }]
-  })
-}
-
-# 5. DataSource: Conexión con la Lambda de Analytics
-resource "aws_appsync_datasource" "analytics_lambda_ds" {
+# 4. DATA SOURCE 1: Conexión con la Lambda de CRUD (api_lambda)
+# Reemplaza al antiguo AnalyticsLambdaDS
+resource "aws_appsync_datasource" "api_lambda_ds" {
   api_id           = aws_appsync_graphql_api.app_orchestrator.id
-  name             = "AnalyticsLambdaDS"
+  name             = "APILambdaDS"
   type             = "AWS_LAMBDA"
   service_role_arn = aws_iam_role.appsync_runtime_role.arn
 
   lambda_config {
-    function_arn = var.analytics_lambda_arn
+    function_arn = var.api_lambda_arn
   }
 }
 
-# 6. Resolvers dinámicos para todas las Queries del SMS
-resource "aws_appsync_resolver" "analytics_resolvers" {
+# 5. DATA SOURCE 2: Conexión Directa a DynamoDB
+# Este es el que usarán tus Resolvers JS de Analytics
+resource "aws_appsync_datasource" "dynamodb_ds" {
+  api_id           = aws_appsync_graphql_api.app_orchestrator.id
+  name             = "DynamoDBDS"
+  type             = "AMAZON_DYNAMODB"
+  service_role_arn = aws_iam_role.appsync_runtime_role.arn
+
+  dynamodb_config {
+    table_name = var.dynamo_table_name
+  }
+}
+
+# 6. RESOLVERS PARA MUTATIONS (Vía Lambda)
+# Aquí pones lo que requiere lógica de negocio (escritura)
+resource "aws_appsync_resolver" "mutation_resolvers" {
   for_each = toset([
-    "getYearlyKPI",
-    "getMonthlyKPI",
-    "getEvolution",
-    "getIntensity",
-    "getForecast",
-    "getAuditReport",
-    "searchInvoices"
+    "createBranch",
+    "createAsset",
+    "updateBranch",
+    "deleteAsset"
   ])
 
   api_id      = aws_appsync_graphql_api.app_orchestrator.id
-  type        = "Query"
+  type        = "Mutation"
   field       = each.key
-  data_source = aws_appsync_datasource.analytics_lambda_ds.name
-
-  # Template optimizado para pasar todo el contexto (incluyendo identity y info)
-  request_template = <<EOF
-{
-    "version": "2017-02-28",
-    "operation": "Invoke",
-    "payload": {
-        "arguments": $util.toJson($context.arguments),
-        "identity": $util.toJson($context.identity),
-        "info": {
-            "fieldName": "$context.info.fieldName"
-        }
-    }
+  data_source = aws_appsync_datasource.api_lambda_ds.name
 }
-EOF
 
-  response_template = "$util.toJson($context.result)"
+# 7. POLÍTICA DE ACCESO: Permisos para que AppSync lea Dynamo y llame a la Lambda
+resource "aws_iam_role_policy" "appsync_access_policy" {
+  name = "AppSyncAccessPolicy"
+  role = aws_iam_role.appsync_runtime_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = ["lambda:InvokeFunction"]
+        Effect   = "Allow"
+        Resource = var.api_lambda_arn
+      },
+      {
+        Action   = [
+          "dynamodb:GetItem",
+          "dynamodb:PutItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:Query",
+          "dynamodb:BatchGetItem"
+        ]
+        Effect   = "Allow"
+        Resource = [
+          var.dynamo_table_arn,
+          "${var.dynamo_table_arn}/index/*"
+        ]
+      }
+    ]
+  })
 }

@@ -1,22 +1,46 @@
-variable "project_name" { type = string }
-variable "environment"  { type = string }
+# ==============================================================================
+# 1. IDENTIFICACIÓN Y ENTORNO
+# ==============================================================================
+variable "project_name" { 
+  type        = string 
+  description = "Nombre base del proyecto"
+}
 
-variable "analytics_lambda_arn" {
-  description = "ARN de la lambda de analytics"
+variable "environment" { 
+  type        = string 
+  description = "Entorno de despliegue (dev, staging, prod)"
+}
+
+# ==============================================================================
+# 2. CONEXIÓN CON COMPUTE (CRUD / Mutations)
+# ==============================================================================
+variable "api_lambda_arn" {
+  description = "ARN de la Lambda de API/CRUD que procesará las Mutations"
   type        = string
 }
 
-variable "analytics_lambda_name" {
-  description = "Nombre de la lambda de analytics"
+# ==============================================================================
+# 3. CONEXIÓN CON DATA (Lectura Directa / Analytics)
+# ==============================================================================
+variable "dynamo_table_name" {
+  description = "Nombre de la tabla DynamoDB para el Data Source nativo"
   type        = string
 }
 
+variable "dynamo_table_arn" {
+  description = "ARN de la tabla DynamoDB para los permisos de IAM de AppSync"
+  type        = string
+}
+
+# ==============================================================================
+# 4. AUTENTICACIÓN Y REGIÓN
+# ==============================================================================
 variable "cognito_user_pool_id" {
-  description = "ID del user pool para AppSync"
+  description = "ID del User Pool de Cognito para la seguridad de AppSync"
   type        = string
 }
 
 variable "cognito_region" {
-  description = "Region de AWS"
+  description = "Región de AWS donde reside el User Pool"
   type        = string
 }
