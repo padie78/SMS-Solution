@@ -54,7 +54,7 @@ resource "aws_lambda_function" "processor" {
   filename      = data.archive_file.processor_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
-  role          = aws_iam_role.invoice_processor_role.arn
+  role = var.processor_role_arn  # <--- Usamos una variable, no el recurso directo
   timeout       = 60 
   memory_size   = 512 
   architectures = [var.lambda_architecture]
