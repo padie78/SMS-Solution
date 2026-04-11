@@ -2,14 +2,8 @@
 # 1. EMPAQUETADO DE CÓDIGO (ZIPs)
 # ==============================================================================
 
-# Ajustamos la ruta a ../../ para subir desde el módulo a la raíz del proyecto
-# ==============================================================================
-# 1. EMPAQUETADO DE CÓDIGO (ZIPs)
-# ==============================================================================
-
 data "archive_file" "signer_zip" {
   type        = "zip"
-  # path.root apunta a la raíz donde ejecutas terraform plan
   source_dir  = "${path.root}/../lambda_code/signer_lambda"
   output_path = "${path.module}/zips/signer.zip"
 }
@@ -26,6 +20,12 @@ data "archive_file" "api_lambda_zip" {
   output_path = "${path.module}/zips/api_lambda.zip"
 }
 
+# Nuevo empaquetado para la lógica de analíticas (YoY, KPIs, etc.)
+data "archive_file" "analytics_zip" {
+  type        = "zip"
+  source_dir  = "${path.root}/../lambda_code/analytics_lambda"
+  output_path = "${path.module}/zips/analytics.zip"
+}
 
 # ==============================================================================
 # 2. CONFIGURACIÓN DE LAMBDAS
@@ -37,7 +37,7 @@ resource "aws_lambda_function" "signer" {
   filename      = data.archive_file.signer_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
-  role          = var.lambda_role_arn # Usa el rol genérico
+  role          = var.lambda_role_arn 
   architectures = [var.lambda_architecture]
 
   environment {
@@ -54,7 +54,7 @@ resource "aws_lambda_function" "processor" {
   filename      = data.archive_file.processor_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
-  role = var.processor_role_arn  # <--- Usamos una variable, no el recurso directo
+  role          = var.processor_role_arn 
   timeout       = 60 
   memory_size   = 512 
   architectures = [var.lambda_architecture]
@@ -82,7 +82,7 @@ resource "aws_lambda_function" "api_lambda" {
   filename      = data.archive_file.api_lambda_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
-  role          = var.api_lambda_role_arn # <--- ROL ESPECIALIZADO
+  role          = var.api_lambda_role_arn 
   timeout       = 10 
   memory_size   = 256
   architectures = [var.lambda_architecture]
@@ -100,6 +100,30 @@ resource "aws_lambda_function" "api_lambda" {
   source_code_hash = data.archive_file.api_lambda_zip.output_base64sha256
 }
 
+# --- LAMBDA 4: ANALYTICS (Consultas complejas de sostenibilidad) ---
+resource "aws_lambda_function" "analytics" {
+  function_name = "${var.project_name}-analytics-${var.environment}"
+  filename      = data.archive_file.analytics_zip.output_path
+  handler       = "src/index.handler"
+  runtime       = "nodejs20.x"
+  role          = var.api_lambda_role_arn # Reutilizamos el rol con permisos de Dynamo
+  timeout       = 20
+  memory_size   = 512
+  architectures = [var.lambda_architecture]
+
+  logging_config {
+    log_format = "JSON"
+    log_group  = aws_cloudwatch_log_group.analytics_logs.name
+  }
+
+  environment {
+    variables = {
+      DYNAMO_TABLE = var.dynamo_table_name
+    }
+  }
+  source_code_hash = data.archive_file.analytics_zip.output_base64sha256
+}
+
 # ==============================================================================
 # 3. OBSERVABILIDAD
 # ==============================================================================
@@ -111,5 +135,10 @@ resource "aws_cloudwatch_log_group" "processor_logs" {
 
 resource "aws_cloudwatch_log_group" "api_lambda_logs" {
   name              = "/aws/lambda/${var.project_name}-api-${var.environment}"
+  retention_in_days = 14
+}
+
+resource "aws_cloudwatch_log_group" "analytics_logs" {
+  name              = "/aws/lambda/${var.project_name}-analytics-${var.environment}"
   retention_in_days = 14
 }
