@@ -1,4 +1,4 @@
-import { TABLE_NAME } from "../database/client.js";
+import { TABLE_NAME } from "./client.js";
 
 export const buildStatsOps = (PK, timeData, metrics, isoNow) => {
     const { year, quarter, month, week, day } = timeData;
