@@ -119,5 +119,3 @@ type Mutation {
   # Acciones de auditoría
   approveInvoice(invoiceId: ID!): Invoice
 }
-
-scalar JSON
