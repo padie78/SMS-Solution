@@ -1,7 +1,7 @@
 import { TABLE_NAME } from "./client.js";
 
 export const buildStatsOps = (PK, timeData, metrics, isoNow) => {
-    const { year, quarter, month, week, day } = timeData; // day aquí ya viene como YYYY-MM-DD del pipeline
+    const { year, quarter, month, week, day } = timeData;
     const { nCo2e, nSpend, vCons, uCons, svc } = metrics;
 
     const m = `M${month.toString().padStart(2, '0')}`;
@@ -13,7 +13,7 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow) => {
         { sk: `STATS#YEAR#${year}#${q}`, type: 'QUARTERLY' },
         { sk: `STATS#YEAR#${year}#${m}`, type: 'MONTHLY' },
         { sk: `STATS#WEEK#${year}#${w}`, type: 'WEEKLY' },
-        { sk: `STATS#DAY#${day}`, type: 'DAILY' } // SK corregido para evitar colisiones mensuales
+        { sk: `STATS#DAY#${day}`, type: 'DAILY' }
     ];
 
     return targets.map(({ sk, type }) => {
@@ -38,30 +38,31 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow) => {
             ":emptyMap": {}
         };
 
-        // 1. Cláusulas BASE: Mapas que deben estar SIEMPRE para consistencia total
+        // --- SOLUCIÓN: Agregamos los mapas al SET inicial para que salgan SIEMPRE ---
         let setClauses = [
-            "entity_type = :type",
-            "last_updated = :now",
-            "#svc_u = :uCons",
-            "normalization_kpis = if_not_exists(normalization_kpis, :emptyMap)",
-            "environmental_impact = if_not_exists(environmental_impact, :emptyMap)",
-            "weather_adjustment = if_not_exists(weather_adjustment, :emptyMap)"
+            `entity_type = :type`,
+            `last_updated = :now`,
+            `#svc_u = :uCons`,
+            `normalization_kpis = if_not_exists(normalization_kpis, :emptyMap)`,
+            `weather_adjustment = if_not_exists(weather_adjustment, :emptyMap)`,
+            `environmental_impact = if_not_exists(environmental_impact, :emptyMap)`
         ];
 
-        // 2. Cláusulas ESPECÍFICAS por nivel
+        // Solo metadatos fiscales para niveles altos
         if (isHighLevel) {
-            setClauses.push("metadata = if_not_exists(metadata, :defaultMeta)");
+            setClauses.push(`metadata = if_not_exists(metadata, :defaultMeta)`);
             attrValues[":defaultMeta"] = { version: "1.0", is_fiscal_closed: false };
         }
 
+        // Mapas operativos específicos
         if (type === 'WEEKLY') {
-            setClauses.push("performance_kpis = if_not_exists(performance_kpis, :emptyMap)");
+            setClauses.push(`performance_kpis = if_not_exists(performance_kpis, :emptyMap)`);
         }
 
         if (type === 'DAILY') {
-            setClauses.push("engineering_kpis = if_not_exists(engineering_kpis, :emptyMap)");
-            setClauses.push("asset_health = if_not_exists(asset_health, :emptyMap)");
-            setClauses.push("distribution_map = if_not_exists(distribution_map, :emptyMap)");
+            setClauses.push(`engineering_kpis = if_not_exists(engineering_kpis, :emptyMap)`);
+            setClauses.push(`asset_health = if_not_exists(asset_health, :emptyMap)`);
+            setClauses.push(`distribution_map = if_not_exists(distribution_map, :emptyMap)`);
         }
 
         return {
