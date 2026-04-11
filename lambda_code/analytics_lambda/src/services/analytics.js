@@ -21,36 +21,34 @@ export const analyticsService = {
         return formatKPIData(stats);
     },
 
-    getMonthlyKPI: async (orgId, year, month) => {
+  getMonthlyKPI: async (orgId, year, month) => {
         const mStr = month.toString().padStart(2, '0');
-        // Asumiendo que guardas los meses como: STATS#MONTH#2026#04
-        const sk = `STATS#MONTH#${year}#${mStr}`;
+        const monthInt = parseInt(mStr);
+        
+        // Calculamos el Quarter (Q1: 1-3, Q2: 4-6, Q3: 7-9, Q4: 10-12)
+        const quarter = Math.ceil(monthInt / 3);
+        
+        // CONSTRUCCIÓN DE LA SK REAL: STATS#YEAR#2026#QUARTER#2#MONTH#05
+        const sk = `STATS#YEAR#${year}#QUARTER#${quarter}#MONTH#${mStr}`;
+        
+        console.log(`[getMonthlyKPI] Buscando SK: ${sk}`);
         
         const stats = await repo.getStats(orgId, sk);
-        if (!stats) return null;
-
-        // Para la comparativa con el mes anterior, calculamos la SK previa
-        const monthInt = parseInt(mStr);
-        const prevMonthStr = (monthInt - 1).toString().padStart(2, '0');
-        const prevSk = `STATS#MONTH#${year}#${prevMonthStr}`;
         
-        const prevStats = monthInt > 1 ? await repo.getStats(orgId, prevSk) : null;
+        if (!stats) {
+            console.warn(`[getMonthlyKPI] No se encontró el registro mensual con SK: ${sk}`);
+            return null;
+        }
 
-        const currentCo2 = parseFloat(stats.total_co2e_kg || 0);
-        const prevCo2 = parseFloat(prevStats?.total_co2e_kg || 0);
-
+        // Mapeamos al tipo YearlyKPI que pide tu Schema
         return {
-            month: mStr, 
-            year,
-            emissions: {
-                value: currentCo2,
-                previousValue: prevCo2,
-                diffPercentage: calculateDiff(currentCo2, prevCo2)
-            },
-            spend: {
-                value: parseFloat(stats.total_spend || 0),
-                previousValue: parseFloat(prevStats?.total_spend || 0),
-                diffPercentage: calculateDiff(parseFloat(stats.total_spend || 0), parseFloat(prevStats?.total_spend || 0))
+            totalCo2e: parseFloat(stats.total_co2e_kg || 0),
+            totalSpend: parseFloat(stats.total_spend || 0),
+            invoiceCount: parseInt(stats.invoice_count || 0),
+            lastFile: stats.last_file_processed || "Ninguno",
+            byService: {
+                ELEC: parseFloat(stats.service_ELEC_co2e || 0),
+                GAS: parseFloat(stats.service_GAS_co2e || 0)
             }
         };
     },
