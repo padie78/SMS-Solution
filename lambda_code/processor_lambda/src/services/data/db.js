@@ -3,29 +3,27 @@ import { ddb, TABLE_NAME } from "./client.js";
 import { buildStatsOps } from "./operations.js";
 
 export const persistTransaction = async (record) => {
-    // Usamos el ID de la factura como parte de la SK para evitar duplicados
     const { PK, SK, extracted_data, analytics_dimensions, ai_analysis } = record;
     const now = new Date();
     
-    // 1. Dimensiones temporales (asegurando tipos numéricos)
+    // 1. Normalización de datos
     const year    = parseInt(analytics_dimensions?.period_year) || now.getFullYear();
     const month   = parseInt(analytics_dimensions?.period_month) || (now.getMonth() + 1);
     const day     = parseInt(analytics_dimensions?.period_day) || now.getDate();
     const quarter = Math.ceil(month / 3);
-    const week    = parseInt(analytics_dimensions?.period_week) || Math.ceil(day / 7);
+    const week    = parseInt(analytics_dimensions?.period_week) || 1;
 
-    // 2. Preparación de métricas con lógica de negocio
     const metrics = {
         nCo2e: Number(record.climatiq_result?.co2e) || 0,
         nSpend: Number(extracted_data?.total_amount) || 0,
         vCons: Number(ai_analysis?.value) || 0,
         uCons: ai_analysis?.unit || "N/A",
-        svc: (ai_analysis?.service_type || "UNKNOWN").toLowerCase(),
-        // Determinamos Scope basado en el servicio (Lógica ejemplo)
-        scope: ai_analysis?.service_type === "ELECTRICITY" ? 2 : 1 
+        svc: (ai_analysis?.service_type || "unknown").toLowerCase()
     };
 
-    // 3. Construcción de la Transacción
+    // 2. Construcción de items
+    const statsOps = buildStatsOps(PK, { year, quarter, month, week, day }, metrics, now.toISOString());
+
     const transactItems = [
         {
             Put: {
@@ -35,25 +33,38 @@ export const persistTransaction = async (record) => {
                     processed_at: now.toISOString(), 
                     entity_type: "INVOICE" 
                 },
-                // CRÍTICO: Evita duplicar acumulados si la Lambda reintenta
                 ConditionExpression: "attribute_not_exists(SK)"
             }
         },
-        // Desglosa la factura en las 5 estructuras (YEAR, PERIOD, MONTH, WEEK, DAY)
-        ...buildStatsOps(PK, { year, quarter, month, week, day }, metrics, now.toISOString())
+        ...statsOps
     ];
 
     try {
-        console.log(`[DB]: Persistiendo transacción jerárquica para ${PK}`);
-        await ddb.send(new TransactWriteCommand({ TransactItems: transactItems }));
-        return { success: true, message: "Cálculos actualizados en todos los niveles" };
+        console.log(`[DB]: Intentando TransactWrite para ${PK} | Items: ${transactItems.length}`);
+        
+        const command = new TransactWriteCommand({ TransactItems: transactItems });
+        const result = await ddb.send(command);
+        
+        // Si llegamos acá, Dynamo confirmó la escritura
+        console.log("✅ [DB]: Transacción completada. RequestId:", result.$metadata.requestId);
+        return { success: true };
+
     } catch (error) {
+        // Log detallado para Debug
         if (error.name === "TransactionCanceledException") {
-            console.warn("[DB]: La factura ya fue procesada anteriormente.");
-            return { success: false, message: "Duplicate record" };
+            // Si la tabla está vacía y da esto, es por un error de lógica en buildStatsOps, no por duplicado.
+            console.error("❌ [DB]: Transacción Cancelada. Razones:", JSON.stringify(error.CancellationReasons));
+            
+            // Si realmente es un duplicado por la ConditionExpression del Invoice
+            if (error.CancellationReasons?.some(r => r.Code === "ConditionalCheckFailed")) {
+                console.warn("[DB]: La factura ya existe (Duplicate SK).");
+                return { success: false, message: "Duplicate" };
+            }
         }
-        console.error("❌ Error en persistencia jerárquica:", error);
-        throw error;
+
+        console.error("❌ [DB]: Fallo crítico en persistTransaction:", error.message);
+        // LANZAR EL ERROR es clave para que el orquestador no piense que salió bien
+        throw error; 
     }
 };
 
