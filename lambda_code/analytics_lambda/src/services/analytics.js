@@ -25,28 +25,30 @@ export const analyticsService = {
         const mStr = month.toString().padStart(2, '0');
         const monthInt = parseInt(mStr);
         
-        // Calculamos el Quarter (Q1: 1-3, Q2: 4-6, Q3: 7-9, Q4: 10-12)
+        // Cálculo del Quarter basado en el mes
         const quarter = Math.ceil(monthInt / 3);
         
-        // CONSTRUCCIÓN DE LA SK REAL: STATS#YEAR#2026#QUARTER#2#MONTH#05
+        // SK EXACTA: STATS#YEAR#2026#QUARTER#2#MONTH#05
         const sk = `STATS#YEAR#${year}#QUARTER#${quarter}#MONTH#${mStr}`;
         
-        console.log(`[getMonthlyKPI] Buscando SK: ${sk}`);
+        console.log(`[getMonthlyKPI] Consultando SK: ${sk}`);
         
         const stats = await repo.getStats(orgId, sk);
         
         if (!stats) {
-            console.warn(`[getMonthlyKPI] No se encontró el registro mensual con SK: ${sk}`);
+            console.warn(`[getMonthlyKPI] No se encontró registro para la SK: ${sk}`);
             return null;
         }
 
-        // Mapeamos al tipo YearlyKPI que pide tu Schema
+        // Mapeo según los nombres de campos que pusiste (total_co2e y total_spend)
         return {
-            totalCo2e: parseFloat(stats.total_co2e_kg || 0),
+            totalCo2e: parseFloat(stats.total_co2e || 0), // Aquí quitamos el _kg que sobraba
             totalSpend: parseFloat(stats.total_spend || 0),
             invoiceCount: parseInt(stats.invoice_count || 0),
             lastFile: stats.last_file_processed || "Ninguno",
             byService: {
+                // Si no tienes estos campos en el registro mensual, 
+                // devolverán 0 en lugar de romper la UI
                 ELEC: parseFloat(stats.service_ELEC_co2e || 0),
                 GAS: parseFloat(stats.service_GAS_co2e || 0)
             }
