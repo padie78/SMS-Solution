@@ -17,61 +17,72 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow) => {
     ];
 
     return targets.map(({ sk, type }) => {
-        const isTon = ['ANNUAL', 'QUARTERLY', 'MONTHLY'].includes(type);
-        const co2Val = isTon ? (nCo2e / 1000) : nCo2e;
-        const co2Field = isTon ? 'total_co2e_ton' : 'total_co2e_kg';
+        const isHighLevel = ['ANNUAL', 'QUARTERLY', 'MONTHLY'].includes(type);
+        const co2Val = isHighLevel ? (nCo2e / 1000) : nCo2e;
+        const co2Field = isHighLevel ? 'total_co2e_ton' : 'total_co2e_kg';
 
-        // --- Definición de Cláusulas SET por Nivel ---
-        let setClauses = [
-            `entity_type = :type`,
-            `last_updated = :now`,
-            `financials = if_not_exists(financials, :emptyMap)`,
-            `ghg_inventory = if_not_exists(ghg_inventory, :emptyMap)`,
-            `consumption_mix = if_not_exists(consumption_mix, :emptyMap)`,
-            `consumption_mix.#svc = if_not_exists(consumption_mix.#svc, :emptyMap)`,
-            `consumption_mix.#svc.#u_field = :uCons`,
-            `trazabilidad = if_not_exists(trazabilidad, :emptyMap)`
+        // Definimos los alias de los atributos para evitar conflictos y palabras reservadas
+        const attrNames = {
+            "#svc": svc,
+            "#u_field": "unit",
+            "#v_field": "val",
+            "#fin": "financials",
+            "#ghg": "ghg_inventory",
+            "#mix": "consumption_mix",
+            "#traz": "trazabilidad"
+        };
+
+        // Construcción limpia de SET: Solo inicializamos si NO existe
+        let setExpressions = [
+            "entity_type = :type",
+            "last_updated = :now",
+            "#fin = if_not_exists(#fin, :emptyMap)",
+            "#ghg = if_not_exists(#ghg, :emptyMap)",
+            "#mix = if_not_exists(#mix, :emptyMap)",
+            "#mix.#svc = if_not_exists(#mix.#svc, :emptyMap)",
+            "#mix.#svc.#u_field = :uCons",
+            "#traz = if_not_exists(#traz, :emptyMap)"
         ];
 
-        // 1. ANUAL, TRIMESTRAL y MENSUAL: Reporting, KPIs de normalización e impacto
-        if (isTon) {
-            setClauses.push(`metadata = if_not_exists(metadata, :defaultMeta)`);
-            setClauses.push(`normalization_kpis = if_not_exists(normalization_kpis, :emptyMap)`);
-            setClauses.push(`environmental_impact = if_not_exists(environmental_impact, :emptyMap)`);
-            setClauses.push(`weather_adjustment = if_not_exists(weather_adjustment, :emptyMap)`);
+        if (isHighLevel) {
+            attrNames["#meta"] = "metadata";
+            attrNames["#norm"] = "normalization_kpis";
+            attrNames["#env"] = "environmental_impact";
+            attrNames["#weat"] = "weather_adjustment";
+            setExpressions.push("#meta = if_not_exists(#meta, :defaultMeta)");
+            setExpressions.push("#norm = if_not_exists(#norm, :emptyMap)");
+            setExpressions.push("#env = if_not_exists(#env, :emptyMap)");
+            setExpressions.push("#weat = if_not_exists(#weat, :emptyMap)");
         }
 
-        // 2. SEMANAL: Foco en performance y eficiencia operativa
         if (type === 'WEEKLY') {
-            setClauses.push(`performance_kpis = if_not_exists(performance_kpis, :emptyMap)`);
-            setClauses.push(`environmental_impact = if_not_exists(environmental_impact, :emptyMap)`);
+            attrNames["#perf"] = "performance_kpis";
+            setExpressions.push("#perf = if_not_exists(#perf, :emptyMap)");
         }
 
-        // 3. DIARIO: Ingeniería de planta, activos y distribución horaria
         if (type === 'DAILY') {
-            setClauses.push(`distribution_map = if_not_exists(distribution_map, :emptyMap)`);
-            setClauses.push(`engineering_kpis = if_not_exists(engineering_kpis, :emptyMap)`);
-            setClauses.push(`asset_health = if_not_exists(asset_health, :emptyMap)`);
+            attrNames["#dist"] = "distribution_map";
+            attrNames["#eng"] = "engineering_kpis";
+            attrNames["#ast"] = "asset_health";
+            setExpressions.push("#dist = if_not_exists(#dist, :emptyMap)");
+            setExpressions.push("#eng = if_not_exists(#eng, :emptyMap)");
+            setExpressions.push("#ast = if_not_exists(#ast, :emptyMap)");
         }
 
         return {
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: sk },
+                // CLAVE: Usamos alias #traz y #fin en el ADD para evitar el error de overlap literal
                 UpdateExpression: `
-                    SET ${setClauses.join(', ')}
+                    SET ${setExpressions.join(', ')}
                     ADD 
-                        financials.total_spend :nSpend,
-                        ghg_inventory.${co2Field} :nCo2,
-                        consumption_mix.#svc.#v_field :vCons,
-                        consumption_mix.#svc.spend :nSpend,
-                        trazabilidad.total_invoices_processed :one
+                        #fin.total_spend :nSpend,
+                        #ghg.${co2Field} :nCo2,
+                        #mix.#svc.#v_field :vCons,
+                        #traz.total_invoices_processed :one
                 `,
-                ExpressionAttributeNames: {
-                    "#svc": svc,
-                    "#u_field": "unit",
-                    "#v_field": "val"
-                },
+                ExpressionAttributeNames: attrNames,
                 ExpressionAttributeValues: {
                     ":type": `${type}_METRICS`,
                     ":nSpend": Number(nSpend),
