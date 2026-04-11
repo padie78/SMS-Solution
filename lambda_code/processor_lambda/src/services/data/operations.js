@@ -1,27 +1,36 @@
 import { TABLE_NAME } from "./client.js";
-import { calculateSMSMetrics } from "../../utils/analytics.js"; // Importamos tu archivo de lógica
+import { calculateSMSMetrics } from "../../utils/analytics.js";
 
+/**
+ * @fileoverview Adaptación de Operaciones de Agregación Atómica para DynamoDB.
+ * Implementa jerarquía Path-based: STATS#YYYY#QX#MXX#DXX
+ */
 export const buildStatsOps = (PK, timeData, metrics, isoNow, orgSettings = {}) => {
     const { year, quarter, month, week, day } = timeData;
     const { nCo2e, nSpend, vCons, uCons, svc } = metrics;
 
-    // 1. Ejecutamos tus cálculos externos
+    // 1. Ejecutamos cálculos externos de KPIs (Normalización, Impacto, Clima)
     const kpis = calculateSMSMetrics(metrics, orgSettings);
 
+    // Formateo de strings para SK
     const m = `M${month.toString().padStart(2, '0')}`;
     const w = `W${week.toString().padStart(2, '0')}`;
     const q = `Q${quarter}`;
+    const d = `D${day.toString().padStart(2, '0')}`;
 
+    // 2. Definición de Jerarquía Limpia (Sin palabras repetitivas como YEAR/MONTH)
     const targets = [
-        { sk: `STATS#YEAR#${year}`, type: 'ANNUAL' },
-        { sk: `STATS#YEAR#${year}#${q}`, type: 'QUARTERLY' },
-        { sk: `STATS#YEAR#${year}#${m}`, type: 'MONTHLY' },
-        { sk: `STATS#WEEK#${year}#${w}`, type: 'WEEKLY' },
-        { sk: `STATS#DAY#${day}`, type: 'DAILY' }
+        { sk: `STATS#${year}`, type: 'ANNUAL' },
+        { sk: `STATS#${year}#${q}`, type: 'QUARTERLY' },
+        { sk: `STATS#${year}#${q}#${m}`, type: 'MONTHLY' },
+        { sk: `STATS#${year}#${q}#${m}#${w}`, type: 'WEEKLY' },
+        { sk: `STATS#${year}#${q}#${m}#${d}`, type: 'DAILY' }
     ];
 
     return targets.map(({ sk, type }) => {
         const isHighLevel = ['ANNUAL', 'QUARTERLY', 'MONTHLY'].includes(type);
+        
+        // Diferenciación de unidades: Toneladas para niveles altos, Kg para bajos
         const co2Val = isHighLevel ? (nCo2e / 1000) : nCo2e;
         const co2Field = isHighLevel ? 'ghg_total_co2e_ton' : 'ghg_total_co2e_kg';
 
@@ -39,11 +48,13 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow, orgSettings = {}) =
             ":uCons": uCons,
             ":one": 1,
             ":now": isoNow,
-            ":norm": kpis.normalization, // Mapeo directo de tu objeto
-            ":env": kpis.environmental,   // Mapeo directo de tu objeto
-            ":weat": kpis.weather        // Mapeo directo de tu objeto
+            ":norm": kpis.normalization,
+            ":env": kpis.environmental,
+            ":weat": kpis.weather,
+            ":emptyMap": {}
         };
 
+        // Cláusulas SET: Actualizan o pisan valores en cada ejecución
         let setClauses = [
             `entity_type = :type`,
             `last_updated = :now`,
@@ -53,16 +64,13 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow, orgSettings = {}) =
             `weather_adjustment = :weat`
         ];
 
-        // Manejo estricto de :emptyMap para evitar el error anterior
-        if (type === 'WEEKLY' || type === 'DAILY') {
-            attrValues[":emptyMap"] = {};
-        }
-
+        // 3. Inicialización de metadatos para niveles ejecutivos
         if (isHighLevel) {
             setClauses.push(`metadata = if_not_exists(metadata, :defaultMeta)`);
             attrValues[":defaultMeta"] = { version: "1.0", is_fiscal_closed: false };
         }
 
+        // 4. Inicialización de mapas vacíos para niveles operativos (Evita errores en Frontend)
         if (type === 'WEEKLY') {
             setClauses.push(`performance_kpis = if_not_exists(performance_kpis, :emptyMap)`);
         }
