@@ -103,6 +103,7 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
 }
 
 # Bloque para Analítica (Directo a Lambda Analytics)
+# Bloque para Analítica (Directo a Lambda Analytics)
 resource "aws_appsync_resolver" "kpi_resolvers" {
   for_each = toset([
     "getYearlyKPI", 
@@ -114,11 +115,12 @@ resource "aws_appsync_resolver" "kpi_resolvers" {
   api_id      = aws_appsync_graphql_api.api.id
   type        = "Query"
   field       = each.key
-  # CAMBIO 1: Apuntar al DataSource de tu Lambda de Analytics
+  
+  # 1. Cambiamos el DataSource al de la Lambda
   data_source = aws_appsync_datasource.analytics_lambda_ds.name 
 
-  # CAMBIO 2: Eliminamos 'kind', 'code' y 'runtime'.
-  # Al no estar presentes, AppSync entiende que es un "Direct Lambda Resolver".
+  # 2. AL ELIMINAR 'code' y 'runtime', AppSync lo trata como "Direct Lambda"
+  # No necesitas escribir código JS genérico, AppSync hace el puente solo.
 }
 
 resource "aws_appsync_resolver" "get_url_resolver" {
