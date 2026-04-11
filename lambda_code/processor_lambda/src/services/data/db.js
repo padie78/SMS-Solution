@@ -3,50 +3,50 @@ import { ddb, TABLE_NAME } from "./client.js";
 import { buildStatsOps } from "./operations.js";
 
 /**
- * @fileoverview Persistencia Atómica - Prioriza la fecha real de la factura (05 May)
- * sobre fallbacks genéricos.
+ * @fileoverview Persistencia Atómica - Mapeo exacto a invoice_date para evitar fallbacks erróneos.
  */
 export const persistTransaction = async (record) => {
     const { PK, SK, extracted_data, analytics_dimensions, ai_analysis, climatiq_result } = record;
     const now = new Date();
     const isoNow = now.toISOString();
 
-    // --- LÓGICA DE EXTRACCIÓN DE FECHA CORREGIDA ---
+    // --- LÓGICA DE EXTRACCIÓN DE FECHA BLINDADA ---
     let year, month, day;
 
-    // 1. Intentamos parsear la fecha de emisión (La más precisa para el 'día')
-    if (extracted_data?.date) {
-        const d = new Date(extracted_data.date);
+    // 1. Prioridad: Mapeo exacto al campo que confirmaste en Dynamo
+    const rawDate = extracted_data?.invoice_date || extracted_data?.date;
+
+    if (rawDate) {
+        const d = new Date(rawDate);
         if (!isNaN(d.getTime())) {
             year = d.getFullYear();
             month = d.getMonth() + 1;
-            day = d.getDate(); // Aquí captura el "05" de tu factura
+            day = d.getDate(); // <--- Aquí captura el "05"
         }
     }
 
-    // 2. Si la IA detectó un periodo específico (analytics_dimensions), sobreescribimos 
-    // el año y mes si son diferentes (por si la factura se emitió en Mayo pero el consumo es Abril)
+    // 2. Refinamiento por dimensiones de la IA (Periodo de Consumo)
+    // Si la IA detectó que el consumo es de un mes/año distinto al de emisión, el periodo manda.
     if (analytics_dimensions?.period_year) year = Number(analytics_dimensions.period_year);
     if (analytics_dimensions?.period_month) month = Number(analytics_dimensions.period_month);
     
-    // Si la IA detectó un día de periodo específico, lo usamos. 
-    // Si no, mantenemos el día de la factura o usamos 1 como fallback mínimo (NO 28).
+    // Solo sobreescribimos el día si la IA detectó un día de cierre de periodo específico.
+    // Si no existe period_day, mantenemos el día de la factura (el 05).
     if (analytics_dimensions?.period_day) {
         day = Number(analytics_dimensions.period_day);
-    } else if (!day) {
-        day = 1; 
     }
 
-    // 3. Fallback final de seguridad (Hoy)
+    // 3. Fallbacks finales de seguridad (Solo si los pasos anteriores fallaron)
+    if (!day) day = 1; 
     if (!year || !month) {
         year = now.getFullYear();
         month = now.getMonth() + 1;
-        day = now.getDate();
+        day = day || now.getDate();
     }
 
     const quarter = Math.ceil(month / 3);
     
-    // Cálculo de semana basado en la fecha final validada
+    // Cálculo de semana ISO basado en la fecha final validada
     const getWeek = (y, m, d) => {
         const target = new Date(y, m - 1, d);
         const dayNr = (target.getDay() + 6) % 7;
@@ -81,7 +81,7 @@ export const persistTransaction = async (record) => {
                     entity_type: "INVOICE",
                     period_year: year,
                     period_month: month,
-                    period_day: day
+                    period_day: day // Guardamos el día calculado para trazabilidad
                 },
                 ConditionExpression: "attribute_not_exists(SK)"
             }
@@ -90,6 +90,7 @@ export const persistTransaction = async (record) => {
     ];
 
     try {
+        // El log ahora te confirmará el D05 antes de escribir
         console.log(`[DB_EXECUTE]: Registrando para ${year}-${month}-${day} (SK: STATS#${year}#Q${quarter}#M${month.toString().padStart(2, '0')}#D${day.toString().padStart(2, '0')})`);
         
         const command = new TransactWriteCommand({ TransactItems: transactItems });
@@ -98,6 +99,7 @@ export const persistTransaction = async (record) => {
     } catch (error) {
         if (error.name === "TransactionCanceledException") {
             if (error.CancellationReasons[0]?.Code === "ConditionalCheckFailed") {
+                console.warn(`[DB]: Factura duplicada omitida: ${SK}`);
                 return { success: false, message: "Duplicate Invoice" };
             }
         }
