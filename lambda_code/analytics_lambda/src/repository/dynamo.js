@@ -42,7 +42,7 @@ export const repo = {
         try {
             const { Item } = await ddb.send(new GetCommand({
                 TableName: TABLE,
-                Key: { PK: pk, SK: `STATS#${year}` }
+                Key: { PK: pk, SK: `STATS#${year}#TOTAL` }
             }));
             console.log(`[REPO][getStats] Raw Item from DynamoDB:`, JSON.stringify(Item)); // Log del resultado crudo
             return Item || null;
