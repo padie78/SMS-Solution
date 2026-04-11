@@ -26,15 +26,12 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow) => {
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: sk },
-                // IMPORTANTE: Inicializamos los mapas si no existen antes de sumar sus hijos
+                // Eliminamos la inicialización de mapas anidados que causaba el 'overlap'
+                // DynamoDB crea los mapas intermedios automáticamente con ADD si el path es válido
                 UpdateExpression: `
                     SET entity_type = :type,
                         last_updated = :now,
-                        financials = if_not_exists(financials, :emptyMap),
-                        ghg_inventory = if_not_exists(ghg_inventory, :emptyMap),
-                        consumption_mix = if_not_exists(consumption_mix, :emptyMap),
-                        consumption_mix.#svc_name = if_not_exists(consumption_mix.#svc_name, :emptyMap),
-                        trazabilidad = if_not_exists(trazabilidad, :emptyMap)
+                        consumption_mix.#svc_name.#unit_name = :uCons
                     ADD 
                         financials.total_spend :nSpend,
                         ghg_inventory.${co2Field} :nCo2,
@@ -43,16 +40,17 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow) => {
                 `,
                 ExpressionAttributeNames: {
                     "#svc_name": svc,
-                    "#val_name": "val"
+                    "#val_name": "val",
+                    "#unit_name": "unit"
                 },
                 ExpressionAttributeValues: {
                     ":type": `${type}_METRICS`,
                     ":nSpend": Number(nSpend),
-                    ":nCo2": co2Val,
+                    ":nCo2": Number(co2Val),
                     ":vCons": Number(vCons),
+                    ":uCons": uCons,
                     ":one": 1,
-                    ":now": isoNow,
-                    ":emptyMap": {} // Esto permite que el siguiente nivel de la ruta exista
+                    ":now": isoNow
                 }
             }
         };
