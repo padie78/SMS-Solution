@@ -40,7 +40,7 @@ export const persistTransaction = async (record) => {
             }
         },
         // Desglosa la factura en las 5 estructuras (YEAR, PERIOD, MONTH, WEEK, DAY)
-        //...buildStatsOps(PK, { year, quarter, month, week, day }, metrics, now.toISOString())
+        ...buildStatsOps(PK, { year, quarter, month, week, day }, metrics, now.toISOString())
     ];
 
     try {
