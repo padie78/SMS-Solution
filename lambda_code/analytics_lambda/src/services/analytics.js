@@ -1,6 +1,6 @@
 /**
  * @fileoverview Service Layer - Lógica de Negocio de Analíticas (SMS).
- * Maneja la transformación de datos, cálculos proactivos y comparativas interanuales.
+ * Centraliza la construcción de Sort Keys para el repositorio.
  */
 
 import { repo } from '../repository/dynamo.js';
@@ -8,353 +8,143 @@ import { repo } from '../repository/dynamo.js';
 export const analyticsService = {
 
     /**
-     * 1. ESTRATÉGICO: KPIs Anuales y Mensuales.
+     * 1. ESTRATÉGICO: KPIs (Anuales, Mensuales y Trimestrales)
      */
     getYearlyKPI: async (orgId, year) => {
-        console.log(`[getYearlyKPI] Iniciando cálculo para Org: ${orgId}, Año: ${year}`); // Log de inicio
-        const stats = await repo.getStats(orgId, year);
-        console.log(`[getYearlyKPI] Stats recuperados de Repo:`, JSON.stringify(stats)); // Log de datos recuperados
+        // Construimos la SK específica para el acumulado anual
+        const sk = `STATS#YEAR#${year}#TOTAL`;
+        console.log(`[getYearlyKPI] Buscando SK: ${sk}`);
+
+        const stats = await repo.getStats(orgId, sk);
         if (!stats) return null;
 
+        return formatKPIData(stats);
+    },
+
+    getMonthlyKPI: async (orgId, year, month) => {
+        const mStr = month.toString().padStart(2, '0');
+        // Asumiendo que guardas los meses como: STATS#MONTH#2026#04
+        const sk = `STATS#MONTH#${year}#${mStr}`;
+        
+        const stats = await repo.getStats(orgId, sk);
+        if (!stats) return null;
+
+        // Para la comparativa con el mes anterior, calculamos la SK previa
+        const monthInt = parseInt(mStr);
+        const prevMonthStr = (monthInt - 1).toString().padStart(2, '0');
+        const prevSk = `STATS#MONTH#${year}#${prevMonthStr}`;
+        
+        const prevStats = monthInt > 1 ? await repo.getStats(orgId, prevSk) : null;
+
+        const currentCo2 = parseFloat(stats.total_co2e_kg || 0);
+        const prevCo2 = parseFloat(prevStats?.total_co2e_kg || 0);
+
         return {
-            totalCo2e: parseFloat(stats.total_co2e_kg || 0),
-            totalSpend: parseFloat(stats.total_spend || 0),
-            invoiceCount: parseInt(stats.invoice_count || 0),
-            lastFile: stats.last_file_processed || "Ninguno",
-            byService: {
-                ELEC: parseFloat(stats.service_ELEC_co2e || 0),
-                GAS: parseFloat(stats.service_GAS_co2e || 0)
+            month: mStr, 
+            year,
+            emissions: {
+                value: currentCo2,
+                previousValue: prevCo2,
+                diffPercentage: calculateDiff(currentCo2, prevCo2)
+            },
+            spend: {
+                value: parseFloat(stats.total_spend || 0),
+                previousValue: parseFloat(prevStats?.total_spend || 0),
+                diffPercentage: calculateDiff(parseFloat(stats.total_spend || 0), parseFloat(prevStats?.total_spend || 0))
             }
         };
     },
 
-    getMonthlyKPI: async (orgId, year, month) => {
-        const stats = await repo.getStats(orgId, year);
+    getQuarterlyKPI: async (orgId, year, quarter) => {
+        // SK: STATS#QUARTER#2026#Q1
+        const sk = `STATS#QUARTER#${year}#${quarter.toUpperCase()}`;
+        const stats = await repo.getStats(orgId, sk);
         if (!stats) return null;
 
-        const currentM = month.toString().padStart(2, '0');
-        const monthInt = parseInt(currentM);
-        const prevMonthStr = (monthInt - 1).toString().padStart(2, '0');
-
-        const getVal = (m, type) => parseFloat(stats[`month_${m}_${type}`] || 0);
-
-        const currentCo2 = getVal(currentM, 'co2e');
-        const currentSpend = getVal(currentM, 'spend');
-        const prevCo2 = monthInt > 1 ? getVal(prevMonthStr, 'co2e') : 0;
-        const prevSpend = monthInt > 1 ? getVal(prevMonthStr, 'spend') : 0;
-
-        const calculateDiff = (curr, prev) => (prev === 0 ? (curr > 0 ? 100 : 0) : ((curr - prev) / prev) * 100);
-
-        return {
-            month: currentM, year,
-            emissions: {
-                value: currentCo2,
-                previousValue: prevCo2,
-                diffPercentage: parseFloat(calculateDiff(currentCo2, prevCo2).toFixed(2))
-            },
-            spend: {
-                value: currentSpend,
-                previousValue: prevSpend,
-                diffPercentage: parseFloat(calculateDiff(currentSpend, prevSpend).toFixed(2))
-            },
-            isEmissionsUp: currentCo2 > prevCo2,
-            isSpendUp: currentSpend > prevSpend
-        };
+        return formatKPIData(stats);
     },
 
     /**
      * 2. TENDENCIAS Y EVOLUCIÓN
      */
-    getEvolution: async (orgId, year) => {
-        const stats = await repo.getStats(orgId, year);
-        const months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"];
-
-        if (!stats) return months.map(m => ({ label: `Mes ${m}`, emissions: 0, spend: 0 }));
-
-        return months.map(m => ({
-            label: `Mes ${m}`,
-            emissions: parseFloat(stats[`month_${m}_co2e`] || 0),
-            spend: parseFloat(stats[`month_${m}_spend`] || 0)
-        }));
-    },
-
-    getQuarterlyBreakdown: async (orgId, year) => {
-        // 1. Obtener el registro maestro (YEAR#2026#METRIC#TOTAL)
-        const stats = await repo.getStats(orgId, year);
-
-        // Si el registro no existe en DynamoDB, devolvemos null (esto disparó tu error anterior)
-        if (!stats || !stats.MonthlyBreakdown) return null;
-
-        const breakdown = stats.MonthlyBreakdown;
-
-        // 2. Helper para sumar meses dentro del mapa MonthlyBreakdown
-        const getQ = (m1, m2, m3) => {
-            const months = [m1, m2, m3];
-            return months.reduce((acc, month) => {
-                const data = breakdown[month] || { emissions: 0, spend: 0 };
-                return {
-                    emissions: acc.emissions + (parseFloat(data.emissions) || 0),
-                    spend: acc.spend + (parseFloat(data.spend) || 0)
-                };
-            }, { emissions: 0, spend: 0 });
-        };
-
-        // 3. Retorno estructurado para GraphQL
-        return {
-            q1: getQ("01", "02", "03"),
-            q2: getQ("04", "05", "06"),
-            q3: getQ("07", "08", "09"),
-            q4: getQ("10", "11", "12")
-        };
-    },
-
-    getForecast: async (orgId, year) => {
-        const stats = await repo.getStats(orgId, year);
-        if (!stats) return null;
-
-        let monthsWithData = 0;
-        let accumulatedCo2 = 0;
-
-        for (let i = 1; i <= 12; i++) {
-            const m = i.toString().padStart(2, '0');
-            const val = parseFloat(stats[`month_${m}_co2e`] || 0);
-            if (val > 0) { monthsWithData++; accumulatedCo2 += val; }
-        }
-
-        const projected = monthsWithData > 0 ? (accumulatedCo2 / monthsWithData) * 12 : 0;
-
-        return {
-            currentAccumulated: parseFloat(accumulatedCo2.toFixed(2)),
-            monthsProcessed: monthsWithData,
-            projectedYearlyTotal: parseFloat(projected.toFixed(2)),
-            trend: projected > accumulatedCo2 ? "Increasing" : "Stable"
-        };
-    },
-
     getYearOverYear: async (orgId, month, year) => {
-        console.log(`[YoY] Iniciando cálculo - Org: ${orgId}, Mes: ${month}, Año: ${year}`);
-
-        const yearsToCompare = [year.toString(), (year - 1).toString()];
-        const results = await repo.getStatsForYears(orgId, yearsToCompare);
-
-        console.log(`[YoY] Datos recuperados de Repo:`, JSON.stringify(results));
-
-        const currentStats = results[0] || {};
-        const prevStats = results[1] || {};
-
         const mStr = month.toString().padStart(2, '0');
+        
+        // Obtenemos los registros de este año y el anterior para el mismo mes
+        const skCurrent = `STATS#MONTH#${year}#${mStr}`;
+        const skPrev = `STATS#MONTH#${parseInt(year) - 1}#${mStr}`;
+
+        const [currentStats, prevStats] = await Promise.all([
+            repo.getStats(orgId, skCurrent),
+            repo.getStats(orgId, skPrev)
+        ]);
 
         const current = {
-            emissions: parseFloat(currentStats[`month_${mStr}_co2e`] || 0),
-            spend: parseFloat(currentStats[`month_${mStr}_spend`] || 0)
+            emissions: parseFloat(currentStats?.total_co2e_kg || 0),
+            spend: parseFloat(currentStats?.total_spend || 0)
         };
         const previous = {
-            emissions: parseFloat(prevStats[`month_${mStr}_co2e`] || 0),
-            spend: parseFloat(prevStats[`month_${mStr}_spend`] || 0)
+            emissions: parseFloat(prevStats?.total_co2e_kg || 0),
+            spend: parseFloat(prevStats?.total_spend || 0)
         };
 
-        console.log(`[YoY] Comparando Actual:`, current, `vs Previo:`, previous);
-
-        const diffE = previous.emissions === 0 ? (current.emissions > 0 ? 100 : 0) : ((current.emissions - previous.emissions) / previous.emissions) * 100;
-
-        const response = {
+        return {
             month: parseInt(month),
             currentYear: current,
             previousYear: previous,
-            diffPercentageEmissions: parseFloat(diffE.toFixed(2)),
-            diffPercentageSpend: 0,
+            diffPercentageEmissions: calculateDiff(current.emissions, previous.emissions),
             efficiencyImprovement: previous.spend > 0 ? (current.emissions / current.spend) < (previous.emissions / previous.spend) : false
         };
-
-        console.log(`[YoY] Resultado Final enviado al Resolver:`, JSON.stringify(response));
-        return response;
     },
 
     /**
-     * 3. EFICIENCIA Y METAS
+     * 3. AUXILIARES DE FORMATEO Y CÁLCULO
      */
-    getIntensity: async (orgId, year) => {
-        const stats = await repo.getStats(orgId, year);
-        if (!stats) return null;
-
-        const totalCo2 = parseFloat(stats.total_co2e_kg || 0);
-        const totalSpend = parseFloat(stats.total_spend || 0);
-        const ratio = totalSpend > 0 ? (totalCo2 / totalSpend) : 0;
-
-        return {
-            year,
-            ratio: parseFloat(ratio.toFixed(4)),
-            unit: "kgCO2e / $",
-            label: "Intensidad de Carbono"
-        };
-    },
-
-    getIntensityByService: async (orgId, year) => {
-        const stats = await repo.getStats(orgId, year);
-        if (!stats) return [];
-
-        const services = ['ELEC', 'GAS'];
-        const totalCo2 = parseFloat(stats.total_co2e_kg || 0);
-
-        return services.map(srv => {
-            // Buscamos los valores con fallback a 0
-            const srvCo2 = parseFloat(stats[`service_${srv}_co2e`] || 0);
-
-            // Intentamos obtener el spend específico del servicio, 
-            // si no existe, usamos un proporcional del spend total para no devolver null
-            let srvSpend = parseFloat(stats[`service_${srv}_spend`] || 0);
-
-            if (srvSpend === 0 && stats.total_spend > 0) {
-                // Estimación lógica: si no hay desglose de spend, 
-                // prorrateamos según la proporción de emisiones
-                const proportion = totalCo2 > 0 ? (srvCo2 / totalCo2) : 0;
-                srvSpend = parseFloat(stats.total_spend) * proportion;
-            }
-
-            return {
-                serviceType: srv,
-                intensityRatio: srvSpend > 0 ? parseFloat((srvCo2 / srvSpend).toFixed(4)) : 0,
-                totalContributionPercentage: totalCo2 > 0 ? parseFloat(((srvCo2 / totalCo2) * 100).toFixed(2)) : 0
-            };
-        });
-    },
-
-    getGoalTracking: async (orgId, year) => {
-        console.log(`[GOALS] Buscando Stats y Metas para ${year}`);
-
-        const [stats, goals] = await Promise.all([
-            repo.getStats(orgId, year),
-            repo.getGoals(orgId, year)
-        ]);
-
-        console.log(`[GOALS] Stats de Dynamo:`, JSON.stringify(stats));
-        console.log(`[GOALS] Metas de Dynamo:`, JSON.stringify(goals));
-
-        const accumulated = parseFloat(stats?.total_co2e_kg || 0);
-        const target = parseFloat(goals?.annualTargetEmissions || 2000);
-
-        const result = {
-            annualTargetEmissions: target,
-            currentAccumulated: accumulated,
-            remainingCarbonBudget: parseFloat((target - accumulated).toFixed(2)),
-            isOnTrack: accumulated <= target,
-            burnRate: accumulated > 0 ? parseFloat((accumulated / (new Date().getMonth() + 1)).toFixed(2)) : 0
-        };
-
-        console.log(`[GOALS] Resultado procesado:`, JSON.stringify(result));
-        return result;
-    },
-
-    getOffsetEstimation: async (orgId, year) => {
-        console.log(`[OFFSET] Calculando estimación para ${year}`);
-
-        const stats = await repo.getStats(orgId, year) || {};
-        console.log(`[OFFSET] Stats recuperados:`, JSON.stringify(stats));
-
-        const totalTons = (parseFloat(stats.total_co2e_kg || 0) / 1000);
-        const marketPrice = 25.0;
-
-        const result = {
-            totalTonsToOffset: parseFloat(totalTons.toFixed(3)),
-            estimatedMarketPrice: marketPrice,
-            estimatedCostToNetZero: parseFloat((totalTons * marketPrice).toFixed(2))
-        };
-
-        console.log(`[OFFSET] Resultado final:`, JSON.stringify(result));
-        return result;
-    },
-
-    /**
-     * 4. GOBERNANZA Y PROVEEDORES
-     */
-    getAuditQueue: async (orgId, year, month) => {
-        const items = await repo.getInvoicesForAudit(orgId, { year, month, onlyRequiresReview: true });
-        return items.map(inv => ({
-            id: inv.SK,
-            vendor: inv.extracted_data?.vendor || "N/A",
-            score: inv.ai_analysis?.confidence_score || 0,
-            invoiceNumber: inv.extracted_data?.invoice_number || "S/N",
-            reason: inv.ai_analysis?.insight_text || "Revisión manual requerida",
-            pdfUrl: inv.pdfUrl
-        }));
-    },
-
-    dataQualitySummary: async (orgId, year, month) => {
-        const invoices = await repo.getInvoicesForAudit(orgId, { year, month });
-        const total = invoices.length;
-        if (total === 0) return { averageConfidence: 0, totalPendingReview: 0, automatedProcessRate: 0 };
-
-        const pending = invoices.filter(i => i.ai_analysis?.requires_review).length;
-        const avgConf = invoices.reduce((acc, i) => acc + (i.ai_analysis?.confidence_score || 0), 0) / total;
-
-        return {
-            averageConfidence: parseFloat(avgConf.toFixed(2)),
-            totalPendingReview: pending,
-            automatedProcessRate: parseFloat((((total - pending) / total) * 100).toFixed(2))
-        };
-    },
-
     getVendorRanking: async (orgId, year, limit = 5) => {
-        console.log(`[VENDOR_RANKING] Iniciando para Org: ${orgId}, Año: ${year}`);
-
-        // 1. Log de Volumen de Datos
+        // En este caso, el repo debe traer todas las facturas del año para calcular el ranking
         const invoices = await repo.getYearlyInvoicesRaw(orgId, year);
-        console.log(`[VENDOR_RANKING] Ítems recuperados de DynamoDB: ${invoices.length}`);
+        if (!invoices.length) return [];
 
-        if (invoices.length === 0) {
-            console.warn(`[VENDOR_RANKING] No se encontraron facturas para el año ${year}`);
-            return [];
-        }
+        const totalOrgCo2 = invoices.reduce((acc, inv) => acc + parseFloat(inv.climatiq_result?.co2e || 0), 0);
 
-        // 2. Cálculo de Total CO2 con validación de tipos
-        const totalOrgCo2 = invoices.reduce((acc, inv) => {
-            const val = parseFloat(inv.climatiq_result?.co2e || 0);
-            return acc + (isNaN(val) ? 0 : val);
-        }, 0);
-
-        console.log(`[VENDOR_RANKING] CO2 Total Anual Calculado: ${totalOrgCo2.toFixed(2)} kg`);
-
-        // 3. Agregación por Vendor
         const rankingMap = invoices.reduce((acc, inv) => {
-            const name = inv.extracted_data?.vendor || "Unknown";
+            const name = inv.extracted_data?.vendor || "Desconocido";
             const co2 = parseFloat(inv.climatiq_result?.co2e || 0);
-            const score = parseFloat(inv.ai_analysis?.confidence_score || 0);
-
-            if (!acc[name]) {
-                acc[name] = { vendorName: name, totalCo2e: 0, totalInvoices: 0, conf: 0 };
-            }
-
-            acc[name].totalCo2e += isNaN(co2) ? 0 : co2;
+            if (!acc[name]) acc[name] = { vendorName: name, totalCo2e: 0, totalInvoices: 0 };
+            acc[name].totalCo2e += co2;
             acc[name].totalInvoices += 1;
-            acc[name].conf += isNaN(score) ? 0 : score;
-
             return acc;
         }, {});
 
-        console.log(`[VENDOR_RANKING] Total de proveedores únicos encontrados: ${Object.keys(rankingMap).length}`);
-
-        // 4. Mapeo y Ordenamiento
-        const finalRanking = Object.values(rankingMap)
-            .map(v => {
-                const percentage = totalOrgCo2 > 0 ? ((v.totalCo2e / totalOrgCo2) * 100) : 0;
-                const avgConf = v.totalInvoices > 0 ? (v.conf / v.totalInvoices) : 0;
-
-                return {
-                    vendorName: v.vendorName,
-                    totalCo2e: parseFloat(v.totalCo2e.toFixed(2)),
-                    totalInvoices: v.totalInvoices,
-                    percentageOfTotalOrgEmissions: parseFloat(percentage.toFixed(2)),
-                    averageConfidence: parseFloat(avgConf.toFixed(2))
-                };
-            })
+        return Object.values(rankingMap)
+            .map(v => ({
+                ...v,
+                totalCo2e: parseFloat(v.totalCo2e.toFixed(2)),
+                percentageOfTotalOrgEmissions: totalOrgCo2 > 0 ? parseFloat(((v.totalCo2e / totalOrgCo2) * 100).toFixed(2)) : 0
+            }))
             .sort((a, b) => b.totalCo2e - a.totalCo2e)
             .slice(0, limit);
-
-        console.log(`[VENDOR_RANKING] Resultado Final (Top ${limit}):`, JSON.stringify(finalRanking));
-        return finalRanking;
-    },
-
-    searchInvoices: async (orgId, args) => {
-        return await repo.searchInvoices(orgId, args);
     }
+};
+
+/**
+ * HELPERS PRIVADOS
+ */
+
+// Normaliza el mapeo de campos de DynamoDB a GraphQL
+const formatKPIData = (stats) => ({
+    totalCo2e: parseFloat(stats.total_co2e_kg || 0),
+    totalSpend: parseFloat(stats.total_spend || 0),
+    invoiceCount: parseInt(stats.invoice_count || 0),
+    lastFile: stats.last_file_processed || "Ninguno",
+    byService: {
+        ELEC: parseFloat(stats.service_ELEC_co2e || 0),
+        GAS: parseFloat(stats.service_GAS_co2e || 0)
+    }
+});
+
+// Calcula variaciones porcentuales
+const calculateDiff = (curr, prev) => {
+    if (prev === 0) return curr > 0 ? 100 : 0;
+    return parseFloat((((curr - prev) / prev) * 100).toFixed(2));
 };

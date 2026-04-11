@@ -1,6 +1,6 @@
 /**
  * @fileoverview Repository Layer - Capa de acceso a datos para DynamoDB.
- * Adaptado para soportar el Schema extendido de Sostenibilidad (KPIs, Auditoría, Forecast).
+ * Genérico y flexible para soportar Sort Keys dinámicas.
  */
 
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
@@ -17,9 +17,6 @@ const TABLE = "sms-platform-dev-emissions";
 
 const formatPK = (id) => id.startsWith('ORG#') ? id : `ORG#${id}`;
 
-/**
- * Helper para generar URLs firmadas de S3 de forma segura
- */
 const generateSignedUrl = async (s3Key) => {
     if (!s3Key) return null;
     try {
@@ -33,18 +30,21 @@ const generateSignedUrl = async (s3Key) => {
 
 export const repo = {
     /**
-     * 1. STATS (Estratégico & KPIs Anuales/Mensuales)
-     * Soporta: getYearlyKPI, getMonthlyKPI, getEvolution, getIntensity, getForecast
+     * 1. STATS (Estratégico & KPIs)
+     * Ahora recibe la 'sk' completa (ej: STATS#YEAR#2026#TOTAL)
      */
-    getStats: async (orgId, year) => {
+    getStats: async (orgId, sk) => {
         const pk = formatPK(orgId);
-        console.log(`[REPO][getStats] Fetching stats for PK: ${pk}, Year: ${year}`); // Log de inicio de fetch
+        // El log ahora nos mostrará la llave completa que fallaba antes
+        console.log(`[REPO][getStats] Fetching PK: ${pk}, SK: ${sk}`); 
+        
         try {
             const { Item } = await ddb.send(new GetCommand({
                 TableName: TABLE,
-                Key: { PK: pk, SK: `STATS#${year}#TOTAL` }
+                Key: { PK: pk, SK: sk }
             }));
-            console.log(`[REPO][getStats] Raw Item from DynamoDB:`, JSON.stringify(Item)); // Log del resultado crudo
+            
+            console.log(`[REPO][getStats] Result:`, Item ? "Found" : "Not Found");
             return Item || null;
         } catch (error) {
             console.error(`[REPO][getStats] ERROR:`, error.message);
@@ -54,15 +54,15 @@ export const repo = {
 
     /**
      * 2. COMPARATIVA INTERANUAL (YoY)
-     * Soporta: getYearOverYear
+     * yearsContext es un array de objetos { year, sk }
      */
-    getStatsForYears: async (orgId, years = []) => {
+    getStatsForYears: async (orgId, skList = []) => {
         const pk = formatPK(orgId);
         try {
-            const promises = years.map(year => 
+            const promises = skList.map(sk => 
                 ddb.send(new GetCommand({
                     TableName: TABLE,
-                    Key: { PK: pk, SK: `STATS#${year}` }
+                    Key: { PK: pk, SK: sk }
                 }))
             );
             const results = await Promise.all(promises);
@@ -74,8 +74,7 @@ export const repo = {
     },
 
     /**
-     * 3. GOBERNANZA Y AUDITORÍA
-     * Soporta: getAuditReport, getAuditQueue, dataQualitySummary
+     * 3. GOBERNANZA Y AUDITORÍA (INV#)
      */
     getInvoicesForAudit: async (orgId, filters = {}) => {
         const pk = formatPK(orgId);
@@ -103,7 +102,6 @@ export const repo = {
 
         try {
             const { Items } = await ddb.send(new QueryCommand(params));
-            // Mapeamos para incluir la URL del PDF solo en auditoría
             return await Promise.all((Items || []).map(async (item) => ({
                 ...item,
                 pdfUrl: await generateSignedUrl(item.metadata?.s3_key)
@@ -116,7 +114,6 @@ export const repo = {
 
     /**
      * 4. PROVEEDORES Y RANKING
-     * Soporta: getVendorRanking
      */
     getYearlyInvoicesRaw: async (orgId, year) => {
         const pk = formatPK(orgId);
@@ -141,7 +138,6 @@ export const repo = {
 
     /**
      * 5. METAS Y CONFIGURACIÓN
-     * Soporta: getGoalTracking, getOffsetEstimation
      */
     getGoals: async (orgId, year) => {
         const pk = formatPK(orgId);
@@ -152,73 +148,7 @@ export const repo = {
             }));
             return Item || null;
         } catch (error) {
-            console.error(`[REPO][getGoals] ERROR:`, error.message);
             return null;
-        }
-    },
-
-    /**
-     * 6. EXPLORACIÓN (DataGrid Avanzado)
-     * Soporta: searchInvoices
-     */
-    searchInvoices: async (orgId, filters) => {
-        const pk = formatPK(orgId);
-        const params = {
-            TableName: TABLE,
-            KeyConditionExpression: "PK = :pk AND begins_with(SK, :skPrefix)",
-            ExpressionAttributeValues: { ":pk": pk, ":skPrefix": "INV#" }
-        };
-
-        let filterParts = [];
-        if (filters.service) {
-            filterParts.push("ai_analysis.service_type = :service");
-            params.ExpressionAttributeValues[":service"] = filters.service.toUpperCase();
-        }
-        if (filters.year) {
-            filterParts.push("analytics_dimensions.period_year = :year");
-            params.ExpressionAttributeValues[":year"] = Number(filters.year);
-        }
-        if (filters.month) {
-            filterParts.push("analytics_dimensions.period_month = :month");
-            params.ExpressionAttributeValues[":month"] = Number(filters.month);
-        }
-        if (filters.minSpend) {
-            filterParts.push("extracted_data.total_amount >= :minS");
-            params.ExpressionAttributeValues[":minS"] = Number(filters.minSpend);
-        }
-        if (filters.maxSpend) {
-            filterParts.push("extracted_data.total_amount <= :maxS");
-            params.ExpressionAttributeValues[":maxS"] = Number(filters.maxSpend);
-        }
-        if (filters.minEmissions) {
-            filterParts.push("climatiq_result.co2e >= :minE");
-            params.ExpressionAttributeValues[":minE"] = Number(filters.minEmissions);
-        }
-        if (filters.maxEmissions) {
-            filterParts.push("climatiq_result.co2e <= :maxE");
-            params.ExpressionAttributeValues[":maxE"] = Number(filters.maxEmissions);
-        }
-
-        if (filterParts.length > 0) params.FilterExpression = filterParts.join(" AND ");
-
-        try {
-            const { Items } = await ddb.send(new QueryCommand(params));
-            return await Promise.all((Items || []).map(async (item) => ({
-                id: item.SK,
-                vendor: item.extracted_data?.vendor || "N/A",
-                invoiceDate: item.extracted_data?.invoice_date,
-                totalAmount: item.extracted_data?.total_amount,
-                emissions: item.climatiq_result?.co2e,
-                consumption: item.ai_analysis?.value, // Nuevo: Mapeo del valor de consumo
-                unit: item.ai_analysis?.unit,        // Nuevo: m3, kWh, etc.
-                confidence: item.ai_analysis?.confidence_score,
-                requiresReview: item.ai_analysis?.requires_review || false,
-                service: item.ai_analysis?.service_type,
-                pdfUrl: await generateSignedUrl(item.metadata?.s3_key)
-            })));
-        } catch (error) {
-            console.error(`[REPO][searchInvoices] ERROR:`, error.message);
-            throw error;
         }
     }
 };
