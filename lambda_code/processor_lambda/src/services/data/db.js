@@ -3,35 +3,42 @@ import { ddb, TABLE_NAME } from "./client.js";
 import { buildStatsOps } from "./operations.js";
 
 /**
- * @fileoverview Persistencia Atómica corregida para priorizar cronología de factura.
+ * @fileoverview Persistencia Atómica - Prioriza la fecha real de la factura (05 May)
+ * sobre fallbacks genéricos.
  */
 export const persistTransaction = async (record) => {
     const { PK, SK, extracted_data, analytics_dimensions, ai_analysis, climatiq_result } = record;
     const now = new Date();
     const isoNow = now.toISOString();
 
-    // --- LÓGICA DE EXTRACCIÓN DE FECHA CRÍTICA ---
+    // --- LÓGICA DE EXTRACCIÓN DE FECHA CORREGIDA ---
     let year, month, day;
 
-    // 1. Intentamos sacar de analytics_dimensions (lo más confiable si la IA lo llenó)
-    if (analytics_dimensions?.period_year && analytics_dimensions?.period_month) {
-        year = Number(analytics_dimensions.period_year);
-        month = Number(analytics_dimensions.period_month);
-        day = Number(analytics_dimensions.period_day) || 28; // Default al cierre si no hay día
-    } 
-    // 2. Si no, parseamos manualmente la fecha de emisión (ej: "2026-05-05" o "05/05/2026")
-    else if (extracted_data?.date) {
+    // 1. Intentamos parsear la fecha de emisión (La más precisa para el 'día')
+    if (extracted_data?.date) {
         const d = new Date(extracted_data.date);
         if (!isNaN(d.getTime())) {
             year = d.getFullYear();
             month = d.getMonth() + 1;
-            day = d.getDate();
+            day = d.getDate(); // Aquí captura el "05" de tu factura
         }
     }
 
-    // 3. Fallback final (Si todo falla, ahí sí usamos 'now', pero avisamos en log)
+    // 2. Si la IA detectó un periodo específico (analytics_dimensions), sobreescribimos 
+    // el año y mes si son diferentes (por si la factura se emitió en Mayo pero el consumo es Abril)
+    if (analytics_dimensions?.period_year) year = Number(analytics_dimensions.period_year);
+    if (analytics_dimensions?.period_month) month = Number(analytics_dimensions.period_month);
+    
+    // Si la IA detectó un día de periodo específico, lo usamos. 
+    // Si no, mantenemos el día de la factura o usamos 1 como fallback mínimo (NO 28).
+    if (analytics_dimensions?.period_day) {
+        day = Number(analytics_dimensions.period_day);
+    } else if (!day) {
+        day = 1; 
+    }
+
+    // 3. Fallback final de seguridad (Hoy)
     if (!year || !month) {
-        console.warn("[DB_WARNING]: No se pudo determinar fecha de factura, usando fecha actual.");
         year = now.getFullYear();
         month = now.getMonth() + 1;
         day = now.getDate();
@@ -39,7 +46,7 @@ export const persistTransaction = async (record) => {
 
     const quarter = Math.ceil(month / 3);
     
-    // Forzamos la semana basada en la fecha que acabamos de validar
+    // Cálculo de semana basado en la fecha final validada
     const getWeek = (y, m, d) => {
         const target = new Date(y, m - 1, d);
         const dayNr = (target.getDay() + 6) % 7;
@@ -53,7 +60,7 @@ export const persistTransaction = async (record) => {
 
     const timeData = { year, quarter, month, week, day };
 
-    // --- RESTO IGUAL ---
+    // --- PREPARACIÓN DE MÉTRICAS ---
     const metrics = {
         nCo2e: Number(climatiq_result?.co2e) || 0,
         nSpend: Number(extracted_data?.total_amount) || 0,
@@ -73,7 +80,8 @@ export const persistTransaction = async (record) => {
                     processed_at: isoNow, 
                     entity_type: "INVOICE",
                     period_year: year,
-                    period_month: month
+                    period_month: month,
+                    period_day: day
                 },
                 ConditionExpression: "attribute_not_exists(SK)"
             }
@@ -82,13 +90,17 @@ export const persistTransaction = async (record) => {
     ];
 
     try {
-        // Este log te dirá exactamente qué está intentando escribir
-        console.log(`[DB_EXECUTE]: Registrando para periodo ${year}-${month} (SK: STATS#${year}#Q${quarter}#M${month.toString().padStart(2, '0')})`);
+        console.log(`[DB_EXECUTE]: Registrando para ${year}-${month}-${day} (SK: STATS#${year}#Q${quarter}#M${month.toString().padStart(2, '0')}#D${day.toString().padStart(2, '0')})`);
         
         const command = new TransactWriteCommand({ TransactItems: transactItems });
         await ddb.send(command);
         return { success: true };
     } catch (error) {
+        if (error.name === "TransactionCanceledException") {
+            if (error.CancellationReasons[0]?.Code === "ConditionalCheckFailed") {
+                return { success: false, message: "Duplicate Invoice" };
+            }
+        }
         console.error("❌ [DB_ERROR]:", error.message);
         throw error; 
     }
