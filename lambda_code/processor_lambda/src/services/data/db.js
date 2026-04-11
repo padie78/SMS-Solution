@@ -7,34 +7,53 @@ import { buildStatsOps } from "./operations.js";
  */
 export const persistTransaction = async (record) => {
     const { PK, SK, extracted_data, analytics_dimensions, ai_analysis, climatiq_result } = record;
-    
-    // 1. DETERMINAR LA FECHA DE REFERENCIA
-    // Prioridad: 1. Dimensiones de la IA, 2. Fecha de emisión extraída, 3. Fecha actual (fallback)
-    const invoiceDate = extracted_data?.date ? new Date(extracted_data.date) : new Date();
     const now = new Date();
     const isoNow = now.toISOString();
-    
-    // 2. NORMALIZACIÓN CRONOLÓGICA (Basada en la Factura)
-    // Extraemos los valores. Si la IA no detectó el periodo, usamos la fecha de emisión.
-    const year    = Number(analytics_dimensions?.period_year)  || invoiceDate.getFullYear();
-    const month   = Number(analytics_dimensions?.period_month) || (invoiceDate.getMonth() + 1);
-    const day     = Number(analytics_dimensions?.period_day)   || invoiceDate.getDate();
-    
-    // Calculamos Quarter y Week basados en la fecha de la factura
+
+    // --- LÓGICA DE EXTRACCIÓN DE FECHA CRÍTICA ---
+    let year, month, day;
+
+    // 1. Intentamos sacar de analytics_dimensions (lo más confiable si la IA lo llenó)
+    if (analytics_dimensions?.period_year && analytics_dimensions?.period_month) {
+        year = Number(analytics_dimensions.period_year);
+        month = Number(analytics_dimensions.period_month);
+        day = Number(analytics_dimensions.period_day) || 28; // Default al cierre si no hay día
+    } 
+    // 2. Si no, parseamos manualmente la fecha de emisión (ej: "2026-05-05" o "05/05/2026")
+    else if (extracted_data?.date) {
+        const d = new Date(extracted_data.date);
+        if (!isNaN(d.getTime())) {
+            year = d.getFullYear();
+            month = d.getMonth() + 1;
+            day = d.getDate();
+        }
+    }
+
+    // 3. Fallback final (Si todo falla, ahí sí usamos 'now', pero avisamos en log)
+    if (!year || !month) {
+        console.warn("[DB_WARNING]: No se pudo determinar fecha de factura, usando fecha actual.");
+        year = now.getFullYear();
+        month = now.getMonth() + 1;
+        day = now.getDate();
+    }
+
     const quarter = Math.ceil(month / 3);
     
-    // Helper simple para obtener la semana del año de la factura
-    const getWeek = (date) => {
-        const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
-        d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
-        const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
-        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    // Forzamos la semana basada en la fecha que acabamos de validar
+    const getWeek = (y, m, d) => {
+        const target = new Date(y, m - 1, d);
+        const dayNr = (target.getDay() + 6) % 7;
+        target.setDate(target.getDate() - dayNr + 3);
+        const firstThursday = target.valueOf();
+        target.setMonth(0, 1);
+        if (target.getDay() !== 4) target.setMonth(0, 1 + ((4 - target.getDay() + 7) % 7));
+        return 1 + Math.ceil((firstThursday - target) / 604800000);
     };
-    const week = Number(analytics_dimensions?.period_week) || getWeek(invoiceDate);
+    const week = getWeek(year, month, day);
 
     const timeData = { year, quarter, month, week, day };
 
-    // 3. PREPARACIÓN DE MÉTRICAS
+    // --- RESTO IGUAL ---
     const metrics = {
         nCo2e: Number(climatiq_result?.co2e) || 0,
         nSpend: Number(extracted_data?.total_amount) || 0,
@@ -43,7 +62,6 @@ export const persistTransaction = async (record) => {
         svc: (ai_analysis?.service_type || "unknown").toLowerCase()
     };
 
-    // 4. GENERACIÓN DE OPERACIONES (Ahora impactarán en M05, M03, etc.)
     const statsOps = buildStatsOps(PK, timeData, metrics, isoNow);
 
     const transactItems = [
@@ -54,10 +72,8 @@ export const persistTransaction = async (record) => {
                     ...record, 
                     processed_at: isoNow, 
                     entity_type: "INVOICE",
-                    // Campos de indexación para GSI o filtrado rápido
                     period_year: year,
-                    period_month: month,
-                    period_quarter: quarter
+                    period_month: month
                 },
                 ConditionExpression: "attribute_not_exists(SK)"
             }
@@ -66,25 +82,14 @@ export const persistTransaction = async (record) => {
     ];
 
     try {
-        console.log(`[DB]: Persistiendo Factura de ${year}-${month}-${day} en PK: ${PK}`);
+        // Este log te dirá exactamente qué está intentando escribir
+        console.log(`[DB_EXECUTE]: Registrando para periodo ${year}-${month} (SK: STATS#${year}#Q${quarter}#M${month.toString().padStart(2, '0')})`);
         
         const command = new TransactWriteCommand({ TransactItems: transactItems });
-        const result = await ddb.send(command);
-        
-        console.log(`✅ [DB]: Transacción completada. Registro en STATS#${year}#Q${quarter}#M${month.toString().padStart(2, '0')}`);
+        await ddb.send(command);
         return { success: true };
-
     } catch (error) {
-        if (error.name === "TransactionCanceledException") {
-            const reasons = error.CancellationReasons;
-            if (reasons[0]?.Code === "ConditionalCheckFailed") {
-                console.warn(`[DB]: Duplicado detectado para SK: ${SK}`);
-                return { success: false, message: "DUPLICATE_INVOICE" };
-            }
-            console.error("❌ [DB]: Fallo en Transacción:", JSON.stringify(reasons));
-        } else {
-            console.error("❌ [DB]: Error de Infraestructura:", error.message);
-        }
+        console.error("❌ [DB_ERROR]:", error.message);
         throw error; 
     }
 };
