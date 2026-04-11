@@ -38,11 +38,6 @@ output "appsync_url" {
 # ==============================================================================
 # 3. DATA SOURCES (Nombres exactos para tus Resolvers)
 # ==============================================================================
-output "dynamodb_datasource_name" {
-  description = "Nombre del Data Source de DynamoDB para resolvers UNIT (Analytics)"
-  value       = aws_appsync_datasource.dynamodb_ds.name
-}
-
 output "api_lambda_datasource_name" {
   description = "Nombre del Data Source de la Lambda para Mutations (CRUD)"
   value       = aws_appsync_datasource.api_lambda_ds.name
@@ -51,4 +46,8 @@ output "api_lambda_datasource_name" {
 output "signer_lambda_datasource_name" {
   description = "Nombre del Data Source de la Lambda Signer"
   value       = aws_appsync_datasource.signer_lambda_ds.name
+}
+output "analytics_lambda_datasource_name" {
+  description = "Nombre del Data Source de la Lambda Analytics"
+  value       = aws_appsync_datasource.analytics_lambda_ds.name
 }
