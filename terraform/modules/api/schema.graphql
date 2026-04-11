@@ -3,7 +3,7 @@ schema {
   mutation: Mutation
 }
 
-# --- ANALÍTICA Y KPIs ---
+# --- TIPOS DE ANALÍTICA ---
 
 type YearlyKPI {
   id: ID!
@@ -25,9 +25,10 @@ type HighFrequencyKPI {
   lastUpdated: String
   byService: ServiceBreakdown
   normalization: NormalizationKPIs
-  # CORRECCIÓN: AWSJSON es el tipo nativo de AppSync para objetos arbitrarios
-  performance: AWSJSON           
+  performance: AWSJSON
 }
+
+# --- COMPONENTES ---
 
 type ServiceBreakdown {
   elec_spend: Float
@@ -57,7 +58,7 @@ type RecordMetadata {
   is_fiscal_closed: Boolean
 }
 
-# --- OPERACIÓN ---
+# --- ENTIDADES ---
 
 type Invoice {
   id: ID!
@@ -71,31 +72,38 @@ type Invoice {
   aiThoughtProcess: String
 }
 
-# --- RESPUESTAS ---
-
 type PresignedUrlResponse {
   uploadURL: String!
   key: String!
   userId: String!
 }
 
-# --- QUERIES ---
+# --- CONSULTAS (QUERIES) ---
 
 type Query {
+  # KPIs Jerárquicos
   getYearlyKPI(year: String!): YearlyKPI
   getQuarterlyKPI(year: String!, quarter: String!): YearlyKPI
   getMonthlyKPI(year: String!, month: String!): YearlyKPI
   getWeeklyKPI(year: String!, week: String!): HighFrequencyKPI
   getDailyKPI(day: String!): HighFrequencyKPI
+
+  # Comparativas y Metas (Lo que Terraform estaba buscando)
+  getYearOverYear(year: String!, month: String!): AWSJSON
+  getGoalTracking(year: String!): AWSJSON
   
-  # Otros métodos de analítica
+  # Auditoría
   getIntensityReport(year: String!): NormalizationKPIs
   getInvoicesByPeriod(year: String!, month: String): [Invoice]
+  getVendorRanking(year: String!, limit: Int): AWSJSON
 }
 
-# --- MUTATIONS ---
+# --- ACCIONES (MUTATIONS) ---
 
 type Mutation {
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
   approveInvoice(invoiceId: ID!): Invoice
+  
+  # Mutation que Terraform reclamaba (404)
+  createAsset(name: String!, type: String!): AWSJSON
 }
