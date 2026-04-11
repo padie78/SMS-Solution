@@ -29,7 +29,7 @@ resource "aws_appsync_api_key" "hub_key" {
 # 2. ROL DE IAM PARA RUNTIME
 # ==============================================================================
 resource "aws_iam_role" "appsync_runtime_role" {
-  name = "${var.project_name}-appsync-runtime-role-V2-${var.environment}"
+  name = "${var.project_name}-appsync-runtime-role-${var.environment}"
 
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
@@ -47,7 +47,7 @@ resource "aws_iam_role_policy_attachment" "appsync_logs" {
 }
 
 # ==============================================================================
-# 3. DATA SOURCES (Actualizados para apuntar a aws_appsync_graphql_api.api)
+# 3. DATA SOURCES
 # ==============================================================================
 
 resource "aws_appsync_datasource" "api_lambda_ds" {
@@ -116,14 +116,13 @@ resource "aws_appsync_resolver" "kpi_resolvers" {
   field       = each.key
   data_source = aws_appsync_datasource.analytics_lambda_ds.name 
 
-  # Esto asegura que el DataSource de la Lambda esté listo antes
   depends_on = [aws_appsync_datasource.analytics_lambda_ds]
 
   lifecycle {
-    # Intenta crear/actualizar antes de destruir dependencias
     create_before_destroy = true
   }
 }
+
 resource "aws_appsync_resolver" "get_url_resolver" {
   api_id      = aws_appsync_graphql_api.api.id
   type        = "Mutation"
@@ -132,7 +131,7 @@ resource "aws_appsync_resolver" "get_url_resolver" {
 }
 
 # ==============================================================================
-# 5. POLÍTICA DE ACCESO
+# 5. POLÍTICA DE ACCESO (Adaptada con Analytics)
 # ==============================================================================
 resource "aws_iam_role_policy" "appsync_access_policy" {
   name = "AppSyncAccessPolicy"
@@ -147,7 +146,11 @@ resource "aws_iam_role_policy" "appsync_access_policy" {
         Effect   = "Allow"
         Resource = [
           var.api_lambda_arn,
-          var.signer_lambda_arn
+          "${var.api_lambda_arn}:*",
+          var.signer_lambda_arn,
+          "${var.signer_lambda_arn}:*",
+          var.analytics_lambda_arn,         # <--- Agregada Analytics
+          "${var.analytics_lambda_arn}:*"    # <--- Agregada Analytics Alias
         ]
       },
       {
