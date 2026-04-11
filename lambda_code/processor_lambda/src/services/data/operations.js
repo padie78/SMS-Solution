@@ -21,7 +21,6 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow) => {
         const co2Val = isHighLevel ? (nCo2e / 1000) : nCo2e;
         const co2Field = isHighLevel ? 'total_co2e_ton' : 'total_co2e_kg';
 
-        // Definimos los alias de los atributos para evitar conflictos y palabras reservadas
         const attrNames = {
             "#svc": svc,
             "#u_field": "unit",
@@ -32,16 +31,13 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow) => {
             "#traz": "trazabilidad"
         };
 
-        // Construcción limpia de SET: Solo inicializamos si NO existe
+        // --- BLOQUE SET: Solo campos que NO colisionan con los ADD ---
         let setExpressions = [
             "entity_type = :type",
             "last_updated = :now",
-            "#fin = if_not_exists(#fin, :emptyMap)",
-            "#ghg = if_not_exists(#ghg, :emptyMap)",
-            "#mix = if_not_exists(#mix, :emptyMap)",
+            // Inicializamos el objeto del servicio específico
             "#mix.#svc = if_not_exists(#mix.#svc, :emptyMap)",
-            "#mix.#svc.#u_field = :uCons",
-            "#traz = if_not_exists(#traz, :emptyMap)"
+            "#mix.#svc.#u_field = :uCons"
         ];
 
         if (isHighLevel) {
@@ -73,7 +69,9 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow) => {
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: sk },
-                // CLAVE: Usamos alias #traz y #fin en el ADD para evitar el error de overlap literal
+                // CLAVE: No usamos SET para inicializar los mapas padres (#fin, #ghg, #traz).
+                // En su lugar, DynamoDB permite que el ADD cree el path si el padre no existe (en la mayoría de los casos)
+                // O usamos SET con un path específico que no colisione.
                 UpdateExpression: `
                     SET ${setExpressions.join(', ')}
                     ADD 
