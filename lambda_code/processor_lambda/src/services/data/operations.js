@@ -29,8 +29,6 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow, orgSettings = {}) =
 
     return targets.map(({ sk, type }) => {
         const isHighLevel = ['ANNUAL', 'QUARTERLY', 'MONTHLY'].includes(type);
-        
-        // Diferenciación de unidades: Toneladas para niveles altos, Kg para bajos
         const co2Val = isHighLevel ? (nCo2e / 1000) : nCo2e;
         const co2Field = isHighLevel ? 'ghg_total_co2e_ton' : 'ghg_total_co2e_kg';
 
@@ -40,6 +38,7 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow, orgSettings = {}) =
             "#svc_s": `consumption_${svc}_spend`
         };
 
+        // 1. Iniciamos attrValues SIN :emptyMap
         const attrValues = {
             ":type": `${type}_METRICS`,
             ":nSpend": Number(nSpend),
@@ -50,11 +49,9 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow, orgSettings = {}) =
             ":now": isoNow,
             ":norm": kpis.normalization,
             ":env": kpis.environmental,
-            ":weat": kpis.weather,
-            ":emptyMap": {}
+            ":weat": kpis.weather
         };
 
-        // Cláusulas SET: Actualizan o pisan valores en cada ejecución
         let setClauses = [
             `entity_type = :type`,
             `last_updated = :now`,
@@ -64,21 +61,24 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow, orgSettings = {}) =
             `weather_adjustment = :weat`
         ];
 
-        // 3. Inicialización de metadatos para niveles ejecutivos
         if (isHighLevel) {
             setClauses.push(`metadata = if_not_exists(metadata, :defaultMeta)`);
             attrValues[":defaultMeta"] = { version: "1.0", is_fiscal_closed: false };
         }
 
-        // 4. Inicialización de mapas vacíos para niveles operativos (Evita errores en Frontend)
-        if (type === 'WEEKLY') {
-            setClauses.push(`performance_kpis = if_not_exists(performance_kpis, :emptyMap)`);
-        }
+        // 2. Solo agregamos :emptyMap si el tipo lo requiere
+        if (type === 'WEEKLY' || type === 'DAILY') {
+            attrValues[":emptyMap"] = {}; // Ahora sí, solo existe si se usa
+            
+            if (type === 'WEEKLY') {
+                setClauses.push(`performance_kpis = if_not_exists(performance_kpis, :emptyMap)`);
+            }
 
-        if (type === 'DAILY') {
-            setClauses.push(`engineering_kpis = if_not_exists(engineering_kpis, :emptyMap)`);
-            setClauses.push(`asset_health = if_not_exists(asset_health, :emptyMap)`);
-            setClauses.push(`distribution_map = if_not_exists(distribution_map, :emptyMap)`);
+            if (type === 'DAILY') {
+                setClauses.push(`engineering_kpis = if_not_exists(engineering_kpis, :emptyMap)`);
+                setClauses.push(`asset_health = if_not_exists(asset_health, :emptyMap)`);
+                setClauses.push(`distribution_map = if_not_exists(distribution_map, :emptyMap)`);
+            }
         }
 
         return {
