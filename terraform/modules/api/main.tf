@@ -72,14 +72,14 @@ resource "aws_appsync_datasource" "signer_lambda_ds" {
   }
 }
 
-resource "aws_appsync_datasource" "dynamodb_ds" {
+resource "aws_appsync_datasource" "analytics_lambda_ds" {
   api_id           = aws_appsync_graphql_api.api.id
-  name             = "DynamoDBDS"
-  type             = "AMAZON_DYNAMODB"
+  name             = "AnalyticsLambdaDataSource"
+  type             = "AWS_LAMBDA"
   service_role_arn = aws_iam_role.appsync_runtime_role.arn
 
-  dynamodb_config {
-    table_name = var.dynamo_table_name
+  lambda_config {
+    function_arn = var.analytics_lambda_arn
   }
 }
 
@@ -87,6 +87,7 @@ resource "aws_appsync_datasource" "dynamodb_ds" {
 # 4. RESOLVERS
 # ==============================================================================
 
+# Bloque para Operaciones CRUD (Directo a Lambda API)
 resource "aws_appsync_resolver" "mutation_resolvers" {
   for_each = toset([
     "createBranch",
@@ -101,28 +102,23 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
   data_source = aws_appsync_datasource.api_lambda_ds.name
 }
 
+# Bloque para Analítica (Directo a Lambda Analytics)
 resource "aws_appsync_resolver" "kpi_resolvers" {
   for_each = toset([
     "getYearlyKPI", 
     "getQuarterlyKPI", 
     "getMonthlyKPI",
     "getYearOverYear"
-    
   ])
 
   api_id      = aws_appsync_graphql_api.api.id
   type        = "Query"
   field       = each.key
-  data_source = aws_appsync_datasource.dynamodb_ds.name # Tu DS de Dynamo
-  kind        = "UNIT"
+  # CAMBIO 1: Apuntar al DataSource de tu Lambda de Analytics
+  data_source = aws_appsync_datasource.analytics_lambda_ds.name 
 
-  # Asumiendo que guardas los .js dentro de la carpeta del módulo
-  code = file("${path.module}/resolvers/${each.key}.js")
-
-  runtime {
-    name            = "APPSYNC_JS"
-    runtime_version = "1.0.0"
-  }
+  # CAMBIO 2: Eliminamos 'kind', 'code' y 'runtime'.
+  # Al no estar presentes, AppSync entiende que es un "Direct Lambda Resolver".
 }
 
 resource "aws_appsync_resolver" "get_url_resolver" {

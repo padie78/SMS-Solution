@@ -24,6 +24,11 @@ variable "signer_lambda_arn" {
   type        = string
 }
 
+variable "analytics_lambda_arn" {
+  description = "ARN de la Lambda que procesa los eventos de Analytics"
+  type        = string
+}
+
 # ==============================================================================
 # 3. CONEXIÓN CON DATA (DynamoDB)
 # ==============================================================================
