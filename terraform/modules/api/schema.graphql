@@ -3,53 +3,39 @@ schema {
   mutation: Mutation
 }
 
-# --- ANALÍTICA Y KPIs (Reflejando la estructura de DynamoDB) ---
+# --- ANALÍTICA Y KPIs ---
 
-"""
-Representa los datos acumulados a nivel Anual, Mensual o Trimestral.
-Usa Toneladas para CO2e.
-"""
 type YearlyKPI {
-  id: ID!                     # Mapea a SK (ej: STATS#YEAR#2026)
-  totalCo2eTon: Float         # ghg_total_co2e_ton
-  totalSpend: Float           # financials_total_spend
-  invoiceCount: Int           # trazabilidad_total_invoices
-  lastUpdated: String         # last_updated
-  
-  # Desglose por servicio (Mapping dinámico de prefijos consumption_*)
+  id: ID!
+  totalCo2eTon: Float
+  totalSpend: Float
+  invoiceCount: Int
+  lastUpdated: String
   byService: ServiceBreakdown
-  
-  # Mapas de lógica de negocio (Objetos M en DynamoDB)
   normalization: NormalizationKPIs
   environmental: EnvironmentalImpact
   weather: WeatherAdjustment
   metadata: RecordMetadata
 }
 
-"""
-Representa datos de alta frecuencia (Semanal o Diario).
-Usa Kilogramos para CO2e.
-"""
 type HighFrequencyKPI {
-  id: ID!                     # STATS#DAY#11 o STATS#WEEK#2026#W01
-  totalCo2eKg: Float          # ghg_total_co2e_kg
-  totalSpend: Float           # financials_total_spend
+  id: ID!
+  totalCo2eKg: Float
+  totalSpend: Float
   lastUpdated: String
   byService: ServiceBreakdown
   normalization: NormalizationKPIs
-  # Estos mapas suelen venir vacíos en niveles bajos pero el schema los soporta
-  performance: JSON           
+  # CORRECCIÓN: AWSJSON es el tipo nativo de AppSync para objetos arbitrarios
+  performance: AWSJSON           
 }
 
 type ServiceBreakdown {
-  # Electricidad
-  elec_spend: Float           # consumption_elec_spend
-  elec_val: Float             # consumption_elec_val
-  elec_unit: String           # consumption_elec_unit
-  # Gas
-  gas_spend: Float            # consumption_gas_spend
-  gas_val: Float              # consumption_gas_val
-  gas_unit: String            # consumption_gas_unit
+  elec_spend: Float
+  elec_val: Float
+  elec_unit: String
+  gas_spend: Float
+  gas_val: Float
+  gas_unit: String
 }
 
 type NormalizationKPIs {
@@ -71,21 +57,21 @@ type RecordMetadata {
   is_fiscal_closed: Boolean
 }
 
-# --- ENTIDADES DE OPERACIÓN ---
+# --- OPERACIÓN ---
 
 type Invoice {
-  id: ID!                     # SK de la factura INV#...
-  vendor: String              # extracted_data.vendor
-  invoiceDate: String         # extracted_data.invoice_date
-  totalAmount: Float          # extracted_data.total_amount
-  emissionsKg: Float          # climatiq_result.co2e
-  consumptionVal: Float       # ai_analysis.value
-  serviceType: String         # ai_analysis.service_type
-  pdfUrl: String              # metadata.s3_key
-  aiThoughtProcess: String    # metadata.thought_process.monetary_vs_physical_check
+  id: ID!
+  vendor: String
+  invoiceDate: String
+  totalAmount: Float
+  emissionsKg: Float
+  consumptionVal: Float
+  serviceType: String
+  pdfUrl: String
+  aiThoughtProcess: String
 }
 
-# --- RESPUESTAS DE ACCIÓN ---
+# --- RESPUESTAS ---
 
 type PresignedUrlResponse {
   uploadURL: String!
@@ -96,26 +82,20 @@ type PresignedUrlResponse {
 # --- QUERIES ---
 
 type Query {
-  # Analytics Ejecutiva (Toneladas)
   getYearlyKPI(year: String!): YearlyKPI
   getQuarterlyKPI(year: String!, quarter: String!): YearlyKPI
   getMonthlyKPI(year: String!, month: String!): YearlyKPI
-  
-  # Analytics de Operación (Kilogramos)
   getWeeklyKPI(year: String!, week: String!): HighFrequencyKPI
   getDailyKPI(day: String!): HighFrequencyKPI
-
-  # Listados y Auditoría
-  getInvoicesByPeriod(year: String!, month: String): [Invoice]
+  
+  # Otros métodos de analítica
   getIntensityReport(year: String!): NormalizationKPIs
+  getInvoicesByPeriod(year: String!, month: String): [Invoice]
 }
 
 # --- MUTATIONS ---
 
 type Mutation {
-  # Proceso de carga
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
-  
-  # Acciones de auditoría
   approveInvoice(invoiceId: ID!): Invoice
 }
