@@ -26,21 +26,20 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow) => {
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: item.targetSk },
-                // Escapamos 'unit' con #unit y 'val' con #val por seguridad
+                // USAMOS PROPIEDADES PLANAS: Evita el ValidationError de paths inexistentes
                 UpdateExpression: `
                     SET entity_type = :type,
                         last_updated = :now,
-                        consumption_mix.#svc_name.#u_field = :uCons
+                        #svc_unit = :uCons
                     ADD 
-                        financials.total_spend :nSpend,
-                        ghg_inventory.${co2Field} :nCo2,
-                        consumption_mix.#svc_name.#v_field :vCons,
-                        trazabilidad.total_invoices_processed :one
+                        total_spend :nSpend,
+                        ${co2Field} :nCo2,
+                        #svc_val :vCons,
+                        total_invoices :one
                 `,
                 ExpressionAttributeNames: {
-                    "#svc_name": svc,
-                    "#u_field": "unit", // Mapeo de la palabra reservada
-                    "#v_field": "val"   // Buena práctica: mapear siempre campos anidados
+                    "#svc_unit": `unit_${svc}`,
+                    "#svc_val": `val_${svc}`
                 },
                 ExpressionAttributeValues: {
                     ":type": `${item.type}_METRICS`,
