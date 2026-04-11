@@ -103,7 +103,6 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
 }
 
 # Bloque para Analítica (Directo a Lambda Analytics)
-# Bloque para Analítica (Directo a Lambda Analytics)
 resource "aws_appsync_resolver" "kpi_resolvers" {
   for_each = toset([
     "getYearlyKPI", 
