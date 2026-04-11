@@ -117,14 +117,14 @@ resource "aws_appsync_resolver" "kpi_resolvers" {
   field       = each.key
   data_source = aws_appsync_datasource.analytics_lambda_ds.name 
 
-  # No ponemos ni 'code' ni 'runtime'. Esto los vuelve genéricos.
+  # Esto asegura que el DataSource de la Lambda esté listo antes
+  depends_on = [aws_appsync_datasource.analytics_lambda_ds]
 
-  # FORZAMOS EL ORDEN:
-  depends_on = [
-    aws_appsync_datasource.analytics_lambda_ds
-  ]
+  lifecycle {
+    # Intenta crear/actualizar antes de destruir dependencias
+    create_before_destroy = true
+  }
 }
-
 resource "aws_appsync_resolver" "get_url_resolver" {
   api_id      = aws_appsync_graphql_api.api.id
   type        = "Mutation"
