@@ -38,11 +38,13 @@ export const repo = {
      */
     getStats: async (orgId, year) => {
         const pk = formatPK(orgId);
+        console.log(`[REPO][getStats] Fetching stats for PK: ${pk}, Year: ${year}`); // Log de inicio de fetch
         try {
             const { Item } = await ddb.send(new GetCommand({
                 TableName: TABLE,
                 Key: { PK: pk, SK: `STATS#${year}` }
             }));
+            console.log(`[REPO][getStats] Raw Item from DynamoDB:`, JSON.stringify(Item)); // Log del resultado crudo
             return Item || null;
         } catch (error) {
             console.error(`[REPO][getStats] ERROR:`, error.message);

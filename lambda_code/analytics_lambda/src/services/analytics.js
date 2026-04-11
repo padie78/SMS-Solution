@@ -11,7 +11,9 @@ export const analyticsService = {
      * 1. ESTRATÉGICO: KPIs Anuales y Mensuales.
      */
     getYearlyKPI: async (orgId, year) => {
+        console.log(`[getYearlyKPI] Iniciando cálculo para Org: ${orgId}, Año: ${year}`); // Log de inicio
         const stats = await repo.getStats(orgId, year);
+        console.log(`[getYearlyKPI] Stats recuperados de Repo:`, JSON.stringify(stats)); // Log de datos recuperados
         if (!stats) return null;
 
         return {

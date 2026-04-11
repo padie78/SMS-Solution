@@ -37,6 +37,7 @@ export const handler = async (event) => {
         switch (methodName) {
             
             case 'getYearlyKPI':
+                console.log(`[EXEC KPI] Año: ${args.year}, Org Id: ${orgId}`);
                 result = await analyticsService.getYearlyKPI(orgId, args.year);
                 break;
 
