@@ -1,6 +1,6 @@
 import { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
-import { ddb, TABLE_NAME } from "../database/client.js";
-import { buildStatsOps } from "../services/operations.js";
+import { ddb, TABLE_NAME } from "./client.js";
+import { buildStatsOps } from "./operations.js";
 
 export const persistTransaction = async (record) => {
     // Usamos el ID de la factura como parte de la SK para evitar duplicados
