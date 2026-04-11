@@ -1,15 +1,14 @@
 /**
  * @fileoverview AppSync Resolver Handler - Orquestador de Consultas GraphQL.
- * Adaptado para manejar Sort Keys dinámicas según el tipo de métrica.
+ * Sincronizado con el esquema de SKs: STATS#YEAR#YYYY, STATS#WEEK#YYYY#WXX, STATS#DAY#DD
  */
 import { analyticsService } from './services/analytics.js';
 
 export const handler = async (event) => {
     console.log("== [DEBUG: APPSYNC EVENT START] ==");
-    console.log(JSON.stringify(event, null, 2));
-
+    
     try {
-        // 1. Identidad: Extraemos el orgId de los claims de Cognito (Fail-safe al ID fijo)
+        // 1. Identidad: Extraemos el orgId (Prioridad a claims de Cognito)
         const orgId = event.identity?.claims['custom:organization_id'] || 
                       event.identity?.claims['sub'] || 
                       "f3d4f8a2-90c1-708c-a446-2c8592524d62"; 
@@ -22,37 +21,50 @@ export const handler = async (event) => {
         let result;
 
         /**
-         * DISPATCHER LOGIC con construcción de SK dinámica
+         * DISPATCHER LOGIC
+         * Mapea las queries de GraphQL a los métodos del servicio
          */
         switch (methodName) {
             
             case 'getYearlyKPI':
-                // SK: STATS#YEAR#2026#TOTAL
+                // SK en DB: STATS#YEAR#2026
                 console.log(`[EXEC] Anual - Año: ${args.year}`);
                 result = await analyticsService.getYearlyKPI(orgId, args.year);
                 break;
 
             case 'getQuarterlyKPI':
-                // SK: STATS#QUARTER#2026#Q1
+                // SK en DB: STATS#YEAR#2026#Q1
                 if (!args.quarter) throw new Error("Quarter is required (e.g., Q1, Q2)");
                 console.log(`[EXEC] Trimestral - Año: ${args.year}, Q: ${args.quarter}`);
                 result = await analyticsService.getQuarterlyKPI(orgId, args.year, args.quarter.toUpperCase());
                 break;
 
             case 'getMonthlyKPI':
-                // SK: STATS#MONTH#2026#04
+                // SK en DB: STATS#YEAR#2026#M03
                 if (!args.month) throw new Error("Month is required");
-                // Aseguramos formato 01, 02...
                 const formattedMonth = args.month.toString().padStart(2, '0');
                 console.log(`[EXEC] Mensual - Año: ${args.year}, Mes: ${formattedMonth}`);
                 result = await analyticsService.getMonthlyKPI(orgId, args.year, formattedMonth);
                 break;
 
-            case 'getYearOverYear':
-                // YoY suele comparar meses específicos
-                const yoyMonth = (args.month || new Date().getMonth() + 1).toString().padStart(2, '0');
-                console.log(`[EXEC YoY] Mes: ${yoyMonth}, Año: ${args.year}`);
-                result = await analyticsService.getYearOverYear(orgId, yoyMonth, args.year);
+            case 'getWeeklyKPI':
+                // SK en DB: STATS#WEEK#2026#W01
+                if (!args.week) throw new Error("Week is required");
+                const formattedWeek = args.week.toString().padStart(2, '0');
+                console.log(`[EXEC] Semanal - Año: ${args.year}, Semana: ${formattedWeek}`);
+                result = await analyticsService.getWeeklyKPI(orgId, args.year, formattedWeek);
+                break;
+
+            case 'getDailyKPI':
+                // SK en DB: STATS#DAY#11
+                if (!args.day) throw new Error("Day is required");
+                console.log(`[EXEC] Diario - Día: ${args.day}`);
+                result = await analyticsService.getDailyKPI(orgId, args.day);
+                break;
+
+            case 'getIntensityReport':
+                console.log(`[EXEC] Reporte Intensidad - Año: ${args.year}`);
+                result = await analyticsService.getIntensityReport(orgId, args.year);
                 break;
 
             case 'getVendorRanking':
@@ -61,9 +73,9 @@ export const handler = async (event) => {
                 result = await analyticsService.getVendorRanking(orgId, vYear, vLimit);
                 break;
 
-            // ... otros casos (mantenemos la estructura anterior)
-            case 'getGoalTracking':
-                result = await analyticsService.getGoalTracking(orgId, (args.year || "2026").toString());
+            case 'getInvoicesByPeriod':
+                console.log(`[EXEC] Search Invoices - Año: ${args.year}, Mes: ${args.month}`);
+                result = await analyticsService.getInvoicesByPeriod(orgId, args.year, args.month);
                 break;
 
             default:
@@ -71,9 +83,6 @@ export const handler = async (event) => {
                 throw new Error(`Resolver for ${methodName} not found.`);
         }
 
-        console.log(`== [SUCCESS: ${methodName}] ==`);
-        console.log("Raw Result:", JSON.stringify(result));
-        
         return result;
 
     } catch (error) {

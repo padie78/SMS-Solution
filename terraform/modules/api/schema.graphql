@@ -3,311 +3,121 @@ schema {
   mutation: Mutation
 }
 
-# --- ENTIDADES PRINCIPALES ---
+# --- ANALÍTICA Y KPIs (Reflejando la estructura de DynamoDB) ---
 
-type Organization {
-  pk: ID!
-  sk: String!
-  org_details: OrgDetails
-  config: Config
-  features: Features
-}
-
-type OrgDetails {
-  name: String
-  sector: String
-  country: String
-  tax_id: String
-}
-
-type Config {
-  reporting_currency: String
-  fiscal_start_month: Int
-  base_year_reference: Int
-  area_unit: String
-}
-
-type Features {
-  ocr_enabled: Boolean
-  iot_realtime_enabled: Boolean
-  max_branches: Int
-  max_assets_per_branch: Int
-}
-
-type Branch {
-  id: ID!
-  name: String!
-  city: String!
-  sqMeters: Float
-  headcount: Int
-  totalCo2e: Float
-  intensityRatio: Float
-  assets: [Asset]
-}
-
-type Asset {
-  id: ID!
-  name: String!
-  type: AssetType!
-  status: String
-  serviceType: String
-  totalCo2e: Float
-  intensityRatio: Float
-  history: [AssetHistoryPoint]
-}
-
-enum AssetType {
-  VEHICLE
-  BUILDING
-  MACHINERY
-  DATA_CENTER
-  OTHER
-}
-
-type AssetHistoryPoint {
-  date: String
-  emissions: Float
-  spend: Float
-}
-
-# --- ANALÍTICA Y KPIs ---
-
+"""
+Representa los datos acumulados a nivel Anual, Mensual o Trimestral.
+Usa Toneladas para CO2e.
+"""
 type YearlyKPI {
-  totalCo2e: Float
-  totalSpend: Float
-  invoiceCount: Int
-  lastFile: String
+  id: ID!                     # Mapea a SK (ej: STATS#YEAR#2026)
+  totalCo2eTon: Float         # ghg_total_co2e_ton
+  totalSpend: Float           # financials_total_spend
+  invoiceCount: Int           # trazabilidad_total_invoices
+  lastUpdated: String         # last_updated
+  
+  # Desglose por servicio (Mapping dinámico de prefijos consumption_*)
   byService: ServiceBreakdown
+  
+  # Mapas de lógica de negocio (Objetos M en DynamoDB)
+  normalization: NormalizationKPIs
+  environmental: EnvironmentalImpact
+  weather: WeatherAdjustment
+  metadata: RecordMetadata
+}
+
+"""
+Representa datos de alta frecuencia (Semanal o Diario).
+Usa Kilogramos para CO2e.
+"""
+type HighFrequencyKPI {
+  id: ID!                     # STATS#DAY#11 o STATS#WEEK#2026#W01
+  totalCo2eKg: Float          # ghg_total_co2e_kg
+  totalSpend: Float           # financials_total_spend
+  lastUpdated: String
+  byService: ServiceBreakdown
+  normalization: NormalizationKPIs
+  # Estos mapas suelen venir vacíos en niveles bajos pero el schema los soporta
+  performance: JSON           
 }
 
 type ServiceBreakdown {
-  ELEC: Float
-  GAS: Float
+  # Electricidad
+  elec_spend: Float           # consumption_elec_spend
+  elec_val: Float             # consumption_elec_val
+  elec_unit: String           # consumption_elec_unit
+  # Gas
+  gas_spend: Float            # consumption_gas_spend
+  gas_val: Float              # consumption_gas_val
+  gas_unit: String            # consumption_gas_unit
 }
 
-type MonthlyKPI {
-  month: String
-  year: String
-  emissions: KPIDetail
-  spend: KPIDetail
-  isEmissionsUp: Boolean
-  isSpendUp: Boolean
+type NormalizationKPIs {
+  intensity_per_revenue: Float
+  intensity_per_sqm: Float
 }
 
-type KPIDetail {
-  value: Float
-  previousValue: Float
-  diffPercentage: Float
+type EnvironmentalImpact {
+  avoided_emissions_ton: Float
+  renewable_energy_ratio: Float
 }
 
-type EvolutionData {
-  label: String
-  emissions: Float
-  spend: Float
+type WeatherAdjustment {
+  weather_normalized_usage: Float
 }
 
-type ForecastReport {
-  currentAccumulated: Float
-  monthsProcessed: Int
-  projectedYearlyTotal: Float
-  trend: String
+type RecordMetadata {
+  version: String
+  is_fiscal_closed: Boolean
 }
 
-type YoYComparison {
-  month: String
-  currentYear: YearData
-  previousYear: YearData
-  diffPercentageEmissions: Float
-  diffPercentageSpend: Float
-  efficiencyImprovement: Boolean
-}
+# --- ENTIDADES DE OPERACIÓN ---
 
-type YearData {
-  emissions: Float
-  spend: Float
-}
-
-type IntensityReport {
-  year: String
-  ratio: Float
-  unit: String
-  label: String
-}
-
-type ServiceIntensity {
-  serviceType: String
-  intensityRatio: Float
-  totalContributionPercentage: Float
-}
-
-type QuarterlyBreakdown {
-  Q1: Float
-  Q2: Float
-  Q3: Float
-  Q4: Float
-  total: Float
+type Invoice {
+  id: ID!                     # SK de la factura INV#...
+  vendor: String              # extracted_data.vendor
+  invoiceDate: String         # extracted_data.invoice_date
+  totalAmount: Float          # extracted_data.total_amount
+  emissionsKg: Float          # climatiq_result.co2e
+  consumptionVal: Float       # ai_analysis.value
+  serviceType: String         # ai_analysis.service_type
+  pdfUrl: String              # metadata.s3_key
+  aiThoughtProcess: String    # metadata.thought_process.monetary_vs_physical_check
 }
 
 # --- RESPUESTAS DE ACCIÓN ---
 
 type PresignedUrlResponse {
   uploadURL: String!
-  key: String!       # Añadido para que el cliente sepa dónde quedó el archivo
+  key: String!
   userId: String!
-  message: String
 }
 
-# --- OPERACIÓN Y AUDITORÍA ---
-
-type Invoice {
-  id: ID!
-  vendor: String
-  invoiceDate: String
-  totalAmount: Float
-  emissions: Float
-  consumption: Float
-  unit: String
-  confidence: Float
-  pdfUrl: String
-  requiresReview: Boolean
-  service: String
-}
-
-type Anomaly {
-  id: ID!
-  date: String
-  service: String
-  vendor: String
-  detectedValue: Float
-  expectedValue: Float
-  severity: String
-  reason: String
-}
-
-type AuditItem {
-  id: ID!
-  vendor: String
-  score: Float
-  invoiceNumber: String
-  reason: String
-  pdfUrl: String
-}
-
-type DataQualitySummary {
-  averageConfidence: Float
-  totalPendingReview: Int
-  automatedProcessRate: Float
-}
-
-type GoalStatus {
-  annualTargetEmissions: Float
-  currentAccumulated: Float
-  remainingCarbonBudget: Float
-  daysRemainingInYear: Int
-  burnRate: Float
-  isOnTrack: Boolean
-}
-
-type VendorRanking {
-  vendorName: String
-  totalCo2e: Float
-  totalInvoices: Int
-  percentageOfTotalOrgEmissions: Float
-  averageConfidence: Float
-  lastInvoiceDate: String
-}
-
-# --- INPUTS PARA MUTATIONS ---
-
-input CreateBranchInput {
-  name: String!
-  city: String!
-  sqMeters: Float
-  headcount: Int
-  region: String
-}
-
-input UpdateBranchInput {
-  name: String
-  sqMeters: Float
-  headcount: Int
-}
-
-input CreateAssetInput {
-  name: String!
-  type: AssetType!
-  serviceType: String!
-  meterId: String
-  ghgScope: Int
-}
-
-input UpdateAssetInput {
-  name: String
-  status: String
-  serviceType: String
-  meterId: String
-}
-
-input UpdateOrgConfigInput {
-  reporting_currency: String
-  area_unit: String
-  fiscal_start_month: Int
-}
-
-# --- QUERIES Y MUTATIONS ---
+# --- QUERIES ---
 
 type Query {
-  # Org & Hierarchy
-  getOrganization(id: ID!): Organization
-  getBranchRanking(year: String!): [Branch]
-  getBranchKPI(branchId: ID!, year: String!): YearlyKPI
-  getBranchAssets(branchId: ID!): [Asset]
-  getAssetDetail(assetId: ID!, year: String!): Asset
-
-
-  # Analytics3
+  # Analytics Ejecutiva (Toneladas)
   getYearlyKPI(year: String!): YearlyKPI
   getQuarterlyKPI(year: String!, quarter: String!): YearlyKPI
   getMonthlyKPI(year: String!, month: String!): YearlyKPI
-  getEvolution(year: String!, serviceType: String): [EvolutionData]
-  getForecast(year: String!): ForecastReport
-  getQuarterlyBreakdown(year: String!): QuarterlyBreakdown
-  getYearOverYear(year: String!, month: String!): YoYComparison
-  getIntensity(year: String!): IntensityReport
-  getIntensityByService(year: String!): [ServiceIntensity]
   
-  # Operation & Compliance
-  getAnomalies(year: String!, month: String!): [Anomaly]
-  getAuditQueue(month: String!, year: String!): [AuditItem]
-  dataQualitySummary(month: String!, year: String!): DataQualitySummary
-  getVendorRanking(limit: Int): [VendorRanking]
-  getGoalTracking(year: String!): GoalStatus
-  
-  searchInvoices(
-    year: String
-    month: String
-    service: String
-    requiresReview: Boolean
-  ): [Invoice]
+  # Analytics de Operación (Kilogramos)
+  getWeeklyKPI(year: String!, week: String!): HighFrequencyKPI
+  getDailyKPI(day: String!): HighFrequencyKPI
+
+  # Listados y Auditoría
+  getInvoicesByPeriod(year: String!, month: String): [Invoice]
+  getIntensityReport(year: String!): NormalizationKPIs
 }
+
+# --- MUTATIONS ---
 
 type Mutation {
-  # Generación de URL firmada para subida de facturas (OCR)
+  # Proceso de carga
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
   
-  # Hierarchy CRUD
-  createBranch(orgId: ID!, input: CreateBranchInput!): Branch
-  updateBranch(orgId: ID!, branchId: ID!, input: UpdateBranchInput!): Branch
-  deleteBranch(orgId: ID!, branchId: ID!): Boolean
-
-  createAsset(orgId: ID!, branchId: ID!, input: CreateAssetInput!): Asset
-  updateAsset(orgId: ID!, assetId: ID!, input: UpdateAssetInput!): Asset
-  deleteAsset(orgId: ID!, assetId: ID!): Boolean
-  
-  # Settings
-  updateOrgConfig(orgId: ID!, input: UpdateOrgConfigInput!): Organization
-  
-  # Actions
-  resolveAnomaly(anomalyId: ID!, resolutionNote: String!): Anomaly
+  # Acciones de auditoría
   approveInvoice(invoiceId: ID!): Invoice
 }
+
+scalar JSON

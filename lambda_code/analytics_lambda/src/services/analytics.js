@@ -10,66 +10,103 @@ export const analyticsService = {
     /**
      * 1. ESTRATÉGICO: KPIs (Anuales, Mensuales y Trimestrales)
      */
-    getYearlyKPI: async (orgId, year) => {
-        // Construimos la SK específica para el acumulado anual
-        const sk = `STATS#YEAR#${year}#TOTAL`;
-        console.log(`[getYearlyKPI] Buscando SK: ${sk}`);
+    getYearlyKPI: async ({ year }, orgId) => {
+        const SK = `STATS#YEAR#${year}`;
+        const { Item } = await docClient.send(new getCommand({
+            TableName: TABLE_NAME,
+            Key: { PK: `ORG#${orgId}`, SK }
+        }));
 
-        const stats = await repo.getStats(orgId, sk);
-        if (!stats) return null;
+        if (!Item) return null;
 
-        return formatKPIData(stats);
-    },
-
-  getMonthlyKPI: async (orgId, year, month) => {
-        const mStr = month.toString().padStart(2, '0');
-        const monthInt = parseInt(mStr);
-        
-        // Cálculo del Quarter basado en el mes
-        const quarter = Math.ceil(monthInt / 3);
-        
-        // SK EXACTA: STATS#YEAR#2026#QUARTER#2#MONTH#05
-        const sk = `STATS#YEAR#${year}#QUARTER#${quarter}#MONTH#${mStr}`;
-        
-        console.log(`[getMonthlyKPI] Consultando SK: ${sk}`);
-        
-        const stats = await repo.getStats(orgId, sk);
-        
-        if (!stats) {
-            console.warn(`[getMonthlyKPI] No se encontró registro para la SK: ${sk}`);
-            return null;
-        }
-
-        // Mapeo según los nombres de campos que pusiste (total_co2e y total_spend)
         return {
-            totalCo2e: parseFloat(stats.total_co2e || 0), // Aquí quitamos el _kg que sobraba
-            totalSpend: parseFloat(stats.total_spend || 0),
-            invoiceCount: parseInt(stats.invoice_count || 0),
-            lastFile: stats.last_file_processed || "Ninguno",
-            byService: {
-                // Si no tienes estos campos en el registro mensual, 
-                // devolverán 0 en lugar de romper la UI
-                ELEC: parseFloat(stats.service_ELEC_co2e || 0),
-                GAS: parseFloat(stats.service_GAS_co2e || 0)
-            }
+            id: Item.SK,
+            totalCo2eTon: Item.ghg_total_co2e_ton || 0,
+            totalSpend: Item.financials_total_spend || 0,
+            invoiceCount: Item.trazabilidad_total_invoices || 0,
+            lastUpdated: Item.last_updated,
+            byService: mapServiceBreakdown(Item),
+            normalization: Item.normalization_kpis,
+            environmental: Item.environmental_impact,
+            weather: Item.weather_adjustment,
+            metadata: Item.metadata
         };
     },
 
-    getQuarterlyKPI: async (orgId, year, quarter) => {
-        // SK: STATS#QUARTER#2026#Q1
-        const sk = `STATS#QUARTER#${year}#${quarter.toUpperCase()}`;
-        const stats = await repo.getStats(orgId, sk);
-        if (!stats) return null;
+    getQuarterlyKPI: async ({ year, quarter }, orgId) => {
+        const SK = `STATS#YEAR#${year}#${quarter}`; // ej: STATS#YEAR#2026#Q1
+        const { Item } = await docClient.send(new getCommand({
+            TableName: TABLE_NAME,
+            Key: { PK: `ORG#${orgId}`, SK }
+        }));
 
-        return formatKPIData(stats);
+        return Item ? {
+            id: Item.SK,
+            totalCo2eTon: Item.ghg_total_co2e_ton || 0,
+            totalSpend: Item.financials_total_spend || 0,
+            invoiceCount: Item.trazabilidad_total_invoices || 0,
+            byService: mapServiceBreakdown(Item),
+            normalization: Item.normalization_kpis
+        } : null;
     },
+    getMonthlyKPI: async ({ year, month }, orgId) => {
+        const m = month.padStart(2, '0');
+        const SK = `STATS#YEAR#${year}#M${m}`;
+        const { Item } = await docClient.send(new getCommand({
+            TableName: TABLE_NAME,
+            Key: { PK: `ORG#${orgId}`, SK }
+        }));
+
+        return Item ? {
+            id: Item.SK,
+            totalCo2eTon: Item.ghg_total_co2e_ton || 0,
+            totalSpend: Item.financials_total_spend || 0,
+            normalization: Item.normalization_kpis,
+            byService: mapServiceBreakdown(Item)
+        } : null;
+    },
+    getWeeklyKPI: async ({ year, week }, orgId) => {
+        const w = week.padStart(2, '0');
+        const SK = `STATS#WEEK#${year}#W${w}`;
+        const { Item } = await docClient.send(new getCommand({
+            TableName: TABLE_NAME,
+            Key: { PK: `ORG#${orgId}`, SK }
+        }));
+
+        return Item ? {
+            id: Item.SK,
+            totalCo2eKg: Item.ghg_total_co2e_kg || 0,
+            totalSpend: Item.financials_total_spend || 0,
+            lastUpdated: Item.last_updated,
+            byService: mapServiceBreakdown(Item),
+            normalization: Item.normalization_kpis
+        } : null;
+    },
+
+    getDailyKPI: async ({ day }, orgId) => {
+        // En tu DB el SK es STATS#DAY#11
+        const SK = `STATS#DAY#${day}`; 
+        const { Item } = await docClient.send(new getCommand({
+            TableName: TABLE_NAME,
+            Key: { PK: `ORG#${orgId}`, SK }
+        }));
+
+        return Item ? {
+            id: Item.SK,
+            totalCo2eKg: Item.ghg_total_co2e_kg || 0,
+            totalSpend: Item.financials_total_spend || 0,
+            byService: mapServiceBreakdown(Item),
+            normalization: Item.normalization_kpis
+        } : null;
+    },
+
 
     /**
      * 2. TENDENCIAS Y EVOLUCIÓN
      */
     getYearOverYear: async (orgId, month, year) => {
         const mStr = month.toString().padStart(2, '0');
-        
+
         // Obtenemos los registros de este año y el anterior para el mismo mes
         const skCurrent = `STATS#MONTH#${year}#${mStr}`;
         const skPrev = `STATS#MONTH#${parseInt(year) - 1}#${mStr}`;
