@@ -1,115 +1,115 @@
 /**
  * @fileoverview Service Layer - Lógica de Negocio de Analíticas (SMS).
- * Centraliza la construcción de Sort Keys para el repositorio.
+ * Centraliza la construcción de Sort Keys y el mapeo de datos.
  */
-
 import { repo } from '../repository/dynamo.js';
+
+// Helper para mapear dinámicamente el ServiceBreakdown desde los prefijos consumption_*
+const mapServiceBreakdown = (item) => {
+    if (!item) return null;
+    return {
+        elec_spend: item.consumption_elec_spend || 0,
+        elec_val: item.consumption_elec_val || 0,
+        elec_unit: item.consumption_elec_unit || "kWh",
+        gas_spend: item.consumption_gas_spend || 0,
+        gas_val: item.consumption_gas_val || 0,
+        gas_unit: item.consumption_gas_unit || "kWh"
+    };
+};
 
 export const analyticsService = {
 
     /**
      * 1. ESTRATÉGICO: KPIs (Anuales, Mensuales y Trimestrales)
      */
-    getYearlyKPI: async ({ year }, orgId) => {
+    getYearlyKPI: async (orgId, year) => {
         const SK = `STATS#YEAR#${year}`;
-        const { Item } = await docClient.send(new getCommand({
-            TableName: TABLE_NAME,
-            Key: { PK: `ORG#${orgId}`, SK }
-        }));
-
-        if (!Item) return null;
+        const item = await repo.getStats(orgId, SK); // Usamos el repo!
+        if (!item) return null;
 
         return {
-            id: Item.SK,
-            totalCo2eTon: Item.ghg_total_co2e_ton || 0,
-            totalSpend: Item.financials_total_spend || 0,
-            invoiceCount: Item.trazabilidad_total_invoices || 0,
-            lastUpdated: Item.last_updated,
-            byService: mapServiceBreakdown(Item),
-            normalization: Item.normalization_kpis,
-            environmental: Item.environmental_impact,
-            weather: Item.weather_adjustment,
-            metadata: Item.metadata
+            id: item.SK,
+            totalCo2eTon: item.ghg_total_co2e_ton || 0,
+            totalSpend: item.financials_total_spend || 0,
+            invoiceCount: item.trazabilidad_total_invoices || 0,
+            lastUpdated: item.last_updated,
+            byService: mapServiceBreakdown(item),
+            normalization: item.normalization_kpis,
+            environmental: item.environmental_impact,
+            weather: item.weather_adjustment,
+            metadata: item.metadata
         };
     },
 
-    getQuarterlyKPI: async ({ year, quarter }, orgId) => {
-        const SK = `STATS#YEAR#${year}#${quarter}`; // ej: STATS#YEAR#2026#Q1
-        const { Item } = await docClient.send(new getCommand({
-            TableName: TABLE_NAME,
-            Key: { PK: `ORG#${orgId}`, SK }
-        }));
+    getQuarterlyKPI: async (orgId, year, quarter) => {
+        const SK = `STATS#YEAR#${year}#${quarter}`;
+        const item = await repo.getStats(orgId, SK);
+        if (!item) return null;
 
-        return Item ? {
-            id: Item.SK,
-            totalCo2eTon: Item.ghg_total_co2e_ton || 0,
-            totalSpend: Item.financials_total_spend || 0,
-            invoiceCount: Item.trazabilidad_total_invoices || 0,
-            byService: mapServiceBreakdown(Item),
-            normalization: Item.normalization_kpis
-        } : null;
+        return {
+            id: item.SK,
+            totalCo2eTon: item.ghg_total_co2e_ton || 0,
+            totalSpend: item.financials_total_spend || 0,
+            byService: mapServiceBreakdown(item),
+            normalization: item.normalization_kpis
+        };
     },
-    getMonthlyKPI: async ({ year, month }, orgId) => {
+
+    getMonthlyKPI: async (orgId, year, month) => {
         const m = month.padStart(2, '0');
-        const SK = `STATS#YEAR#${year}#M${m}`;
-        const { Item } = await docClient.send(new getCommand({
-            TableName: TABLE_NAME,
-            Key: { PK: `ORG#${orgId}`, SK }
-        }));
+        const SK = `STATS#YEAR#${year}#M${m}`; // Formato correcto M01
+        const item = await repo.getStats(orgId, SK);
+        if (!item) return null;
 
-        return Item ? {
-            id: Item.SK,
-            totalCo2eTon: Item.ghg_total_co2e_ton || 0,
-            totalSpend: Item.financials_total_spend || 0,
-            normalization: Item.normalization_kpis,
-            byService: mapServiceBreakdown(Item)
-        } : null;
+        return {
+            id: item.SK,
+            totalCo2eTon: item.ghg_total_co2e_ton || 0,
+            totalSpend: item.financials_total_spend || 0,
+            byService: mapServiceBreakdown(item),
+            normalization: item.normalization_kpis
+        };
     },
-    getWeeklyKPI: async ({ year, week }, orgId) => {
+
+    getWeeklyKPI: async (orgId, year, week) => {
         const w = week.padStart(2, '0');
         const SK = `STATS#WEEK#${year}#W${w}`;
-        const { Item } = await docClient.send(new getCommand({
-            TableName: TABLE_NAME,
-            Key: { PK: `ORG#${orgId}`, SK }
-        }));
+        const item = await repo.getStats(orgId, SK);
+        if (!item) return null;
 
-        return Item ? {
-            id: Item.SK,
-            totalCo2eKg: Item.ghg_total_co2e_kg || 0,
-            totalSpend: Item.financials_total_spend || 0,
-            lastUpdated: Item.last_updated,
-            byService: mapServiceBreakdown(Item),
-            normalization: Item.normalization_kpis
-        } : null;
+        return {
+            id: item.SK,
+            totalCo2eKg: item.ghg_total_co2e_kg || 0,
+            totalSpend: item.financials_total_spend || 0,
+            lastUpdated: item.last_updated,
+            byService: mapServiceBreakdown(item),
+            normalization: item.normalization_kpis
+        };
     },
 
-    getDailyKPI: async ({ day }, orgId) => {
-        // En tu DB el SK es STATS#DAY#11
+    getDailyKPI: async (orgId, day) => {
         const SK = `STATS#DAY#${day}`; 
-        const { Item } = await docClient.send(new getCommand({
-            TableName: TABLE_NAME,
-            Key: { PK: `ORG#${orgId}`, SK }
-        }));
+        const item = await repo.getStats(orgId, SK);
+        if (!item) return null;
 
-        return Item ? {
-            id: Item.SK,
-            totalCo2eKg: Item.ghg_total_co2e_kg || 0,
-            totalSpend: Item.financials_total_spend || 0,
-            byService: mapServiceBreakdown(Item),
-            normalization: Item.normalization_kpis
-        } : null;
+        return {
+            id: item.SK,
+            totalCo2eKg: item.ghg_total_co2e_kg || 0,
+            totalSpend: item.financials_total_spend || 0,
+            byService: mapServiceBreakdown(item),
+            normalization: item.normalization_kpis
+        };
     },
-
 
     /**
-     * 2. TENDENCIAS Y EVOLUCIÓN
+     * 2. TENDENCIAS (Year over Year)
      */
     getYearOverYear: async (orgId, month, year) => {
         const mStr = month.toString().padStart(2, '0');
+        const prevYear = (parseInt(year) - 1).toString();
 
-        // Obtenemos los registros de este año y el anterior para el mismo mes
-        const skCurrent = `STATS#MONTH#${year}#${mStr}`;
-        const skPrev = `STATS#MONTH#${parseInt(year) - 1}#${mStr}`;
+        // Corregido: Las Sort Keys deben seguir el patrón de la tabla
+        const skCurrent = `STATS#YEAR#${year}#M${mStr}`;
+        const skPrev = `STATS#YEAR#${prevYear}#M${mStr}`;
 
         const [currentStats, prevStats] = await Promise.all([
             repo.getStats(orgId, skCurrent),
@@ -117,12 +117,12 @@ export const analyticsService = {
         ]);
 
         const current = {
-            emissions: parseFloat(currentStats?.total_co2e_kg || 0),
-            spend: parseFloat(currentStats?.total_spend || 0)
+            emissions: parseFloat(currentStats?.ghg_total_co2e_ton || 0),
+            spend: parseFloat(currentStats?.financials_total_spend || 0)
         };
         const previous = {
-            emissions: parseFloat(prevStats?.total_co2e_kg || 0),
-            spend: parseFloat(prevStats?.total_spend || 0)
+            emissions: parseFloat(prevStats?.ghg_total_co2e_ton || 0),
+            spend: parseFloat(prevStats?.financials_total_spend || 0)
         };
 
         return {
@@ -132,55 +132,12 @@ export const analyticsService = {
             diffPercentageEmissions: calculateDiff(current.emissions, previous.emissions),
             efficiencyImprovement: previous.spend > 0 ? (current.emissions / current.spend) < (previous.emissions / previous.spend) : false
         };
-    },
-
-    /**
-     * 3. AUXILIARES DE FORMATEO Y CÁLCULO
-     */
-    getVendorRanking: async (orgId, year, limit = 5) => {
-        // En este caso, el repo debe traer todas las facturas del año para calcular el ranking
-        const invoices = await repo.getYearlyInvoicesRaw(orgId, year);
-        if (!invoices.length) return [];
-
-        const totalOrgCo2 = invoices.reduce((acc, inv) => acc + parseFloat(inv.climatiq_result?.co2e || 0), 0);
-
-        const rankingMap = invoices.reduce((acc, inv) => {
-            const name = inv.extracted_data?.vendor || "Desconocido";
-            const co2 = parseFloat(inv.climatiq_result?.co2e || 0);
-            if (!acc[name]) acc[name] = { vendorName: name, totalCo2e: 0, totalInvoices: 0 };
-            acc[name].totalCo2e += co2;
-            acc[name].totalInvoices += 1;
-            return acc;
-        }, {});
-
-        return Object.values(rankingMap)
-            .map(v => ({
-                ...v,
-                totalCo2e: parseFloat(v.totalCo2e.toFixed(2)),
-                percentageOfTotalOrgEmissions: totalOrgCo2 > 0 ? parseFloat(((v.totalCo2e / totalOrgCo2) * 100).toFixed(2)) : 0
-            }))
-            .sort((a, b) => b.totalCo2e - a.totalCo2e)
-            .slice(0, limit);
     }
 };
 
 /**
- * HELPERS PRIVADOS
+ * HELPERS
  */
-
-// Normaliza el mapeo de campos de DynamoDB a GraphQL
-const formatKPIData = (stats) => ({
-    totalCo2e: parseFloat(stats.total_co2e_kg || 0),
-    totalSpend: parseFloat(stats.total_spend || 0),
-    invoiceCount: parseInt(stats.invoice_count || 0),
-    lastFile: stats.last_file_processed || "Ninguno",
-    byService: {
-        ELEC: parseFloat(stats.service_ELEC_co2e || 0),
-        GAS: parseFloat(stats.service_GAS_co2e || 0)
-    }
-});
-
-// Calcula variaciones porcentuales
 const calculateDiff = (curr, prev) => {
     if (prev === 0) return curr > 0 ? 100 : 0;
     return parseFloat((((curr - prev) / prev) * 100).toFixed(2));
