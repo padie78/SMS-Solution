@@ -9,7 +9,6 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow) => {
     const d = day.toString().padStart(2, '0');
     const q = quarter.toString();
 
-    // Definimos los objetivos con sus SKs únicas
     const targets = [
         { targetSk: `STATS#YEAR#${year}`, type: 'ANNUAL' },
         { targetSk: `STATS#YEAR#${year}#Q#${q}`, type: 'QUARTERLY' },
@@ -26,22 +25,22 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow) => {
         return {
             Update: {
                 TableName: TABLE_NAME,
-                Key: { 
-                    PK: PK, 
-                    SK: item.targetSk // <--- Usamos explícitamente item.targetSk
-                },
+                Key: { PK, SK: item.targetSk },
+                // Escapamos 'unit' con #unit y 'val' con #val por seguridad
                 UpdateExpression: `
                     SET entity_type = :type,
                         last_updated = :now,
-                        consumption_mix.#svc_name.unit = :uCons
+                        consumption_mix.#svc_name.#u_field = :uCons
                     ADD 
                         financials.total_spend :nSpend,
                         ghg_inventory.${co2Field} :nCo2,
-                        consumption_mix.#svc_name.val :vCons,
+                        consumption_mix.#svc_name.#v_field :vCons,
                         trazabilidad.total_invoices_processed :one
                 `,
                 ExpressionAttributeNames: {
-                    "#svc_name": svc
+                    "#svc_name": svc,
+                    "#u_field": "unit", // Mapeo de la palabra reservada
+                    "#v_field": "val"   // Buena práctica: mapear siempre campos anidados
                 },
                 ExpressionAttributeValues: {
                     ":type": `${item.type}_METRICS`,
