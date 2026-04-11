@@ -45,3 +45,16 @@ output "api_lambda_name" {
   description = "Nombre de la función API Lambda"
   value       = aws_lambda_function.api_lambda.function_name
 }
+
+# ==============================================================================
+# 4. OUTPUTS PARA LA LAMBDA ANALYTICS (Procesamiento de Eventos)
+# ==============================================================================
+output "analytics_lambda_arn" {
+  description = "ARN de la función Lambda que procesa eventos de Analytics"
+  value       = aws_lambda_function.analytics.arn
+}
+
+output "analytics_lambda_name" {
+  description = "Nombre de la función Lambda Analytics"
+  value       = aws_lambda_function.analytics.function_name
+}
