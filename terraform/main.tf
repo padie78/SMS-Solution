@@ -81,6 +81,7 @@ module "api" {
   # Lambdas conectadas (Signer y CRUD)
   signer_lambda_arn    = module.compute.signer_lambda_arn
   api_lambda_arn       = module.compute.api_lambda_arn
+  analytics_lambda_arn = module.compute.analytics_lambda_arn
 
   # Persistencia
   dynamo_table_name    = module.database.table_name
