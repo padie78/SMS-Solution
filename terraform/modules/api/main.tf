@@ -90,10 +90,11 @@ resource "aws_appsync_datasource" "analytics_lambda_ds" {
 # Bloque para Operaciones CRUD (Directo a Lambda API)
 resource "aws_appsync_resolver" "mutation_resolvers" {
   for_each = toset([
-    "createBranch",
-    "createAsset",
-    "updateBranch",
-    "deleteAsset"
+    "createAsset", 
+    "deleteAsset", 
+    "createBranch", 
+    "updateBranch", 
+    "approveInvoice"
   ])
 
   api_id      = aws_appsync_graphql_api.api.id

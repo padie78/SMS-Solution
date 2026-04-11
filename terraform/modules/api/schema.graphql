@@ -101,9 +101,13 @@ type Query {
 # --- ACCIONES (MUTATIONS) ---
 
 type Mutation {
+  # --- Existentes ---
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
   approveInvoice(invoiceId: ID!): Invoice
-  
-  # Mutation que Terraform reclamaba (404)
   createAsset(name: String!, type: String!): AWSJSON
+
+  # --- AGREGAR ESTOS (Para limpiar los errores de Terraform) ---
+  deleteAsset(id: ID!): AWSJSON
+  createBranch(name: String!, location: String): AWSJSON
+  updateBranch(id: ID!, name: String, location: String): AWSJSON
 }
