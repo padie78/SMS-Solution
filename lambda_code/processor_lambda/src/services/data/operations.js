@@ -1,9 +1,6 @@
 import { TABLE_NAME } from "./client.js";
 import { calculateSMSMetrics } from "../../utils/analytics.js";
 
-/**
- * @fileoverview Generador de Updates Atómicos con soporte para fracciones de factura.
- */
 export const buildStatsOps = (PK, timeData, metrics, isoNow, totalDays = 1, orgSettings = {}) => {
     const { year, quarter, month, week, day } = timeData;
     const { nCo2e, nSpend, vCons, uCons, svc } = metrics;
@@ -27,10 +24,9 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow, totalDays = 1, orgS
         const isHighLevel = ['ANNUAL', 'QUARTERLY', 'MONTHLY'].includes(type);
         const co2Val = isHighLevel ? (nCo2e / 1000) : nCo2e;
         const co2Field = isHighLevel ? 'ghg_total_co2e_ton' : 'ghg_total_co2e_kg';
-
-        // Fracción decimal: asegura que la suma de todos los días de la factura dé 1.0
         const invoiceFraction = 1 / totalDays;
 
+        // 1. Nombres de atributos (Siempre fijos)
         const attrNames = {
             "#svc_u": `consumption_${svc}_unit`,
             "#svc_v": `consumption_${svc}_val`,
@@ -40,6 +36,7 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow, totalDays = 1, orgS
             "#weat": "weather_adjustment"
         };
 
+        // 2. Valores base (Siempre usados)
         const attrValues = {
             ":type": `${type}_METRICS`,
             ":nSpend": Number(nSpend),
@@ -50,11 +47,10 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow, totalDays = 1, orgS
             ":now": isoNow,
             ":normVal": kpis.normalization || {},
             ":envVal": kpis.environmental || {},
-            ":weatVal": kpis.weather || {},
-            ":emptyMap": {},
-            ":defaultMeta": { version: "1.0", is_fiscal_closed: false }
+            ":weatVal": kpis.weather || {}
         };
 
+        // 3. Cláusulas SET base
         let setClauses = [
             `entity_type = :type`,
             `last_updated = :now`,
@@ -64,12 +60,24 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow, totalDays = 1, orgS
             `#weat = :weatVal`
         ];
 
-        if (isHighLevel) setClauses.push(`metadata = if_not_exists(metadata, :defaultMeta)`);
-        if (type === 'WEEKLY') setClauses.push(`performance_kpis = if_not_exists(performance_kpis, :emptyMap)`);
-        if (type === 'DAILY') {
-            setClauses.push(`engineering_kpis = if_not_exists(engineering_kpis, :emptyMap)`);
-            setClauses.push(`asset_health = if_not_exists(asset_health, :emptyMap)`);
-            setClauses.push(`distribution_map = if_not_exists(distribution_map, :emptyMap)`);
+        // 4. Agregar dinámicamente solo lo que se usa según el nivel
+        if (isHighLevel) {
+            setClauses.push(`metadata = if_not_exists(metadata, :defaultMeta)`);
+            attrValues[":defaultMeta"] = { version: "1.0", is_fiscal_closed: false };
+        }
+
+        if (type === 'WEEKLY' || type === 'DAILY') {
+            // Solo aquí definimos :emptyMap porque solo aquí se usa
+            attrValues[":emptyMap"] = {};
+            
+            if (type === 'WEEKLY') {
+                setClauses.push(`performance_kpis = if_not_exists(performance_kpis, :emptyMap)`);
+            }
+            if (type === 'DAILY') {
+                setClauses.push(`engineering_kpis = if_not_exists(engineering_kpis, :emptyMap)`);
+                setClauses.push(`asset_health = if_not_exists(asset_health, :emptyMap)`);
+                setClauses.push(`distribution_map = if_not_exists(distribution_map, :emptyMap)`);
+            }
         }
 
         return {
