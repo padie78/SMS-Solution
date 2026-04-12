@@ -3,28 +3,43 @@ import { ddb, TABLE_NAME } from "./client.js";
 import { buildStatsOps } from "./operations.js";
 
 export const persistTransaction = async (record) => {
+    // 1. DESESTRUCTURACIÓN SEGURA
     const { PK, extracted_data, climatiq_result, ai_analysis } = record;
     const isoNow = new Date().toISOString();
 
-    // 1. EXTRACCIÓN DINÁMICA DE FECHAS (Estructura DynamoDB Map)
-    // Accedemos a extracted_data.M.billing_period.M.start.S
-    const rawStart = extracted_data?.M?.billing_period?.M?.start?.S;
-    const rawEnd = extracted_data?.M?.billing_period?.M?.end?.S;
+    // 2. EXTRACCIÓN DE FECHAS (Soporte para formato DynamoDB JSON y JSON plano)
+    // Buscamos: record.extracted_data.M.billing_period.M.start.S
+    const billingM = extracted_data?.M?.billing_period?.M || extracted_data?.billing_period;
+    
+    const rawStart = billingM?.start?.S || billingM?.start;
+    const rawEnd = billingM?.end?.S || billingM?.end;
 
     const startDate = new Date(rawStart);
     const endDate = new Date(rawEnd);
 
-    // Validación: Si el OCR no detectó periodo, no podemos prorratear
+    // Si fallan las fechas de periodo, intentamos usar la fecha de factura como último recurso
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        console.error("❌ [DATE_ERROR]: No se encontró billing_period válido en extracted_data");
-        throw new Error("Missing billing_period for prorating");
+        const fallbackDate = extracted_data?.M?.invoice_date?.S || extracted_data?.invoice_date;
+        
+        if (!fallbackDate) {
+            console.error("❌ [DATE_ERROR]: No hay billing_period ni invoice_date.");
+            throw new Error("Missing billing_period for prorating");
+        }
+        
+        console.warn("⚠️ Usando invoice_date como única fecha.");
+        // Si usamos una sola fecha, startDate y endDate son iguales
+        var finalStart = new Date(fallbackDate);
+        var finalEnd = new Date(fallbackDate);
+    } else {
+        var finalStart = startDate;
+        var finalEnd = endDate;
     }
 
-    // 2. CÁLCULO DE DÍAS Y MÉTRICAS DIARIAS
-    const diffTime = Math.abs(endDate - startDate);
+    // 3. CÁLCULO DE DÍAS
+    const diffTime = Math.abs(finalEnd - finalStart);
     const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
 
-    // Prorrateo de valores (Manejo de tipos "N" de DynamoDB)
+    // 4. MÉTRICAS DIARIAS (Manejo de N y S)
     const dailyMetrics = {
         nCo2e: (Number(climatiq_result?.M?.co2e?.N) || Number(climatiq_result?.co2e) || 0) / totalDays,
         nSpend: (Number(extracted_data?.M?.total_amount?.N) || Number(extracted_data?.total_amount) || 0) / totalDays,
@@ -33,7 +48,7 @@ export const persistTransaction = async (record) => {
         svc: (ai_analysis?.M?.service_type?.S || ai_analysis?.service_type || "unknown").toLowerCase()
     };
 
-    // 3. PERSISTIR REGISTRO DE FACTURA (Metadata)
+    // 5. GUARDAR FACTURA
     try {
         await ddb.send(new TransactWriteCommand({
             TransactItems: [{
@@ -43,7 +58,7 @@ export const persistTransaction = async (record) => {
                         ...record, 
                         processed_at: isoNow, 
                         total_days_prorated: totalDays,
-                        status: "PROCESSED_PRORATED"
+                        status: "PROCESSED"
                     },
                     ConditionExpression: "attribute_not_exists(SK)"
                 }
@@ -54,11 +69,11 @@ export const persistTransaction = async (record) => {
         throw e;
     }
 
-    // 4. BUCLE DE GENERACIÓN DE DÍAS (Chunking de 15 días)
-    let currentDate = new Date(startDate);
+    // 6. BUCLE DE DÍAS (Chunking de 15 días)
+    let currentDate = new Date(finalStart);
     let batch = [];
 
-    while (currentDate <= endDate) {
+    while (currentDate <= finalEnd) {
         const timeData = {
             year: currentDate.getFullYear(),
             month: currentDate.getMonth() + 1,
@@ -67,21 +82,17 @@ export const persistTransaction = async (record) => {
             week: getWeekISO(currentDate)
         };
 
-        // Generamos las 5 operaciones (A, Q, M, D, W) para este día
         const dayOps = buildStatsOps(PK, timeData, dailyMetrics, isoNow, totalDays);
         batch.push(...dayOps);
 
-        // Si el batch llega a 75 (15 días procesados), enviamos transacción
-        if (batch.length >= 75 || currentDate.getTime() === endDate.getTime()) {
-            console.log(`[DB_BATCH]: Enviando bloque de transacciones para el periodo ${currentDate.toISOString().split('T')[0]}`);
+        if (batch.length >= 75 || currentDate.getTime() === finalEnd.getTime()) {
             await ddb.send(new TransactWriteCommand({ TransactItems: batch }));
             batch = [];
         }
-
         currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    return { success: true, processedDays: totalDays };
+    return { success: true };
 };
 
 function getWeekISO(d) {
