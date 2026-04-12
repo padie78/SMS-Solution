@@ -6,7 +6,7 @@ export const persistTransaction = async (record) => {
     const { PK, extracted_data, climatiq_result, ai_analysis } = record;
     const isoNow = new Date().toISOString();
 
-    // 1. EXTRACCIÓN DE FECHAS SEGURA
+    // 1. EXTRACCIÓN DE FECHAS SEGURA (DynamoDB Map Support)
     const billingM = extracted_data?.M?.billing_period?.M || extracted_data?.billing_period;
     const rawStart = billingM?.start?.S || billingM?.start;
     const rawEnd = billingM?.end?.S || billingM?.end;
@@ -18,8 +18,7 @@ export const persistTransaction = async (record) => {
 
     const totalDays = Math.ceil(Math.abs(endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
 
-    // 2. EXTRACCIÓN DE MÉTRICAS (Forzamos Number para evitar ceros/vacíos)
-    // Buscamos tanto en formato plano como en formato .N de DynamoDB
+    // 2. EXTRACCIÓN DE MÉTRICAS
     const totalCo2 = Number(climatiq_result?.M?.co2e?.N || climatiq_result?.co2e || 0);
     const totalAmount = Number(extracted_data?.M?.total_amount?.N || extracted_data?.total_amount || 0);
     const totalCons = Number(ai_analysis?.M?.value?.N || ai_analysis?.value || 0);
@@ -34,7 +33,7 @@ export const persistTransaction = async (record) => {
         svc: service
     };
 
-    // 3. REGISTRO DE FACTURA
+    // 3. REGISTRO DE FACTURA (Atomic Put)
     try {
         await ddb.send(new TransactWriteCommand({
             TransactItems: [{
@@ -50,23 +49,25 @@ export const persistTransaction = async (record) => {
         throw e;
     }
 
-    // 4. AGREGACIÓN EN MEMORIA
+    // 4. AGREGACIÓN EN MEMORIA (Consolidación de SKs)
     const statsMap = new Map();
     let currentDate = new Date(startDate);
 
     while (currentDate <= endDate) {
-        const y = currentDate.getFullYear();
-        const m = currentDate.getMonth() + 1;
-        const d = currentDate.getDate();
-        const q = Math.ceil(m / 3);
-        const w = getWeekISO(currentDate);
+        const timeData = {
+            y: currentDate.getFullYear(),
+            m: currentDate.getMonth() + 1,
+            d: currentDate.getDate(),
+            q: Math.ceil((currentDate.getMonth() + 1) / 3),
+            w: getWeekISO(currentDate)
+        };
 
         const keys = [
-            { sk: `STATS#${y}`, type: 'ANNUAL' },
-            { sk: `STATS#${y}#Q${q}`, type: 'QUARTERLY' },
-            { sk: `STATS#${y}#Q${q}#M${String(m).padStart(2, '0')}`, type: 'MONTHLY' },
-            { sk: `STATS#${y}#Q${q}#M${String(m).padStart(2, '0')}#D${String(d).padStart(2, '0')}`, type: 'DAILY' },
-            { sk: `STATS#${y}#W${String(w).padStart(2, '0')}`, type: 'WEEKLY' }
+            { sk: `STATS#${timeData.y}`, type: 'ANNUAL' },
+            { sk: `STATS#${timeData.y}#Q${timeData.q}`, type: 'QUARTERLY' },
+            { sk: `STATS#${timeData.y}#Q${timeData.q}#M${String(timeData.m).padStart(2, '0')}`, type: 'MONTHLY' },
+            { sk: `STATS#${timeData.y}#Q${timeData.q}#M${String(timeData.m).padStart(2, '0')}#D${String(timeData.d).padStart(2, '0')}`, type: 'DAILY' },
+            { sk: `STATS#${timeData.y}#W${String(timeData.w).padStart(2, '0')}`, type: 'WEEKLY' }
         ];
 
         keys.forEach(({ sk, type }) => {
@@ -81,16 +82,13 @@ export const persistTransaction = async (record) => {
         currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // 5. GENERAR OPERACIONES FINALES
-    const finalOps = Array.from(statsMap.entries()).map(([sk, data]) => {
-        // Importante: pasar service y unit aquí
-        return buildStatsOps(PK, sk, data, dailyMetrics.uCons, dailyMetrics.svc, isoNow);
-    });
+    // 5. EJECUCIÓN POR BLOQUES (Chunking de 100)
+    const finalOps = Array.from(statsMap.entries()).map(([sk, data]) => 
+        buildStatsOps(PK, sk, data, dailyMetrics.uCons, dailyMetrics.svc, isoNow)
+    );
 
-    // 6. EJECUCIÓN
     for (let i = 0; i < finalOps.length; i += 100) {
-        const chunk = finalOps.slice(i, i + 100);
-        await ddb.send(new TransactWriteCommand({ TransactItems: chunk }));
+        await ddb.send(new TransactWriteCommand({ TransactItems: finalOps.slice(i, i + 100) }));
     }
 
     return { success: true };

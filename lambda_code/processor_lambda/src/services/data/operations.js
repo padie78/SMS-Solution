@@ -3,9 +3,14 @@ import { TABLE_NAME } from "./client.js";
 export const buildStatsOps = (PK, SK, aggregatedData, unit, svc, isoNow) => {
     const { nSpend, nCo2e, vCons, count, type } = aggregatedData;
     
+    // --- LÓGICA DE UNIDADES ADAPTADA ---
     const isHighLevel = ['ANNUAL', 'QUARTERLY', 'MONTHLY'].includes(type);
-    const co2Val = isHighLevel ? (nCo2e / 1000) : nCo2e;
+    
+    // Si es ANNUAL/MONTHLY usamos TON, si es DAILY/WEEKLY usamos KG
     const co2Field = isHighLevel ? 'ghg_total_co2e_ton' : 'ghg_total_co2e_kg';
+    
+    // El valor 'nCo2e' viene en KG desde el Map. Solo dividimos por 1000 para niveles altos.
+    const co2Val = isHighLevel ? (nCo2e / 1000) : nCo2e; 
 
     const attrNames = {
         "#svc_u": `consumption_${svc}_unit`,
@@ -13,7 +18,6 @@ export const buildStatsOps = (PK, SK, aggregatedData, unit, svc, isoNow) => {
         "#svc_s": `consumption_${svc}_spend`
     };
 
-    // 1. Solo valores que se usan en TODOS los niveles
     const attrValues = {
         ":type": `${type}_METRICS`,
         ":nSpend": Number(nSpend.toFixed(4)),
@@ -21,7 +25,8 @@ export const buildStatsOps = (PK, SK, aggregatedData, unit, svc, isoNow) => {
         ":vCons": Number(vCons.toFixed(4)),
         ":uCons": unit,
         ":fraction": Number(count.toFixed(8)),
-        ":now": isoNow
+        ":now": isoNow,
+        ":defaultMeta": { version: "1.0", is_fiscal_closed: false }
     };
 
     let setClauses = [
@@ -30,13 +35,11 @@ export const buildStatsOps = (PK, SK, aggregatedData, unit, svc, isoNow) => {
         `#svc_u = :uCons`
     ];
 
-    // 2. Inyectar :defaultMeta SOLO si es nivel alto
     if (isHighLevel) {
         setClauses.push(`metadata = if_not_exists(metadata, :defaultMeta)`);
-        attrValues[":defaultMeta"] = { version: "1.0", is_fiscal_closed: false };
     }
 
-    // 3. Inyectar :emptyMap SOLO si es Daily o Weekly
+    // Inicialización de mapas para KPIs según nivel
     if (type === 'DAILY' || type === 'WEEKLY') {
         attrValues[":emptyMap"] = {};
         if (type === 'DAILY') {
