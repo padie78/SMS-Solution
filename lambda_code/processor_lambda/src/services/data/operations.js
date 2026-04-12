@@ -2,20 +2,26 @@ import { TABLE_NAME } from "./client.js";
 
 /**
  * buildStatsOps - Generador de operaciones atómicas para DynamoDB.
- * Integra estándares: GHG Protocol, ISO 14064, GRI 302/305, TCFD y SASB.
+ * Incluye cálculos dinámicos de Forecast (SBTi) y análisis de riesgo TCFD.
  */
 export const buildStatsOps = (PK, SK, aggregatedData, unit, svc, isoNow) => {
     const { nSpend, nCo2e, vCons, count, type } = aggregatedData;
+    const now = new Date(isoNow);
     
-    // 1. Lógica de Escala y Unidades (Norma ISO 14064)
-    // Determinamos si es un nivel de reporte (High) o de detalle (Daily/Weekly)
+    // 1. Lógica de Escala y Unidades (ISO 14064)
     const isHighLevel = ['ANNUAL', 'QUARTERLY', 'MONTHLY'].includes(type) || SK.includes('FACILITY');
     const co2Field = isHighLevel ? 'ghg_total_co2e_ton' : 'ghg_total_co2e_kg';
-    
-    // El valor base nCo2e viene en KG del prorrateo. Convertimos a Ton si es High Level.
     const co2Val = isHighLevel ? (nCo2e / 1000) : nCo2e; 
 
-    // 2. Mapeo Dinámico de Atributos (Evita colisiones entre servicios como Gas/Luz)
+    // 2. Cálculo de Proyección (Forecast Proyectivo)
+    // Determinamos el progreso del año para proyectar el cierre anual
+    const startOfYear = new Date(now.getFullYear(), 0, 1);
+    const diffInMs = now - startOfYear;
+    const dayOfYear = Math.max(1, Math.floor(diffInMs / (1000 * 60 * 60 * 24)));
+    
+    // Proyección lineal: (Acumulado actual / Días transcurridos) * 365
+    const forecast = isHighLevel ? Number(((co2Val / dayOfYear) * 365).toFixed(2)) : 0;
+
     const attrNames = {
         "#svc_u": `consumption_${svc}_unit`,
         "#svc_v": `consumption_${svc}_val`,
@@ -23,7 +29,6 @@ export const buildStatsOps = (PK, SK, aggregatedData, unit, svc, isoNow) => {
         "#audit": "audit_trail"
     };
 
-    // 3. Valores Base de la Transacción
     const attrValues = {
         ":type": `${type}_METRICS`,
         ":nSpend": Number(nSpend.toFixed(4)),
@@ -38,7 +43,7 @@ export const buildStatsOps = (PK, SK, aggregatedData, unit, svc, isoNow) => {
             ev: "DATA_PRORATION_SYNC",
             co2: Number(co2Val.toFixed(6)),
             src: "OCR_PIPELINE_V1",
-            engine: "CALC_ENGINE_V2.1"
+            engine: "CALC_ENGINE_V2.5_PRO"
         }]
     };
 
@@ -50,73 +55,61 @@ export const buildStatsOps = (PK, SK, aggregatedData, unit, svc, isoNow) => {
     ];
 
     // --- BLOQUE A: NIVEL OPERATIVO (DAILY / WEEKLY) ---
-    // Foco en Eficiencia Técnica y Detección de Anomalías
     if (type === 'DAILY' || type === 'WEEKLY') {
         setClauses.push(`engineering_metrics = :eng`);
         attrValues[":eng"] = {
             energy_intensity: vCons > 0 ? Number((nCo2e / vCons).toFixed(6)) : 0,
-            is_anomaly: false,
-            performance_kpis: {} // Placeholder para integraciones IoT
+            is_anomaly: false
         };
     }
 
-    // --- BLOQUE B: NIVEL DE GESTIÓN (MONTHLY / QUARTERLY) ---
-    // Foco en Cumplimiento de Metas y Reporting GRI
-    if (type === 'MONTHLY' || type === 'QUARTERLY') {
-        setClauses.push(`management_reporting = :mgmt`);
-        attrValues[":mgmt"] = {
-            carbon_intensity_revenue: nSpend > 0 ? Number((co2Val / nSpend).toFixed(6)) : 0,
-            budget_utilization_pct: 0, 
-            reporting_period_status: "OPEN"
-        };
-    }
-
-    // --- BLOQUE C: NIVEL ESTRATÉGICO Y CUMPLIMIENTO (ANNUAL / FACILITY) ---
-    // Foco en Auditoría, Riesgo TCFD y Metodología ISO
+    // --- BLOQUE B: NIVEL ESTRATÉGICO Y CUMPLIMIENTO (HIGH LEVEL) ---
     if (isHighLevel) {
-        // 1. Motor Predictivo y Riesgo
-        setClauses.push(`predictive_engine = if_not_exists(predictive_engine, :pred)`);
+        // 1. Gestión y Reporte (GRI)
+        if (type === 'MONTHLY' || type === 'QUARTERLY') {
+            setClauses.push(`management_reporting = :mgmt`);
+            attrValues[":mgmt"] = {
+                carbon_intensity_revenue: nSpend > 0 ? Number((co2Val / nSpend).toFixed(6)) : 0,
+                reporting_period_status: "OPEN"
+            };
+        }
+
+        // 2. Motor Predictivo (TCFD / SBTi) - AHORA CON FORECAST REAL
+        const targetLimit = 48.0; // Configurable según política de sostenibilidad
+        setClauses.push(`predictive_engine = :pred`);
         attrValues[":pred"] = {
-            forecast_year_end_co2: 0,
-            target_annual_limit: 48.0, 
-            financial_risk_exposure: Number((co2Val * 85).toFixed(2)) // Carbon Tax baseline
+            forecast_year_end_co2: forecast,
+            target_annual_limit: targetLimit, 
+            financial_risk_exposure: Number((co2Val * 85).toFixed(2)),
+            current_vs_target_pct: Number(((co2Val / targetLimit) * 100).toFixed(2))
         };
 
-        // 2. Regulatory Compliance (GHG Protocol / ISO)
+        // 3. Advanced Analytics (GRI 302-3, TCFD Scenario Analysis)
+        setClauses.push(`advanced_analytics = :advanced`);
+        attrValues[":advanced"] = {
+            energy_intensity_index: vCons > 0 ? Number((vCons / nSpend).toFixed(4)) : 0, 
+            transition_risk_scoring: {
+                carbon_tax_high_scenario: Number((co2Val * 150).toFixed(2)),
+                carbon_tax_low_scenario: Number((co2Val * 45).toFixed(2)),
+            },
+            renewable_energy_mix_pct: 0, 
+            emission_factor_source: "CLIMATIQ_LATEST_IPCC",
+            data_quality_score: count >= 1 ? "VERIFIED" : "ESTIMATED"
+        };
+
+        // 4. Regulatory Compliance (ISO 14064 / GHG Protocol)
         setClauses.push(`regulatory_compliance = :comp`);
         attrValues[":comp"] = {
             scope_category: "SCOPE_2_INDIRECT",
             methodology: "GHG_PROTOCOL_2024",
-            data_quality_score: count >= 1 ? "VERIFIED" : "ESTIMATED",
             reporting_standard: "ISO_14064_1"
         };
 
-        // 3. Advanced Analytics (GRI 302-3, TCFD Scenario Analysis)
-        attrValues[":advanced"] = {
-            // Intensidad Energética (GRI)
-            energy_intensity_index: vCons > 0 ? Number((vCons / nSpend).toFixed(4)) : 0, 
-
-            // Análisis de Escenarios de Riesgo (TCFD)
-            transition_risk_scoring: {
-                carbon_tax_high_scenario: Number((co2Val * 150).toFixed(2)), // Escenario pesimista $150/ton
-                carbon_tax_low_scenario: Number((co2Val * 45).toFixed(2)),   // Escenario optimista $45/ton
-            },
-
-            // Resource Management (SASB)
-            renewable_energy_mix_pct: 0, 
-            
-            // Trazabilidad de Factores
-            emission_factor_source: "CLIMATIQ_LATEST_IPCC",
-            last_methodology_review: "2026-01-01"
-        };
-        setClauses.push(`advanced_analytics = :advanced`);
-
-        // Metadatos de control fiscal
-        attrValues[":defaultMeta"] = { version: "1.1", is_fiscal_closed: false };
+        attrValues[":defaultMeta"] = { version: "1.2", is_fiscal_closed: false };
         setClauses.push(`metadata = if_not_exists(metadata, :defaultMeta)`);
     }
 
-    // 4. Ejecución de la Operación (Atómica)
+    // 4. Ejecución de la Operación Atómica
     return {
         Update: {
             TableName: TABLE_NAME,
