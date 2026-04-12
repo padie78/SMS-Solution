@@ -4,95 +4,63 @@ import { calculateSMSMetrics } from "../../utils/analytics.js";
 export const buildStatsOps = (PK, timeData, metrics, isoNow, totalDays = 1, orgSettings = {}) => {
     const { year, quarter, month, week, day } = timeData;
     const { nCo2e, nSpend, vCons, uCons, svc } = metrics;
-
     const kpis = calculateSMSMetrics(metrics, orgSettings);
 
-    const m = `M${month.toString().padStart(2, '0')}`;
-    const q = `Q${quarter}`;
-    const d = `D${day.toString().padStart(2, '0')}`;
-    const w = `W${week.toString().padStart(2, '0')}`;
+    const keys = {
+        m: `M${month.toString().padStart(2, '0')}`,
+        q: `Q${quarter}`,
+        d: `D${day.toString().padStart(2, '0')}`,
+        w: `W${week.toString().padStart(2, '0')}`
+    };
 
     const targets = [
         { sk: `STATS#${year}`, type: 'ANNUAL' },
-        { sk: `STATS#${year}#${q}`, type: 'QUARTERLY' },
-        { sk: `STATS#${year}#${q}#${m}`, type: 'MONTHLY' },
-        { sk: `STATS#${year}#${q}#${m}#${d}`, type: 'DAILY' },
-        { sk: `STATS#${year}#${w}`, type: 'WEEKLY' } 
+        { sk: `STATS#${year}#${keys.q}`, type: 'QUARTERLY' },
+        { sk: `STATS#${year}#${keys.q}#${keys.m}`, type: 'MONTHLY' },
+        { sk: `STATS#${year}#${keys.q}#${keys.m}#${keys.d}`, type: 'DAILY' },
+        { sk: `STATS#${year}#${keys.w}`, type: 'WEEKLY' } 
     ];
 
     return targets.map(({ sk, type }) => {
         const isHighLevel = ['ANNUAL', 'QUARTERLY', 'MONTHLY'].includes(type);
         const co2Val = isHighLevel ? (nCo2e / 1000) : nCo2e;
         const co2Field = isHighLevel ? 'ghg_total_co2e_ton' : 'ghg_total_co2e_kg';
-        const invoiceFraction = 1 / totalDays;
 
-        // 1. Nombres de atributos (Siempre fijos)
         const attrNames = {
             "#svc_u": `consumption_${svc}_unit`,
             "#svc_v": `consumption_${svc}_val`,
-            "#svc_s": `consumption_${svc}_spend`,
-            "#norm": "normalization_kpis",
-            "#env": "environmental_impact",
-            "#weat": "weather_adjustment"
+            "#svc_s": `consumption_${svc}_spend`
         };
 
-        // 2. Valores base (Siempre usados)
         const attrValues = {
             ":type": `${type}_METRICS`,
             ":nSpend": Number(nSpend),
             ":nCo2": Number(co2Val),
             ":vCons": Number(vCons),
             ":uCons": uCons,
-            ":fraction": Number(invoiceFraction),
+            ":fraction": 1 / totalDays,
             ":now": isoNow,
-            ":normVal": kpis.normalization || {},
-            ":envVal": kpis.environmental || {},
-            ":weatVal": kpis.weather || {}
+            ":k": kpis.normalization || {}
         };
 
-        // 3. Cláusulas SET base
         let setClauses = [
             `entity_type = :type`,
             `last_updated = :now`,
             `#svc_u = :uCons`,
-            `#norm = :normVal`,
-            `#env = :envVal`,
-            `#weat = :weatVal`
+            `kpis_snapshot = :k`
         ];
 
-        // 4. Agregar dinámicamente solo lo que se usa según el nivel
+        // Definición dinámica de metadatos para evitar errores de atributos no usados
         if (isHighLevel) {
             setClauses.push(`metadata = if_not_exists(metadata, :defaultMeta)`);
-            attrValues[":defaultMeta"] = { version: "1.0", is_fiscal_closed: false };
-        }
-
-        if (type === 'WEEKLY' || type === 'DAILY') {
-            // Solo aquí definimos :emptyMap porque solo aquí se usa
-            attrValues[":emptyMap"] = {};
-            
-            if (type === 'WEEKLY') {
-                setClauses.push(`performance_kpis = if_not_exists(performance_kpis, :emptyMap)`);
-            }
-            if (type === 'DAILY') {
-                setClauses.push(`engineering_kpis = if_not_exists(engineering_kpis, :emptyMap)`);
-                setClauses.push(`asset_health = if_not_exists(asset_health, :emptyMap)`);
-                setClauses.push(`distribution_map = if_not_exists(distribution_map, :emptyMap)`);
-            }
+            attrValues[":defaultMeta"] = { version: "1.0" };
         }
 
         return {
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: sk },
-                UpdateExpression: `
-                    SET ${setClauses.join(', ')}
-                    ADD 
-                        financials_total_spend :nSpend,
-                        ${co2Field} :nCo2,
-                        #svc_v :vCons,
-                        #svc_s :nSpend,
-                        trazabilidad_total_invoices :fraction
-                `,
+                UpdateExpression: `SET ${setClauses.join(', ')} ADD financials_total_spend :nSpend, ${co2Field} :nCo2, #svc_v :vCons, #svc_s :nSpend, trazabilidad_total_invoices :fraction`,
                 ExpressionAttributeNames: attrNames,
                 ExpressionAttributeValues: attrValues
             }
