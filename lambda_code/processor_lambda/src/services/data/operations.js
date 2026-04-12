@@ -1,6 +1,14 @@
-export const buildStatsOps = (PK, timeData, metrics, isoNow, totalDays = 1) => {
+import { TABLE_NAME } from "./client.js";
+import { calculateSMSMetrics } from "../../utils/analytics.js";
+
+/**
+ * @fileoverview Generador de Updates Atómicos con soporte para fracciones de factura.
+ */
+export const buildStatsOps = (PK, timeData, metrics, isoNow, totalDays = 1, orgSettings = {}) => {
     const { year, quarter, month, week, day } = timeData;
     const { nCo2e, nSpend, vCons, uCons, svc } = metrics;
+
+    const kpis = calculateSMSMetrics(metrics, orgSettings);
 
     const m = `M${month.toString().padStart(2, '0')}`;
     const q = `Q${quarter}`;
@@ -20,14 +28,16 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow, totalDays = 1) => {
         const co2Val = isHighLevel ? (nCo2e / 1000) : nCo2e;
         const co2Field = isHighLevel ? 'ghg_total_co2e_ton' : 'ghg_total_co2e_kg';
 
-        // IMPORTANTE: El contador de facturas se divide por el total de días
-        // para que al final del bucle, la suma de 'trazabilidad_total_invoices' sea 1.
+        // Fracción decimal: asegura que la suma de todos los días de la factura dé 1.0
         const invoiceFraction = 1 / totalDays;
 
         const attrNames = {
             "#svc_u": `consumption_${svc}_unit`,
             "#svc_v": `consumption_${svc}_val`,
-            "#svc_s": `consumption_${svc}_spend`
+            "#svc_s": `consumption_${svc}_spend`,
+            "#norm": "normalization_kpis",
+            "#env": "environmental_impact",
+            "#weat": "weather_adjustment"
         };
 
         const attrValues = {
@@ -36,19 +46,38 @@ export const buildStatsOps = (PK, timeData, metrics, isoNow, totalDays = 1) => {
             ":nCo2": Number(co2Val),
             ":vCons": Number(vCons),
             ":uCons": uCons,
-            ":fraction": invoiceFraction,
+            ":fraction": Number(invoiceFraction),
             ":now": isoNow,
-            ":emptyMap": {}
+            ":normVal": kpis.normalization || {},
+            ":envVal": kpis.environmental || {},
+            ":weatVal": kpis.weather || {},
+            ":emptyMap": {},
+            ":defaultMeta": { version: "1.0", is_fiscal_closed: false }
         };
 
-        // ... lógica de setClauses (igual a la que tienes)
+        let setClauses = [
+            `entity_type = :type`,
+            `last_updated = :now`,
+            `#svc_u = :uCons`,
+            `#norm = :normVal`,
+            `#env = :envVal`,
+            `#weat = :weatVal`
+        ];
+
+        if (isHighLevel) setClauses.push(`metadata = if_not_exists(metadata, :defaultMeta)`);
+        if (type === 'WEEKLY') setClauses.push(`performance_kpis = if_not_exists(performance_kpis, :emptyMap)`);
+        if (type === 'DAILY') {
+            setClauses.push(`engineering_kpis = if_not_exists(engineering_kpis, :emptyMap)`);
+            setClauses.push(`asset_health = if_not_exists(asset_health, :emptyMap)`);
+            setClauses.push(`distribution_map = if_not_exists(distribution_map, :emptyMap)`);
+        }
 
         return {
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK: sk },
                 UpdateExpression: `
-                    SET entity_type = :type, last_updated = :now, #svc_u = :uCons
+                    SET ${setClauses.join(', ')}
                     ADD 
                         financials_total_spend :nSpend,
                         ${co2Field} :nCo2,
