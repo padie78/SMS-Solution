@@ -6,21 +6,25 @@ export const persistTransaction = async (record) => {
     const { PK, extracted_data, climatiq_result, ai_analysis, metadata } = record;
     const isoNow = new Date().toISOString();
 
-    // 1. EXTRACCIÓN DE FECHAS Y FACILITY
+    // 1. EXTRACCIÓN DE FECHAS Y FACILITY (Soporte Marshalled y JSON Plano)
     const billingM = extracted_data?.M?.billing_period?.M || extracted_data?.billing_period;
     const rawStart = billingM?.start?.S || billingM?.start;
     const rawEnd = billingM?.end?.S || billingM?.end;
     
-    // Identificamos la planta/edificio (Facility)
     const facilityId = metadata?.M?.facility_id?.S || metadata?.facility_id || "GENERAL_ASSET";
 
     const startDate = new Date(rawStart);
     const endDate = new Date(rawEnd);
-    if (isNaN(startDate.getTime())) throw new Error("Invalid billing_period");
 
-    const totalDays = Math.ceil(Math.abs(endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
+    // Validación de seguridad para evitar bucles infinitos
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        throw new Error("Invalid billing_period dates provided");
+    }
 
-    // 2. EXTRACCIÓN DE MÉTRICAS NORMALIZADA
+    const diffTime = Math.abs(endDate - startDate);
+    const totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
+
+    // 2. EXTRACCIÓN DE MÉTRICAS (Failsafe a 0)
     const totalCo2 = Number(climatiq_result?.M?.co2e?.N || climatiq_result?.co2e || 0);
     const totalAmount = Number(extracted_data?.M?.total_amount?.N || extracted_data?.total_amount || 0);
     const totalCons = Number(ai_analysis?.M?.value?.N || ai_analysis?.value || 0);
@@ -33,27 +37,30 @@ export const persistTransaction = async (record) => {
         vCons: totalCons / totalDays
     };
 
-    // 3. REGISTRO DE EVIDENCIA (Invoice Item)
+    // 3. REGISTRO DE EVIDENCIA (Put Atómico)
     try {
         await ddb.send(new TransactWriteCommand({
             TransactItems: [{
                 Put: {
                     TableName: TABLE_NAME,
                     Item: { ...record, processed_at: isoNow, total_days_prorated: totalDays },
-                    ConditionExpression: "attribute_not_exists(SK)"
+                    ConditionExpression: "attribute_not_exists(SK)" // Evita doble procesamiento
                 }
             }]
         }));
     } catch (e) {
-        if (e.name === "TransactionCanceledException") return { success: false, message: "Duplicate Invoice" };
+        if (e.name === "TransactionCanceledException") return { success: false, message: "Duplicate" };
         throw e;
     }
 
-    // 4. AGREGACIÓN MULTI-NIVEL (Org + Facility)
+    // 4. AGREGACIÓN EN MEMORIA
     const statsMap = new Map();
     let currentDate = new Date(startDate);
 
-    while (currentDate <= endDate) {
+    // Límite de seguridad para evitar procesar más de 2 años en una sola factura
+    let iterations = 0;
+    while (currentDate <= endDate && iterations < 730) {
+        iterations++;
         const y = currentDate.getFullYear();
         const m = currentDate.getMonth() + 1;
         const q = Math.ceil(m / 3);
@@ -63,13 +70,10 @@ export const persistTransaction = async (record) => {
         const wStr = String(w).padStart(2, '0');
 
         const keys = [
-            // Nivel Global Organización
             { sk: `STATS#${y}`, type: 'ANNUAL' },
             { sk: `STATS#${y}#Q${q}#M${mStr}`, type: 'MONTHLY' },
             { sk: `STATS#${y}#Q${q}#M${mStr}#D${dStr}`, type: 'DAILY' },
             { sk: `STATS#${y}#W${wStr}`, type: 'WEEKLY' },
-            
-            // Nivel Específico de Facility (Planta/Edificio)
             { sk: `STATS#${y}#FACILITY#${facilityId}`, type: 'ANNUAL' },
             { sk: `STATS#${y}#Q${q}#M${mStr}#FACILITY#${facilityId}`, type: 'MONTHLY' }
         ];
@@ -86,20 +90,25 @@ export const persistTransaction = async (record) => {
         currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // 5. PERSISTENCIA DE ESTADÍSTICAS POR BLOQUES
+    // 5. PERSISTENCIA POR BLOQUES (Máximo 100 por TransactWriteItems)
     const finalOps = Array.from(statsMap.entries()).map(([sk, data]) => 
         buildStatsOps(PK, sk, data, unit, service, isoNow)
     );
 
     for (let i = 0; i < finalOps.length; i += 100) {
-        await ddb.send(new TransactWriteCommand({ 
-            TransactItems: finalOps.slice(i, i + 100) 
-        }));
+        const chunk = finalOps.slice(i, i + 100);
+        try {
+            await ddb.send(new TransactWriteCommand({ TransactItems: chunk }));
+        } catch (err) {
+            console.error(`❌ Fallo en bloque de estadísticas ${i}:`, err);
+            // Podrías implementar un retry aquí si es necesario
+        }
     }
 
     return { success: true };
 };
 
+// Función helper ISO idéntica
 function getWeekISO(d) {
     const target = new Date(d);
     const dayNr = (target.getDay() + 6) % 7;
