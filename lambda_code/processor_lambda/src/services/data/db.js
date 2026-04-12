@@ -3,63 +3,37 @@ import { ddb, TABLE_NAME } from "./client.js";
 import { buildStatsOps } from "./operations.js";
 
 export const persistTransaction = async (record) => {
-    // 1. DESESTRUCTURACIÓN SEGURA
     const { PK, extracted_data, climatiq_result, ai_analysis } = record;
     const isoNow = new Date().toISOString();
 
-    // 2. EXTRACCIÓN DE FECHAS (Soporte para formato DynamoDB JSON y JSON plano)
-    // Buscamos: record.extracted_data.M.billing_period.M.start.S
+    // 1. Extracción de fechas (Formato DynamoDB M/S)
     const billingM = extracted_data?.M?.billing_period?.M || extracted_data?.billing_period;
-    
     const rawStart = billingM?.start?.S || billingM?.start;
     const rawEnd = billingM?.end?.S || billingM?.end;
 
     const startDate = new Date(rawStart);
     const endDate = new Date(rawEnd);
 
-    // Si fallan las fechas de periodo, intentamos usar la fecha de factura como último recurso
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        const fallbackDate = extracted_data?.M?.invoice_date?.S || extracted_data?.invoice_date;
-        
-        if (!fallbackDate) {
-            console.error("❌ [DATE_ERROR]: No hay billing_period ni invoice_date.");
-            throw new Error("Missing billing_period for prorating");
-        }
-        
-        console.warn("⚠️ Usando invoice_date como única fecha.");
-        // Si usamos una sola fecha, startDate y endDate son iguales
-        var finalStart = new Date(fallbackDate);
-        var finalEnd = new Date(fallbackDate);
-    } else {
-        var finalStart = startDate;
-        var finalEnd = endDate;
-    }
+    if (isNaN(startDate.getTime())) throw new Error("Missing valid billing_period");
 
-    // 3. CÁLCULO DE DÍAS
-    const diffTime = Math.abs(finalEnd - finalStart);
-    const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    const totalDays = Math.ceil(Math.abs(endDate - startDate) / (1000 * 60 * 60 * 24)) + 1;
 
-    // 4. MÉTRICAS DIARIAS (Manejo de N y S)
+    // 2. Métricas unitarias
     const dailyMetrics = {
-        nCo2e: (Number(climatiq_result?.M?.co2e?.N) || Number(climatiq_result?.co2e) || 0) / totalDays,
-        nSpend: (Number(extracted_data?.M?.total_amount?.N) || Number(extracted_data?.total_amount) || 0) / totalDays,
-        vCons: (Number(ai_analysis?.M?.value?.N) || Number(ai_analysis?.value) || 0) / totalDays,
-        uCons: ai_analysis?.M?.unit?.S || ai_analysis?.unit || "N/A",
-        svc: (ai_analysis?.M?.service_type?.S || ai_analysis?.service_type || "unknown").toLowerCase()
+        nCo2e: (Number(climatiq_result?.M?.co2e?.N) || 0) / totalDays,
+        nSpend: (Number(extracted_data?.M?.total_amount?.N) || 0) / totalDays,
+        vCons: (Number(ai_analysis?.M?.value?.N) || 0) / totalDays,
+        uCons: ai_analysis?.M?.unit?.S || "N/A",
+        svc: (ai_analysis?.M?.service_type?.S || "unknown").toLowerCase()
     };
 
-    // 5. GUARDAR FACTURA
+    // 3. REGISTRO DE FACTURA (Primero y solo)
     try {
         await ddb.send(new TransactWriteCommand({
             TransactItems: [{
                 Put: {
                     TableName: TABLE_NAME,
-                    Item: { 
-                        ...record, 
-                        processed_at: isoNow, 
-                        total_days_prorated: totalDays,
-                        status: "PROCESSED"
-                    },
+                    Item: { ...record, processed_at: isoNow, total_days_prorated: totalDays },
                     ConditionExpression: "attribute_not_exists(SK)"
                 }
             }]
@@ -69,11 +43,11 @@ export const persistTransaction = async (record) => {
         throw e;
     }
 
-    // 6. BUCLE DE DÍAS (Chunking de 15 días)
-    let currentDate = new Date(finalStart);
-    let batch = [];
+    // 4. AGREGACIÓN EN MEMORIA (Para evitar múltiples operaciones sobre el mismo SK)
+    const statsMap = new Map(); // Key: SK, Value: Aggregated Data
 
-    while (currentDate <= finalEnd) {
+    let currentDate = new Date(startDate);
+    while (currentDate <= endDate) {
         const timeData = {
             year: currentDate.getFullYear(),
             month: currentDate.getMonth() + 1,
@@ -82,18 +56,50 @@ export const persistTransaction = async (record) => {
             week: getWeekISO(currentDate)
         };
 
-        const dayOps = buildStatsOps(PK, timeData, dailyMetrics, isoNow, totalDays);
-        batch.push(...dayOps);
+        // Generar keys para este día
+        const keys = [
+            `STATS#${timeData.year}`,
+            `STATS#${timeData.year}#Q${timeData.quarter}`,
+            `STATS#${timeData.year}#Q${timeData.quarter}#M${String(timeData.month).padStart(2, '0')}`,
+            `STATS#${timeData.year}#Q${timeData.quarter}#M${String(timeData.month).padStart(2, '0')}#D${String(timeData.day).padStart(2, '0')}`,
+            `STATS#${timeData.year}#W${String(timeData.week).padStart(2, '0')}`
+        ];
 
-        if (batch.length >= 75 || currentDate.getTime() === finalEnd.getTime()) {
-            await ddb.send(new TransactWriteCommand({ TransactItems: batch }));
-            batch = [];
-        }
+        keys.forEach(sk => {
+            const current = statsMap.get(sk) || { nSpend: 0, nCo2e: 0, vCons: 0, count: 0, type: getLevel(sk) };
+            current.nSpend += dailyMetrics.nSpend;
+            current.nCo2e += dailyMetrics.nCo2e;
+            current.vCons += dailyMetrics.vCons;
+            current.count += (1 / totalDays);
+            current.timeData = timeData; // Solo para referencia en la última iteración
+            statsMap.set(sk, current);
+        });
+
         currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    // 5. CONVERTIR MAPA A OPERACIONES DYNAMODB
+    const finalOps = Array.from(statsMap.entries()).map(([sk, data]) => {
+        return buildStatsOps(PK, sk, data, dailyMetrics.uCons, dailyMetrics.svc, isoNow);
+    });
+
+    // 6. ENVIAR EN BATCHES DE 100 (DynamoDB Limit)
+    for (let i = 0; i < finalOps.length; i += 100) {
+        const chunk = finalOps.slice(i, i + 100);
+        await ddb.send(new TransactWriteCommand({ TransactItems: chunk }));
     }
 
     return { success: true };
 };
+
+// Helpers necesarios
+function getLevel(sk) {
+    if (sk.includes("#D")) return "DAILY";
+    if (sk.includes("#W")) return "WEEKLY";
+    if (sk.includes("#M")) return "MONTHLY";
+    if (sk.includes("#Q")) return "QUARTERLY";
+    return "ANNUAL";
+}
 
 function getWeekISO(d) {
     const target = new Date(d);
