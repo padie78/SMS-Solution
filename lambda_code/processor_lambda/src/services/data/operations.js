@@ -1,33 +1,27 @@
 import { TABLE_NAME } from "./client.js";
 
-/**
- * @fileoverview Generador de comandos de Update para DynamoDB.
- * Recibe datos ya consolidados para evitar duplicidad de operaciones sobre el mismo SK.
- */
 export const buildStatsOps = (PK, SK, aggregatedData, unit, svc, isoNow) => {
     const { nSpend, nCo2e, vCons, count, type } = aggregatedData;
     
-    // 1. Lógica de escala: Toneladas para niveles ejecutivos, Kg para detalle operativo
     const isHighLevel = ['ANNUAL', 'QUARTERLY', 'MONTHLY'].includes(type);
     const co2Val = isHighLevel ? (nCo2e / 1000) : nCo2e;
     const co2Field = isHighLevel ? 'ghg_total_co2e_ton' : 'ghg_total_co2e_kg';
 
-    // 2. Mapeo dinámico de nombres de columnas según el servicio (gas, electricity, etc.)
     const attrNames = {
         "#svc_u": `consumption_${svc}_unit`,
         "#svc_v": `consumption_${svc}_val`,
         "#svc_s": `consumption_${svc}_spend`
     };
 
+    // 1. Solo valores que se usan en TODOS los niveles
     const attrValues = {
         ":type": `${type}_METRICS`,
-        ":nSpend": Number(nSpend.toFixed(4)), // Evitamos problemas de precisión decimal
+        ":nSpend": Number(nSpend.toFixed(4)),
         ":nCo2": Number(co2Val.toFixed(6)),
         ":vCons": Number(vCons.toFixed(4)),
         ":uCons": unit,
-        ":fraction": Number(count.toFixed(8)), // La suma de fracciones debe ser 1
-        ":now": isoNow,
-        ":defaultMeta": { version: "1.0", is_fiscal_closed: false }
+        ":fraction": Number(count.toFixed(8)),
+        ":now": isoNow
     };
 
     let setClauses = [
@@ -36,9 +30,20 @@ export const buildStatsOps = (PK, SK, aggregatedData, unit, svc, isoNow) => {
         `#svc_u = :uCons`
     ];
 
-    // 3. Inicialización de metadatos solo para registros de alto nivel
+    // 2. Inyectar :defaultMeta SOLO si es nivel alto
     if (isHighLevel) {
         setClauses.push(`metadata = if_not_exists(metadata, :defaultMeta)`);
+        attrValues[":defaultMeta"] = { version: "1.0", is_fiscal_closed: false };
+    }
+
+    // 3. Inyectar :emptyMap SOLO si es Daily o Weekly
+    if (type === 'DAILY' || type === 'WEEKLY') {
+        attrValues[":emptyMap"] = {};
+        if (type === 'DAILY') {
+            setClauses.push(`engineering_kpis = if_not_exists(engineering_kpis, :emptyMap)`);
+        } else {
+            setClauses.push(`performance_kpis = if_not_exists(performance_kpis, :emptyMap)`);
+        }
     }
 
     return {
