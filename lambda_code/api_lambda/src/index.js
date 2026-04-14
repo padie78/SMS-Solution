@@ -1,110 +1,87 @@
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
-
-const client = new DynamoDBClient({});
-const ddb = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = "sms-platform-dev-emissions";
+/**
+ * @fileoverview AppSync Resolver Handler - Orquestador de Configuraciones.
+ * Sincronizado con el patrón de Analytics para consistencia en el SMS.
+ */
+import { configService } from './services/config.js';
 
 export const handler = async (event) => {
-    const { fieldName, arguments: args } = event;
-    const input = args.input;
-    const isoNow = new Date().toISOString();
+    console.log("== [DEBUG: CONFIG EVENT START] ==");
 
     try {
-        let item = {};
+        // 1. Identidad: Extraemos el orgId (Misma lógica que Analytics)
+        const orgId = event.identity?.claims['custom:organization_id'] ||
+            event.identity?.claims['sub'] ||
+            "f3d4f8a2-90c1-708c-a446-2c8592524d62";
 
-        switch (fieldName) {
-            case "saveOrgConfig":
-                item = {
-                    PK: `ORG#${input.orgId}`,
-                    SK: "METADATA",
-                    entity_type: "ORG_CONFIG",
-                    corporate_identity: {
-                        name: input.name,
-                        tax_id: input.taxId,
-                        hq_address: input.hqAddress
-                    },
-                    system_internal_config: {
-                        natural_gas_m3_to_kwh: input.gasConversion || 10.55,
-                        min_confidence_score: input.minConfidence || 0.85,
-                        default_currency: input.currency || "ILS",
-                        measurement_system: "METRIC"
-                    },
-                    billing_status: {
-                        plan_tier: "ENTERPRISE",
-                        status: "ACTIVE",
-                        renewal_date: "2027-01-01T00:00:00Z"
-                    },
-                    last_updated: isoNow
-                };
+        const args = event.arguments || {};
+        const methodName = event.info?.fieldName || event.fieldName;
+
+        console.log(`== [ROUTING] == Method: ${methodName} | Org: ${orgId}`);
+
+        let result;
+
+        /**
+         * DISPATCHER LOGIC
+         * Mapea las mutaciones de GraphQL a los métodos del servicio de configuración
+         */
+        switch (methodName) {
+
+            case 'saveOrgConfig':
+                console.log(`[EXEC] Guardando Configuración de Organización: ${orgId}`);
+                result = await configService.saveOrgConfig(orgId, args.input);
                 break;
 
-            case "saveBranchConfig":
-                item = {
-                    PK: `ORG#${input.orgId}`,
-                    SK: `BRANCH#${input.branchId}`,
-                    entity_type: "BRANCH_CONFIG",
-                    branch_details: {
-                        name: input.name,
-                        location_hierarchy: {
-                            buildings: input.buildings || [],
-                            areas: input.areas || []
-                        }
-                    },
-                    assets_inventory: [{
-                        asset_id: input.assetId,
-                        name: "Medidor Principal",
-                        climatiq_activity_id: input.climatiqId,
-                        assignment: {
-                            building: input.buildings?.[0] || "General",
-                            area: input.areas?.[0] || "General"
-                        }
-                    }],
-                    local_thresholds: {
-                        co2e_monthly_limit_ton: 500.0
-                    },
-                    last_updated: isoNow
-                };
+            case 'saveBranchConfig':
+                if (!args.input?.branchId) throw new Error("branchId is required for branch configuration");
+                console.log(`[EXEC] Guardando Sucursal: ${args.input.branchId}`);
+                result = await configService.saveBranchConfig(orgId, args.input);
                 break;
 
-            case "saveUserProfile":
-                item = {
-                    PK: `ORG#${input.orgId}`,
-                    SK: `USER#${input.userId}`,
-                    entity_type: "USER_PROFILE",
-                    user_profile: {
-                        full_name: input.fullName,
-                        email: input.email,
-                        interface_language: input.language || "es"
+            case 'saveUserProfile':
+                if (!args.input?.userId) throw new Error("userId is required for profile configuration");
+                console.log(`[EXEC] Guardando Perfil de Usuario: ${args.input.userId}`);
+                // Pasamos identity para el login_history
+                result = await configService.saveUserProfile(orgId, args.input, event.identity);
+                break;
+
+            // ... dentro del switch(methodName) ...
+
+            case 'createAsset':
+                const { name, type, description, branchId, building, area, climatiqId } = event.arguments;
+
+                const assetId = `ASSET-${Date.now()}`;
+
+                // El objeto que persistimos en DynamoDB con toda la data
+                const fullAsset = {
+                    PK: `ORG#${orgId}`,
+                    SK: `ASSET#${assetId}`,
+                    entity_type: "ASSET_CONFIG",
+                    asset_info: { name, type, description, status: "ACTIVE" },
+                    assignment: {
+                        branch_id: branchId || "UNASSIGNED",
+                        building: building || "MAIN",
+                        area: area || "GENERAL"
                     },
-                    permissions: {
-                        role: input.role || "USER",
-                        authorized_branches: [] // Se llena según lógica de negocio
+                    emission_data: {
+                        climatiq_activity_id: climatiqId || "pending",
+                        scope: 1
                     },
-                    ux_settings: {
-                        dark_mode: true,
-                        push_notifications: true
-                    },
-                    account_security: {
-                        current_status: "ACTIVE",
-                        last_status_update: isoNow
-                    }
+                    metadata: { created_at: new Date().toISOString() }
                 };
+
+                result = await configService.saveItem(fullAsset);
                 break;
 
             default:
-                throw new Error("Unknown mutation field");
+                console.warn(`[ERROR] Field "${methodName}" not implemented.`);
+                throw new Error(`Resolver for ${methodName} not found.`);
         }
 
-        await ddb.send(new PutCommand({
-            TableName: TABLE_NAME,
-            Item: item
-        }));
-
-        return { success: true, message: `${item.entity_type} saved successfully` };
+        return result;
 
     } catch (error) {
-        console.error("Error saving configuration:", error);
+        console.error("== [LAMBDA ERROR] ==");
+        console.error(`Message: ${error.message}`);
         return { success: false, message: error.message };
     }
 };
