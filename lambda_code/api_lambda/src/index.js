@@ -1,87 +1,110 @@
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
-const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
+import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
+import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 
-// Configuración del cliente S3 (Reutilizado entre invocaciones)
-const s3Client = new S3Client({ region: process.env.AWS_REGION || "eu-central-1" });
+const client = new DynamoDBClient({});
+const ddb = DynamoDBDocumentClient.from(client);
+const TABLE_NAME = process.env.TABLE_NAME;
 
-exports.handler = async (event) => {
-    console.log("Evento recibido:", JSON.stringify(event));
+export const handler = async (event) => {
+    const { fieldName, arguments: args } = event;
+    const input = args.input;
+    const isoNow = new Date().toISOString();
 
     try {
-        // 1. Extraer Identidad (Compatible con HTTP API y JWT Authorizer)
-        const claims = event.requestContext?.authorizer?.jwt?.claims || 
-                       event.requestContext?.authorizer?.claims;
+        let item = {};
 
-        if (!claims) {
-            return {
-                statusCode: 401,
-                body: JSON.stringify({ message: "Unauthorized: No identity context found" })
-            };
+        switch (fieldName) {
+            case "saveOrgConfig":
+                item = {
+                    PK: `ORG#${input.orgId}`,
+                    SK: "METADATA",
+                    entity_type: "ORG_CONFIG",
+                    corporate_identity: {
+                        name: input.name,
+                        tax_id: input.taxId,
+                        hq_address: input.hqAddress
+                    },
+                    system_internal_config: {
+                        natural_gas_m3_to_kwh: input.gasConversion || 10.55,
+                        min_confidence_score: input.minConfidence || 0.85,
+                        default_currency: input.currency || "ILS",
+                        measurement_system: "METRIC"
+                    },
+                    billing_status: {
+                        plan_tier: "ENTERPRISE",
+                        status: "ACTIVE",
+                        renewal_date: "2027-01-01T00:00:00Z"
+                    },
+                    last_updated: isoNow
+                };
+                break;
+
+            case "saveBranchConfig":
+                item = {
+                    PK: `ORG#${input.orgId}`,
+                    SK: `BRANCH#${input.branchId}`,
+                    entity_type: "BRANCH_CONFIG",
+                    branch_details: {
+                        name: input.name,
+                        location_hierarchy: {
+                            buildings: input.buildings || [],
+                            areas: input.areas || []
+                        }
+                    },
+                    assets_inventory: [{
+                        asset_id: input.assetId,
+                        name: "Medidor Principal",
+                        climatiq_activity_id: input.climatiqId,
+                        assignment: {
+                            building: input.buildings?.[0] || "General",
+                            area: input.areas?.[0] || "General"
+                        }
+                    }],
+                    local_thresholds: {
+                        co2e_monthly_limit_ton: 500.0
+                    },
+                    last_updated: isoNow
+                };
+                break;
+
+            case "saveUserProfile":
+                item = {
+                    PK: `ORG#${input.orgId}`,
+                    SK: `USER#${input.userId}`,
+                    entity_type: "USER_PROFILE",
+                    user_profile: {
+                        full_name: input.fullName,
+                        email: input.email,
+                        interface_language: input.language || "es"
+                    },
+                    permissions: {
+                        role: input.role || "USER",
+                        authorized_branches: [] // Se llena según lógica de negocio
+                    },
+                    ux_settings: {
+                        dark_mode: true,
+                        push_notifications: true
+                    },
+                    account_security: {
+                        current_status: "ACTIVE",
+                        last_status_update: isoNow
+                    }
+                };
+                break;
+
+            default:
+                throw new Error("Unknown mutation field");
         }
 
-        // El 'sub' es el ID único del usuario en Cognito
-        const userId = claims.sub;
+        await ddb.send(new PutCommand({
+            TableName: TABLE_NAME,
+            Item: item
+        }));
 
-        // 2. Parsear el Body
-        if (!event.body) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({ message: "Missing request body" })
-            };
-        }
-
-        const { fileName, fileType } = JSON.parse(event.body);
-
-        if (!fileName) {
-            return {
-                statusCode: 400,
-                body: JSON.stringify({ message: "fileName is required" })
-            };
-        }
-
-        // 3. Generación de Key Estratégica
-        // IMPORTANTE: Empezamos con 'uploads/' para que coincida con el trigger de Terraform
-        const cleanFileName = fileName.replace(/\s+/g, '_').toLowerCase();
-        const timestamp = Date.now();
-        const key = `uploads/${userId}/${timestamp}-${cleanFileName}`;
-
-        console.log(`Generando URL para: ${key}`);
-
-        // 4. Preparar el comando de S3
-        const command = new PutObjectCommand({
-            Bucket: process.env.UPLOAD_BUCKET,
-            Key: key,
-            ContentType: fileType || 'application/pdf'
-        });
-
-        // 5. Generar la Presigned URL (Válida por 5 minutos)
-        const uploadURL = await getSignedUrl(s3Client, command, { expiresIn: 300 });
-
-        return {
-            statusCode: 200,
-            headers: {
-                "Access-Control-Allow-Origin": "*",
-                "Access-Control-Allow-Methods": "POST, OPTIONS",
-                "Access-Control-Allow-Headers": "Content-Type, Authorization",
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                uploadURL,
-                key,
-                userId,
-                message: "URL generada exitosamente. Use el método PUT para subir el archivo."
-            })
-        };
+        return { success: true, message: `${item.entity_type} saved successfully` };
 
     } catch (error) {
-        console.error("Error crítico en Signer:", error);
-        return {
-            statusCode: 500,
-            headers: { "Access-Control-Allow-Origin": "*" },
-            body: JSON.stringify({ 
-                message: "Internal server error",
-                requestId: event.requestContext?.requestId 
-            })
-        };
+        console.error("Error saving configuration:", error);
+        return { success: false, message: error.message };
     }
 };

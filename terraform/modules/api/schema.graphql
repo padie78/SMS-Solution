@@ -78,6 +78,43 @@ type PresignedUrlResponse {
   userId: String!
 }
 
+type ConfigurationResponse {
+  success: Boolean!
+  message: String
+}
+
+# Inputs para Organización
+input OrgConfigInput {
+  orgId: ID!
+  name: String!
+  taxId: String!
+  hqAddress: String!
+  gasConversion: Float
+  minConfidence: Float
+  currency: String
+}
+
+# Inputs para Sucursal
+input BranchConfigInput {
+  orgId: ID!
+  branchId: String!
+  name: String!
+  buildings: [String]
+  areas: [String]
+  assetId: String!
+  climatiqId: String!
+}
+
+# Inputs para Usuario
+input UserProfileInput {
+  orgId: ID!
+  userId: ID!
+  fullName: String!
+  email: String!
+  language: String!
+  role: String!
+}
+
 # --- CONSULTAS (QUERIES) ---
 
 type Query {
@@ -110,4 +147,8 @@ type Mutation {
   deleteAsset(id: ID!): AWSJSON
   createBranch(name: String!, location: String): AWSJSON
   updateBranch(id: ID!, name: String, location: String): AWSJSON
+
+  saveOrgConfig(input: OrgConfigInput!): ConfigurationResponse
+  saveBranchConfig(input: BranchConfigInput!): ConfigurationResponse
+  saveUserProfile(input: UserProfileInput!): ConfigurationResponse
 }
