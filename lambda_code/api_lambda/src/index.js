@@ -3,7 +3,7 @@ import { DynamoDBDocumentClient, PutCommand } from "@aws-sdk/lib-dynamodb";
 
 const client = new DynamoDBClient({});
 const ddb = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = process.env.TABLE_NAME;
+const TABLE_NAME = "sms-platform-dev-emissions";
 
 export const handler = async (event) => {
     const { fieldName, arguments: args } = event;
