@@ -3,7 +3,26 @@ schema {
   mutation: Mutation
 }
 
-# --- TIPOS DE ANALÍTICA ---
+# --- 1. RESPUESTAS GENÉRICAS (SENIOR STANDARD) ---
+
+"""
+Respuesta unificada para todas las mutaciones de configuración.
+Permite consistencia en el manejo de errores y éxitos en el frontend.
+"""
+type MutationResponse {
+  success: Boolean!
+  message: String
+  id: ID                # Retorna el ID generado (AssetId, BranchId, etc.)
+  entity: AWSJSON       # El objeto completo persistido en DynamoDB (para auditoría)
+}
+
+type PresignedUrlResponse {
+  uploadURL: String!
+  key: String!
+  userId: String!
+}
+
+# --- 2. ENTIDADES DE ANALÍTICA ---
 
 type YearlyKPI {
   id: ID!
@@ -27,8 +46,6 @@ type HighFrequencyKPI {
   normalization: NormalizationKPIs
   performance: AWSJSON
 }
-
-# --- COMPONENTES ---
 
 type ServiceBreakdown {
   elec_spend: Float
@@ -58,8 +75,6 @@ type RecordMetadata {
   is_fiscal_closed: Boolean
 }
 
-# --- ENTIDADES ---
-
 type Invoice {
   id: ID!
   vendor: String
@@ -72,18 +87,8 @@ type Invoice {
   aiThoughtProcess: String
 }
 
-type PresignedUrlResponse {
-  uploadURL: String!
-  key: String!
-  userId: String!
-}
+# --- 3. INPUTS DE CONFIGURACIÓN ---
 
-type ConfigurationResponse {
-  success: Boolean!
-  message: String
-}
-
-# Inputs para Organización
 input OrgConfigInput {
   orgId: ID!
   name: String!
@@ -94,18 +99,17 @@ input OrgConfigInput {
   currency: String
 }
 
-# Inputs para Sucursal
 input BranchConfigInput {
   orgId: ID!
   branchId: String!
   name: String!
+  location: String
   buildings: [String]
   areas: [String]
-  assetId: String!
-  climatiqId: String!
+  assetId: String      
+  climatiqId: String
 }
 
-# Inputs para Usuario
 input UserProfileInput {
   orgId: ID!
   userId: ID!
@@ -115,7 +119,6 @@ input UserProfileInput {
   role: String!
 }
 
-# 1. Definimos el objeto de entrada
 input CreateAssetInput {
   name: String!
   type: String!
@@ -124,42 +127,58 @@ input CreateAssetInput {
   building: String
   area: String
   climatiqId: String
+  unitType: String
 }
 
-# --- CONSULTAS (QUERIES) ---
+input BranchConfigInput {
+  orgId: ID!
+  branchId: String!
+  name: String!
+  location: String
+  buildings: [String]
+  areas: [String]
+  # AGREGAR ESTOS CAMPOS:
+  assetId: String      
+  climatiqId: String
+}
+
+# --- 4. CONSULTAS (QUERIES) ---
 
 type Query {
-  # KPIs Jerárquicos
+  # KPIs de Sostenibilidad
   getYearlyKPI(year: String!): YearlyKPI
   getQuarterlyKPI(year: String!, quarter: String!): YearlyKPI
   getMonthlyKPI(year: String!, month: String!): YearlyKPI
   getWeeklyKPI(year: String!, week: String!): HighFrequencyKPI
   getDailyKPI(day: String!): HighFrequencyKPI
 
-  # Comparativas y Metas (Lo que Terraform estaba buscando)
+  # Comparativas y Metas
   getYearOverYear(year: String!, month: String!): AWSJSON
   getGoalTracking(year: String!): AWSJSON
   
-  # Auditoría
+  # Auditoría y Reportes
   getIntensityReport(year: String!): NormalizationKPIs
   getInvoicesByPeriod(year: String!, month: String): [Invoice]
   getVendorRanking(year: String!, limit: Int): AWSJSON
 }
 
-# --- ACCIONES (MUTATIONS) ---
+# --- 5. ACCIONES (MUTATIONS) ---
 
 type Mutation {
-  # --- Existentes ---
+  # Archivos y Procesamiento
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
   approveInvoice(invoiceId: ID!): Invoice
-  createAsset(input: CreateAssetInput!): AWSJSON
 
-  # --- AGREGAR ESTOS (Para limpiar los errores de Terraform) ---
-  deleteAsset(id: ID!): AWSJSON
-  createBranch(name: String!, location: String): AWSJSON
-  updateBranch(id: ID!, name: String, location: String): AWSJSON
+  # Gestión de Activos (Emissions Assets)
+  createAsset(input: CreateAssetInput!): MutationResponse
+  deleteAsset(id: ID!): MutationResponse
 
-  saveOrgConfig(input: OrgConfigInput!): ConfigurationResponse
-  saveBranchConfig(input: BranchConfigInput!): ConfigurationResponse
-  saveUserProfile(input: UserProfileInput!): ConfigurationResponse
+  # Gestión de Infraestructura
+  createBranch(name: String!, location: String): MutationResponse
+  updateBranch(id: ID!, name: String, location: String): MutationResponse
+  
+  # Persistencia de Configuración
+  saveOrgConfig(input: OrgConfigInput!): MutationResponse
+  saveBranchConfig(input: BranchConfigInput!): MutationResponse
+  saveUserProfile(input: UserProfileInput!): MutationResponse
 }

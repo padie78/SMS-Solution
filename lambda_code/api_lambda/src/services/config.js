@@ -13,7 +13,7 @@ export const configService = {
         const SK = "METADATA";
         
         const item = {
-            PK: orgId, // El repo se encarga del prefijo ORG#
+            PK: orgId, 
             SK: SK,
             entity_type: "ORG_CONFIG",
             corporate_identity: {
@@ -36,14 +36,19 @@ export const configService = {
         };
 
         await repo.saveItem(item);
-        return { success: true, message: "ORG_CONFIG saved successfully" };
+
+        return { 
+            success: true, 
+            message: `Organization ${input.name} configuration updated successfully`,
+            id: orgId,
+            entity: JSON.stringify(item)
+        };
     },
 
     /**
      * 2. CONFIGURACIÓN DE SUCURSALES (BRANCH#...)
      */
     saveBranchConfig: async (orgId, input) => {
-        // Construcción de la SK siguiendo el patrón del SMS
         const SK = `BRANCH#${input.branchId}`;
         
         const item = {
@@ -73,7 +78,13 @@ export const configService = {
         };
 
         await repo.saveItem(item);
-        return { success: true, message: "BRANCH_CONFIG saved successfully" };
+
+        return { 
+            success: true, 
+            message: `Branch ${input.name} configured successfully`,
+            id: input.branchId,
+            entity: JSON.stringify(item)
+        };
     },
 
     /**
@@ -115,67 +126,66 @@ export const configService = {
         };
 
         await repo.saveItem(item);
-        return { success: true, message: "USER_PROFILE saved successfully" };
+
+        return { 
+            success: true, 
+            message: `User profile for ${input.fullName} saved successfully`,
+            id: input.userId,
+            entity: JSON.stringify(item)
+        };
     },
 
+    /**
+     * 4. CREACIÓN DE ACTIVOS (ASSET#...)
+     */
     createAsset: async (orgId, input) => {
-    // Generamos el ID si no viene en el input para asegurar consistencia
-    const assetId = input.assetId || `ASSET-${Date.now()}`;
-    const now = new Date().toISOString();
+        const assetId = input.assetId || `ASSET-${Date.now()}`;
+        const now = new Date().toISOString();
 
-    const item = {
-        PK: `ORG#${orgId}`,
-        SK: `ASSET#${assetId}`,
-        entity_type: "ASSET_CONFIG",
-        
-        // 1. Información de Identidad Física
-        asset_info: {
-            name: input.name,
-            type: input.type, // Ej: 'GAS_METER', 'VEHICLE', 'HVAC'
-            status: "ACTIVE",
-            description: input.description || `Activo registrado para ${input.name}`,
-            serial_number: input.serialNumber || "N/A"
-        },
-
-        // 2. Jerarquía de Asignación (Fundamental para el Dashboard de la Planta)
-        assignment: {
-            branch_id: input.branchId || "UNASSIGNED",
-            building: input.building || "MAIN_PLANT",
-            area: input.area || "GENERAL_PRODUCTION",
-            coordinates: input.coordinates || null // { lat: number, lng: number }
-        },
-
-        // 3. Motor de Cálculo (Climatiq Mapping)
-        emission_data: {
-            climatiq_activity_id: input.climatiqId || "fuel-natural_gas-stationary_combustion",
-            unit_type: input.unitType || "m3", // m3, kWh, liters, etc.
-            scope: input.scope || 1,           // Scope 1, 2 o 3
-            category: input.category || "Stationary Combustion"
-        },
-
-        // 4. Auditoría y Control
-        metadata: {
-            created_at: now,
-            last_updated: now,
-            created_by: input.userId || "SYSTEM_API",
-            version: 1
-        }
-    };
-
-    try {
-        // Persistencia en DynamoDB
-        await repo.saveItem(item);
-        
-        // Retornamos el objeto completo como AWSJSON para que el Frontend lo use de inmediato
-        return {
-            success: true,
-            message: `Asset ${assetId} [${input.name}] created and assigned to ${item.assignment.branch_id}`,
-            data: JSON.stringify(item) 
+        const item = {
+            PK: `ORG#${orgId}`,
+            SK: `ASSET#${assetId}`,
+            entity_type: "ASSET_CONFIG",
+            asset_info: {
+                name: input.name,
+                type: input.type,
+                status: "ACTIVE",
+                description: input.description || `Activo registrado para ${input.name}`,
+                serial_number: input.serialNumber || "N/A"
+            },
+            assignment: {
+                branch_id: input.branchId || "UNASSIGNED",
+                building: input.building || "MAIN_PLANT",
+                area: input.area || "GENERAL_PRODUCTION",
+                coordinates: input.coordinates || null 
+            },
+            emission_data: {
+                climatiq_activity_id: input.climatiqId || "fuel-natural_gas-stationary_combustion",
+                unit_type: input.unitType || "m3",
+                scope: input.scope || 1,
+                category: input.category || "Stationary Combustion"
+            },
+            metadata: {
+                created_at: now,
+                last_updated: now,
+                created_by: input.userId || "SYSTEM_API",
+                version: 1
+            }
         };
-    } catch (error) {
-        console.error("== [DYNAMO ERROR: createAsset] ==");
-        console.error(error);
-        throw new Error(`Failed to persist asset ${assetId}`);
+
+        try {
+            await repo.saveItem(item);
+            
+            return {
+                success: true,
+                message: `Asset ${assetId} [${input.name}] created and assigned to ${item.assignment.branch_id}`,
+                id: assetId,
+                entity: JSON.stringify(item) 
+            };
+        } catch (error) {
+            console.error("== [DYNAMO ERROR: createAsset] ==");
+            console.error(error);
+            throw new Error(`Failed to persist asset ${assetId}`);
+        }
     }
-}
 };
