@@ -1,6 +1,7 @@
 {
   "name": "sms-signer-lambda",
   "version": "1.0.0",
+  "type": "module",
   "description": "Generación de URLs firmadas para subida directa a S3",
   "main": "src/index.js",
   "engines": {
