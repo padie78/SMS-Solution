@@ -69,7 +69,7 @@ export const handler = async (event) => {
                     metadata: { created_at: new Date().toISOString() }
                 };
 
-                result = await configService.saveItem(fullAsset);
+                result = await configService.createAsset(orgId, args.input || args); // ✅ Usa la lógica del service
                 break;
 
             default:
