@@ -4,16 +4,11 @@ schema {
 }
 
 # --- 1. RESPUESTAS GENÉRICAS ---
-
-"""
-Respuesta unificada para todas las mutaciones de configuración.
-Mantiene la consistencia para el manejo de estados en el frontend.
-"""
 type MutationResponse {
   success: Boolean!
   message: String
-  id: ID                # Retorna el ID generado (AssetId, BranchId, etc.)
-  entity: AWSJSON       # El objeto completo persistido en DynamoDB
+  id: ID
+  entity: AWSJSON
 }
 
 type PresignedUrlResponse {
@@ -59,6 +54,7 @@ type ServiceBreakdown {
 type NormalizationKPIs {
   intensity_per_revenue: Float
   intensity_per_sqm: Float
+  intensity_per_production_unit: Float # Nuevo: KPI de Intensidad (kWh/Unidad)
 }
 
 type EnvironmentalImpact {
@@ -85,6 +81,7 @@ type Invoice {
   serviceType: String
   pdfUrl: String
   aiThoughtProcess: String
+  status: String # Nuevo: PENDING_REVIEW, APPROVED, REJECTED
 }
 
 # --- 3. INPUTS DE CONFIGURACIÓN ---
@@ -110,6 +107,34 @@ input BranchConfigInput {
   climatiqId: String
 }
 
+# --- NUEVOS INPUTS ---
+
+input CostCenterInput {
+  orgId: ID!
+  id: String
+  name: String!
+  accountingCode: String!
+  monthlyBudget: Float
+  managerEmail: String
+}
+
+input UtilityTariffInput {
+  branchId: ID!
+  providerName: String!
+  serviceType: String! # ELECTRICITY, GAS, WATER
+  contractedPower: Float
+  unitRate: Float!
+  fixedFee: Float
+  currency: String
+}
+
+input ProductionLogInput {
+  branchId: ID!
+  period: String! # Ej: "2026-03"
+  unitsProduced: Float!
+  unitType: String! # TONS, UNITS, LITERS
+}
+
 input UserProfileInput {
   orgId: ID!
   userId: ID!
@@ -126,6 +151,7 @@ input CreateAssetInput {
   branchId: String
   building: String
   area: String
+  costCenterId: String # Nuevo: Vinculación financiera
   climatiqId: String
   unitType: String
 }
@@ -143,6 +169,10 @@ type Query {
   getIntensityReport(year: String!): NormalizationKPIs
   getInvoicesByPeriod(year: String!, month: String): [Invoice]
   getVendorRanking(year: String!, limit: Int): AWSJSON
+  
+  # Nuevas Queries de Configuración
+  getCostCenters: [AWSJSON]
+  getTariffsByBranch(branchId: ID!): [AWSJSON]
 }
 
 # --- 5. ACCIONES (MUTATIONS) ---
@@ -156,11 +186,16 @@ type Mutation {
   createAsset(input: CreateAssetInput!): MutationResponse
   deleteAsset(id: ID!): MutationResponse
 
-  # Infraestructura
+  # Infraestructura y Configuración
   createBranch(name: String!, location: String): MutationResponse
   updateBranch(id: ID!, name: String, location: String): MutationResponse
   
-  # Configuraciones
+  # --- NUEVAS MUTACIONES ---
+  saveCostCenter(input: CostCenterInput!): MutationResponse
+  saveUtilityTariff(input: UtilityTariffInput!): MutationResponse
+  logProduction(input: ProductionLogInput!): MutationResponse
+  
+  # Configuraciones base
   saveOrgConfig(input: OrgConfigInput!): MutationResponse
   saveBranchConfig(input: BranchConfigInput!): MutationResponse
   saveUserProfile(input: UserProfileInput!): MutationResponse

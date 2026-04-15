@@ -3,7 +3,7 @@
  * Implementa persistencia robusta para el patrón Single Table Design (SMS).
  */
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, PutCommand, GetCommand, UpdateCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || "eu-central-1" });
 const ddb = DynamoDBDocumentClient.from(client);
@@ -12,7 +12,6 @@ const TABLE = process.env.TABLE_NAME || "sms-platform-dev-emissions";
 
 /**
  * Normaliza el prefijo de la Partition Key.
- * Permite que el servicio envíe el UUID pelado o ya formateado.
  */
 const formatPK = (id) => {
     if (!id) return null;
@@ -21,38 +20,34 @@ const formatPK = (id) => {
 
 export const repo = {
     /**
-     * Guarda cualquier ítem de configuración (Org, Branch, User o Asset).
-     * @param {Object} item - Objeto completo construido por el Service Layer.
+     * Guarda o actualiza cualquier entidad de configuración.
+     * Soporta Org, Branch, User, Asset, CostCenter, Tariff y ProductionLog.
      */
     saveItem: async (item) => {
-        // 1. Aseguramos integridad de claves primarias
-        item.PK = formatPK(item.PK || item.orgId);
+        const pk = formatPK(item.PK);
         
-        // 2. Limpieza de campos temporales (evitamos guardar orgId duplicado fuera de la PK si no es necesario)
-        // Pero mantenemos entity_type y SK que son vitales.
-        
-        console.log(`[REPO][saveItem] Persistiendo Entidad: ${item.entity_type} | SK: ${item.SK}`);
+        console.log(`[REPO][saveItem] Persistiendo: ${item.entity_type} | SK: ${item.SK}`);
 
         try {
             const params = {
                 TableName: TABLE,
                 Item: {
                     ...item,
-                    // Timestamp de infraestructura (independiente de la lógica de negocio)
+                    PK: pk, // Aseguramos formato correcto
                     _internal_updated_at: new Date().toISOString()
                 }
             };
 
-            const result = await ddb.send(new PutCommand(params));
-            return result;
+            await ddb.send(new PutCommand(params));
+            return { success: true, sk: item.SK };
         } catch (error) {
             console.error(`[REPO][saveItem] CRITICAL_ERROR:`, error.message);
-            throw new Error(`Error de persistencia en DynamoDB para la entidad ${item.SK}`);
+            throw new Error(`Error de persistencia: ${item.SK}`);
         }
     },
 
     /**
-     * Obtiene un ítem por su clave primaria completa.
+     * Obtiene una entidad específica por PK y SK.
      */
     getItem: async (orgId, sk) => {
         const params = {
@@ -72,20 +67,49 @@ export const repo = {
     },
 
     /**
-     * Update parcial (útil para cambiar status de Assets o Roles de Usuario)
+     * Actualización específica para el flujo de aprobación de facturas.
+     * Maneja el alias de "status" para evitar conflictos con palabras reservadas.
      */
-    updateStatus: async (orgId, sk, newStatus) => {
+    updateInvoiceStatus: async (orgId, sk, status, userEmail) => {
+        const timestamp = new Date().toISOString();
         const params = {
             TableName: TABLE,
             Key: { PK: formatPK(orgId), SK: sk },
-            UpdateExpression: "set #st = :s, last_updated = :u",
-            ExpressionAttributeNames: { "#st": "status" },
-            ExpressionAttributeValues: {
-                ":s": newStatus,
-                ":u": new Date().toISOString()
+            UpdateExpression: "SET #st = :s, approved_by = :u, last_updated = :t, _internal_updated_at = :t",
+            ExpressionAttributeNames: { 
+                "#st": "status" 
             },
-            ReturnValues: "UPDATED_NEW"
+            ExpressionAttributeValues: {
+                ":s": status,
+                ":u": userEmail,
+                ":t": timestamp
+            },
+            ReturnValues: "ALL_NEW"
         };
-        return await ddb.send(new UpdateCommand(params));
+
+        try {
+            const { Attributes } = await ddb.send(new UpdateCommand(params));
+            return Attributes;
+        } catch (error) {
+            console.error(`[REPO][updateInvoiceStatus] ERROR:`, error.message);
+            throw error;
+        }
+    },
+
+    /**
+     * Eliminación física de registros (Assets, Branches, etc).
+     */
+    deleteItem: async (orgId, sk) => {
+        console.log(`[REPO][deleteItem] Eliminando SK: ${sk}`);
+        try {
+            await ddb.send(new DeleteCommand({
+                TableName: TABLE,
+                Key: { PK: formatPK(orgId), SK: sk }
+            }));
+            return { success: true };
+        } catch (error) {
+            console.error(`[REPO][deleteItem] ERROR:`, error.message);
+            throw error;
+        }
     }
 };
