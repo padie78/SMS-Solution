@@ -4,11 +4,11 @@
  */
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, UpdateCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
-import { v4 as uuidv4 } from "uuid";
+import { randomUUID } from "crypto"; // Reemplazo de uuid para evitar errores de módulos
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = process.env.DATABASE_NAME;
+const TABLE_NAME = process.env.DATABASE_NAME || "sms-platform-dev-emissions";
 
 export const configService = {
 
@@ -60,7 +60,8 @@ export const configService = {
     // --- 2. INFRAESTRUCTURA (BRANCHES) ---
 
     createBranch: async (orgId, input) => {
-        const branchId = `BR-${uuidv4().split('-')[0].toUpperCase()}`;
+        // Generación de ID corto usando crypto nativo
+        const branchId = `BR-${randomUUID().split('-')[0].toUpperCase()}`;
         const item = {
             PK: `ORG#${orgId}`,
             SK: `BRANCH#${branchId}`,
@@ -88,7 +89,6 @@ export const configService = {
     },
 
     saveBranchConfig: async (orgId, input) => {
-        // Método de soporte para configuraciones extendidas de sucursal
         const timestamp = new Date().toISOString();
         const item = {
             PK: `ORG#${orgId}`,
@@ -144,7 +144,7 @@ export const configService = {
     // --- 4. FINANZAS Y TARIFAS ---
 
     saveCostCenter: async (orgId, input) => {
-        const costCenterId = input.id || `CC-${uuidv4().split('-')[0].toUpperCase()}`;
+        const costCenterId = input.id || `CC-${randomUUID().split('-')[0].toUpperCase()}`;
         const timestamp = new Date().toISOString();
         const item = {
             PK: `ORG#${orgId}`,
@@ -202,14 +202,25 @@ export const configService = {
     approveInvoice: async (orgId, invoiceId, identity) => {
         const timestamp = new Date().toISOString();
         const userEmail = identity?.claims?.email || "SYSTEM";
-        const response = await docClient.send(new UpdateCommand({
-            TableName: TABLE_NAME,
-            Key: { PK: `ORG#${orgId}`, SK: invoiceId },
-            UpdateExpression: "SET #st = :s, approved_by = :u, approved_at = :t",
-            ExpressionAttributeNames: { "#st": "status" },
-            ExpressionAttributeValues: { ":s": "APPROVED", ":u": userEmail, ":t": timestamp },
-            ReturnValues: "ALL_NEW"
-        }));
-        return response.Attributes;
+        
+        try {
+            const response = await docClient.send(new UpdateCommand({
+                TableName: TABLE_NAME,
+                Key: { PK: `ORG#${orgId}`, SK: invoiceId },
+                UpdateExpression: "SET #st = :s, approved_by = :u, approved_at = :t",
+                ExpressionAttributeNames: { "#st": "status" },
+                ExpressionAttributeValues: { ":s": "APPROVED", ":u": userEmail, ":t": timestamp },
+                ReturnValues: "ALL_NEW"
+            }));
+            
+            // Mapeamos SK a id para que AppSync no de error de nulabilidad
+            return {
+                ...response.Attributes,
+                id: response.Attributes.SK
+            };
+        } catch (error) {
+            console.error(`[ERROR approveInvoice] ${error.message}`);
+            throw error;
+        }
     }
 };
