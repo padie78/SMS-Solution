@@ -3,7 +3,7 @@ schema {
   mutation: Mutation
 }
 
-# --- 1. RESPUESTAS GENÉRICAS ---
+# --- 1. RESPUESTAS GENÉRICAS ---f
 type MutationResponse {
   success: Boolean!
   message: String
