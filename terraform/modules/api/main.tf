@@ -98,7 +98,6 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
     "deleteAsset",
     "saveCostCenter",
     "saveUtilityTariff",
-    "saveInvoiceReading",
     "logProduction",
     "approveInvoice"
   ])
