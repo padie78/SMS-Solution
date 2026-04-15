@@ -17,7 +17,7 @@ type PresignedUrlResponse {
   userId: String!
 }
 
-# --- 2. ENTIDADES DE ANALÍTICA Y FACTURACIÓN ---
+# --- 2. ENTIDADES DE ANALÍTICA Y FACTURACIÓNe ---
 
 type Invoice {
   id: ID!                # Mapeado desde el SK
