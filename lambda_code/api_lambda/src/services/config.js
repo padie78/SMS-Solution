@@ -1,14 +1,24 @@
 /**
  * @fileoverview Service Layer - Configuración del SMS (Sustainability Management System).
  * Maneja la persistencia en DynamoDB siguiendo Single Table Design.
+ * Optimizada para Node.js 20, AWS SDK v3 y AppSync.
  */
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, UpdateCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
-import { randomUUID } from "crypto"; // Reemplazo de uuid para evitar errores de módulos
+import { randomUUID } from "crypto";
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.DATABASE_NAME || "sms-platform-dev-emissions";
+
+/**
+ * Helper para formatear las respuestas de éxito consistentes con AppSync/GraphQL
+ */
+const formatResponse = (attributes, idField = "SK") => ({
+    ...attributes,
+    id: attributes[idField],
+    entity: JSON.stringify(attributes)
+});
 
 export const configService = {
 
@@ -33,11 +43,12 @@ export const configService = {
             last_updated: timestamp,
             _internal_updated_at: timestamp
         };
+
         await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
-        return { success: true, id: orgId, entity: JSON.stringify(item) };
+        return { success: true, ...formatResponse(item) };
     },
 
-    saveUserProfile: async (orgId, input, identity) => {
+    saveUserProfile: async (orgId, input) => {
         const timestamp = new Date().toISOString();
         const item = {
             PK: `ORG#${orgId}`,
@@ -46,22 +57,23 @@ export const configService = {
             user_profile: {
                 full_name: input.fullName,
                 email: input.email,
-                interface_language: input.language
+                interface_language: input.language || "en"
             },
-            permissions: { role: input.role },
+            permissions: { role: input.role || "VIEWER" },
             account_security: { current_status: "ACTIVE" },
             last_updated: timestamp,
             _internal_updated_at: timestamp
         };
+
         await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
-        return { success: true, id: input.userId, entity: JSON.stringify(item) };
+        return { success: true, ...formatResponse(item) };
     },
 
     // --- 2. INFRAESTRUCTURA (BRANCHES) ---
 
     createBranch: async (orgId, input) => {
-        // Generación de ID corto usando crypto nativo
         const branchId = `BR-${randomUUID().split('-')[0].toUpperCase()}`;
+        const timestamp = new Date().toISOString();
         const item = {
             PK: `ORG#${orgId}`,
             SK: `BRANCH#${branchId}`,
@@ -70,41 +82,37 @@ export const configService = {
                 name: input.name, 
                 location: input.location || "N/A" 
             },
-            metadata: { created_at: new Date().toISOString() }
+            metadata: { created_at: timestamp, status: "ACTIVE" }
         };
+
         await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
-        return { success: true, id: branchId, entity: JSON.stringify(item) };
+        return { success: true, ...formatResponse(item) };
     },
 
     updateBranch: async (orgId, branchId, input) => {
         const timestamp = new Date().toISOString();
-        const response = await docClient.send(new UpdateCommand({
-            TableName: TABLE_NAME,
-            Key: { PK: `ORG#${orgId}`, SK: `BRANCH#${branchId}` },
-            UpdateExpression: "SET branch_info.name = :n, branch_info.location = :l, last_updated = :t",
-            ExpressionAttributeValues: { ":n": input.name, ":l": input.location, ":t": timestamp },
-            ReturnValues: "ALL_NEW"
-        }));
-        return { success: true, id: branchId, entity: JSON.stringify(response.Attributes) };
-    },
-
-    saveBranchConfig: async (orgId, input) => {
-        const timestamp = new Date().toISOString();
-        const item = {
-            PK: `ORG#${orgId}`,
-            SK: `BRANCH_DETAIL#${input.branchId}`,
-            entity_type: "BRANCH_EXTENDED_CONFIG",
-            details: { ...input },
-            last_updated: timestamp
-        };
-        await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
-        return { success: true, id: input.branchId, entity: JSON.stringify(item) };
+        try {
+            const response = await docClient.send(new UpdateCommand({
+                TableName: TABLE_NAME,
+                Key: { PK: `ORG#${orgId}`, SK: `BRANCH#${branchId}` },
+                // Aseguramos que solo actualizamos si el registro existe
+                ConditionExpression: "attribute_exists(PK)",
+                UpdateExpression: "SET branch_info.#n = :n, branch_info.location = :l, last_updated = :t",
+                ExpressionAttributeNames: { "#n": "name" },
+                ExpressionAttributeValues: { ":n": input.name, ":l": input.location, ":t": timestamp },
+                ReturnValues: "ALL_NEW"
+            }));
+            return { success: true, ...formatResponse(response.Attributes) };
+        } catch (error) {
+            if (error.name === "ConditionalCheckFailedException") throw new Error("BRANCH_NOT_FOUND");
+            throw error;
+        }
     },
 
     // --- 3. ACTIVOS (ASSETS) ---
 
     createAsset: async (orgId, input) => {
-        const assetId = `ASSET-${Date.now()}`;
+        const assetId = `ASSET-${randomUUID().split('-')[0].toUpperCase()}`;
         const timestamp = new Date().toISOString();
         const item = {
             PK: `ORG#${orgId}`,
@@ -113,7 +121,7 @@ export const configService = {
             asset_info: { 
                 name: input.name, 
                 type: input.type, 
-                description: input.description, 
+                description: input.description || "", 
                 status: "ACTIVE" 
             },
             assignment: {
@@ -125,20 +133,23 @@ export const configService = {
             emission_data: {
                 climatiq_activity_id: input.climatiqId || "pending",
                 unit_type: input.unitType || "kWh",
-                scope: 1
+                scope: input.scope || 2 // Default a Scope 2 (Energía comprada)
             },
             metadata: { created_at: timestamp, version: 1 }
         };
+
         await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
-        return { success: true, id: assetId, entity: JSON.stringify(item) };
+        return { success: true, ...formatResponse(item) };
     },
 
     deleteAsset: async (orgId, assetId) => {
+        // En niveles profesionales, a veces es mejor un "Soft Delete" (status: DELETED)
+        // Pero si requieres borrado físico:
         await docClient.send(new DeleteCommand({
             TableName: TABLE_NAME,
             Key: { PK: `ORG#${orgId}`, SK: `ASSET#${assetId}` }
         }));
-        return { success: true, message: "Asset deleted successfully", id: assetId };
+        return { success: true, id: assetId };
     },
 
     // --- 4. FINANZAS Y TARIFAS ---
@@ -156,10 +167,11 @@ export const configService = {
                 manager_email: input.managerEmail || "N/A"
             },
             budget_config: { monthly_limit: input.monthlyBudget || 0 },
-            metadata: { last_updated: timestamp }
+            last_updated: timestamp
         };
+
         await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
-        return { success: true, id: costCenterId, entity: JSON.stringify(item) };
+        return { success: true, ...formatResponse(item) };
     },
 
     saveUtilityTariff: async (orgId, input) => {
@@ -168,17 +180,20 @@ export const configService = {
             PK: `ORG#${orgId}`,
             SK: `TARIFF#${input.branchId}#${input.serviceType.toUpperCase()}`,
             entity_type: "UTILITY_CONFIG",
-            provider_info: { name: input.providerName, service_type: input.serviceType },
+            provider_info: { 
+                name: input.providerName, 
+                service_type: input.serviceType.toUpperCase() 
+            },
             tariff_details: {
-                unit_rate: input.unitRate,
-                fixed_fee: input.fixedFee || 0,
-                contracted_power: input.contractedPower || 0,
+                unit_rate: parseFloat(input.unitRate),
+                fixed_fee: parseFloat(input.fixedFee || 0),
                 currency: input.currency || "ILS"
             },
             last_updated: timestamp
         };
+
         await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
-        return { success: true, id: input.branchId, entity: JSON.stringify(item) };
+        return { success: true, ...formatResponse(item) };
     },
 
     // --- 5. OPERACIONES Y FACTURACIÓN ---
@@ -191,34 +206,44 @@ export const configService = {
             entity_type: "PRODUCTION_LOG",
             production_metrics: {
                 units_produced: input.unitsProduced,
-                unit_type: input.unitType
+                unit_type: input.unitType || "UNITS"
             },
             timestamp: timestamp
         };
+
         await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
-        return { success: true, id: `${input.period}-${input.branchId}`, entity: JSON.stringify(item) };
+        return { success: true, ...formatResponse(item) };
     },
 
     approveInvoice: async (orgId, invoiceId, identity) => {
         const timestamp = new Date().toISOString();
-        const userEmail = identity?.claims?.email || "SYSTEM";
+        const userEmail = identity?.claims?.email || identity?.username || "SYSTEM";
         
         try {
             const response = await docClient.send(new UpdateCommand({
                 TableName: TABLE_NAME,
                 Key: { PK: `ORG#${orgId}`, SK: invoiceId },
-                UpdateExpression: "SET #st = :s, approved_by = :u, approved_at = :t",
+                // Solo aprobamos si el ítem existe y no está ya aprobado (Idempotencia)
+                ConditionExpression: "attribute_exists(PK) AND #st <> :approved",
+                UpdateExpression: "SET #st = :approved, approved_by = :u, approved_at = :t, last_updated = :t",
                 ExpressionAttributeNames: { "#st": "status" },
-                ExpressionAttributeValues: { ":s": "APPROVED", ":u": userEmail, ":t": timestamp },
+                ExpressionAttributeValues: { 
+                    ":approved": "APPROVED", 
+                    ":u": userEmail, 
+                    ":t": timestamp 
+                },
                 ReturnValues: "ALL_NEW"
             }));
             
-            // Mapeamos SK a id para que AppSync no de error de nulabilidad
             return {
-                ...response.Attributes,
-                id: response.Attributes.SK
+                success: true,
+                ...formatResponse(response.Attributes)
             };
         } catch (error) {
+            if (error.name === "ConditionalCheckFailedException") {
+                // Si el error es porque ya está aprobado, devolvemos éxito para ser idempotentes
+                return { success: true, message: "Invoice already approved or not found" };
+            }
             console.error(`[ERROR approveInvoice] ${error.message}`);
             throw error;
         }
