@@ -60,12 +60,6 @@ export const handler = async (event) => {
                 break;
 
             // --- 5. OPERACIONES Y FACTURACIÓN ---
-            
-            // 🔥 PASO 5.5: El mapeo que faltaba
-            case 'saveInvoiceReading':
-                result = await configService.saveInvoiceReading(orgId, args.input);
-                break;
-
             case 'logProduction':
                 result = await configService.logProduction(orgId, args.input);
                 break;

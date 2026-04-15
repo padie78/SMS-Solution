@@ -191,9 +191,6 @@ type Mutation {
   # --- Procesamiento de Facturas ---
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
   
-  # PASO 5.5: Registra la lectura manual o vía OCR
-  saveInvoiceReading(input: InvoiceReadingInput!): MutationResponse
-
   # PASO 6: Aprueba y dispara auditoría
   approveInvoice(invoiceId: ID!): Invoice
 

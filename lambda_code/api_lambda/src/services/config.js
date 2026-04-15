@@ -205,32 +205,6 @@ export const configService = {
         return { success: true, ...formatResponse(item) };
     },
 
-    // --- 5. OPERACIONES Y FACTURACIÓN ---
-
-    saveInvoiceReading: async (orgId, input) => {
-        const timestamp = new Date().toISOString();
-        // Construcción de la Sort Key jerárquica: READING#INV#PERIODO#PLANTA
-        const readingSK = `READING#INV#${input.period}#${input.branchId}`;
-        
-        const item = {
-            PK: `ORG#${orgId}`,
-            SK: readingSK,
-            entity_type: "READING_ENTRY",
-            invoice_details: {
-                invoice_number: input.invoiceNumber,
-                amount: parseFloat(input.amount),
-                consumption_val: parseFloat(input.consumption),
-                currency: input.currency || "ILS"
-            },
-            status: "PENDING",
-            created_at: timestamp,
-            last_updated: timestamp
-        };
-
-        await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
-        return { success: true, ...formatResponse(item) };
-    },
-
     logProduction: async (orgId, input) => {
         const timestamp = new Date().toISOString();
         const item = {
