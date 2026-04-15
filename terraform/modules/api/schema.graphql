@@ -17,7 +17,25 @@ type PresignedUrlResponse {
   userId: String!
 }
 
-# --- 2. ENTIDADES DE ANALÍTICA ---
+# --- 2. ENTIDADES DE ANALÍTICA Y FACTURACIÓN ---
+
+type Invoice {
+  id: ID!                # Mapeado desde el SK
+  vendor: String
+  invoiceDate: String
+  totalAmount: Float
+  emissionsKg: Float
+  consumptionVal: Float
+  serviceType: String
+  pdfUrl: String
+  aiThoughtProcess: String
+  status: String         # PENDING, APPROVED, REJECTED
+  
+  # Campos de Auditoría (Críticos para el paso 6 del script)
+  approvedBy: String
+  approvedAt: String
+  lastUpdated: String
+}
 
 type YearlyKPI {
   id: ID!
@@ -54,7 +72,7 @@ type ServiceBreakdown {
 type NormalizationKPIs {
   intensity_per_revenue: Float
   intensity_per_sqm: Float
-  intensity_per_production_unit: Float # Nuevo: KPI de Intensidad (kWh/Unidad)
+  intensity_per_production_unit: Float 
 }
 
 type EnvironmentalImpact {
@@ -71,20 +89,7 @@ type RecordMetadata {
   is_fiscal_closed: Boolean
 }
 
-type Invoice {
-  id: ID!
-  vendor: String
-  invoiceDate: String
-  totalAmount: Float
-  emissionsKg: Float
-  consumptionVal: Float
-  serviceType: String
-  pdfUrl: String
-  aiThoughtProcess: String
-  status: String # Nuevo: PENDING_REVIEW, APPROVED, REJECTED
-}
-
-# --- 3. INPUTS DE CONFIGURACIÓN ---
+# --- 3. INPUTS ---
 
 input OrgConfigInput {
   orgId: ID!
@@ -107,8 +112,6 @@ input BranchConfigInput {
   climatiqId: String
 }
 
-# --- NUEVOS INPUTS ---
-
 input CostCenterInput {
   orgId: ID!
   id: String
@@ -121,7 +124,7 @@ input CostCenterInput {
 input UtilityTariffInput {
   branchId: ID!
   providerName: String!
-  serviceType: String! # ELECTRICITY, GAS, WATER
+  serviceType: String! 
   contractedPower: Float
   unitRate: Float!
   fixedFee: Float
@@ -130,9 +133,19 @@ input UtilityTariffInput {
 
 input ProductionLogInput {
   branchId: ID!
-  period: String! # Ej: "2026-03"
+  period: String! 
   unitsProduced: Float!
-  unitType: String! # TONS, UNITS, LITERS
+  unitType: String! 
+}
+
+# Nuevo Input para registrar la lectura previa a la aprobación
+input InvoiceReadingInput {
+  branchId: ID!
+  period: String!
+  invoiceNumber: String!
+  amount: Float!
+  consumption: Float!
+  currency: String
 }
 
 input UserProfileInput {
@@ -151,7 +164,7 @@ input CreateAssetInput {
   branchId: String
   building: String
   area: String
-  costCenterId: String # Nuevo: Vinculación financiera
+  costCenterId: String 
   climatiqId: String
   unitType: String
 }
@@ -164,13 +177,10 @@ type Query {
   getMonthlyKPI(year: String!, month: String!): YearlyKPI
   getWeeklyKPI(year: String!, week: String!): HighFrequencyKPI
   getDailyKPI(day: String!): HighFrequencyKPI
-  getYearOverYear(year: String!, month: String!): AWSJSON
-  getGoalTracking(year: String!): AWSJSON
-  getIntensityReport(year: String!): NormalizationKPIs
   getInvoicesByPeriod(year: String!, month: String): [Invoice]
-  getVendorRanking(year: String!, limit: Int): AWSJSON
+  getIntensityReport(year: String!): NormalizationKPIs
   
-  # Nuevas Queries de Configuración
+  # Configuración
   getCostCenters: [AWSJSON]
   getTariffsByBranch(branchId: ID!): [AWSJSON]
 }
@@ -178,24 +188,27 @@ type Query {
 # --- 5. ACCIONES (MUTATIONS) ---
 
 type Mutation {
-  # Archivos e Invoices
+  # --- Procesamiento de Facturas ---
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
+  
+  # PASO 5.5: Registra la lectura manual o vía OCR
+  saveInvoiceReading(input: InvoiceReadingInput!): MutationResponse
+
+  # PASO 6: Aprueba y dispara auditoría
   approveInvoice(invoiceId: ID!): Invoice
 
-  # Activos
+  # --- Activos ---
   createAsset(input: CreateAssetInput!): MutationResponse
   deleteAsset(id: ID!): MutationResponse
 
-  # Infraestructura y Configuración
+  # --- Infraestructura ---
   createBranch(name: String!, location: String): MutationResponse
   updateBranch(id: ID!, name: String, location: String): MutationResponse
   
-  # --- NUEVAS MUTACIONES ---
+  # --- Configuración SMS ---
   saveCostCenter(input: CostCenterInput!): MutationResponse
   saveUtilityTariff(input: UtilityTariffInput!): MutationResponse
   logProduction(input: ProductionLogInput!): MutationResponse
-  
-  # Configuraciones base
   saveOrgConfig(input: OrgConfigInput!): MutationResponse
   saveBranchConfig(input: BranchConfigInput!): MutationResponse
   saveUserProfile(input: UserProfileInput!): MutationResponse
