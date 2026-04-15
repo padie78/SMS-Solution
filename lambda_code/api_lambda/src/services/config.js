@@ -1,7 +1,6 @@
 /**
  * @fileoverview Service Layer - Configuración del SMS (Sustainability Management System).
  * Maneja la persistencia en DynamoDB siguiendo Single Table Design.
- * Optimizada para Node.js 20, AWS SDK v3 y AppSync.
  */
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, UpdateCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
@@ -95,7 +94,6 @@ export const configService = {
             const response = await docClient.send(new UpdateCommand({
                 TableName: TABLE_NAME,
                 Key: { PK: `ORG#${orgId}`, SK: `BRANCH#${branchId}` },
-                // Aseguramos que solo actualizamos si el registro existe
                 ConditionExpression: "attribute_exists(PK)",
                 UpdateExpression: "SET branch_info.#n = :n, branch_info.location = :l, last_updated = :t",
                 ExpressionAttributeNames: { "#n": "name" },
@@ -107,6 +105,19 @@ export const configService = {
             if (error.name === "ConditionalCheckFailedException") throw new Error("BRANCH_NOT_FOUND");
             throw error;
         }
+    },
+
+    saveBranchConfig: async (orgId, input) => {
+        const timestamp = new Date().toISOString();
+        const item = {
+            PK: `ORG#${orgId}`,
+            SK: `BRANCH_DETAIL#${input.branchId}`,
+            entity_type: "BRANCH_EXTENDED_CONFIG",
+            details: { ...input },
+            last_updated: timestamp
+        };
+        await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
+        return { success: true, ...formatResponse(item) };
     },
 
     // --- 3. ACTIVOS (ASSETS) ---
@@ -133,7 +144,7 @@ export const configService = {
             emission_data: {
                 climatiq_activity_id: input.climatiqId || "pending",
                 unit_type: input.unitType || "kWh",
-                scope: input.scope || 2 // Default a Scope 2 (Energía comprada)
+                scope: input.scope || 2
             },
             metadata: { created_at: timestamp, version: 1 }
         };
@@ -143,8 +154,6 @@ export const configService = {
     },
 
     deleteAsset: async (orgId, assetId) => {
-        // En niveles profesionales, a veces es mejor un "Soft Delete" (status: DELETED)
-        // Pero si requieres borrado físico:
         await docClient.send(new DeleteCommand({
             TableName: TABLE_NAME,
             Key: { PK: `ORG#${orgId}`, SK: `ASSET#${assetId}` }
@@ -198,6 +207,30 @@ export const configService = {
 
     // --- 5. OPERACIONES Y FACTURACIÓN ---
 
+    saveInvoiceReading: async (orgId, input) => {
+        const timestamp = new Date().toISOString();
+        // Construcción de la Sort Key jerárquica: READING#INV#PERIODO#PLANTA
+        const readingSK = `READING#INV#${input.period}#${input.branchId}`;
+        
+        const item = {
+            PK: `ORG#${orgId}`,
+            SK: readingSK,
+            entity_type: "READING_ENTRY",
+            invoice_details: {
+                invoice_number: input.invoiceNumber,
+                amount: parseFloat(input.amount),
+                consumption_val: parseFloat(input.consumption),
+                currency: input.currency || "ILS"
+            },
+            status: "PENDING",
+            created_at: timestamp,
+            last_updated: timestamp
+        };
+
+        await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
+        return { success: true, ...formatResponse(item) };
+    },
+
     logProduction: async (orgId, input) => {
         const timestamp = new Date().toISOString();
         const item = {
@@ -205,7 +238,7 @@ export const configService = {
             SK: `PROD#${input.period}#${input.branchId}`,
             entity_type: "PRODUCTION_LOG",
             production_metrics: {
-                units_produced: input.unitsProduced,
+                units_produced: parseFloat(input.unitsProduced),
                 unit_type: input.unitType || "UNITS"
             },
             timestamp: timestamp
@@ -223,7 +256,6 @@ export const configService = {
             const response = await docClient.send(new UpdateCommand({
                 TableName: TABLE_NAME,
                 Key: { PK: `ORG#${orgId}`, SK: invoiceId },
-                // Solo aprobamos si el ítem existe y no está ya aprobado (Idempotencia)
                 ConditionExpression: "attribute_exists(PK) AND #st <> :approved",
                 UpdateExpression: "SET #st = :approved, approved_by = :u, approved_at = :t, last_updated = :t",
                 ExpressionAttributeNames: { "#st": "status" },
@@ -235,14 +267,20 @@ export const configService = {
                 ReturnValues: "ALL_NEW"
             }));
             
+            // Mapeo manual para asegurar compatibilidad con camelCase del Schema
+            const attrs = response.Attributes;
             return {
                 success: true,
-                ...formatResponse(response.Attributes)
+                id: attrs.SK,
+                status: attrs.status,
+                approvedBy: attrs.approved_by,
+                approvedAt: attrs.approved_at,
+                totalAmount: attrs.invoice_details?.amount || 0,
+                entity: JSON.stringify(attrs)
             };
         } catch (error) {
             if (error.name === "ConditionalCheckFailedException") {
-                // Si el error es porque ya está aprobado, devolvemos éxito para ser idempotentes
-                return { success: true, message: "Invoice already approved or not found" };
+                return { success: true, message: "Invoice already approved or does not exist" };
             }
             console.error(`[ERROR approveInvoice] ${error.message}`);
             throw error;
