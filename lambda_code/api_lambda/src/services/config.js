@@ -183,26 +183,47 @@ export const configService = {
         return { success: true, ...formatResponse(item) };
     },
 
-    saveUtilityTariff: async (orgId, input) => {
+saveUtilityTariff: async (orgId, input) => {
         const timestamp = new Date().toISOString();
+        
         const item = {
             PK: `ORG#${orgId}`,
+            // Soporta tanto branchId como la combinación de branch+service
             SK: `TARIFF#${input.branchId}#${input.serviceType.toUpperCase()}`,
             entity_type: "UTILITY_CONFIG",
+            
             provider_info: { 
-                name: input.providerName, 
+                name: input.providerName || "Desconocido", 
                 service_type: input.serviceType.toUpperCase() 
             },
+            
             tariff_details: {
+                // Si viene de la IA, el unitRate ya es el cálculo de (Total/Consumo)
                 unit_rate: parseFloat(input.unitRate),
                 fixed_fee: parseFloat(input.fixedFee || 0),
-                currency: input.currency || "ILS"
+                currency: input.currency || "ILS",
+                measured_at: input.measuredAt || timestamp // Para trazabilidad de cuándo se calculó
             },
+
+            metadata: {
+                // Identificamos si lo cargó un humano o lo calculó el sistema
+                calculation_type: input.calculationType || "MANUAL",
+                source_invoice: input.sourceInvoice || "N/A",
+                last_updated_by: input.userEmail || "system"
+            },
+
             last_updated: timestamp
         };
 
-        await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
-        return { success: true, ...formatResponse(item) };
+        await docClient.send(new PutCommand({ 
+            TableName: TABLE_NAME, 
+            Item: item 
+        }));
+
+        return { 
+            success: true, 
+            ...item // Devolvemos el objeto completo para el cache de AppSync
+        };
     },
 
     logProduction: async (orgId, input) => {
