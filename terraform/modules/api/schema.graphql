@@ -122,13 +122,15 @@ input CostCenterInput {
 }
 
 input UtilityTariffInput {
-  branchId: ID!
+  branchId: String!
   providerName: String!
-  serviceType: String! 
-  contractedPower: Float
+  serviceType: String!
   unitRate: Float!
   fixedFee: Float
   currency: String
+  # --- NUEVOS CAMPOS ---
+  calculationType: String    # Ej: "MANUAL" o "AUTO_DERIVED"
+  sourceInvoice: String      # ID de la factura que originó el cálculo
 }
 
 input ProductionLogInput {
