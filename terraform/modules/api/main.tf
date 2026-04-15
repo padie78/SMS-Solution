@@ -105,11 +105,19 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
 
 # Bloque para Analítica (Directo a Lambda Analytics)
 resource "aws_appsync_resolver" "kpi_resolvers" {
-  for_each = toset([
-    "getYearlyKPI", 
-    "getQuarterlyKPI", 
-    "getMonthlyKPI",
-    "getYearOverYear"
+for_each = toset([
+    "saveOrgConfig",
+    "saveUserProfile",
+    "createBranch",
+    "updateBranch",
+    "saveBranchConfig",
+    "createAsset",
+    "deleteAsset",
+    "saveCostCenter",
+    "saveUtilityTariff",
+    "saveInvoiceReading",  # <--- CRÍTICO para el Paso 5.5
+    "logProduction",
+    "approveInvoice"
   ])
 
   api_id      = aws_appsync_graphql_api.api.id
