@@ -10,7 +10,9 @@ export const handler = async (event) => {
             "f3d4f8a2-90c1-708c-a446-2c8592524d62";
 
         const args = event.arguments || {};
-        const methodName = event.info?.fieldName || event.fieldName;
+        const methodName = event.fieldName || 
+                       event.info?.fieldName || 
+                       event.payload?.fieldName;
 
         let result;
 
