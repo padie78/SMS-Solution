@@ -3,46 +3,49 @@ import { ddb, TABLE_NAME } from "./client.js";
 
 /**
  * Persiste el borrador inicial (Draft) en DynamoDB.
- * Mantiene la estructura del objeto pero inicializa valores en 0/vacío.
  */
 export const persistTransaction = async (record) => {
-    const { PK, SK, metadata } = record;
+    // 1. Extraemos solo lo necesario para el log y validación
+    const { PK, SK } = record; 
     const isoNow = new Date().toISOString();
-
-    // Extraemos el status del metadata o usamos PENDING_REVIEW por defecto
     const currentStatus = "PENDING_REVIEW";
 
-    console.log(`[DB] 📥 Ingestando Borrador: ${SK} | Org: ${PK}`);
+    console.log(`[DB] 📥 Ingestando Borrador: ${SK}`);
 
     try {
         await ddb.send(new PutCommand({
             TableName: TABLE_NAME,
             Item: { 
                 ...record,
-                // Forzamos metadatos de control de ingesta
+                // 2. Sobrescribimos o aseguramos campos de control en la raíz
+                // Usamos valores planos, lib-dynamodb se encarga del resto.
                 processed_at: isoNow,
                 total_days_prorated: 0, 
-                // Aseguramos que el status sea el correcto para el dashboard
+                
+                // 3. Normalizamos el objeto metadata para que coincida con tu JSON
                 metadata: {
                     ...record.metadata,
                     status: currentStatus,
-                    upload_date: record.metadata?.upload_date || isoNow
+                    // Si el record ya trae upload_date, lo mantenemos, sino usamos ahora.
+                    upload_date: record.metadata?.upload_date || isoNow,
+                    // Agregamos un flag extra para el Triage del Frontend
+                    is_draft: true 
                 }
             },
-            // Evita que un re-intento de S3 pise un registro que quizás ya está en proceso
+            // Evita duplicidad si S3 reintenta el evento
             ConditionExpression: "attribute_not_exists(SK)"
         }));
 
-        console.log(`[DB] ✅ Registro persistido exitosamente en estado: ${currentStatus}`);
+        console.log(`[DB] ✅ Registro persistido como ${currentStatus}`);
         return { success: true };
 
     } catch (error) {
         if (error.name === "ConditionalCheckFailedException") {
-            console.warn(`[DB] ⚠️ Duplicado detectado: El registro ${SK} ya existe en la tabla.`);
+            console.warn(`[DB] ⚠️ Registro duplicado: ${SK}. Omitiendo.`);
             return { success: false, message: "Duplicate" };
         }
         
-        console.error(`[DB] ❌ Error de escritura en DynamoDB:`, error);
+        console.error(`[DB] ❌ Error en DynamoDB para ${SK}:`, error);
         throw error;
     }
 };
