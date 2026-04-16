@@ -2,13 +2,34 @@ export const buildGoldenRecord = (partitionKey, s3Key, ocrData, forcedStatus, ca
     const isDraft = forcedStatus === "PENDING_REVIEW";
     const aiFields = ocrData.fields || {};
 
-    // Helper para asegurar que siempre tengamos números válidos
+    // 1. Helpers de validación y limpieza
+    const isInvalid = (val) => !val || val === "PENDING" || val === "UNKNOWN" || val === "NOT_DETECTED";
+    
     const parseNum = (val) => {
         const n = parseFloat(val);
         return isNaN(n) ? 0 : n;
     };
 
-    // Normalizamos las líneas para que el Frontend y el motor de ESG no exploten
+    const cleanForSk = (val) => String(val || "")
+        .replace(/[^a-zA-Z0-9]/g, '')
+        .toUpperCase();
+
+    // 2. Lógica de Identificación del Proveedor (Tu lógica original)
+    // Prioridad: Tax ID del Vendedor > Nombre del Vendedor > "UNKNOWN"
+    const rawIdForSk = !isInvalid(aiFields.vendor_tax_id) ? aiFields.vendor_tax_id : 
+                       (!isInvalid(aiFields.vendor_name) ? aiFields.vendor_name : "UNKNOWN");
+
+    const vendorPart = cleanForSk(rawIdForSk);
+    
+    // 3. Lógica del Número de Factura
+    const numberPart = !isInvalid(aiFields.invoice_number) 
+        ? cleanForSk(aiFields.invoice_number) 
+        : `DRAFT${Date.now()}`;
+
+    // SK Final: INV#VENDEDOR#NUMERO
+    const finalSK = `INV#${vendorPart}#${numberPart}`;
+
+    // 4. Normalización de líneas
     const sanitizedLines = (aiFields.lines || []).map(line => ({
         description: line.description || "Sin descripción",
         quantity: parseNum(line.quantity),
@@ -17,15 +38,9 @@ export const buildGoldenRecord = (partitionKey, s3Key, ocrData, forcedStatus, ca
         amount: parseNum(line.amount)
     }));
 
-    // El SK debe ser predecible para evitar duplicados si se procesa dos veces
-    // Usamos el invoice_number si existe, sino un timestamp
-    const invoiceId = aiFields.invoice_number && aiFields.invoice_number !== "PENDING" 
-        ? aiFields.invoice_number.replace(/\s+/g, '') 
-        : `DRAFT${Date.now()}`;
-
     return {
         PK: partitionKey,
-        SK: `INV#${invoiceId}`,
+        SK: finalSK,
         
         extracted_data: {
             vendor: aiFields.vendor_name || "UNKNOWN",
@@ -44,7 +59,7 @@ export const buildGoldenRecord = (partitionKey, s3Key, ocrData, forcedStatus, ca
 
         raw_capture: {
             full_text_preview: ocrData.rawText,
-            lines: sanitizedLines // Guardamos la versión estructurada original
+            lines: sanitizedLines
         },
 
         metadata: {
@@ -62,7 +77,6 @@ export const buildGoldenRecord = (partitionKey, s3Key, ocrData, forcedStatus, ca
             tax_total: parseNum(aiFields.tax_amount)
         },
 
-        // Campo extra para tu proyecto de Sostenibilidad (SMS)
         total_days_prorated: 0 
     };
 };
