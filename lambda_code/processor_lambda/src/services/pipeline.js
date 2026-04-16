@@ -2,7 +2,7 @@ import { extractText } from "./apis/textract.js";
 import { identifyCategory } from "./ia/classifier.js";
 import { buildDraftRecord } from "../utils/mapper.js"; // Usaremos tu mapper actual pero con lógica de poda
 import { persistTransaction } from "./data/db.js";
-
+import { callExtractionAgent } from "./ia/agent.js";
 
 export const processInvoicePipeline = async (bucket, key, orgId) => {
     try {
@@ -10,18 +10,18 @@ export const processInvoicePipeline = async (bucket, key, orgId) => {
         // extractText ahora debe devolver: { rawText, fields: { vendor, total, cups, etc } }
         const ocrData = await extractText(bucket, key);
         
-        // --- FASE 2: CATEGORIZACIÓN ---
-        const detectedCategory = await identifyCategory(ocrData.rawText);
+        const structuredData = await callExtractionAgent(ocrData.rawText);
 
         // --- FASE 3: CONSTRUCCIÓN DEL "FULL DRAFT" ---
         // Enviamos ocrData completo (con los fields detectados)
-        const goldenRecord = buildDraftRecord(
-            `ORG#${orgId}`,
-            key,
-            ocrData, // Pasamos el objeto con fields y rawText
-            null,
-            "PENDING_REVIEW",
-            detectedCategory
+       const goldenRecord = buildDraftRecord(
+        `ORG#${orgId}`,
+        key,
+        { 
+            ...ocrData,
+            fields: structuredData // El agente llena los campos que antes estaban vacíos
+        }, 
+        "PENDING_REVIEW" 
         );
 
         await persistTransaction(goldenRecord);
