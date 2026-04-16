@@ -1,7 +1,8 @@
-import { extractText } from "../services/apis/textract.js";
-import { identifyCategory } from "../ia/classifier.js";
+import { extractText } from "./apis/textract.js";
+import { identifyCategory } from "./ia/classifier.js";
 import { buildGoldenRecord } from "../utils/mapper.js"; // Usaremos tu mapper actual pero con lógica de poda
-import { persistTransaction } from "../data/db.js";
+import { persistTransaction } from "./data/db.js";
+
 
 export const processInvoicePipeline = async (bucket, key, orgId) => {
     try {
