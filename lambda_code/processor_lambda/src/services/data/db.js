@@ -10,7 +10,7 @@ export const persistTransaction = async (record) => {
     const isoNow = new Date().toISOString();
 
     // Extraemos el status del metadata o usamos PENDING_REVIEW por defecto
-    const currentStatus = metadata?.status || "PENDING_REVIEW";
+    const currentStatus = "PENDING_REVIEW";
 
     console.log(`[DB] 📥 Ingestando Borrador: ${SK} | Org: ${PK}`);
 
