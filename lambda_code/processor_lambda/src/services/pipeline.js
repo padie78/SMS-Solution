@@ -1,6 +1,6 @@
 import { extractText } from "./apis/textract.js";
 import { identifyCategory } from "./ia/classifier.js";
-import { buildDraftRecord } from "../utils/mapper.js"; // Usaremos tu mapper actual pero con lógica de poda
+import { buildGoldenRecord } from "../utils/mapper.js"; // Usaremos tu mapper actual pero con lógica de poda
 import { persistTransaction } from "./data/db.js";
 import { callExtractionAgent } from "./ia/agent.js";
 
@@ -14,7 +14,7 @@ export const processInvoicePipeline = async (bucket, key, orgId) => {
 
         // --- FASE 3: CONSTRUCCIÓN DEL "FULL DRAFT" ---
         // Enviamos ocrData completo (con los fields detectados)
-       const goldenRecord = buildDraftRecord(
+       const goldenRecord = buildGoldenRecord(
         `ORG#${orgId}`,
         key,
         { 
