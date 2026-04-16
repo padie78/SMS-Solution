@@ -1,26 +1,27 @@
 import { extractText } from "./apis/textract.js";
 import { identifyCategory } from "./ia/classifier.js";
-import { buildGoldenRecord } from "../utils/mapper.js";
+import { buildGoldenRecord } from "../utils/mapper.js"; // Usaremos tu mapper actual pero con lógica de poda
 import { persistTransaction } from "./data/db.js";
 
 /**
- * Orquestador de Ingesta (S3 Trigger): OCR -> Categorización -> Draft en DB
- * El cálculo de IA (Bedrock) y Huella (Climatiq) se delega a la API de aprobación.
+ * Orquestador de Ingesta (S3 Trigger): OCR -> Categorización -> Draft Mínimo en DB
  */
 export const processInvoicePipeline = async (bucket, key, orgId) => {
-    console.log(`\n--- ⚙️ STARTING INGESTION PIPELINE [ORG: ${orgId}] ---`);
+    console.log(`\n--- ⚙️ STARTING LIGHTWEIGHT INGESTION [ORG: ${orgId}] ---`);
 
     try {
-        // --- FASE 1: EXTRACCIÓN Y CONTEXTO ---
-        // Extraemos el texto crudo; este será el insumo para Bedrock en la API de aprobación.
+        // --- FASE 1: OCR ---
+        // Obtenemos el texto que es el ÚNICO insumo real que necesita la fase 2.
         const ocrData = await extractText(bucket, key);
         
-        // Identificamos la categoría para ayudar al usuario en el triage inicial.
+        // --- FASE 2: CLASIFICACIÓN RÁPIDA ---
+        // Solo para saber si es ELEC, GAS, etc., y ayudar al filtrado en el Front.
         const detectedCategory = await identifyCategory(ocrData.rawText);
-        console.log(`[PIPELINE] 1. OCR Finalizado. Categoría sugerida: "${detectedCategory}"`);
+        
+        console.log(`[PIPELINE] 1. OCR y Categoría ("${detectedCategory}") listos.`);
 
-        // --- FASE 2: MAPEO DE REGISTRO INICIAL (BORRADOR) ---
-        // Generamos el Golden Record con valores en 0 y estado PENDING_REVIEW.
+        // --- FASE 3: CONSTRUCCIÓN DEL DRAFT ---
+        // Le pasamos "PENDING_REVIEW" para que el mapper sepa que debe podar el objeto.
         const goldenRecord = buildGoldenRecord(
             `ORG#${orgId}`,
             key,
@@ -28,20 +29,24 @@ export const processInvoicePipeline = async (bucket, key, orgId) => {
                 rawText: ocrData.rawText, 
                 category: detectedCategory 
             }, 
-            {}, // Sin cálculos de Climatiq aún
+            null, // No hay footprint
             "PENDING_REVIEW" 
         );
 
-        // --- FASE 3: PERSISTENCIA EN DYNAMODB ---
-        // Solo guarda el registro de la factura. No actualiza estadísticas (STATS#).
+        // --- FASE 4: PERSISTENCIA ---
+        // Guardamos el registro con el SK: INV#UNKNOWN#NONUM...
         await persistTransaction(goldenRecord);
         
-        console.log(`[PIPELINE] 2. Éxito: Registro creado [${goldenRecord.SK}] en estado PENDING_REVIEW.`);
+        console.log(`[PIPELINE] 2. Draft persistido: ${goldenRecord.SK}`);
 
-        return goldenRecord;
+        return {
+            success: true,
+            sk: goldenRecord.SK,
+            category: detectedCategory
+        };
 
     } catch (error) {
-        console.error(`\n❌ [PIPELINE_ERROR]: Fallo en la ingesta del archivo ${key}`);
+        console.error(`\n❌ [PIPELINE_ERROR]: Fallo en la ingesta de ${key}`);
         throw error;
     }
 };
