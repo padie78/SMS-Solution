@@ -11,65 +11,53 @@ export const callExtractionAgent = async (rawText) => {
     "${rawText}"
 
     EXTRACTION RULES:
-    1. ZERO HALLUCINATION: If a specific data point is not found, return null. 
-    2. NUMERIC PRECISION: "total_amount" and line "amount" must be numbers (float), not strings. Remove currency symbols.
-    3. CUPS/METER ID: Locate the "CUPS" (for Spanish invoices) or "Meter ID". It is critical for tracking.
-    4. DATE FORMAT: All dates must be in YYYY-MM-DD format.
-    5. CONSUMPTION: Look for energy units (kWh, m3, liters) and include them in the line descriptions.
-    6. TAXES: Identify the Tax/VAT amount if clearly stated.
+    1. ZERO HALLUCINATION: If a data point is not found, return null. 
+    2. NUMERIC PRECISION: All amounts must be floats. Remove currency symbols.
+    3. CUPS/METER ID: Critical for tracking.
+    4. DATE FORMAT: YYYY-MM-DD.
+    5. LINES: Extract every billing item (Power, Energy, Taxes, etc.).
 
     EXPECTED JSON SCHEMA:
     {
-        "vendor_name": "string or null",
-        "vendor_tax_id": "string or null",
-        "invoice_number": "string or null",
-        "date": "YYYY-MM-DD or null",
-        "cups": "string or null",
-        "total_amount": number or null,
-        "currency": "string (e.g., EUR, USD)",
-        "period_start": "YYYY-MM-DD or null",
-        "period_end": "YYYY-MM-DD or null",
-        "tax_amount": number or null,
+        "vendor_name": "string",
+        "vendor_tax_id": "string",
+        "invoice_number": "string",
+        "date": "YYYY-MM-DD",
+        "cups": "string",
+        "total_amount": number,
+        "currency": "string",
+        "period_start": "YYYY-MM-DD",
+        "period_end": "YYYY-MM-DD",
+        "tax_amount": number,
         "lines": [
-            { 
-                "description": "string", 
-                "quantity": number or null, 
-                "unit": "string (e.g., kWh, kW, days)", 
-                "amount": number 
-            }
+            { "description": "string", "quantity": number, "unit": "string", "amount": number }
         ]
     }
-
-    Respond ONLY with the JSON object. Do not include any preamble or explanation.`;
+    Respond ONLY with the JSON object.`;
 
     try {
-        const input = {
+        const command = new InvokeModelCommand({
             modelId: "anthropic.claude-3-haiku-20240307-v1:0", 
             contentType: "application/json",
             accept: "application/json",
             body: JSON.stringify({
                 anthropic_version: "bedrock-2023-05-31",
-                max_tokens: 2000,
-                temperature: 0, // Keep it deterministic for data extraction
+                max_tokens: 2500,
+                temperature: 0,
                 messages: [{ role: "user", content: prompt }]
             }),
-        };
+        });
 
-        const command = new InvokeModelCommand(input);
         const response = await client.send(command);
-        
         const resBody = JSON.parse(new TextDecoder().decode(response.body));
         const textResponse = resBody.content[0].text;
 
-        // Clean output to ensure valid JSON parsing
         const jsonStart = textResponse.indexOf('{');
         const jsonEnd = textResponse.lastIndexOf('}') + 1;
-        const cleanJson = textResponse.substring(jsonStart, jsonEnd);
-        
-        return JSON.parse(cleanJson);
+        return JSON.parse(textResponse.substring(jsonStart, jsonEnd));
 
     } catch (error) {
-        console.error("❌ [AGENT_ERROR]: AI Extraction failed.", error);
-        return null;
+        console.error("❌ [AGENT_ERROR]:", error);
+        return null; 
     }
 };
