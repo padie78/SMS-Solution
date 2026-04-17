@@ -268,18 +268,22 @@ export const configService = {
 
     // 3. Preparar el Update para DynamoDB
     const params = {
-        TableName: TABLE_NAME,
+        TableName: process.env.MAIN_TABLE,
         Key: { PK: `ORG#${orgId}`, SK: sk },
-        // Actualizamos estado, data validada y añadimos la info de sostenibilidad
+        // Usamos #st para 'status' y #met para 'metadata' porque son reservadas
         UpdateExpression: `SET 
-            metadata.is_draft = :false,
-            metadata.status = :status,
+            #met.is_draft = :false,
+            #met.#st = :status,
             ai_analysis.status_triage = :done,
             ai_analysis.total_magnitude_sum = :mag,
             ai_analysis.sustainability = :stats,
             extracted_data.vendor_name = :vName,
             extracted_data.total_amount = :total,
             extracted_data.billing_period = :period`,
+        ExpressionAttributeNames: {
+            "#met": "metadata", // Alias para el mapa metadata
+            "#st": "status"     // Alias para la palabra reservada 'status'
+        },
         ExpressionAttributeValues: {
             ":false": false,
             ":status": "VALIDATED",
