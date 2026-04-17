@@ -65,9 +65,15 @@ export const handler = async (event) => {
                 break;
 
             // PASO 6: Aprobación
-            case 'approveInvoice':
-                result = await configService.approveInvoice(orgId, args.invoiceId, event.identity);
+
+            case 'confirmInvoice':
+                result = await configService.confirmInvoice(orgId, args.sk, args.input);
                 break;
+
+            // case 'approveInvoice':
+            //     // Si prefieres usar este nombre, lo mapeamos al mismo servicio
+            //     result = await configService.confirmInvoice(orgId, args.invoiceId, args.input);
+            //     break;
 
             default:
                 throw new Error(`Resolver handle for field "${methodName}" is not implemented.`);

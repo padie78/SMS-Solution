@@ -77,9 +77,9 @@ export const configService = {
             PK: `ORG#${orgId}`,
             SK: `BRANCH#${branchId}`,
             entity_type: "BRANCH_CONFIG",
-            branch_info: { 
-                name: input.name, 
-                location: input.location || "N/A" 
+            branch_info: {
+                name: input.name,
+                location: input.location || "N/A"
             },
             metadata: { created_at: timestamp, status: "ACTIVE" }
         };
@@ -129,11 +129,11 @@ export const configService = {
             PK: `ORG#${orgId}`,
             SK: `ASSET#${assetId}`,
             entity_type: "ASSET_CONFIG",
-            asset_info: { 
-                name: input.name, 
-                type: input.type, 
-                description: input.description || "", 
-                status: "ACTIVE" 
+            asset_info: {
+                name: input.name,
+                type: input.type,
+                description: input.description || "",
+                status: "ACTIVE"
             },
             assignment: {
                 branch_id: input.branchId || "UNASSIGNED",
@@ -183,20 +183,20 @@ export const configService = {
         return { success: true, ...formatResponse(item) };
     },
 
-saveUtilityTariff: async (orgId, input) => {
+    saveUtilityTariff: async (orgId, input) => {
         const timestamp = new Date().toISOString();
-        
+
         const item = {
             PK: `ORG#${orgId}`,
             // Soporta tanto branchId como la combinación de branch+service
             SK: `TARIFF#${input.branchId}#${input.serviceType.toUpperCase()}`,
             entity_type: "UTILITY_CONFIG",
-            
-            provider_info: { 
-                name: input.providerName || "Desconocido", 
-                service_type: input.serviceType.toUpperCase() 
+
+            provider_info: {
+                name: input.providerName || "Desconocido",
+                service_type: input.serviceType.toUpperCase()
             },
-            
+
             tariff_details: {
                 // Si viene de la IA, el unitRate ya es el cálculo de (Total/Consumo)
                 unit_rate: parseFloat(input.unitRate),
@@ -215,13 +215,13 @@ saveUtilityTariff: async (orgId, input) => {
             last_updated: timestamp
         };
 
-        await docClient.send(new PutCommand({ 
-            TableName: TABLE_NAME, 
-            Item: item 
+        await docClient.send(new PutCommand({
+            TableName: TABLE_NAME,
+            Item: item
         }));
 
-        return { 
-            success: true, 
+        return {
+            success: true,
             ...item // Devolvemos el objeto completo para el cache de AppSync
         };
     },
@@ -243,42 +243,66 @@ saveUtilityTariff: async (orgId, input) => {
         return { success: true, ...formatResponse(item) };
     },
 
-    approveInvoice: async (orgId, invoiceId, identity) => {
-        const timestamp = new Date().toISOString();
-        const userEmail = identity?.claims?.email || identity?.username || "SYSTEM";
-        
-        try {
-            const response = await docClient.send(new UpdateCommand({
-                TableName: TABLE_NAME,
-                Key: { PK: `ORG#${orgId}`, SK: invoiceId },
-                ConditionExpression: "attribute_exists(PK) AND #st <> :approved",
-                UpdateExpression: "SET #st = :approved, approved_by = :u, approved_at = :t, last_updated = :t",
-                ExpressionAttributeNames: { "#st": "status" },
-                ExpressionAttributeValues: { 
-                    ":approved": "APPROVED", 
-                    ":u": userEmail, 
-                    ":t": timestamp 
-                },
-                ReturnValues: "ALL_NEW"
-            }));
-            
-            // Mapeo manual para asegurar compatibilidad con camelCase del Schema
-            const attrs = response.Attributes;
-            return {
-                success: true,
-                id: attrs.SK,
-                status: attrs.status,
-                approvedBy: attrs.approved_by,
-                approvedAt: attrs.approved_at,
-                totalAmount: attrs.invoice_details?.amount || 0,
-                entity: JSON.stringify(attrs)
-            };
-        } catch (error) {
-            if (error.name === "ConditionalCheckFailedException") {
-                return { success: true, message: "Invoice already approved or does not exist" };
-            }
-            console.error(`[ERROR approveInvoice] ${error.message}`);
-            throw error;
+    /**
+ * Confirma la factura, calcula CO2 y días del periodo.
+ * @param {string} orgId - ID de la organización (del token).
+ * @param {string} sk - Sort Key de la factura.
+ * @param {object} input - Data validada por el usuario.
+ */
+ confirmInvoice: async (orgId, sk, input) => {
+    // 1. Cálculo de días del periodo
+    const start = new Date(input.billing_period.start);
+    const end = new Date(input.billing_period.end);
+    const diffTime = Math.abs(end - start);
+    const totalDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) || 1;
+
+    // 2. Cálculo de Huella de Carbono (Factor de emisión)
+    // Estos factores deberían venir de tu config de Org, pero aquí usamos defaults:
+    const emissionFactors = { 
+        ELECTRICITY: 0.19, // kgCO2/kWh
+        GAS: 0.202,        // kgCO2/kWh
+        FUEL: 2.52         // kgCO2/Litro
+    };
+    const factor = emissionFactors[input.service_type] || 0;
+    const co2Emissions = input.total_magnitude_sum * factor;
+
+    // 3. Preparar el Update para DynamoDB
+    const params = {
+        TableName: process.env.MAIN_TABLE,
+        Key: { PK: `ORG#${orgId}`, SK: sk },
+        // Actualizamos estado, data validada y añadimos la info de sostenibilidad
+        UpdateExpression: `SET 
+            metadata.is_draft = :false,
+            metadata.status = :status,
+            ai_analysis.status_triage = :done,
+            ai_analysis.total_magnitude_sum = :mag,
+            ai_analysis.sustainability = :stats,
+            extracted_data.vendor_name = :vName,
+            extracted_data.total_amount = :total,
+            extracted_data.billing_period = :period`,
+        ExpressionAttributeValues: {
+            ":false": false,
+            ":status": "VALIDATED",
+            ":done": "DONE",
+            ":mag": input.total_magnitude_sum,
+            ":stats": {
+                co2_kg: parseFloat(co2Emissions.toFixed(2)),
+                days: totalDays,
+                daily_avg: parseFloat((input.total_magnitude_sum / totalDays).toFixed(2))
+            },
+            ":vName": input.extracted_data.vendor_name,
+            ":total": input.extracted_data.total_amount,
+            ":period": input.billing_period
         }
-    }
+    };
+
+    await ddbDocClient.send(new UpdateCommand(params));
+    
+    return { 
+        success: true, 
+        message: "Invoice confirmed and ESG metrics generated." 
+    };
+},
+
+    
 };
