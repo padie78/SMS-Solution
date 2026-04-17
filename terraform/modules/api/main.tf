@@ -65,29 +65,18 @@ resource "aws_iam_role_policy" "lambda_stream_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "AllowStreamRead"
-        Action = [
+        Effect   = "Allow"
+        Action   = [
           "dynamodb:GetRecords",
           "dynamodb:GetShardIterator",
           "dynamodb:DescribeStream",
           "dynamodb:ListStreams"
         ]
-        Effect   = "Allow"
-        # Incluimos el stream Y la tabla base
+        # IMPORTANTE: Permiso tanto al stream como a la tabla base
         Resource = [
           var.emissions_table_stream_arn,
-          replace(var.emissions_table_stream_arn, "/stream/.*/", "")
+          split("/stream/", var.emissions_table_stream_arn)[0]
         ]
-      },
-      {
-        Sid    = "AllowLogging"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
-        Effect   = "Allow"
-        Resource = "arn:aws:logs:*:*:*"
       }
     ]
   })
