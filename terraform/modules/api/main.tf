@@ -27,10 +27,8 @@ resource "aws_appsync_api_key" "hub_key" {
 # modules/api/main.tf
 
 resource "aws_lambda_event_source_mapping" "stats_aggregator_trigger" {
-  # Usamos la variable que inyectaremos desde la raíz
-  event_source_arn  = var.emissions_table_stream_arn 
+  event_source_arn  = var.emissions_table_stream_arn
   function_name     = var.kpi_lambda_arn
-  
   starting_position = "LATEST"
 
   filter_criteria {
@@ -47,6 +45,12 @@ resource "aws_lambda_event_source_mapping" "stats_aggregator_trigger" {
       })
     }
   }
+
+  # ESTO ES LO QUE SOLUCIONA EL ERROR 400
+  # Obliga a Terraform a esperar a que la política de IAM esté lista
+  depends_on = [
+    aws_iam_role_policy.lambda_stream_policy
+  ]
 }
 
 resource "aws_iam_role_policy" "lambda_stream_policy" {
