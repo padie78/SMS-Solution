@@ -3,12 +3,18 @@ schema {
   mutation: Mutation
 }
 
-# --- 1. RESPUESTAS GENÉRICAS ---f
+# --- 1. RESPUESTAS GENÉRICAS ---
 type MutationResponse {
   success: Boolean!
   message: String
   id: ID
   entity: AWSJSON
+}
+
+type ActionResponse {
+  success: Boolean!
+  message: String
+  id: String
 }
 
 type PresignedUrlResponse {
@@ -17,10 +23,9 @@ type PresignedUrlResponse {
   userId: String!
 }
 
-# --- 2. ENTIDADES DE ANALÍTICA Y FACTURACIÓN ---
-
+# --- 2. ENTIDADES ---
 type Invoice {
-  id: ID!                # Mapeado desde el SK
+  id: ID!
   vendor: String
   invoiceDate: String
   totalAmount: Float
@@ -29,9 +34,7 @@ type Invoice {
   serviceType: String
   pdfUrl: String
   aiThoughtProcess: String
-  status: String         # PENDING, APPROVED, REJECTED
-  
-  # Campos de Auditoría (Críticos para el paso 6 del script)
+  status: String
   approvedBy: String
   approvedAt: String
   lastUpdated: String
@@ -89,7 +92,7 @@ type RecordMetadata {
   is_fiscal_closed: Boolean
 }
 
-# --- 3. INPUTS ---
+# --- 3. INPUTS (CORREGIDOS PARA MATCH CON MUTATIONS) ---
 
 input OrgConfigInput {
   orgId: ID!
@@ -101,7 +104,8 @@ input OrgConfigInput {
   currency: String
 }
 
-input BranchConfigInput {
+# Cambiado de BranchConfigInput a BranchInput para que coincida con la Mutation
+input BranchInput {
   orgId: ID!
   branchId: String!
   name: String!
@@ -128,9 +132,8 @@ input UtilityTariffInput {
   unitRate: Float!
   fixedFee: Float
   currency: String
-  # --- NUEVOS CAMPOS ---
-  calculationType: String    # Ej: "MANUAL" o "AUTO_DERIVED"
-  sourceInvoice: String      # ID de la factura que originó el cálculo
+  calculationType: String
+  sourceInvoice: String
 }
 
 input ProductionLogInput {
@@ -140,7 +143,6 @@ input ProductionLogInput {
   unitType: String! 
 }
 
-# Nuevo Input para registrar la lectura previa a la aprobación
 input InvoiceReadingInput {
   branchId: ID!
   period: String!
@@ -159,7 +161,8 @@ input UserProfileInput {
   role: String!
 }
 
-input CreateAssetInput {
+# Cambiado de CreateAssetInput a AssetInput para que coincida con la Mutation
+input AssetInput {
   name: String!
   type: String!
   description: String
@@ -193,14 +196,7 @@ input SimplifiedDataInput {
   currency: String
 }
 
-type ActionResponse {
-  success: Boolean!
-  message: String
-  id: String
-}
-
 # --- 4. CONSULTAS (QUERIES) ---
-
 type Query {
   getYearlyKPI(year: String!): YearlyKPI
   getQuarterlyKPI(year: String!, quarter: String!): YearlyKPI
@@ -209,35 +205,20 @@ type Query {
   getDailyKPI(day: String!): HighFrequencyKPI
   getInvoicesByPeriod(year: String!, month: String): [Invoice]
   getIntensityReport(year: String!): NormalizationKPIs
-  
-  # Configuración
   getCostCenters: [AWSJSON]
   getTariffsByBranch(branchId: ID!): [AWSJSON]
 }
 
 # --- 5. ACCIONES (MUTATIONS) ---
-
 type Mutation {
-  # --- 1. FLUJO DE DATOS (EL CORE) ---
-  # Obtiene la URL para subir el PDF a S3.
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
-
-  # El paso maestro: Al aprobar, el backend calcula CO2, actualiza la tarifa 
-  # (Total/Consumo) y registra quién lo hizo mediante el token de Cognito.
   approveInvoice(invoiceId: ID!): Invoice 
-
-  # --- 2. OPERACIÓN (EL CRUCE) ---
-  # Registro manual de unidades producidas para calcular el KPI de Intensidad.
   logProduction(input: ProductionLogInput!): MutationResponse
-
-  # --- 3. ESTRUCTURA (SIMPLIFICADA) ---
-  # 'Upsert': Crea o actualiza la sucursal y su configuración (Climatiq, presupuestos) en un solo viaje.
+  
+  # Ahora estos nombres COINCIDEN con los inputs de arriba
   upsertBranch(input: BranchInput!): MutationResponse
-
-  # Gestiona los centros de costos para la asignación de gastos y emisiones.
   saveCostCenter(input: CostCenterInput!): MutationResponse
-
-  # Registro de medidores o maquinaria específica.
   upsertAsset(input: AssetInput!): MutationResponse
+  
   confirmInvoice(sk: String!, input: ConfirmInvoiceInput!): ActionResponse!
 }
