@@ -173,3 +173,9 @@ resource "aws_iam_role_policy_attachment" "attach_lambda_kms" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.lambda_kms_permissions.arn
 }
+
+# Adjuntar el permiso de KMS al rol que usa el KPI Engine
+resource "aws_iam_role_policy_attachment" "attach_kpi_engine_kms" {
+  role       = aws_iam_role.lambda_role.name # Asegúrate de que este es el rol de kpi-engine
+  policy_arn = aws_iam_policy.lambda_kms_permissions.arn
+}
