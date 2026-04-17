@@ -59,13 +59,13 @@ resource "aws_lambda_event_source_mapping" "stats_aggregator_trigger" {
 
 resource "aws_iam_role_policy" "lambda_stream_policy" {
   name = "sms-lambda-stream-policy"
-  # Usamos el ID del rol de la lambda que viene por variable
   role = var.kpi_lambda_role_id 
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
+        # Permisos de Stream
         Action = [
           "dynamodb:GetRecords",
           "dynamodb:GetShardIterator",
@@ -73,16 +73,20 @@ resource "aws_iam_role_policy" "lambda_stream_policy" {
           "dynamodb:ListStreams"
         ]
         Effect   = "Allow"
-        # Usamos la variable de la tabla
         Resource = var.emissions_table_stream_arn
+      },
+      {
+        # Permisos de Logs (Obligatorios para el Mapping)
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Effect   = "Allow"
+        Resource = "arn:aws:logs:*:*:*"
       }
     ]
   })
-}
-
-resource "time_sleep" "wait_30_seconds" {
-  depends_on = [aws_iam_role_policy.lambda_stream_policy]
-  create_duration = "30s"
 }
 
 # ==============================================================================
