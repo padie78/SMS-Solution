@@ -3,38 +3,31 @@ import { BedrockRuntimeClient, InvokeModelCommand } from "@aws-sdk/client-bedroc
 const client = new BedrockRuntimeClient({ region: "eu-central-1" });
 
 export const callExtractionAgent = async (rawText) => {
-    const prompt = `
+  const prompt = `
     <system_role>
-    You are a high-precision extraction engine for Energy and Utility invoices. 
-    Your goal is to transform messy OCR text into structured ESG-ready JSON.
+    You are a high-precision extraction engine for ESG (Environmental, Social, and Governance) and Accounting.
+    Your goal is to transform messy OCR text from any business document (Utility Invoices, Logistics, Repairs, or Fuel Tickets) into structured JSON.
     </system_role>
 
     <task_instructions>
-    1.  Analyze the provided OCR text segment by segment.
-    2.  Identify the "Main Invoice Data" (Vendor, Date, Total, CUPS).
-    3.  Identify the "Line Items Table". 
-    4.  CRITICAL RULE: In power terms (e.g., "Potencia"), the 'quantity' is the contracted power (kW), NOT the duration (days).
-    5.  CRITICAL RULE: If a line has no explicit quantity but has a total (like "Taxes"), set quantity to 1.
-    6.  All numeric values must be FLOAT. Remove any non-numeric characters (%, €, $, etc.).
+    1. CATEGORIZATION: Identify the service type: ELECTRICITY, GAS, WATER, LOGISTICS, MAINTENANCE, or FUEL.
+    2. ENTITY IDENTIFICATION: Extract BOTH the Vendor (issuer) and the Customer (receiver/client).
+    3. CRITICAL RULE - QUANTITY:
+       - For Power (Potencia): quantity is kW.
+       - For Energy/Gas: quantity is kWh or m3.
+       - For Fuel: quantity is Liters.
+       - For Logistics: quantity is km, kg, or units.
+       - Do NOT use "days" or "duration" as quantity.
+    4. NUMERIC PRECISION: All amounts must be FLOAT. Extract 'base_amount' (total before taxes) and 'tax_amount' separately.
     </task_instructions>
 
     <field_definitions>
-    - cups: The unique Point of Delivery ID (20-22 characters starting with ES).
-    - quantity: The magnitude (kWh for energy, kW for power).
-    - unit_price: The cost per unit.
-    - amount: The final subtotal for that specific line.
+    - cups: Point of Delivery ID (Electricity/Gas).
+    - plate_number: Vehicle license plate (for Repairs or Fuel tickets).
+    - quantity: The technical magnitude (kWh, kW, Liters, km).
+    - unit_price: Price per unit.
+    - base_amount: Sum of all lines before taxes.
     </field_definitions>
-
-    <few_shot_example>
-    Input: "Energía Activa Consumida (P1) 120.50 kWh 0.1852 22.32"
-    Result: {
-        "description": "Energía Activa Consumida (P1)",
-        "quantity": 120.50,
-        "unit": "kWh",
-        "unit_price": 0.1852,
-        "amount": 22.32
-    }
-    </few_shot_example>
 
     <raw_ocr_text>
     ${rawText}
@@ -42,16 +35,21 @@ export const callExtractionAgent = async (rawText) => {
 
     Respond ONLY with a JSON object following this schema:
     {
+        "service_category": "ELECTRICITY" | "GAS" | "LOGISTICS" | "MAINTENANCE" | "FUEL" | "OTHERS",
         "vendor_name": string | null,
         "vendor_tax_id": string | null,
+        "customer_name": string | null,
+        "customer_tax_id": string | null,
         "invoice_number": string | null,
         "date": "YYYY-MM-DD" | null,
         "cups": string | null,
+        "plate_number": string | null,
         "total_amount": number,
-        "currency": "EUR",
+        "base_amount": number,
+        "tax_amount": number,
+        "currency": "EUR" | "USD" | "GBP",
         "period_start": "YYYY-MM-DD" | null,
         "period_end": "YYYY-MM-DD" | null,
-        "tax_amount": number | null,
         "lines": [
             {
                 "description": "string",
