@@ -26,6 +26,12 @@ resource "aws_appsync_api_key" "hub_key" {
 
 # modules/api/main.tf
 
+# 1. Creamos un retraso artificial
+resource "time_sleep" "wait_for_iam" {
+  depends_on = [aws_iam_role_policy.lambda_stream_policy]
+  create_duration = "30s"
+}
+
 resource "aws_lambda_event_source_mapping" "stats_aggregator_trigger" {
   event_source_arn  = var.emissions_table_stream_arn
   function_name     = var.kpi_lambda_arn
@@ -48,9 +54,7 @@ resource "aws_lambda_event_source_mapping" "stats_aggregator_trigger" {
 
   # ESTO ES LO QUE SOLUCIONA EL ERROR 400
   # Obliga a Terraform a esperar a que la política de IAM esté lista
-  depends_on = [
-    aws_iam_role_policy.lambda_stream_policy
-  ]
+  depends_on = [time_sleep.wait_for_iam]
 }
 
 resource "aws_iam_role_policy" "lambda_stream_policy" {
@@ -74,6 +78,11 @@ resource "aws_iam_role_policy" "lambda_stream_policy" {
       }
     ]
   })
+}
+
+resource "time_sleep" "wait_30_seconds" {
+  depends_on = [aws_iam_role_policy.lambda_stream_policy]
+  create_duration = "30s"
 }
 
 # ==============================================================================
