@@ -65,6 +65,7 @@ resource "aws_iam_role_policy" "lambda_stream_policy" {
     Version = "2012-10-17"
     Statement = [
       {
+        Sid    = "AllowStreamRead"
         Action = [
           "dynamodb:GetRecords",
           "dynamodb:GetShardIterator",
@@ -72,14 +73,14 @@ resource "aws_iam_role_policy" "lambda_stream_policy" {
           "dynamodb:ListStreams"
         ]
         Effect   = "Allow"
-        # Damos permiso al Stream Y a la Tabla (algunos SDK lo requieren)
+        # Incluimos el stream Y la tabla base
         Resource = [
           var.emissions_table_stream_arn,
-          replace(var.emissions_table_stream_arn, "/stream/.*/", "") 
+          replace(var.emissions_table_stream_arn, "/stream/.*/", "")
         ]
       },
       {
-        # FUNDAMENTAL: Lambda necesita escribir logs para validar el mapping
+        Sid    = "AllowLogging"
         Action = [
           "logs:CreateLogGroup",
           "logs:CreateLogStream",

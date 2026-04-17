@@ -117,11 +117,13 @@ resource "aws_iam_policy" "api_dynamo_permissions" {
 # ==============================================================================
 
 # 1. Logs de CloudWatch para todos los roles
+# 1. Logs de CloudWatch para TODOS los roles (incluyendo el de KPIs)
 resource "aws_iam_role_policy_attachment" "logs" {
   for_each   = toset([
     aws_iam_role.invoice_processor_role.name, 
     aws_iam_role.api_lambda_role.name, 
-    aws_iam_role.generic_lambda_role.name
+    aws_iam_role.generic_lambda_role.name,
+    aws_iam_role.lambda_role.name  # <--- FALTABA ESTE
   ])
   role       = each.value
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
