@@ -27,7 +27,7 @@ resource "aws_appsync_api_key" "hub_key" {
 # modules/api/main.tf
 
 resource "aws_lambda_event_source_mapping" "stats_aggregator_trigger" {
-  event_source_arn  = aws_dynamodb_table.main.stream_arn
+  event_source_arn  = aws_dynamodb_table.emissions_table.stream_arn
   function_name     = aws_lambda_function.stats_aggregator.arn
   starting_position = "LATEST"
 

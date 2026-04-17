@@ -171,3 +171,8 @@ resource "aws_cloudwatch_log_group" "analytics_logs" {
   name              = "/aws/lambda/${var.project_name}-analytics-${var.environment}"
   retention_in_days = 14
 }
+
+resource "aws_cloudwatch_log_group" "kpi_engine_logs" {
+  name              = "/aws/lambda/${var.project_name}-kpi-engine-${var.environment}"
+  retention_in_days = 14
+}
