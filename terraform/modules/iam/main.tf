@@ -108,7 +108,7 @@ resource "aws_iam_policy" "api_dynamo_permissions" {
 # 1. Definición de la política de KMS (Usa el ID de la llave de tu error anterior)
 resource "aws_iam_policy" "lambda_kms_permissions" {
   name        = "${var.project_name}-lambda-kms-policy-${var.environment}"
-  description = "Permite a las lambdas desencriptar sus variables de entorno"
+  description = "Permite a la lambda desencriptar variables de entorno cifradas con KMS"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -117,9 +117,9 @@ resource "aws_iam_policy" "lambda_kms_permissions" {
         Effect   = "Allow"
         Action   = [
           "kms:Decrypt",
-          "kms:GenerateDataKey"
+          "kms:DescribeKey"
         ]
-        # El ARN que aparecía en tu log de error
+        # El ARN exacto que aparece en tu error
         Resource = "arn:aws:kms:eu-central-1:473959757331:key/f7e280f4-8c3c-4dec-bf7d-30d6fe708d64"
       }
     ]
