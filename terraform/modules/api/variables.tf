@@ -29,6 +29,13 @@ variable "analytics_lambda_arn" {
   type        = string
 }
 
+variable "kpi_lambda_arn" {
+  description = "ARN de la Lambda que procesa los eventos de KPI"
+  type        = string
+}
+
+
+
 # ==============================================================================
 # 3. CONEXIÓN CON DATA (DynamoDB)
 # ==============================================================================
@@ -41,6 +48,7 @@ variable "dynamo_table_arn" {
   description = "ARN de la tabla DynamoDB para los permisos de IAM de AppSync"
   type        = string
 }
+
 
 # ==============================================================================
 # 4. AUTENTICACIÓN Y REGIÓN
