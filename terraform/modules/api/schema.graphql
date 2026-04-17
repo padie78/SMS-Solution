@@ -196,6 +196,17 @@ input SimplifiedDataInput {
   currency: String
 }
 
+input BranchConfigInput {
+  orgId: ID!
+  branchId: String!
+  name: String!
+  location: String
+  buildings: [String]
+  areas: [String]
+  assetId: String      
+  climatiqId: String
+}
+
 # --- 4. CONSULTAS (QUERIES) ---
 type Query {
   getYearlyKPI(year: String!): YearlyKPI
