@@ -46,9 +46,14 @@ resource "aws_lambda_function" "signer" {
   role          = var.lambda_role_arn 
   architectures = [var.lambda_architecture]
 
+  kms_key_arn = null 
+
   environment {
     variables = {
       UPLOAD_BUCKET = var.upload_bucket_name
+      # 2. CAMBIA ESTE VALOR (pon un 2 si había un 1). 
+      # Esto fuerza a Lambda a actualizar la configuración de cifrado.
+      FORCE_REDEPLOY = "refresh_v2" 
     }
   }
   source_code_hash = data.archive_file.signer_zip.output_base64sha256
