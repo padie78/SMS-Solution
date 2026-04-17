@@ -52,6 +52,11 @@ resource "aws_iam_role" "generic_lambda_role" {
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
 }
 
+resource "aws_iam_role" "lambda_role" {
+  name               = "${var.project_name}-lambda-role-${var.environment}"
+  assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
+  
+}
 # ==============================================================================
 # 3. POLÍTICAS DE PERMISOS
 # ==============================================================================

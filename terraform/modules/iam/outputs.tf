@@ -23,3 +23,7 @@ output "lambda_role_arn" {
 output "lambda_role_name" {
   value = aws_iam_role.lambda_role.name # O el nombre que tenga tu recurso de rol
 }
+
+output "lambda_role_arn" {
+  value = aws_iam_role.lambda_role.arn # O el ARN que tenga tu recurso de rol
+}
