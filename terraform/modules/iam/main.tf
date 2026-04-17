@@ -143,6 +143,6 @@ resource "aws_iam_role_policy_attachment" "attach_api" {
 
 # 4. Permisos del Signer (S3 Write/Read) al Rol Genérico
 resource "aws_iam_role_policy_attachment" "attach_generic_s3" {
-  role       = aws_iam_role.generic_lambda_role.name
+  role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.signer_s3_permissions.arn
 }
