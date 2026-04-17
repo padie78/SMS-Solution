@@ -27,6 +27,12 @@ data "archive_file" "analytics_zip" {
   output_path = "${path.module}/zips/analytics.zip"
 }
 
+data "archive_file" "kpi_zip" {
+  type        = "zip"
+  source_dir  = "${path.root}/../lambda_code/kpi_engine_lambda"
+  output_path = "${path.module}/zips/kpi.zip"
+}
+
 # ==============================================================================
 # 2. CONFIGURACIÓN DE LAMBDAS
 # ==============================================================================
@@ -122,6 +128,29 @@ resource "aws_lambda_function" "analytics" {
     }
   }
   source_code_hash = data.archive_file.analytics_zip.output_base64sha256
+}
+
+resource "aws_lambda_function" "kpi_engine" {
+  function_name = "${var.project_name}-kpi-engine-${var.environment}"
+  filename      = data.archive_file.kpi_zip.output_path
+  handler       = "src/index.handler"
+  runtime       = "nodejs20.x"
+  role          = var.api_lambda_role_arn
+  timeout       = 20
+  memory_size   = 512
+  architectures = [var.lambda_architecture]
+
+  logging_config {
+    log_format = "JSON"
+    log_group  = aws_cloudwatch_log_group.kpi_engine_logs.name
+  }
+
+  environment {
+    variables = {
+      DYNAMO_TABLE = var.dynamo_table_name
+    }
+  }
+  source_code_hash = data.archive_file.kpi_zip.output_base64sha256
 }
 
 # ==============================================================================
