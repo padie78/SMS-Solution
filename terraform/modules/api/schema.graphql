@@ -211,14 +211,31 @@ type Query {
 
 # --- 5. ACCIONES (MUTATIONS) ---
 type Mutation {
+  # --- 1. CONFIGURACIONES Y PERFILES ---
+  saveOrgConfig(input: OrgConfigInput!): MutationResponse
+  saveUserProfile(input: UserProfileInput!): MutationResponse
+  
+  # --- 2. INFRAESTRUCTURA (BRANCHES) ---
+  # Terraform busca 'createBranch', 'updateBranch' y 'saveBranchConfig'
+  createBranch(input: BranchInput!): MutationResponse
+  updateBranch(id: ID!, input: BranchInput!): MutationResponse
+  saveBranchConfig(input: BranchConfigInput!): MutationResponse
+  upsertBranch(input: BranchInput!): MutationResponse # Mantén este si lo usas en el front
+
+  # --- 3. ACTIVOS (ASSETS) ---
+  # Terraform busca 'createAsset' y 'deleteAsset'
+  createAsset(input: AssetInput!): MutationResponse
+  deleteAsset(id: ID!): MutationResponse
+  upsertAsset(input: AssetInput!): MutationResponse
+
+  # --- 4. FINANZAS Y TARIFAS ---
+  # Terraform busca 'saveUtilityTariff'
+  saveUtilityTariff(input: UtilityTariffInput!): MutationResponse
+  saveCostCenter(input: CostCenterInput!): MutationResponse
+
+  # --- 5. OPERACIONES Y FACTURACIÓN ---
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
   approveInvoice(invoiceId: ID!): Invoice 
   logProduction(input: ProductionLogInput!): MutationResponse
-  
-  # Ahora estos nombres COINCIDEN con los inputs de arriba
-  upsertBranch(input: BranchInput!): MutationResponse
-  saveCostCenter(input: CostCenterInput!): MutationResponse
-  upsertAsset(input: AssetInput!): MutationResponse
-  
   confirmInvoice(sk: String!, input: ConfirmInvoiceInput!): ActionResponse!
 }
