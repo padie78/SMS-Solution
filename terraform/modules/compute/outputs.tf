@@ -61,7 +61,7 @@ output "analytics_lambda_name" {
 
 output "kpi_lambda_arn" {
   description = "ARN de la función Lambda que calcula KPIs"
-  value       = aws_lambda_function.kpi_engine
+  value = tostring(aws_lambda_function.kpi_engine.arn)
 }
 
 output "kpi_lambda_name" {

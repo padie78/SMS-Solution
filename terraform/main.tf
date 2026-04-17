@@ -84,7 +84,8 @@ module "api" {
   analytics_lambda_arn = module.compute.analytics_lambda_arn
   kpi_lambda_arn       = module.compute.kpi_lambda_arn
   emissions_table_stream_arn = module.database.table_stream_arn 
-  kpi_lambda_role_id         = module.iam.lambda_role_arn # Usamos el rol que viene de tu módulo IAM
+  kpi_lambda_role_id = module.iam.lambda_role_name
+  
 
   # Persistencia
   dynamo_table_name    = module.database.table_name

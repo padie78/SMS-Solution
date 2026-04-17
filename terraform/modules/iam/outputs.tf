@@ -19,3 +19,7 @@ output "lambda_role_arn" {
   description = "ARN del rol genérico con permisos para generar URLs firmadas"
   value       = aws_iam_role.generic_lambda_role.arn
 }
+
+output "lambda_role_name" {
+  value = aws_iam_role.lambda_role.name # O el nombre que tenga tu recurso de rol
+}
