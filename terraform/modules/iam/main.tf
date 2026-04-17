@@ -1,8 +1,7 @@
 # ==============================================================================
-# 1. POLÍTICAS DE CONFIANZA Y ACCESO S3 (Firmante)
+# 1. POLÍTICAS DE CONFIANZA Y ACCESO S3
 # ==============================================================================
 
-# Trust Policy base para todas las Lambdas
 data "aws_iam_policy_document" "lambda_assume_role" {
   statement {
     actions = ["sts:AssumeRole"]
@@ -13,7 +12,6 @@ data "aws_iam_policy_document" "lambda_assume_role" {
   }
 }
 
-# Política específica para el Signer (Resuelve el error 403)
 resource "aws_iam_policy" "signer_s3_permissions" {
   name        = "${var.project_name}-signer-s3-policy-${var.environment}"
   description = "Permite a la Lambda generar URLs firmadas para el bucket de uploads"
@@ -34,19 +32,16 @@ resource "aws_iam_policy" "signer_s3_permissions" {
 # 2. DEFINICIÓN DE ROLES
 # ==============================================================================
 
-# ROL 1: PROCESSOR (IA, S3, Textract, Dynamo)
 resource "aws_iam_role" "invoice_processor_role" {
   name               = "${var.project_name}-processor-role-${var.environment}"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
 }
 
-# ROL 2: API LAMBDA (Solo DynamoDB - Principio de menor privilegio)
 resource "aws_iam_role" "api_lambda_role" {
   name               = "${var.project_name}-api-role-${var.environment}"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
 }
 
-# ROL 3: GENÉRICO / SIGNER (Ahora con permisos de S3 para firmar)
 resource "aws_iam_role" "generic_lambda_role" {
   name               = "${var.project_name}-generic-role-${var.environment}"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
@@ -55,13 +50,12 @@ resource "aws_iam_role" "generic_lambda_role" {
 resource "aws_iam_role" "lambda_role" {
   name               = "${var.project_name}-lambda-role-${var.environment}"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
-  
 }
+
 # ==============================================================================
 # 3. POLÍTICAS DE PERMISOS
 # ==============================================================================
 
-# Política Integral para el Processor
 resource "aws_iam_policy" "processor_ai_permissions" {
   name        = "${var.project_name}-processor-ai-policy-${var.environment}"
   policy      = jsonencode({
@@ -97,7 +91,6 @@ resource "aws_iam_policy" "processor_ai_permissions" {
   })
 }
 
-# Política Dynamo para la API Lambda
 resource "aws_iam_policy" "api_dynamo_permissions" {
   name   = "${var.project_name}-api-dynamo-policy-${var.environment}"
   policy = jsonencode({
@@ -116,14 +109,13 @@ resource "aws_iam_policy" "api_dynamo_permissions" {
 # 4. ADJUNTAR POLÍTICAS (Attachments)
 # ==============================================================================
 
-# 1. Logs de CloudWatch para todos los roles
-# 1. Logs de CloudWatch para TODOS los roles (incluyendo el de KPIs)
+# 1. Logs de CloudWatch para TODOS los roles
 resource "aws_iam_role_policy_attachment" "logs" {
   for_each   = toset([
     aws_iam_role.invoice_processor_role.name, 
     aws_iam_role.api_lambda_role.name, 
     aws_iam_role.generic_lambda_role.name,
-    aws_iam_role.lambda_role.name  # <--- FALTABA ESTE
+    aws_iam_role.lambda_role.name
   ])
   role       = each.value
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
@@ -141,8 +133,14 @@ resource "aws_iam_role_policy_attachment" "attach_api" {
   policy_arn = aws_iam_policy.api_dynamo_permissions.arn
 }
 
-# 4. Permisos del Signer (S3 Write/Read) al Rol Genérico
-resource "aws_iam_role_policy_attachment" "attach_generic_s3" {
+# 4. Permisos de S3 para el lambda_role (Signer)
+resource "aws_iam_role_policy_attachment" "attach_lambda_role_s3" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.signer_s3_permissions.arn
+}
+
+# 5. Permisos de DynamoDB para el lambda_role (KPI Engine)
+resource "aws_iam_role_policy_attachment" "lambda_role_dynamo" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.api_dynamo_permissions.arn
 }
