@@ -120,7 +120,8 @@ resource "aws_iam_policy" "lambda_kms_permissions" {
         Action   = [
           "kms:Decrypt",
           "kms:DescribeKey",
-          "kms:GenerateDataKey"
+          "kms:GenerateDataKey",
+          "kms:CreateGrant" # <--- AGREGA ESTO
         ]
         Resource = "*" # Necesario para llaves administradas por AWS
       }
