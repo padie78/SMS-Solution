@@ -120,7 +120,7 @@ resource "aws_iam_policy" "lambda_kms_permissions" {
           "kms:DescribeKey"
         ]
         # El ARN exacto que aparece en tu error
-        Resource = "arn:aws:kms:eu-central-1:473959757331:key/f7e280f4-8c3c-4dec-bf7d-30d6fe708d64"
+        Resource = "*"
       }
     ]
   })
