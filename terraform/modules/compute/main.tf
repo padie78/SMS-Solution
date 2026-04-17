@@ -135,7 +135,7 @@ resource "aws_lambda_function" "kpi_engine" {
   filename      = data.archive_file.kpi_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
-  role          = var.api_lambda_role_arn
+  role          = var.lambda_role_arn # Antes decía api_lambda_role_arn
   timeout       = 20
   memory_size   = 512
   architectures = [var.lambda_architecture]
