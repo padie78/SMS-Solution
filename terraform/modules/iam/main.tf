@@ -56,6 +56,7 @@ resource "aws_iam_role" "lambda_role" {
 # 3. POLÍTICAS DE PERMISOS
 # ==============================================================================
 
+# Política Integral para el Processor
 resource "aws_iam_policy" "processor_ai_permissions" {
   name        = "${var.project_name}-processor-ai-policy-${var.environment}"
   policy      = jsonencode({
@@ -91,6 +92,7 @@ resource "aws_iam_policy" "processor_ai_permissions" {
   })
 }
 
+# Política Dynamo para la API Lambda
 resource "aws_iam_policy" "api_dynamo_permissions" {
   name   = "${var.project_name}-api-dynamo-policy-${var.environment}"
   policy = jsonencode({
@@ -105,10 +107,10 @@ resource "aws_iam_policy" "api_dynamo_permissions" {
   })
 }
 
-# 1. Definición de la política de KMS (Usa el ID de la llave de tu error anterior)
+# Política de KMS para desbloquear Lambdas y S3
 resource "aws_iam_policy" "lambda_kms_permissions" {
   name        = "${var.project_name}-lambda-kms-policy-${var.environment}"
-  description = "Permite a la lambda desencriptar variables de entorno cifradas con KMS"
+  description = "Permite desencriptar variables de entorno y acceder a recursos cifrados"
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -117,19 +119,13 @@ resource "aws_iam_policy" "lambda_kms_permissions" {
         Effect   = "Allow"
         Action   = [
           "kms:Decrypt",
-          "kms:DescribeKey"
+          "kms:DescribeKey",
+          "kms:GenerateDataKey"
         ]
-        # El ARN exacto que aparece en tu error
-        Resource = "*"
+        Resource = "*" # Necesario para llaves administradas por AWS
       }
     ]
   })
-}
-
-# 2. Adjuntar la política de KMS al lambda_role
-resource "aws_iam_role_policy_attachment" "attach_lambda_kms" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.lambda_kms_permissions.arn
 }
 
 # ==============================================================================
@@ -160,7 +156,7 @@ resource "aws_iam_role_policy_attachment" "attach_api" {
   policy_arn = aws_iam_policy.api_dynamo_permissions.arn
 }
 
-# 4. Permisos de S3 para el lambda_role (Signer) -
+# 4. Permisos de S3 para el lambda_role (Signer)
 resource "aws_iam_role_policy_attachment" "attach_lambda_role_s3" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.signer_s3_permissions.arn
@@ -170,4 +166,10 @@ resource "aws_iam_role_policy_attachment" "attach_lambda_role_s3" {
 resource "aws_iam_role_policy_attachment" "lambda_role_dynamo" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.api_dynamo_permissions.arn
+}
+
+# 6. Permisos de KMS para el lambda_role (Desbloqueo de variables y S3)
+resource "aws_iam_role_policy_attachment" "attach_lambda_kms" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.lambda_kms_permissions.arn
 }
