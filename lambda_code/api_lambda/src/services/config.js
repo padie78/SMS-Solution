@@ -268,7 +268,7 @@ export const configService = {
 
     // 3. Preparar el Update para DynamoDB
     const params = {
-        TableName: process.env.MAIN_TABLE,
+        TableName: TABLE_NAME,
         Key: { PK: `ORG#${orgId}`, SK: sk },
         // Usamos #st para 'status' y #met para 'metadata' porque son reservadas
         UpdateExpression: `SET 
