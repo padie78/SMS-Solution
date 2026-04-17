@@ -105,6 +105,33 @@ resource "aws_iam_policy" "api_dynamo_permissions" {
   })
 }
 
+# 1. Definición de la política de KMS (Usa el ID de la llave de tu error anterior)
+resource "aws_iam_policy" "lambda_kms_permissions" {
+  name        = "${var.project_name}-lambda-kms-policy-${var.environment}"
+  description = "Permite a las lambdas desencriptar sus variables de entorno"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "kms:Decrypt",
+          "kms:GenerateDataKey"
+        ]
+        # El ARN que aparecía en tu log de error
+        Resource = "arn:aws:kms:eu-central-1:473959757331:key/f7e280f4-8c3c-4dec-bf7d-30d6fe708d64"
+      }
+    ]
+  })
+}
+
+# 2. Adjuntar la política de KMS al lambda_role
+resource "aws_iam_role_policy_attachment" "attach_lambda_kms" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.lambda_kms_permissions.arn
+}
+
 # ==============================================================================
 # 4. ADJUNTAR POLÍTICAS (Attachments)
 # ==============================================================================
