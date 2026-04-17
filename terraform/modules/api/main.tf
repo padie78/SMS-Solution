@@ -99,7 +99,8 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
     "saveCostCenter",
     "saveUtilityTariff",
     "logProduction",
-    "approveInvoice"
+    "approveInvoice",
+    "confirmInvoice"
   ])
 
   api_id      = aws_appsync_graphql_api.api.id

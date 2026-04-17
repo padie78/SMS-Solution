@@ -171,6 +171,34 @@ input CreateAssetInput {
   unitType: String
 }
 
+input ConfirmInvoiceInput {
+  service_type: String!
+  total_magnitude_sum: Float!
+  billing_period: BillingPeriodInput!
+  extracted_data: SimplifiedDataInput!
+}
+
+input BillingPeriodInput {
+  start: String!
+  end: String!
+}
+
+input SimplifiedDataInput {
+  vendor_name: String
+  vendor_tax_id: String
+  invoice_number: String
+  total_amount: Float
+  tax_amount: Float
+  base_amount: Float
+  currency: String
+}
+
+type ActionResponse {
+  success: Boolean!
+  message: String
+  id: String
+}
+
 # --- 4. CONSULTAS (QUERIES) ---
 
 type Query {
@@ -190,25 +218,26 @@ type Query {
 # --- 5. ACCIONES (MUTATIONS) ---
 
 type Mutation {
-  # --- Procesamiento de Facturas ---
+  # --- 1. FLUJO DE DATOS (EL CORE) ---
+  # Obtiene la URL para subir el PDF a S3.
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
-  
-  # PASO 6: Aprueba y dispara auditoría
-  approveInvoice(invoiceId: ID!): Invoice
 
-  # --- Activos ---
-  createAsset(input: CreateAssetInput!): MutationResponse
-  deleteAsset(id: ID!): MutationResponse
+  # El paso maestro: Al aprobar, el backend calcula CO2, actualiza la tarifa 
+  # (Total/Consumo) y registra quién lo hizo mediante el token de Cognito.
+  approveInvoice(invoiceId: ID!): Invoice 
 
-  # --- Infraestructura ---
-  createBranch(name: String!, location: String): MutationResponse
-  updateBranch(id: ID!, name: String, location: String): MutationResponse
-  
-  # --- Configuración SMS ---
-  saveCostCenter(input: CostCenterInput!): MutationResponse
-  saveUtilityTariff(input: UtilityTariffInput!): MutationResponse
+  # --- 2. OPERACIÓN (EL CRUCE) ---
+  # Registro manual de unidades producidas para calcular el KPI de Intensidad.
   logProduction(input: ProductionLogInput!): MutationResponse
-  saveOrgConfig(input: OrgConfigInput!): MutationResponse
-  saveBranchConfig(input: BranchConfigInput!): MutationResponse
-  saveUserProfile(input: UserProfileInput!): MutationResponse
+
+  # --- 3. ESTRUCTURA (SIMPLIFICADA) ---
+  # 'Upsert': Crea o actualiza la sucursal y su configuración (Climatiq, presupuestos) en un solo viaje.
+  upsertBranch(input: BranchInput!): MutationResponse
+
+  # Gestiona los centros de costos para la asignación de gastos y emisiones.
+  saveCostCenter(input: CostCenterInput!): MutationResponse
+
+  # Registro de medidores o maquinaria específica.
+  upsertAsset(input: AssetInput!): MutationResponse
+  confirmInvoice(sk: String!, input: ConfirmInvoiceInput!): ActionResponse!
 }
