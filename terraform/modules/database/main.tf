@@ -7,6 +7,9 @@ resource "aws_dynamodb_table" "emissions_table" {
   # SK: Será "INV#..." para facturas o "STATS#..." para totales
   range_key = "SK" 
 
+  stream_enabled   = true
+  stream_view_type = "NEW_AND_OLD_IMAGES"
+
   attribute { 
     name = "PK"
     type = "S" 
