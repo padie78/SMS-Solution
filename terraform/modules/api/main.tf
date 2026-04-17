@@ -27,13 +27,13 @@ resource "aws_appsync_api_key" "hub_key" {
 # modules/api/main.tf
 
 resource "aws_lambda_event_source_mapping" "stats_aggregator_trigger" {
-  event_source_arn  = aws_dynamodb_table.emissions_table.stream_arn
-  function_name     = aws_lambda_function.stats_aggregator.arn
+  # Usamos la variable que inyectaremos desde la raíz
+  event_source_arn  = var.emissions_table_stream_arn 
+  function_name     = var.kpi_lambda_arn
+  
   starting_position = "LATEST"
 
   filter_criteria {
-    # NOTA: Algunas versiones usan 'filter' (singular) y otras un bloque 'filter'
-    # Esta es la forma más compatible:
     filter {
       pattern = jsonencode({
         dynamodb = {
@@ -51,7 +51,8 @@ resource "aws_lambda_event_source_mapping" "stats_aggregator_trigger" {
 
 resource "aws_iam_role_policy" "lambda_stream_policy" {
   name = "sms-lambda-stream-policy"
-  role = aws_iam_role.stats_aggregator_role.id
+  # Usamos el ID del rol de la lambda que viene por variable
+  role = var.kpi_lambda_role_id 
 
   policy = jsonencode({
     Version = "2012-10-17"
@@ -64,7 +65,8 @@ resource "aws_iam_role_policy" "lambda_stream_policy" {
           "dynamodb:ListStreams"
         ]
         Effect   = "Allow"
-        Resource = "${aws_dynamodb_table.main.stream_arn}"
+        # Usamos la variable de la tabla
+        Resource = var.emissions_table_stream_arn
       }
     ]
   })

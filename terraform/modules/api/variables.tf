@@ -69,3 +69,7 @@ variable "aws_region" {
   type        = string
   default     = "eu-central-1"
 }
+
+variable "emissions_table_stream_arn" {
+  type = string
+}

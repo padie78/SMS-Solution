@@ -83,6 +83,7 @@ module "api" {
   api_lambda_arn       = module.compute.api_lambda_arn
   analytics_lambda_arn = module.compute.analytics_lambda_arn
   kpi_lambda_arn       = module.compute.kpi_lambda_arn
+  emissions_table_stream_arn = module.database.table_stream_arn 
 
   # Persistencia
   dynamo_table_name    = module.database.table_name
