@@ -133,7 +133,7 @@ resource "aws_iam_role_policy_attachment" "attach_api" {
   policy_arn = aws_iam_policy.api_dynamo_permissions.arn
 }
 
-# 4. Permisos de S3 para el lambda_role (Signer)
+# 4. Permisos de S3 para el lambda_role (Signer) -
 resource "aws_iam_role_policy_attachment" "attach_lambda_role_s3" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.signer_s3_permissions.arn
