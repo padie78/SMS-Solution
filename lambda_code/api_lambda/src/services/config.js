@@ -268,7 +268,7 @@ export const configService = {
 
     // 3. Preparar el Update para DynamoDB
     const params = {
-        TableName: process.env.MAIN_TABLE,
+        TableName: TABLE_NAME,
         Key: { PK: `ORG#${orgId}`, SK: sk },
         // Actualizamos estado, data validada y añadimos la info de sostenibilidad
         UpdateExpression: `SET 
@@ -296,7 +296,7 @@ export const configService = {
         }
     };
 
-    await ddbDocClient.send(new UpdateCommand(params));
+    await docClient.send(new UpdateCommand(params));
     
     return { 
         success: true, 
