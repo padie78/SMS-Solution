@@ -1,5 +1,5 @@
 import { getOrganizationId } from "./utils/s3Helper.js";
-import { processInvoicePipeline } from "./services/pipeline.js";
+import { processInvoice } from "./services/processInvoice.js";
 
 /**
  * Entry Point (AWS Lambda)
@@ -25,7 +25,7 @@ export const handler = async (event, context) => {
 
         // 3. EJECUTAR PIPELINE (Capa de Lógica de Negocio)
         // Pasamos solo lo necesario para que el pipeline haga su magia
-        const result = await processInvoicePipeline(bucket, key, orgId);
+        const result = await processInvoice(bucket, key, orgId);
 
         const duration = ((Date.now() - startTime) / 1000).toFixed(2);
         console.log(`✅ [FLOW_COMPLETE] | SK: ${result.SK} | Duration: ${duration}s\n`);
