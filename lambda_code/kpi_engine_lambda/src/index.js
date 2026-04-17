@@ -4,9 +4,14 @@ import { DynamoDBDocumentClient, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 
 const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 
+    const TABLE_NAME = process.env.DATABASE_NAME || "sms-platform-dev-emissions";
+
 export const handler = async (event) => {
     // Log inicial para ver cuántos registros vienen en el batch
     console.log(`Recibidos ${event.Records.length} registros desde DynamoDB Stream.`);
+
+
+
 
     for (const record of event.Records) {
         console.log(`Procesando evento: ${record.eventID} - Tipo: ${record.eventName}`);
@@ -57,7 +62,7 @@ export const handler = async (event) => {
 
             const updatePromises = updates.map(sk => {
                 return ddbDocClient.send(new UpdateCommand({
-                    TableName: process.env.MAIN_TABLE,
+                    TableName: TABLE_NAME,
                     Key: { PK: `ORG#${orgId}`, SK: sk },
                     UpdateExpression: "ADD totalCo2eKg :co2, totalSpend :spend, invoiceCount :inc",
                     ExpressionAttributeValues: {
