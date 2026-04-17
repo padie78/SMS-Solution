@@ -17,7 +17,7 @@ output "api_lambda_role_arn" {
 # 3. ARN para el Rol Genérico (Utilizado por el Signer / S3)
 output "lambda_role_arn" {
   description = "ARN del rol genérico con permisos para generar URLs firmadas"
-  value       = aws_iam_role.generic_lambda_role.arn
+  value       = aws_iam_role.lambda_role.arn # Asegúrate que apunte a lambda_role
 }
 
 output "lambda_role_name" {

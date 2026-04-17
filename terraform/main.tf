@@ -86,7 +86,6 @@ module "api" {
   emissions_table_stream_arn = module.database.table_stream_arn 
   kpi_lambda_role_id = module.iam.lambda_role_name
 
-
   # Persistencia
   dynamo_table_name    = module.database.table_name
   dynamo_table_arn     = module.database.table_arn
