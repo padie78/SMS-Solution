@@ -73,3 +73,8 @@ variable "aws_region" {
 variable "emissions_table_stream_arn" {
   type = string
 }
+
+variable "kpi_lambda_role_id" {
+  type        = string
+  description = "El ID o nombre del rol de la Lambda de KPIs para adjuntar la política de streams"
+}
