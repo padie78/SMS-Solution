@@ -7,7 +7,7 @@ import { persistTransaction } from "./data/db.js";
 /**
  * Orquestador del flujo de negocio: OCR -> Clasificación -> IA -> Cálculo -> DB
  */
-export const pipeline = async (bucket, key, orgId) => {
+export const pipeline = async (key, orgId) => {
     console.log(`\n--- ⚙️ STARTING PIPELINE [ORG: ${orgId}] ---`);
 
     try {

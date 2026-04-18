@@ -1,58 +1,47 @@
-import { getOrganizationId } from "./utils/s3Helper.js";
+import { unmarshall } from "@aws-sdk/util-dynamodb";
 import { pipeline } from "./services/pipeline.js";
 
 /**
- * Entry Point (AWS Lambda)
- * Su única misión es extraer el contexto de infraestructura 
- * y delegar la lógica de negocio al pipeline.
+ * KPI Engine Entry Point (DynamoDB Stream)
+ * Extrae los datos del stream y delega al pipeline para actualizar stats.
  */
 export const handler = async (event, context) => {
     const startTime = Date.now();
     const requestId = context.awsRequestId;
 
-    // 1. Parsear el evento de S3
-    const record = event.Records[0];
-    const bucket = record.s3.bucket.name;
-    const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
-
-    console.log(`\n🚀 [INBOUND_EVENT] | Req: ${requestId}`);
-    console.log(`📂 [LOCATION]      | s3://${bucket}/${key}`);
+    console.log(`\n🚀 [KPI_ENGINE_START] | Req: ${requestId}`);
 
     try {
-        // 2. Identificar Organización (Capa de Infraestructura)
-        const orgId = await getOrganizationId(bucket, key);
-        console.log(`🆔 [ORG_CONTEXT]   | ${orgId}`);
+        // 1. DynamoDB Streams puede enviar varios registros a la vez
+        for (const record of event.Records) {
+            
+            // Solo nos interesan eventos donde el dato ya existe o cambió (IA terminó)
+            if (!record.dynamodb?.NewImage) continue;
 
-        // 3. EJECUTAR PIPELINE (Capa de Lógica de Negocio)
-        // Pasamos solo lo necesario para que el pipeline haga su magia
-        const result = await pipeline(bucket, key, orgId);
+            // 2. Transformar formato DynamoDB a JSON limpio
+            const fullData = unmarshall(record.dynamodb.NewImage);
+            
+            // Extraer contexto (PK suele ser "ORG#123#INV#abc")
+            const orgId = fullData.PK.split('#')[1];
+            
+            console.log(`🆔 [STREAM_CONTEXT] | Org: ${orgId} | Event: ${record.eventName}`);
+
+            // 3. EJECUTAR PIPELINE
+            // Pasamos el objeto completo 'fullData' que ya contiene extracted_data y ai_analysis
+            await pipeline(fullData, orgId);
+        }
 
         const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-        console.log(`✅ [FLOW_COMPLETE] | SK: ${result.SK} | Duration: ${duration}s\n`);
+        console.log(`✅ [KPI_FLOW_COMPLETE] | Duration: ${duration}s\n`);
 
-        return {
-            statusCode: 200,
-            body: JSON.stringify({
-                status: "SUCCESS",
-                org: orgId,
-                sk: result.SK,
-                duration: `${duration}s`
-            })
-        };
+        return { status: "SUCCESS" };
 
     } catch (error) {
-        // Manejo de errores centralizado
-        console.error(`\n❌ [PIPELINE_CRASH]`);
-        console.error(`ID: ${requestId}`);
-        console.error(`Reason: ${error.message}\n`);
-
-        return {
-            statusCode: 500,
-            body: JSON.stringify({ 
-                error: error.message, 
-                requestId,
-                path: key 
-            })
-        };
+        console.error(`\n❌ [KPI_PIPELINE_CRASH]`);
+        console.error(`ID: ${requestId} | Reason: ${error.message}\n`);
+        
+        // No devolvemos 500 para evitar que el stream se bloquee infinitamente 
+        // a menos que sea un error crítico de infraestructura.
+        return { status: "ERROR", message: error.message };
     }
 };
