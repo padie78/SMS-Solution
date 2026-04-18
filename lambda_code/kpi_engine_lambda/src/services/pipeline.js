@@ -8,24 +8,20 @@ import { persistTransaction } from "./data/db.js";
  * Orquestador: IA (Bedrock) -> Emisiones (Climatiq) -> DB
  */
 export const pipeline = async (streamData, orgId) => {
-    const key = streamData.SK || "unknown_key";
+    // streamData es el objeto 'data' que mandó el index.
+    // Contiene PK, SK, ai_analysis, extracted_data y... raw_capture!
     
-    console.log(`\n--- ⚙️ STARTING PIPELINE [ORG: ${orgId}] ---`);
-    // Log de diagnóstico para ver qué campos llegaron realmente
-    console.log(`DEBUG: Campos disponibles en el registro: ${Object.keys(streamData).join(', ')}`);
-
     try {
-        // --- FASE 1: OBTENCIÓN DE TEXTO (Tachles: Validar nombre del campo) ---
-        // Intentamos obtener el texto de varios nombres comunes de campos
-        const rawText = streamData.raw_text || streamData.content || streamData.ocr_text || ""; 
-        
-        if (!rawText || rawText.length < 10) {
-            console.error(`❌ [ERROR_DATA] No hay texto suficiente para procesar. Contenido: "${rawText.substring(0, 20)}..."`);
-            throw new Error("No se encontró contenido de texto legible (raw_text) en DynamoDB.");
+        // AQUÍ ESTÁ LA CORRECCIÓN:
+        const rawText = streamData.raw_capture?.full_text_preview || "";
+
+        if (!rawText) {
+            // Log para debuguear si vuelve a fallar
+            console.log("DEBUG - Estructura recibida:", JSON.stringify(streamData).substring(0, 200));
+            throw new Error("No se encontró full_text_preview dentro de raw_capture");
         }
 
-        console.log(`[PIPELINE] 1. Texto recuperado (${rawText.length} caracteres).`);
-
+        // Ahora sí, rawText tiene el contenido y puedes seguir:
         const detectedCategory = await identifyCategory(rawText);
         console.log(`[PIPELINE] 1. Contexto: Cat detectada "${detectedCategory}"`);
 
