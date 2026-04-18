@@ -5,19 +5,31 @@ import { buildGoldenRecord } from "../utils/mapper.js";
 import { persistTransaction } from "./data/db.js";
 
 /**
- * Orquestador del flujo de negocio: OCR -> Clasificación -> IA -> Cálculo -> DB
+ * Orquestador adaptado para DynamoDB Stream
+ * @param {Object} streamData - Los datos ya extraídos del Stream (NewImage unmarshalled)
+ * @param {string} orgId - ID de la organización
  */
-export const pipeline = async (key, orgId) => {
+export const pipeline = async (streamData, orgId) => {
+    // Extraemos la key original del registro para los logs
+    const key = streamData.SK || "unknown_key";
+    
     console.log(`\n--- ⚙️ STARTING PIPELINE [ORG: ${orgId}] ---`);
 
     try {
         // --- FASE 1: INGESTIÓN Y CONTEXTO ---
-        //const ocrData = await extractText(bucket, key);
-        const detectedCategory = await identifyCategory(ocrData.rawText);
+        // En el stream, el texto ya fue extraído previamente. 
+        // Lo tomamos de donde lo guardó la lambda anterior (ej: streamData.raw_text)
+        const rawText = streamData.raw_text || ""; 
+        
+        if (!rawText) {
+            throw new Error("No se encontró 'raw_text' en el registro del stream.");
+        }
+
+        const detectedCategory = await identifyCategory(rawText);
         console.log(`[PIPELINE] 1. Contexto: Cat detectada "${detectedCategory}"`);
 
         // --- FASE 2: INTELIGENCIA ARTIFICIAL ---
-        const aiAnalysis = await analyzeInvoice(ocrData.rawText, detectedCategory);
+        const aiAnalysis = await analyzeInvoice(rawText, detectedCategory);
         
         const aiCat = aiAnalysis?.category || 'N/A';
         const aiConf = (aiAnalysis?.confidence_score || 0).toFixed(2);
@@ -43,21 +55,19 @@ export const pipeline = async (key, orgId) => {
         );
 
         // --- FASE 5: PERSISTENCIA MULTI-TABLA ---
-        // Log de diagnóstico previo a la escritura en DynamoDB
         console.log(`\n--- 📊 DATA CHECK [${goldenRecord.SK}] ---`);
         console.log(`   💰 Spend: ${goldenRecord.extracted_data?.total_amount || 0}`);
         console.log(`   🌍 CO2:   ${goldenRecord.climatiq_result?.co2e || 0}`);
-        console.log(`   🏢 Vendor: ${goldenRecord.extracted_data?.vendor || 'Unknown'}`);
-        console.log(`------------------------------------------`);
-
+        
+        // persistTransaction debe ser la función que usa updateStats internamente
         await persistTransaction(goldenRecord);
         console.log(`[PIPELINE] 5. Éxito: Registro y estadísticas actualizadas en DB.`);
 
         return goldenRecord;
 
     } catch (error) {
-        // Relanzamos el error para que el index.js lo capture con su propio contexto
-        console.error(`\n❌ [PIPELINE_ERROR]: Fallo en el procesamiento del archivo ${key}`);
+        console.error(`\n❌ [PIPELINE_ERROR]: Fallo en el procesamiento del registro ${key}`);
+        console.error(`Detalle: ${error.message}`);
         throw error;
     }
 };
