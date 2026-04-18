@@ -10,6 +10,10 @@ import { persistTransaction } from "./data/db.js";
 export const pipeline = async (streamData, orgId) => {
     // streamData es el objeto 'data' que mandó el index.
     // Contiene PK, SK, ai_analysis, extracted_data y... raw_capture!
+
+    const key = streamData.SK || "unknown_key";
+    
+    console.log(`\n--- ⚙️ STARTING PIPELINE [ORG: ${orgId}] ---`);
     
     try {
         // AQUÍ ESTÁ LA CORRECCIÓN:
