@@ -12,6 +12,8 @@ export const pipeline = async (streamData, orgId) => {
     // Contiene PK, SK, ai_analysis, extracted_data y... raw_capture!
 
     const key = streamData.SK || "unknown_key";
+
+    console.log(`\n--- ⚙️ STARTING PIPELINE [KEY: ${key}] ---`);
     
     console.log(`\n--- ⚙️ STARTING PIPELINE [ORG: ${orgId}] ---`);
     
@@ -49,6 +51,11 @@ export const pipeline = async (streamData, orgId) => {
         
         console.log(`[PIPELINE] 3. Cálculo: ${emissionCalculations.total_kg.toFixed(2)} kgCO2e generados`);
 
+        console.log(`key: ${key}`);
+        console.log(`rawText length: ${rawText.length}`);
+        console.log(`aiAnalysis: ${JSON.stringify(aiAnalysis).substring(0, 200)}`);
+        console.log(`emissionCalculations: ${JSON.stringify(emissionCalculations).substring(0, 200)}`); 
+        
         // --- FASE 4: MAPEO (Golden Record) ---
         const goldenRecord = buildGoldenRecord(
             `ORG#${orgId}`, 
