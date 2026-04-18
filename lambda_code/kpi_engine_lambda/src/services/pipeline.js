@@ -5,37 +5,40 @@ import { buildGoldenRecord } from "../utils/mapper.js";
 import { persistTransaction } from "./data/db.js";
 
 /**
- * Orquestador adaptado para DynamoDB Stream
- * @param {Object} streamData - Los datos ya extraídos del Stream (NewImage unmarshalled)
- * @param {string} orgId - ID de la organización
+ * Orquestador: IA (Bedrock) -> Emisiones (Climatiq) -> DB
  */
 export const pipeline = async (streamData, orgId) => {
-    // Extraemos la key original del registro para los logs
     const key = streamData.SK || "unknown_key";
     
     console.log(`\n--- ⚙️ STARTING PIPELINE [ORG: ${orgId}] ---`);
+    // Log de diagnóstico para ver qué campos llegaron realmente
+    console.log(`DEBUG: Campos disponibles en el registro: ${Object.keys(streamData).join(', ')}`);
 
     try {
-        // --- FASE 1: INGESTIÓN Y CONTEXTO ---
-        // En el stream, el texto ya fue extraído previamente. 
-        // Lo tomamos de donde lo guardó la lambda anterior (ej: streamData.raw_text)
-        const rawText = streamData.raw_text || ""; 
+        // --- FASE 1: OBTENCIÓN DE TEXTO (Tachles: Validar nombre del campo) ---
+        // Intentamos obtener el texto de varios nombres comunes de campos
+        const rawText = streamData.raw_text || streamData.content || streamData.ocr_text || ""; 
         
-        if (!rawText) {
-            throw new Error("No se encontró 'raw_text' en el registro del stream.");
+        if (!rawText || rawText.length < 10) {
+            console.error(`❌ [ERROR_DATA] No hay texto suficiente para procesar. Contenido: "${rawText.substring(0, 20)}..."`);
+            throw new Error("No se encontró contenido de texto legible (raw_text) en DynamoDB.");
         }
+
+        console.log(`[PIPELINE] 1. Texto recuperado (${rawText.length} caracteres).`);
 
         const detectedCategory = await identifyCategory(rawText);
         console.log(`[PIPELINE] 1. Contexto: Cat detectada "${detectedCategory}"`);
 
-        // --- FASE 2: INTELIGENCIA ARTIFICIAL ---
+        // --- FASE 2: INTELIGENCIA ARTIFICIAL (Bedrock) ---
+        console.log(`[PIPELINE] 2. Llamando a Bedrock para análisis...`);
         const aiAnalysis = await analyzeInvoice(rawText, detectedCategory);
         
         const aiCat = aiAnalysis?.category || 'N/A';
         const aiConf = (aiAnalysis?.confidence_score || 0).toFixed(2);
         console.log(`[PIPELINE] 2. IA: Procesado como ${aiCat} (Confianza: ${aiConf})`);
 
-        // --- FASE 3: MOTOR DE EMISIONES ---
+        // --- FASE 3: MOTOR DE EMISIONES (Climatiq) ---
+        console.log(`[PIPELINE] 3. Calculando huella con Climatiq...`);
         const emissionLines = (aiAnalysis.emission_lines || []).map(line => ({
             ...line,
             category: line.category || aiAnalysis.category || "ELEC"
@@ -46,7 +49,7 @@ export const pipeline = async (streamData, orgId) => {
         
         console.log(`[PIPELINE] 3. Cálculo: ${emissionCalculations.total_kg.toFixed(2)} kgCO2e generados`);
 
-        // --- FASE 4: MAPEO Y CALIDAD DE DATOS ---
+        // --- FASE 4: MAPEO (Golden Record) ---
         const goldenRecord = buildGoldenRecord(
             `ORG#${orgId}`, 
             key,
@@ -54,12 +57,13 @@ export const pipeline = async (streamData, orgId) => {
             emissionCalculations
         );
 
-        // --- FASE 5: PERSISTENCIA MULTI-TABLA ---
+        // --- FASE 5: PERSISTENCIA (DynamoDB Transaction) ---
         console.log(`\n--- 📊 DATA CHECK [${goldenRecord.SK}] ---`);
-        console.log(`   💰 Spend: ${goldenRecord.extracted_data?.total_amount || 0}`);
-        console.log(`   🌍 CO2:   ${goldenRecord.climatiq_result?.co2e || 0}`);
-        
-        // persistTransaction debe ser la función que usa updateStats internamente
+        console.log(`   💰 Spend:    ${goldenRecord.extracted_data?.total_amount || 0} ${goldenRecord.extracted_data?.currency || ''}`);
+        console.log(`   🌍 CO2:      ${goldenRecord.climatiq_result?.total_kg || 0} kg`);
+        console.log(`   🏢 Vendor:   ${goldenRecord.extracted_data?.vendor || 'Unknown'}`);
+        console.log(`------------------------------------------`);
+
         await persistTransaction(goldenRecord);
         console.log(`[PIPELINE] 5. Éxito: Registro y estadísticas actualizadas en DB.`);
 
@@ -68,6 +72,8 @@ export const pipeline = async (streamData, orgId) => {
     } catch (error) {
         console.error(`\n❌ [PIPELINE_ERROR]: Fallo en el procesamiento del registro ${key}`);
         console.error(`Detalle: ${error.message}`);
+        // Log del stack trace para encontrar la línea exacta del fallo si es necesario
+        if (error.stack) console.error(`Stack: ${error.stack}`);
         throw error;
     }
 };
