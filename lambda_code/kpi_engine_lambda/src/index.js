@@ -1,47 +1,33 @@
 import { unmarshall } from "@aws-sdk/util-dynamodb";
 import { pipeline } from "./services/pipeline.js";
 
-/**
- * KPI Engine Entry Point (DynamoDB Stream)
- * Extrae los datos del stream y delega al pipeline para actualizar stats.
- */
 export const handler = async (event, context) => {
-    const startTime = Date.now();
-    const requestId = context.awsRequestId;
+    console.log(`\n🚀 [KPI_ENGINE_START] | Records: ${event.Records.length}`);
 
-    console.log(`\n🚀 [KPI_ENGINE_START] | Req: ${requestId}`);
+    for (const record of event.Records) {
+        // 1. Solo procesar si hay datos nuevos
+        if (!record.dynamodb?.NewImage) continue;
 
-    try {
-        // 1. DynamoDB Streams puede enviar varios registros a la vez
-        for (const record of event.Records) {
-            
-            // Solo nos interesan eventos donde el dato ya existe o cambió (IA terminó)
-            if (!record.dynamodb?.NewImage) continue;
+        const data = unmarshall(record.dynamodb.NewImage);
 
-            // 2. Transformar formato DynamoDB a JSON limpio
-            const fullData = unmarshall(record.dynamodb.NewImage);
-            
-            // Extraer contexto (PK suele ser "ORG#123#INV#abc")
-            const orgId = fullData.PK.split('#')[1];
-            
-            console.log(`🆔 [STREAM_CONTEXT] | Org: ${orgId} | Event: ${record.eventName}`);
-
-            // 3. EJECUTAR PIPELINE
-            // Pasamos el objeto completo 'fullData' que ya contiene extracted_data y ai_analysis
-            await pipeline(fullData, orgId);
+        // 2. SEGURIDAD: Solo procesar facturas (INV#), ignorar estadísticas (STATS#)
+        // Esto evita el bucle infinito.
+        if (data.SK && data.SK.startsWith("STATS#")) {
+            console.log("⏭️ [SKIP] Registro de estadística detectado, ignorando para evitar recursión.");
+            continue;
         }
 
-        const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-        console.log(`✅ [KPI_FLOW_COMPLETE] | Duration: ${duration}s\n`);
+        try {
+            const orgId = data.PK.split('#')[1];
+            console.log(`🆔 [STREAM_EVENT] | Org: ${orgId} | SK: ${data.SK}`);
 
-        return { status: "SUCCESS" };
+            // 3. Delegar al pipeline (le pasamos el objeto limpio 'data')
+            await pipeline(data, orgId);
 
-    } catch (error) {
-        console.error(`\n❌ [KPI_PIPELINE_CRASH]`);
-        console.error(`ID: ${requestId} | Reason: ${error.message}\n`);
-        
-        // No devolvemos 500 para evitar que el stream se bloquee infinitamente 
-        // a menos que sea un error crítico de infraestructura.
-        return { status: "ERROR", message: error.message };
+        } catch (error) {
+            console.error(`❌ [ERROR] | ${error.message}`);
+        }
     }
+
+    return { status: "PROCESSED" };
 };
