@@ -4,7 +4,7 @@
  * para forzar la distinción entre importes monetarios y consumos físicos.
  */
 
-import { CATEGORY_RULES } from './bedrock-rules.js';
+import { CATEGORY_RULES } from './bedrock_rules.js';
 
 /**
  * Genera el esquema de metadatos analíticos inyectando valores fijos de la regla.

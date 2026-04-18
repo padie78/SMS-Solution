@@ -1,4 +1,3 @@
-import { extractText } from "./apis/textract.js";
 import { identifyCategory } from "./ia/classifier.js";
 import { analyzeInvoice } from "./ia/bedrock.js";
 import { calculateFootprint } from "./apis/climatiq.js";
