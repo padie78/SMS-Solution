@@ -59,12 +59,13 @@ export const pipeline = async (streamData, orgId) => {
         // --- FASE 4: MAPEO (Golden Record) ---
         // --- FASE 4: MAPEO (Golden Record) ---
         const goldenRecord = buildGoldenRecord(
-            `ORG#${orgId}`,
-            key,
-            aiAnalysis,          // El objeto de Bedrock
-            emissionCalculations, // El objeto de Climatiq (¡NUEVO PARÁMETRO!)
-            "VALIDATED"          // El status
-        );
+    `ORG#${orgId}`, 
+    key, 
+    aiAnalysis, 
+    emissionCalculations, // <--- Este es el nuevo parámetro para evitar los ceros
+    "VALIDATED",
+    detectedCategory
+);
 
         // --- FASE 5: PERSISTENCIA (DynamoDB Transaction) ---
         console.log(`\n--- 📊 DATA CHECK [${goldenRecord.SK}] ---`);
