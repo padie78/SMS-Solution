@@ -14,9 +14,9 @@ export const pipeline = async (streamData, orgId) => {
     const key = streamData.SK || "unknown_key";
 
     console.log(`\n--- ⚙️ STARTING PIPELINE [KEY: ${key}] ---`);
-    
+
     console.log(`\n--- ⚙️ STARTING PIPELINE [ORG: ${orgId}] ---`);
-    
+
     try {
         // AQUÍ ESTÁ LA CORRECCIÓN:
         const rawText = streamData.raw_capture?.full_text_preview || "";
@@ -34,7 +34,7 @@ export const pipeline = async (streamData, orgId) => {
         // --- FASE 2: INTELIGENCIA ARTIFICIAL (Bedrock) ---
         console.log(`[PIPELINE] 2. Llamando a Bedrock para análisis...`);
         const aiAnalysis = await analyzeInvoice(rawText, detectedCategory);
-        
+
         const aiCat = aiAnalysis?.category || 'N/A';
         const aiConf = (aiAnalysis?.confidence_score || 0).toFixed(2);
         console.log(`[PIPELINE] 2. IA: Procesado como ${aiCat} (Confianza: ${aiConf})`);
@@ -45,23 +45,25 @@ export const pipeline = async (streamData, orgId) => {
             ...line,
             category: line.category || aiAnalysis.category || "ELEC"
         }));
-        
+
         const country = aiAnalysis.extracted_data?.location?.country || "ES";
         const emissionCalculations = await calculateFootprint(emissionLines, country);
-        
+
         console.log(`[PIPELINE] 3. Cálculo: ${emissionCalculations.total_kg.toFixed(2)} kgCO2e generados`);
 
         console.log(`key: ${key}`);
         console.log(`rawText length: ${rawText.length}`);
         console.log(`aiAnalysis: ${JSON.stringify(aiAnalysis).substring(0, 200)}`);
-        console.log(`emissionCalculations: ${JSON.stringify(emissionCalculations).substring(0, 200)}`); 
-        
+        console.log(`emissionCalculations: ${JSON.stringify(emissionCalculations).substring(0, 200)}`);
+
+        // --- FASE 4: MAPEO (Golden Record) ---
         // --- FASE 4: MAPEO (Golden Record) ---
         const goldenRecord = buildGoldenRecord(
-            `ORG#${orgId}`, 
+            `ORG#${orgId}`,
             key,
-            aiAnalysis,
-            emissionCalculations
+            aiAnalysis,          // El objeto de Bedrock
+            emissionCalculations, // El objeto de Climatiq (¡NUEVO PARÁMETRO!)
+            "VALIDATED"          // El status
         );
 
         // --- FASE 5: PERSISTENCIA (DynamoDB Transaction) ---
