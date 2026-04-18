@@ -1,87 +1,58 @@
-import { unmarshall } from "@aws-sdk/util-dynamodb";
-import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { getOrganizationId } from "./utils/s3Helper.js";
+import { pipeline } from "./services/pipeline.js";
 
-const ddbDocClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+/**
+ * Entry Point (AWS Lambda)
+ * Su única misión es extraer el contexto de infraestructura 
+ * y delegar la lógica de negocio al pipeline.
+ */
+export const handler = async (event, context) => {
+    const startTime = Date.now();
+    const requestId = context.awsRequestId;
 
-    const TABLE_NAME = process.env.DATABASE_NAME || "sms-platform-dev-emissions";
+    // 1. Parsear el evento de S3
+    const record = event.Records[0];
+    const bucket = record.s3.bucket.name;
+    const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
 
-export const handler = async (event) => {
-    // Log inicial para ver cuántos registros vienen en el batch
-    console.log(`Recibidos ${event.Records.length} registros desde DynamoDB Stream.`);
+    console.log(`\n🚀 [INBOUND_EVENT] | Req: ${requestId}`);
+    console.log(`📂 [LOCATION]      | s3://${bucket}/${key}`);
 
+    try {
+        // 2. Identificar Organización (Capa de Infraestructura)
+        const orgId = await getOrganizationId(bucket, key);
+        console.log(`🆔 [ORG_CONTEXT]   | ${orgId}`);
 
+        // 3. EJECUTAR PIPELINE (Capa de Lógica de Negocio)
+        // Pasamos solo lo necesario para que el pipeline haga su magia
+        const result = await pipeline(bucket, key, orgId);
 
+        const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+        console.log(`✅ [FLOW_COMPLETE] | SK: ${result.SK} | Duration: ${duration}s\n`);
 
-    for (const record of event.Records) {
-        console.log(`Procesando evento: ${record.eventID} - Tipo: ${record.eventName}`);
+        return {
+            statusCode: 200,
+            body: JSON.stringify({
+                status: "SUCCESS",
+                org: orgId,
+                sk: result.SK,
+                duration: `${duration}s`
+            })
+        };
 
-        if (record.eventName !== "MODIFY") {
-            console.log("Evento omitido: No es una modificación (MODIFY).");
-            continue;
-        }
+    } catch (error) {
+        // Manejo de errores centralizado
+        console.error(`\n❌ [PIPELINE_CRASH]`);
+        console.error(`ID: ${requestId}`);
+        console.error(`Reason: ${error.message}\n`);
 
-        try {
-            // Convertimos el formato DynamoDB a JSON normal
-            const newImage = unmarshall(record.dynamodb.NewImage);
-            
-            const { PK, ai_analysis, extracted_data } = newImage;
-            
-            // Log de los datos extraídos para validación
-            console.log(`Datos extraídos para PK: ${PK}`, {
-                co2: ai_analysis?.sustainability?.co2_kg,
-                amount: extracted_data?.total_amount,
-                date: extracted_data?.billing_period?.end
-            });
-
-            const orgId = PK.split('#')[1];
-            const amount = extracted_data.total_amount;
-            const dateStr = extracted_data.billing_period.end; // "2026-03-31"
-
-            // Cálculos de periodos
-            const date = new Date(dateStr);
-            const year = date.getFullYear();
-            const month = date.getMonth() + 1;
-            const quarter = Math.ceil(month / 3);
-            
-            const getWeek = (d) => {
-                const onejan = new Date(d.getFullYear(), 0, 1);
-                return Math.ceil((((d - onejan) / 86400000) + onejan.getDay() + 1) / 7);
-            };
-            const week = getWeek(date);
-
-            const updates = [
-                `KPI#YEAR#${year}`,
-                `KPI#QUARTER#${year}Q${quarter}`,
-                `KPI#MONTH#${year}-${month.toString().padStart(2, '0')}`,
-                `KPI#WEEK#${year}-W${week}`,
-                `KPI#DAY#${dateStr}`
-            ];
-
-            console.log(`Ejecutando ${updates.length} actualizaciones atómicas para ORG#${orgId}`);
-
-            const updatePromises = updates.map(sk => {
-                return ddbDocClient.send(new UpdateCommand({
-                    TableName: TABLE_NAME,
-                    Key: { PK: `ORG#${orgId}`, SK: sk },
-                    UpdateExpression: "ADD totalCo2eKg :co2, totalSpend :spend, invoiceCount :inc",
-                    ExpressionAttributeValues: {
-                        ":co2": ai_analysis.sustainability.co2_kg || 0,
-                        ":spend": amount || 0,
-                        ":inc": 1
-                    }
-                }));
-            });
-
-            await Promise.all(updatePromises);
-            console.log(`Agregación completada con éxito para la factura en ${dateStr}`);
-
-        } catch (error) {
-            console.error(`Error procesando el registro ${record.eventID}:`, error);
-            // Dependiendo de tu lógica, aquí podrías re-lanzar el error o continuar
-            // throw error; 
-        }
+        return {
+            statusCode: 500,
+            body: JSON.stringify({ 
+                error: error.message, 
+                requestId,
+                path: key 
+            })
+        };
     }
-    
-    return { status: "Aggregated successfully" };
 };
