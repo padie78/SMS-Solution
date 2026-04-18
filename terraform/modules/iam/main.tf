@@ -56,6 +56,26 @@ resource "aws_iam_role" "lambda_role" {
 # 3. POLÍTICAS DE PERMISOS
 # ==============================================================================
 
+# Política para lectura de DynamoDB Streams (Necesaria para KPI Engine)
+resource "aws_iam_policy" "lambda_stream_permissions" {
+  name   = "${var.project_name}-stream-policy-${var.environment}"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:GetRecords",
+          "dynamodb:GetShardIterator",
+          "dynamodb:DescribeStream",
+          "dynamodb:ListStreams"
+        ]
+        Resource = "${var.dynamo_table_arn}/stream/*"
+      }
+    ]
+  })
+}
+
 # Política Integral para el Processor
 resource "aws_iam_policy" "processor_ai_permissions" {
   name        = "${var.project_name}-processor-ai-policy-${var.environment}"
@@ -121,11 +141,45 @@ resource "aws_iam_policy" "lambda_kms_permissions" {
           "kms:Decrypt",
           "kms:DescribeKey",
           "kms:GenerateDataKey",
-          "kms:CreateGrant" # <--- AGREGA ESTO
+          "kms:CreateGrant"
         ]
-        Resource = "*" # Necesario para llaves administradas por AWS
+        Resource = "*" 
       }
     ]
+  })
+}
+
+# Permisos de Bedrock específicos para el lambda_role (KPI Engine)
+resource "aws_iam_role_policy" "lambda_bedrock_policy" {
+  name = "${var.project_name}-bedrock-policy-${var.environment}"
+  role = aws_iam_role.lambda_role.id 
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = "bedrock:InvokeModel"
+        Effect   = "Allow"
+        Resource = [
+          "arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0",
+          "arn:aws:bedrock:eu-central-1:*:inference-profile/*"
+        ]
+      }
+    ]
+  })
+}
+
+# Permisos de Textract para el lambda_role (KPI Engine)
+resource "aws_iam_role_policy" "lambda_textract_policy" {
+  name = "${var.project_name}-textract-policy-${var.environment}"
+  role = aws_iam_role.lambda_role.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["textract:DetectDocumentText", "textract:AnalyzeExpense"]
+      Resource = "*"
+    }]
   })
 }
 
@@ -157,7 +211,7 @@ resource "aws_iam_role_policy_attachment" "attach_api" {
   policy_arn = aws_iam_policy.api_dynamo_permissions.arn
 }
 
-# 4. Permisos de S3 para el lambda_role (Signer)
+# 4. Permisos de S3 para el lambda_role (Signer / KPI Engine)
 resource "aws_iam_role_policy_attachment" "attach_lambda_role_s3" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.signer_s3_permissions.arn
@@ -169,14 +223,14 @@ resource "aws_iam_role_policy_attachment" "lambda_role_dynamo" {
   policy_arn = aws_iam_policy.api_dynamo_permissions.arn
 }
 
-# 6. Permisos de KMS para el lambda_role (Desbloqueo de variables y S3)
-resource "aws_iam_role_policy_attachment" "attach_lambda_kms" {
+# 6. Permisos de Stream para el lambda_role (KPI Engine)
+resource "aws_iam_role_policy_attachment" "attach_lambda_stream" {
   role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.lambda_kms_permissions.arn
+  policy_arn = aws_iam_policy.lambda_stream_permissions.arn
 }
 
-# Adjuntar el permiso de KMS al rol que usa el KPI Engine
-resource "aws_iam_role_policy_attachment" "attach_kpi_engine_kms" {
-  role       = aws_iam_role.lambda_role.name # Asegúrate de que este es el rol de kpi-engine
+# 7. Permisos de KMS para el lambda_role
+resource "aws_iam_role_policy_attachment" "attach_lambda_kms" {
+  role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.lambda_kms_permissions.arn
 }
