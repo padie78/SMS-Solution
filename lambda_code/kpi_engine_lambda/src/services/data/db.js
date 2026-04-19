@@ -7,7 +7,7 @@ export const persistTransaction = async (record) => {
     const { PK, SK, extracted_data, climatiq_result, ai_analysis, metadata } = record;
     const isoNow = new Date().toISOString();
 
-    // 1. EXTRACCIÓN DE FECHAS (Soporte Marshalled y JSON Plano)
+    // 1. EXTRACCIÓN Y VALIDACIÓN DE FECHAS (Sin eliminar soporte Marshalled)
     const billing = extracted_data?.M?.billing_period?.M || extracted_data?.billing_period || {};
     const rawStart = billing.start?.S || billing.start;
     const rawEnd = billing.end?.S || billing.end;
@@ -17,24 +17,20 @@ export const persistTransaction = async (record) => {
     const startDate = new Date(rawStart);
     const endDate = new Date(rawEnd);
 
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-        throw new Error("Invalid billing_period dates provided");
+    // Validación de seguridad para evitar bucles infinitos por inconsistencia de fechas
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || startDate > endDate) {
+        throw new Error(`Invalid billing_period dates for SK: ${SK}`);
     }
 
     const diffTime = Math.abs(endDate - startDate);
     const totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
 
-    // 2. CORRECCIÓN DE MÉTRICAS (Blindado contra objetos anidados o planos)
-    // El CO2 viene de climatiq_result.co2e (según tu mapper)
+    // 2. EXTRACCIÓN DE MÉTRICAS (Adaptado a climatiq_result.co2e y ai_analysis.value)
     const totalCo2 = Number(climatiq_result?.M?.co2e?.N || climatiq_result?.co2e || 0);
-    
-    // El Importe viene de extracted_data.total_amount
     const totalAmount = Number(extracted_data?.M?.total_amount?.N || extracted_data?.total_amount || 0);
-    
-    // El Consumo viene de ai_analysis.value
     const totalCons = Number(ai_analysis?.M?.value?.N || ai_analysis?.value || 0);
     
-    const unit = ai_analysis?.M?.unit?.S || ai_analysis?.unit || "kWh";
+    const unit = (ai_analysis?.M?.unit?.S || ai_analysis?.unit || "kWh").toUpperCase();
     const service = (ai_analysis?.M?.service_type?.S || ai_analysis?.service_type || "unknown").toLowerCase();
 
     const dailyMetrics = {
@@ -43,7 +39,7 @@ export const persistTransaction = async (record) => {
         vCons: totalCons / totalDays
     };
 
-    // 3. REGISTRO DE EVIDENCIA (OPCIÓN B: Validación por Estado)
+    // 3. REGISTRO DE EVIDENCIA (OPCIÓN B: Validación por Estado para evitar duplicados)
     try {
         await ddb.send(new TransactWriteCommand({
             TransactItems: [{
@@ -53,10 +49,9 @@ export const persistTransaction = async (record) => {
                         ...record, 
                         processed_at: isoNow, 
                         total_days_prorated: totalDays,
-                        status: "DONE" // Marcamos como finalizado
+                        status: "DONE" 
                     },
-                    // CONDICIÓN B: Permite guardar si el registro no existe 
-                    // O si existe pero su estado NO es 'DONE' (ej. el borrador de Textract)
+                    // Permite guardar si no existe o si existe pero no está en estado DONE
                     ConditionExpression: "attribute_not_exists(SK) OR #st <> :done",
                     ExpressionAttributeNames: { "#st": "status" },
                     ExpressionAttributeValues: { ":done": "DONE" }
@@ -64,15 +59,14 @@ export const persistTransaction = async (record) => {
             }]
         }));
     } catch (e) {
-        // Si la transacción falla por la condición, es un duplicado real (ya procesado)
         if (e.name === "TransactionCanceledException") {
-            console.warn(`[DB] ⚠️ Registro ${SK} ya procesado como DONE. Omitiendo estadísticas.`);
+            console.warn(`[DB] ⚠️ Registro ${SK} ya procesado. Omitiendo duplicado.`);
             return { success: false, message: "Duplicate" };
         }
         throw e;
     }
 
-    // 4. AGREGACIÓN EN MEMORIA (Stats logic)
+    // 4. AGREGACIÓN EN MEMORIA (Todas las llaves originales restauradas)
     const statsMap = new Map();
     let currentDate = new Date(startDate);
     let iterations = 0;
@@ -80,12 +74,11 @@ export const persistTransaction = async (record) => {
     while (currentDate <= endDate && iterations < 730) {
         iterations++;
         const y = currentDate.getFullYear();
-        const m = currentDate.getMonth() + 1;
-        const q = Math.ceil(m / 3);
-        const w = getWeekISO(currentDate);
+        const mNum = currentDate.getMonth() + 1;
+        const mStr = String(mNum).padStart(2, '0');
+        const q = Math.ceil(mNum / 3);
+        const wStr = String(getWeekISO(currentDate)).padStart(2, '0');
         const dStr = String(currentDate.getDate()).padStart(2, '0');
-        const mStr = String(m).padStart(2, '0');
-        const wStr = String(w).padStart(2, '0');
 
         const keys = [
             { sk: `STATS#${y}`, type: 'ANNUAL' },
@@ -118,13 +111,14 @@ export const persistTransaction = async (record) => {
         try {
             await ddb.send(new TransactWriteCommand({ TransactItems: chunk }));
         } catch (err) {
-            console.error(`❌ Fallo en bloque de estadísticas ${i}:`, err);
+            console.error(`❌ Fallo en bloque de estadísticas para ${SK}:`, err);
         }
     }
 
     return { success: true };
 };
 
+// Función helper ISO original
 function getWeekISO(d) {
     const target = new Date(d);
     const dayNr = (target.getDay() + 6) % 7;
