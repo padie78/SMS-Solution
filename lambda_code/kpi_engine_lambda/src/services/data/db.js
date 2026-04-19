@@ -41,28 +41,33 @@ export const persistTransaction = async (record) => {
 
     // 3. REGISTRO DE EVIDENCIA (OPCIÓN B: Validación por Estado para evitar duplicados)
     try {
-        const originalMetadata = record.metadata?.M || record.metadata || {};
+        // 1. Extraemos de forma segura lo que YA existe en metadata
+// Buscamos tanto en formato plano como en formato DynamoDB (.M)
+const currentMetadata = record.metadata?.M || record.metadata || {};
 
-        await ddb.send(new TransactWriteCommand({
-            TransactItems: [{
-                Put: {
-                    TableName: TABLE_NAME,
-                    Item: {
-                        ...record, // 1. Mantiene campos raíz (PK, SK, extracted_data)
-                        processed_at: isoNow,
-                        status: "DONE",
-                        metadata: {
-                            ...originalMetadata, // 2. RESTAURA s3_key, upload_date, etc.
-                            processed_at: isoNow, // 3. AÑADE info de cierre
-                            status: "VALIDATED"
-                        }
-                    },
-                    ConditionExpression: "attribute_not_exists(SK) OR #st <> :done",
-                    ExpressionAttributeNames: { "#st": "status" },
-                    ExpressionAttributeValues: { ":done": "DONE" }
+await ddb.send(new TransactWriteCommand({
+    TransactItems: [{
+        Put: {
+            TableName: TABLE_NAME,
+            Item: { 
+                ...record, // Mantiene PK, SK y extracted_data
+                processed_at: isoNow, 
+                status: "DONE",
+                total_days_prorated: totalDays,
+                metadata: {
+                    // 2. Mantenemos TODO lo anterior (s3_key, upload_date, etc.)
+                    ...currentMetadata, 
+                    // 3. Sobrescribimos solo lo necesario para el cierre
+                    processed_at: isoNow,
+                    status: "VALIDATED"
                 }
-            }]
-        }));
+            },
+            ConditionExpression: "attribute_not_exists(SK) OR #st <> :done",
+            ExpressionAttributeNames: { "#st": "status" },
+            ExpressionAttributeValues: { ":done": "DONE" }
+        }
+    }]
+}));
     } catch (e) {
         if (e.name === "TransactionCanceledException") {
             console.warn(`[DB] ⚠️ Registro ${SK} ya procesado. Omitiendo duplicado.`);
