@@ -3,48 +3,76 @@ import { ddb, TABLE_NAME } from "./client.js";
 import { buildStatsOps } from "./operations.js";
 
 export const persistTransaction = async (record) => {
-    const { PK, SK } = record;
+    // 0. DESESTRUCTURACIÓN DE ENTRADA
+    const { PK, SK, extracted_data, climatiq_result, ai_analysis, metadata } = record;
     const isoNow = new Date().toISOString();
 
-    // 1. RESOLVER METADATA (Blindado contra formatos de DynamoDB)
-    // Extraemos el contenido real de metadata, ya sea que venga como .M o plano
-    const rawMetadata = record.metadata?.M || record.metadata || {};
-    
-    // 2. EXTRACCIÓN DE FECHAS Y MÉTRICAS (Igual que antes)
-    const billing = record.extracted_data?.M?.billing_period?.M || record.extracted_data?.billing_period || {};
+    // 1. EXTRACCIÓN Y VALIDACIÓN DE FECHAS (Sin eliminar soporte Marshalled)
+    const billing = extracted_data?.M?.billing_period?.M || extracted_data?.billing_period || {};
     const rawStart = billing.start?.S || billing.start;
     const rawEnd = billing.end?.S || billing.end;
+
+    const facilityId = metadata?.M?.facility_id?.S || metadata?.facility_id || "GENERAL_ASSET";
+
     const startDate = new Date(rawStart);
     const endDate = new Date(rawEnd);
-    const totalDays = Math.max(1, Math.ceil(Math.abs(endDate - startDate) / 86400000) + 1);
 
-    // 3. PERSISTENCIA CON MERGE DE METADATA
+    // Validación de seguridad para evitar bucles infinitos por inconsistencia de fechas
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || startDate > endDate) {
+        throw new Error(`Invalid billing_period dates for SK: ${SK}`);
+    }
+
+    const diffTime = Math.abs(endDate - startDate);
+    const totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
+
+    // 2. EXTRACCIÓN DE MÉTRICAS (Adaptado a climatiq_result.co2e y ai_analysis.value)
+    const totalCo2 = Number(climatiq_result?.M?.co2e?.N || climatiq_result?.co2e || 0);
+    const totalAmount = Number(extracted_data?.M?.total_amount?.N || extracted_data?.total_amount || 0);
+    const totalCons = Number(ai_analysis?.M?.value?.N || ai_analysis?.value || 0);
+
+    const unit = (ai_analysis?.M?.unit?.S || ai_analysis?.unit || "kWh").toUpperCase();
+    const service = (ai_analysis?.M?.service_type?.S || ai_analysis?.service_type || "unknown").toLowerCase();
+
+    const dailyMetrics = {
+        nCo2e: totalCo2 / totalDays,
+        nSpend: totalAmount / totalDays,
+        vCons: totalCons / totalDays
+    };
+
+    // 3. REGISTRO DE EVIDENCIA (OPCIÓN B: Validación por Estado para evitar duplicados)
     try {
-        await ddb.send(new TransactWriteCommand({
-            TransactItems: [{
-                Put: {
-                    TableName: TABLE_NAME,
-                    Item: { 
-                        ...record, // Mantiene todo el registro original
-                        processed_at: isoNow, 
-                        status: "DONE",
-                        total_days_prorated: totalDays,
-                        // RE-CONSTRUCCIÓN DE METADATA
-                        metadata: {
-                            ...rawMetadata, // Aquí inyectamos el s3_key, upload_date, etc.
-                            processed_at: isoNow,
-                            status: "VALIDATED",
-                            last_update_type: "AGGREGATION_COMPLETED"
-                        }
-                    },
-                    ConditionExpression: "attribute_not_exists(SK) OR #st <> :done",
-                    ExpressionAttributeNames: { "#st": "status" },
-                    ExpressionAttributeValues: { ":done": "DONE" }
+        // 1. Extraemos de forma segura lo que YA existe en metadata
+// Buscamos tanto en formato plano como en formato DynamoDB (.M)
+const currentMetadata = record.metadata?.M || record.metadata || {};
+
+await ddb.send(new TransactWriteCommand({
+    TransactItems: [{
+        Put: {
+            TableName: TABLE_NAME,
+            Item: { 
+                ...record, // Mantiene PK, SK y extracted_data
+                processed_at: isoNow, 
+                status: "DONE",
+                total_days_prorated: totalDays,
+                metadata: {
+                    // 2. Mantenemos TODO lo anterior (s3_key, upload_date, etc.)
+                    ...currentMetadata, 
+                    // 3. Sobrescribimos solo lo necesario para el cierre
+                    processed_at: isoNow,
+                    status: "VALIDATED"
                 }
-            }]
-        }));
+            },
+            ConditionExpression: "attribute_not_exists(SK) OR #st <> :done",
+            ExpressionAttributeNames: { "#st": "status" },
+            ExpressionAttributeValues: { ":done": "DONE" }
+        }
+    }]
+}));
     } catch (e) {
-        if (e.name === "TransactionCanceledException") return { success: false, message: "Duplicate" };
+        if (e.name === "TransactionCanceledException") {
+            console.warn(`[DB] ⚠️ Registro ${SK} ya procesado. Omitiendo duplicado.`);
+            return { success: false, message: "Duplicate" };
+        }
         throw e;
     }
 
