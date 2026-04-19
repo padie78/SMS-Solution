@@ -59,18 +59,20 @@ export const pipeline = async (streamData, orgId) => {
         // --- FASE 4: MAPEO (Golden Record) ---
         // --- FASE 4: MAPEO (Golden Record) ---
         const goldenRecord = buildGoldenRecord(
-    `ORG#${orgId}`, 
-    key, 
-    aiAnalysis, 
-    emissionCalculations, // <--- Este es el nuevo parámetro para evitar los ceros
-    "VALIDATED",
-    detectedCategory
-);
+            `ORG#${orgId}`,
+            key,
+            aiAnalysis,
+            emissionCalculations, // <--- Este es el nuevo parámetro para evitar los ceros
+            "VALIDATED",
+            detectedCategory
+        );
 
         // --- FASE 5: PERSISTENCIA (DynamoDB Transaction) ---
+        // --- FASE 5: PERSISTENCIA (DynamoDB Transaction) ---
         console.log(`\n--- 📊 DATA CHECK [${goldenRecord.SK}] ---`);
-        console.log(`   💰 Spend:    ${goldenRecord.extracted_data?.total_amount || 0} ${goldenRecord.extracted_data?.currency || ''}`);
-        console.log(`   🌍 CO2:      ${goldenRecord.climatiq_result?.total_kg || 0} kg`);
+        // Fíjate en el cambio de .total_kg a .co2e
+        console.log(`   🌍 CO2:      ${goldenRecord.climatiq_result?.co2e || 0} kg`);
+        console.log(`   💰 Spend:    ${goldenRecord.extracted_data?.total_amount || 0}`);
         console.log(`   🏢 Vendor:   ${goldenRecord.extracted_data?.vendor || 'Unknown'}`);
         console.log(`------------------------------------------`);
 
