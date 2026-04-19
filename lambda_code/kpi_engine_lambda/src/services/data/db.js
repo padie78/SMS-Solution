@@ -3,20 +3,20 @@ import { ddb, TABLE_NAME } from "./client.js";
 import { buildStatsOps } from "./operations.js";
 
 export const persistTransaction = async (record) => {
-    const { PK, extracted_data, climatiq_result, ai_analysis, metadata } = record;
+    // 0. DESESTRUCTURACIÓN DE ENTRADA
+    const { PK, SK, extracted_data, climatiq_result, ai_analysis, metadata } = record;
     const isoNow = new Date().toISOString();
 
-    // 1. EXTRACCIÓN DE FECHAS Y FACILITY (Soporte Marshalled y JSON Plano)
-    const billingM = extracted_data?.M?.billing_period?.M || extracted_data?.billing_period;
-    const rawStart = billingM?.start?.S || billingM?.start;
-    const rawEnd = billingM?.end?.S || billingM?.end;
+    // 1. EXTRACCIÓN DE FECHAS (Soporte Marshalled y JSON Plano)
+    const billing = extracted_data?.M?.billing_period?.M || extracted_data?.billing_period || {};
+    const rawStart = billing.start?.S || billing.start;
+    const rawEnd = billing.end?.S || billing.end;
     
     const facilityId = metadata?.M?.facility_id?.S || metadata?.facility_id || "GENERAL_ASSET";
 
     const startDate = new Date(rawStart);
     const endDate = new Date(rawEnd);
 
-    // Validación de seguridad para evitar bucles infinitos
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
         throw new Error("Invalid billing_period dates provided");
     }
@@ -24,11 +24,17 @@ export const persistTransaction = async (record) => {
     const diffTime = Math.abs(endDate - startDate);
     const totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
 
-    // 2. EXTRACCIÓN DE MÉTRICAS (Failsafe a 0)
+    // 2. CORRECCIÓN DE MÉTRICAS (Blindado contra objetos anidados o planos)
+    // El CO2 viene de climatiq_result.co2e (según tu mapper)
     const totalCo2 = Number(climatiq_result?.M?.co2e?.N || climatiq_result?.co2e || 0);
+    
+    // El Importe viene de extracted_data.total_amount
     const totalAmount = Number(extracted_data?.M?.total_amount?.N || extracted_data?.total_amount || 0);
+    
+    // El Consumo viene de ai_analysis.value
     const totalCons = Number(ai_analysis?.M?.value?.N || ai_analysis?.value || 0);
-    const unit = ai_analysis?.M?.unit?.S || ai_analysis?.unit || "N/A";
+    
+    const unit = ai_analysis?.M?.unit?.S || ai_analysis?.unit || "kWh";
     const service = (ai_analysis?.M?.service_type?.S || ai_analysis?.service_type || "unknown").toLowerCase();
 
     const dailyMetrics = {
@@ -37,28 +43,40 @@ export const persistTransaction = async (record) => {
         vCons: totalCons / totalDays
     };
 
-    // 3. REGISTRO DE EVIDENCIA (Put Atómico)
+    // 3. REGISTRO DE EVIDENCIA (OPCIÓN B: Validación por Estado)
     try {
         await ddb.send(new TransactWriteCommand({
             TransactItems: [{
                 Put: {
                     TableName: TABLE_NAME,
-                    Item: { ...record, processed_at: isoNow, total_days_prorated: totalDays },
-                    ConditionExpression: "attribute_not_exists(SK)" // Evita doble procesamiento
+                    Item: { 
+                        ...record, 
+                        processed_at: isoNow, 
+                        total_days_prorated: totalDays,
+                        status: "DONE" // Marcamos como finalizado
+                    },
+                    // CONDICIÓN B: Permite guardar si el registro no existe 
+                    // O si existe pero su estado NO es 'DONE' (ej. el borrador de Textract)
+                    ConditionExpression: "attribute_not_exists(SK) OR #st <> :done",
+                    ExpressionAttributeNames: { "#st": "status" },
+                    ExpressionAttributeValues: { ":done": "DONE" }
                 }
             }]
         }));
     } catch (e) {
-        if (e.name === "TransactionCanceledException") return { success: false, message: "Duplicate" };
+        // Si la transacción falla por la condición, es un duplicado real (ya procesado)
+        if (e.name === "TransactionCanceledException") {
+            console.warn(`[DB] ⚠️ Registro ${SK} ya procesado como DONE. Omitiendo estadísticas.`);
+            return { success: false, message: "Duplicate" };
+        }
         throw e;
     }
 
-    // 4. AGREGACIÓN EN MEMORIA
+    // 4. AGREGACIÓN EN MEMORIA (Stats logic)
     const statsMap = new Map();
     let currentDate = new Date(startDate);
-
-    // Límite de seguridad para evitar procesar más de 2 años en una sola factura
     let iterations = 0;
+
     while (currentDate <= endDate && iterations < 730) {
         iterations++;
         const y = currentDate.getFullYear();
@@ -101,14 +119,12 @@ export const persistTransaction = async (record) => {
             await ddb.send(new TransactWriteCommand({ TransactItems: chunk }));
         } catch (err) {
             console.error(`❌ Fallo en bloque de estadísticas ${i}:`, err);
-            // Podrías implementar un retry aquí si es necesario
         }
     }
 
     return { success: true };
 };
 
-// Función helper ISO idéntica
 function getWeekISO(d) {
     const target = new Date(d);
     const dayNr = (target.getDay() + 6) % 7;
