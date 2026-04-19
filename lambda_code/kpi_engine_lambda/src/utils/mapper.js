@@ -1,78 +1,34 @@
-export const buildGoldenRecord = (partitionKey, s3Key, aiAnalysis, emissionResult, forcedStatus, defaultCategory) => {
-    
-    // 1. Extraer campos con fallback al objeto raíz
-    const fields = aiAnalysis.extracted_data || aiAnalysis.fields || aiAnalysis || {};
-    
-    // 2. Helpers de formateo
-    const isInvalid = (val) => 
-        !val || val === "PENDING" || val === "UNKNOWN" || val === "NOT_DETECTED" || val === "null";
-    
-    const parseNum = (val) => {
-        if (typeof val === 'number') return val;
-        const n = parseFloat(String(val || "0").replace(/[^0-9.]/g, ''));
-        return isNaN(n) ? 0 : n;
-    };
+export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, category) => {
+    // 1. Días de prorrateo (Cálculo vital para las estadísticas)
+    const start = new Date(aiAnalysis.extracted_data?.billing_period?.start);
+    const end = new Date(aiAnalysis.extracted_data?.billing_period?.end);
+    const days = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1);
 
-    const cleanForSk = (val) => String(val || "")
-        .replace(/[^a-zA-Z0-9]/g, '')
-        .toUpperCase();
-
-    // 3. CONSTRUCCIÓN DEL SK (Aquí estaba el fallo de definición)
-    const category = fields.service_category || fields.category || fields.service_type || defaultCategory || "OTHERS";
-    const categoryPart = cleanForSk(category);
-    
-    const vendorId = !isInvalid(fields.vendor_tax_id) ? fields.vendor_tax_id : 
-                     (!isInvalid(fields.vendor_name) ? fields.vendor_name : "UNKNOWN");
-    const vendorPart = cleanForSk(vendorId);
-    
-    const numberPart = !isInvalid(fields.invoice_number) 
-        ? cleanForSk(fields.invoice_number) 
-        : `DRAFT${Date.now()}`;
-
-    // Definimos explícitamente finalSK
-    const finalSK = `INV#${categoryPart}#${vendorPart}#${numberPart}`;
-
-    // 4. RETORNO DEL OBJETO
     return {
-        PK: partitionKey,
-        SK: finalSK,
-        
-        extracted_data: {
-            vendor_name: fields.vendor_name || "UNKNOWN",
-            vendor_tax_id: fields.vendor_tax_id || "PENDING",
-            customer_name: fields.customer_name || "UNKNOWN",
-            invoice_number: fields.invoice_number || numberPart,
-            invoice_date: fields.invoice_date || fields.date || new Date().toISOString().split('T')[0],
-            
-            total_amount: parseNum(fields.total_amount || fields.amount),
-            currency: fields.currency || "EUR",
-            
-            billing_period: {
-                start: fields.billing_period?.start || fields.period_start || new Date().toISOString().split('T')[0],
-                end: fields.billing_period?.end || fields.period_end || new Date().toISOString().split('T')[0]
-            },
-            lines: fields.lines || []
-        },
-
-        // Mapeamos el resultado de Climatiq que antes venía como 0
-        climatiq_result: {
-            total_kg: parseNum(emissionResult?.total_kg || 0),
-            activity_id: emissionResult?.activity_id || "n/a",
-            audit_trail: emissionResult?.items || []
-        },
-
+        PK: orgId,
+        SK: sk, // Mantienes el SK original de la factura
         ai_analysis: {
-            service_type: category,
-            requires_review: aiAnalysis.requires_review || true,
-            confidence: aiAnalysis.confidence_score || fields.confidence || 0,
-            status_triage: "PROCESSED_BY_KPI_ENGINE"
+            service_type: category || aiAnalysis.category,
+            // Usamos el valor neto de consumo para las estadísticas físicas (vCons)
+            value: aiAnalysis.total_magnitude_sum || 0, 
+            unit: aiAnalysis.unit || "kWh",
+            status_triage: "DONE"
         },
-
+        climatiq_result: {
+            // AQUÍ INTEGRAS LOS DATOS DE CLIMATIQ QUE ANTES FALTABAN
+            co2e: emissions.total_kg || 0, 
+            co2e_unit: "kg",
+            timestamp: new Date().toISOString()
+        },
+        extracted_data: {
+            ...aiAnalysis.extracted_data,
+            // Aseguramos que el total_amount esté disponible para nSpend
+            total_amount: aiAnalysis.extracted_data?.total_amount || 0
+        },
+        total_days_prorated: days, // <--- AQUÍ REPARAS EL "0"
         metadata: {
-            s3_key: s3Key,
-            status: forcedStatus || "PROCESSED",
-            processed_at: new Date().toISOString(),
-            engine_version: "2.5-Professional"
+            status: status,
+            processed_at: new Date().toISOString()
         }
     };
 };
