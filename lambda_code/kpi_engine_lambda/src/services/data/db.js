@@ -11,7 +11,7 @@ export const persistTransaction = async (record) => {
     const billing = extracted_data?.M?.billing_period?.M || extracted_data?.billing_period || {};
     const rawStart = billing.start?.S || billing.start;
     const rawEnd = billing.end?.S || billing.end;
-    
+
     const facilityId = metadata?.M?.facility_id?.S || metadata?.facility_id || "GENERAL_ASSET";
 
     const startDate = new Date(rawStart);
@@ -29,7 +29,7 @@ export const persistTransaction = async (record) => {
     const totalCo2 = Number(climatiq_result?.M?.co2e?.N || climatiq_result?.co2e || 0);
     const totalAmount = Number(extracted_data?.M?.total_amount?.N || extracted_data?.total_amount || 0);
     const totalCons = Number(ai_analysis?.M?.value?.N || ai_analysis?.value || 0);
-    
+
     const unit = (ai_analysis?.M?.unit?.S || ai_analysis?.unit || "kWh").toUpperCase();
     const service = (ai_analysis?.M?.service_type?.S || ai_analysis?.service_type || "unknown").toLowerCase();
 
@@ -41,17 +41,22 @@ export const persistTransaction = async (record) => {
 
     // 3. REGISTRO DE EVIDENCIA (OPCIÓN B: Validación por Estado para evitar duplicados)
     try {
+        const originalMetadata = record.metadata?.M || record.metadata || {};
+
         await ddb.send(new TransactWriteCommand({
             TransactItems: [{
                 Put: {
                     TableName: TABLE_NAME,
-                    Item: { 
-                        ...record, 
-                        processed_at: isoNow, 
-                        total_days_prorated: totalDays,
-                        status: "DONE" 
+                    Item: {
+                        ...record, // 1. Mantiene campos raíz (PK, SK, extracted_data)
+                        processed_at: isoNow,
+                        status: "DONE",
+                        metadata: {
+                            ...originalMetadata, // 2. RESTAURA s3_key, upload_date, etc.
+                            processed_at: isoNow, // 3. AÑADE info de cierre
+                            status: "VALIDATED"
+                        }
                     },
-                    // Permite guardar si no existe o si existe pero no está en estado DONE
                     ConditionExpression: "attribute_not_exists(SK) OR #st <> :done",
                     ExpressionAttributeNames: { "#st": "status" },
                     ExpressionAttributeValues: { ":done": "DONE" }
@@ -102,7 +107,7 @@ export const persistTransaction = async (record) => {
     }
 
     // 5. PERSISTENCIA POR BLOQUES (Máximo 100 por TransactWriteItems)
-    const finalOps = Array.from(statsMap.entries()).map(([sk, data]) => 
+    const finalOps = Array.from(statsMap.entries()).map(([sk, data]) =>
         buildStatsOps(PK, sk, data, unit, service, isoNow)
     );
 
