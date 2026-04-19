@@ -17,6 +17,13 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
     const totalConsumption = (aiAnalysis.emission_lines || [])
         .reduce((sum, line) => sum + (Number(line.value) || 0), 0);
 
+    const co2 = Number(
+        emissions?.total_kg || 
+        emissions?.co2e || 
+        (emissions?.items && emissions.items[0]?.co2e) || 
+        0
+    );
+
     return {
         PK: orgId,
         SK: sk,
@@ -29,7 +36,7 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
         },
         // ESTO ES LO QUE TE FALTABA
         climatiq_result: {
-            co2e: co2Val, 
+            co2e: co2, // <--- Este es el valor de 47.7945
             co2e_unit: "kg",
             activity_id: emissions?.activity_id || "unknown",
             timestamp: new Date().toISOString()
