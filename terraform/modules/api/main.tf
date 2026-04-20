@@ -169,8 +169,7 @@ for_each = toset([
     
     # Procesamiento de Facturas
     "approveInvoice",
-    "confirmInvoice",
-    "getPresignedUrl"
+    "confirmInvoice"
   ])
 
   api_id      = aws_appsync_graphql_api.api.id
