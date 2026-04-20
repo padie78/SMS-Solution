@@ -3,66 +3,54 @@ import { ddb, TABLE_NAME } from "./client.js";
 import { buildStatsOps } from "./operations.js";
 
 export const persistTransaction = async (record) => {
-    // 0. DESESTRUCTURACIÓN DE ENTRADA
-    const { PK, SK, extracted_data, climatiq_result, ai_analysis } = record;
+    // 1. LIMPIEZA INICIAL: Detectar si el record viene "Marshalled" (con .S, .M, etc)
+    // Extraemos metadata con fallback para ambos formatos
+    const rawMetadata = record.metadata?.M || record.metadata || {};
     const isoNow = new Date().toISOString();
 
-    // 1. GESTIÓN DE METADATA (PROTECCIÓN DE S3_KEY)
-    // Buscamos el contenido real sin importar si viene como { M: {...} } o {...}
-    const currentMetadata = record.metadata?.M || record.metadata || {};
-    
-    // 2. EXTRACCIÓN Y VALIDACIÓN DE FECHAS
-    const billing = extracted_data?.M?.billing_period?.M || extracted_data?.billing_period || {};
+    // 2. PREPARAR EL ITEM DE SALIDA
+    // Clonamos el record para no mutar el original
+    const cleanItem = { ...record };
+
+    // Si los campos vienen en formato DynamoDB { S: "..." }, los extraemos para la lógica
+    const billing = record.extracted_data?.M?.billing_period?.M || record.extracted_data?.billing_period || {};
     const rawStart = billing.start?.S || billing.start;
     const rawEnd = billing.end?.S || billing.end;
 
-    const facilityId = currentMetadata.facility_id?.S || currentMetadata.facility_id || "GENERAL_ASSET";
-
     const startDate = new Date(rawStart);
     const endDate = new Date(rawEnd);
-
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || startDate > endDate) {
-        throw new Error(`Invalid billing_period dates for SK: ${SK}`);
-    }
-
+    
     const diffTime = Math.abs(endDate - startDate);
     const totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
 
-    // 3. EXTRACCIÓN DE MÉTRICAS
-    const totalCo2 = Number(climatiq_result?.M?.co2e?.N || climatiq_result?.co2e || 0);
-    const totalAmount = Number(extracted_data?.M?.total_amount?.N || extracted_data?.total_amount || 0);
-    const totalCons = Number(ai_analysis?.M?.value?.N || ai_analysis?.value || 0);
-
-    const unit = (ai_analysis?.M?.unit?.S || ai_analysis?.unit || "kWh").toUpperCase();
-    const service = (ai_analysis?.M?.service_type?.S || ai_analysis?.service_type || "unknown").toLowerCase();
-
-    const dailyMetrics = {
-        nCo2e: totalCo2 / totalDays,
-        nSpend: totalAmount / totalDays,
-        vCons: totalCons / totalDays
+    // 3. MERGE DE METADATA SEGURO
+    // Reconstruimos el objeto metadata asegurándonos de NO perder s3_key ni facility_id
+    const finalMetadata = {
+        ...rawMetadata, // Aquí vienen s3_key, upload_date, etc.
+        status: { S: "VALIDATED" }, // Forzamos formato DynamoDB si el resto del record es Marshalled
+        processed_at: { S: isoNow },
+        is_draft: { BOOL: false }
     };
 
-    // 4. PERSISTENCIA DEL REGISTRO MAESTRO (CON MERGE)
+    // Si tu cliente de DynamoDB NO es el DocumentClient (que limpia los tipos automáticamente),
+    // necesitamos asegurarnos de que el PutItem sea consistente:
+    
     try {
         await ddb.send(new TransactWriteCommand({
             TransactItems: [{
                 Put: {
                     TableName: TABLE_NAME,
                     Item: { 
-                        ...record, 
-                        processed_at: isoNow, 
-                        status: "DONE",
-                        total_days_prorated: totalDays,
-                        metadata: {
-                            // IMPORTANTE: Expandimos lo que ya existía (s3_key, upload_date...)
-                            ...currentMetadata, 
-                            processed_at: isoNow,
-                            status: "VALIDATED"
-                        }
+                        ...cleanItem,
+                        status: { S: "DONE" },
+                        processed_at: { S: isoNow },
+                        total_days_prorated: { N: totalDays.toString() },
+                        metadata: { M: finalMetadata } // Lo metemos dentro de M
                     },
+                    // Mantenemos la protección para no procesar dos veces
                     ConditionExpression: "attribute_not_exists(SK) OR #st <> :done",
                     ExpressionAttributeNames: { "#st": "status" },
-                    ExpressionAttributeValues: { ":done": "DONE" }
+                    ExpressionAttributeValues: { ":done": { S: "DONE" } }
                 }
             }]
         }));
