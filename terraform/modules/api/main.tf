@@ -165,7 +165,7 @@ for_each = toset([
     # Sostenibilidad y Usuarios
     "saveEmissionFactor",   # Nueva: Factores de carbono por región
     "saveUser",             # Reemplaza saveUserProfile
-    "saveAlertRule",        # Nueva: Motor de reglas de eficiencia
+    "saveAlertRule",        # Nueva: Motor de reglas de eficiencia-
     
     # Procesamiento de Facturas
     "approveInvoice",
