@@ -202,6 +202,7 @@ resource "aws_appsync_resolver" "get_url_resolver" {
   type        = "Mutation"
   field       = "getPresignedUrl" 
   data_source = aws_appsync_datasource.signer_lambda_ds.name
+  depends_on = [aws_appsync_datasource.signer_lambda_ds]
 }
 
 # ==============================================================================
