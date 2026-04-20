@@ -64,7 +64,8 @@ export const pipeline = async (streamData, orgId) => {
             aiAnalysis,
             emissionCalculations, // <--- Este es el nuevo parámetro para evitar los ceros
             "VALIDATED",
-            detectedCategory
+            detectedCategory,
+            streamData.metadata?.M || streamData.metadata // <--- ESTO ES LO QUE FALTA
         );
 
         // --- FASE 5: PERSISTENCIA (DynamoDB Transaction) ---
