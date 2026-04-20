@@ -4,20 +4,23 @@ import { buildStatsOps } from "./operations.js";
 
 export const persistTransaction = async (record) => {
     // 0. DESESTRUCTURACIÓN DE ENTRADA
-    const { PK, SK, extracted_data, climatiq_result, ai_analysis, metadata } = record;
+    const { PK, SK, extracted_data, climatiq_result, ai_analysis } = record;
     const isoNow = new Date().toISOString();
 
-    // 1. EXTRACCIÓN Y VALIDACIÓN DE FECHAS (Sin eliminar soporte Marshalled)
+    // 1. GESTIÓN DE METADATA (PROTECCIÓN DE S3_KEY)
+    // Buscamos el contenido real sin importar si viene como { M: {...} } o {...}
+    const currentMetadata = record.metadata?.M || record.metadata || {};
+    
+    // 2. EXTRACCIÓN Y VALIDACIÓN DE FECHAS
     const billing = extracted_data?.M?.billing_period?.M || extracted_data?.billing_period || {};
     const rawStart = billing.start?.S || billing.start;
     const rawEnd = billing.end?.S || billing.end;
 
-    const facilityId = metadata?.M?.facility_id?.S || metadata?.facility_id || "GENERAL_ASSET";
+    const facilityId = currentMetadata.facility_id?.S || currentMetadata.facility_id || "GENERAL_ASSET";
 
     const startDate = new Date(rawStart);
     const endDate = new Date(rawEnd);
 
-    // Validación de seguridad para evitar bucles infinitos por inconsistencia de fechas
     if (isNaN(startDate.getTime()) || isNaN(endDate.getTime()) || startDate > endDate) {
         throw new Error(`Invalid billing_period dates for SK: ${SK}`);
     }
@@ -25,7 +28,7 @@ export const persistTransaction = async (record) => {
     const diffTime = Math.abs(endDate - startDate);
     const totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
 
-    // 2. EXTRACCIÓN DE MÉTRICAS (Adaptado a climatiq_result.co2e y ai_analysis.value)
+    // 3. EXTRACCIÓN DE MÉTRICAS
     const totalCo2 = Number(climatiq_result?.M?.co2e?.N || climatiq_result?.co2e || 0);
     const totalAmount = Number(extracted_data?.M?.total_amount?.N || extracted_data?.total_amount || 0);
     const totalCons = Number(ai_analysis?.M?.value?.N || ai_analysis?.value || 0);
@@ -39,44 +42,39 @@ export const persistTransaction = async (record) => {
         vCons: totalCons / totalDays
     };
 
-    // 3. REGISTRO DE EVIDENCIA (OPCIÓN B: Validación por Estado para evitar duplicados)
+    // 4. PERSISTENCIA DEL REGISTRO MAESTRO (CON MERGE)
     try {
-        // 1. Extraemos de forma segura lo que YA existe en metadata
-// Buscamos tanto en formato plano como en formato DynamoDB (.M)
-const currentMetadata = record.metadata?.M || record.metadata || {};
-
-await ddb.send(new TransactWriteCommand({
-    TransactItems: [{
-        Put: {
-            TableName: TABLE_NAME,
-            Item: { 
-                ...record, // Mantiene PK, SK y extracted_data
-                processed_at: isoNow, 
-                status: "DONE",
-                total_days_prorated: totalDays,
-                metadata: {
-                    // 2. Mantenemos TODO lo anterior (s3_key, upload_date, etc.)
-                    ...currentMetadata, 
-                    // 3. Sobrescribimos solo lo necesario para el cierre
-                    processed_at: isoNow,
-                    status: "VALIDATED"
+        await ddb.send(new TransactWriteCommand({
+            TransactItems: [{
+                Put: {
+                    TableName: TABLE_NAME,
+                    Item: { 
+                        ...record, 
+                        processed_at: isoNow, 
+                        status: "DONE",
+                        total_days_prorated: totalDays,
+                        metadata: {
+                            // IMPORTANTE: Expandimos lo que ya existía (s3_key, upload_date...)
+                            ...currentMetadata, 
+                            processed_at: isoNow,
+                            status: "VALIDATED"
+                        }
+                    },
+                    ConditionExpression: "attribute_not_exists(SK) OR #st <> :done",
+                    ExpressionAttributeNames: { "#st": "status" },
+                    ExpressionAttributeValues: { ":done": "DONE" }
                 }
-            },
-            ConditionExpression: "attribute_not_exists(SK) OR #st <> :done",
-            ExpressionAttributeNames: { "#st": "status" },
-            ExpressionAttributeValues: { ":done": "DONE" }
-        }
-    }]
-}));
+            }]
+        }));
     } catch (e) {
         if (e.name === "TransactionCanceledException") {
-            console.warn(`[DB] ⚠️ Registro ${SK} ya procesado. Omitiendo duplicado.`);
+            console.warn(`[DB] ⚠️ Registro ${SK} ya procesado.`);
             return { success: false, message: "Duplicate" };
         }
         throw e;
     }
 
-    // 4. AGREGACIÓN EN MEMORIA (Todas las llaves originales restauradas)
+    // 5. AGREGACIÓN DE ESTADÍSTICAS (Stats Mapping)
     const statsMap = new Map();
     let currentDate = new Date(startDate);
     let iterations = 0;
@@ -111,7 +109,7 @@ await ddb.send(new TransactWriteCommand({
         currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // 5. PERSISTENCIA POR BLOQUES (Máximo 100 por TransactWriteItems)
+    // 6. PERSISTENCIA DE STATS
     const finalOps = Array.from(statsMap.entries()).map(([sk, data]) =>
         buildStatsOps(PK, sk, data, unit, service, isoNow)
     );
@@ -121,14 +119,14 @@ await ddb.send(new TransactWriteCommand({
         try {
             await ddb.send(new TransactWriteCommand({ TransactItems: chunk }));
         } catch (err) {
-            console.error(`❌ Fallo en bloque de estadísticas para ${SK}:`, err);
+            console.error(`❌ Error en batch stats para ${SK}:`, err);
         }
     }
 
     return { success: true };
 };
 
-// Función helper ISO original
+// Helpers (getWeekISO permanece igual)
 function getWeekISO(d) {
     const target = new Date(d);
     const dayNr = (target.getDay() + 6) % 7;

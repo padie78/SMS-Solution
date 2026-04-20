@@ -1,5 +1,4 @@
-export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, category) => {
-    // 1. Fechas y Días
+export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, category, originalMetadata = {}) => {
     const billing = aiAnalysis.source_data?.billing_period || {};
     const start = billing.start ? new Date(billing.start) : new Date();
     const end = billing.end ? new Date(billing.end) : new Date();
@@ -7,15 +6,7 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
     let days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
     if (isNaN(days) || days <= 0) days = 1;
 
-    // 2. Extraer CO2 (Prioridad total_kg que es lo que manda tu log de Climatiq)
-    const finalCo2 = Number(
-        emissions?.total_kg || 
-        emissions?.co2e || 
-        (emissions?.items && emissions.items[0]?.co2e) || 
-        0
-    );
-
-    // 3. Consumo Físico
+    const finalCo2 = Number(emissions?.total_kg || emissions?.co2e || 0);
     const totalConsumption = (aiAnalysis.emission_lines || [])
         .reduce((sum, line) => sum + (Number(line.value) || 0), 0);
 
@@ -23,13 +14,13 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
         PK: orgId,
         SK: sk,
         ai_analysis: {
-            service_type: category || aiAnalysis.analytics_metadata?.category || "ELECTRICITY",
+            service_type: category || "ELECTRICITY",
             value: totalConsumption,
             unit: aiAnalysis.emission_lines?.[0]?.unit || "kWh",
             status_triage: "DONE"
         },
         climatiq_result: {
-            co2e: finalCo2, // <--- Este es el campo que usaremos
+            co2e: finalCo2,
             co2e_unit: "kg",
             activity_id: emissions?.activity_id || "unknown",
             timestamp: new Date().toISOString()
@@ -42,6 +33,7 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
         },
         total_days_prorated: days,
         metadata: {
+            ...originalMetadata, // <--- Preservamos s3_key desde el origen
             status: status,
             processed_at: new Date().toISOString()
         }
