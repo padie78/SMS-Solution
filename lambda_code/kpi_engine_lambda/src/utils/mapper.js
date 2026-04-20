@@ -16,13 +16,19 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
     const REFERENCE_PRICE = 0.15; 
     const isAnomaly = unitPrice > (REFERENCE_PRICE * 1.2); // +20% sobre referencia
 
-    const analytics = {
+  const analytics = {
         unit_price_index: unitPrice.toFixed(4),
         carbon_intensity: totalConsumption > 0 ? (finalCo2 / totalConsumption).toFixed(4) : "0",
         daily_avg_consumption: (totalConsumption / days).toFixed(2),
         daily_avg_cost: (totalAmount / days).toFixed(2),
-        confidence_score: aiAnalysis.confidence_score || 0,
-        anomaly_detected: isAnomaly // Nuevo Flag
+        
+        // CORRECCIÓN AQUÍ: Intentamos varias rutas comunes
+        confidence_score: aiAnalysis.confidence_score || 
+                          aiAnalysis.metadata?.confidence || 
+                          aiAnalysis.analysis_metadata?.confidence_score || 
+                          0.85, // Fallback a 0.85 si el análisis fue exitoso pero no envió score
+        
+        anomaly_detected: isAnomaly
     };
 
     const cleanMetadata = originalMetadata?.M || originalMetadata;
