@@ -179,7 +179,7 @@ for_each = toset([
   data_source = aws_appsync_datasource.api_lambda_ds.name
 }
 
-# Bloque para Analítica y Lectura (type Query)
+# Bloque para Analítica y Lectura (type Queryd)
 resource "aws_appsync_resolver" "kpi_resolvers" {
   for_each = toset([
     "getYearlyKPI",
