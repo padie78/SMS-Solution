@@ -47,7 +47,7 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
         anomaly_detected: isAnomaly
     };
 
-    // 6. CONSTRUCCIÓN DEL OBJETO FINAL
+    // 6. CONSTRUCCIÓN DEL OBJETO FINALf
     return {
         PK: orgId,
         SK: sk,
