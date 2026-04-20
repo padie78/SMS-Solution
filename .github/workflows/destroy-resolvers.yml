@@ -1,0 +1,70 @@
+name: "Terraform Destroy & Deep Clean"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  destroy:
+    name: "Full Clean and Destroy"
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./terraform
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.7.0
+
+      - name: Terraform Init
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: "us-east-1"
+        run: terraform init
+
+      - name: 🧹 Auto-Discovery & Delete Resolvers
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: "us-east-1"
+        run: |
+          # 1. Obtener el API ID dinámicamente por nombre
+          API_NAME="${{ vars.PROJECT_NAME }}-hub-${{ vars.ENVIRONMENT }}"
+          API_ID=$(aws appsync list-graphql-apis --query "graphqlApis[?name=='$API_NAME'].apiId" --output text)
+
+          if [ "$API_ID" == "None" ] || [ -z "$API_ID" ]; then
+            echo "No se encontró la API $API_NAME. Saltando limpieza."
+          else
+            echo "API detectada: $API_ID. Iniciando limpieza profunda..."
+
+            # 2. Borrar Resolvers de Mutation
+            echo "Borrando Mutation Resolvers..."
+            MUTATIONS=$(aws appsync list-resolvers --api-id $API_ID --type-name Mutation --query 'resolvers[].fieldName' --output text)
+            for m in $MUTATIONS; do
+              echo "-> Eliminando Mutation.$m"
+              aws appsync delete-resolver --api-id $API_ID --type-name Mutation --field-name $m || true
+            done
+
+            # 3. Borrar Resolvers de Query
+            echo "Borrando Query Resolvers..."
+            QUERIES=$(aws appsync list-resolvers --api-id $API_ID --type-name Query --query 'resolvers[].fieldName' --output text)
+            for q in $QUERIES; do
+              echo "-> Eliminando Query.$q"
+              aws appsync delete-resolver --api-id $API_ID --type-name Query --field-name $q || true
+            done
+          fi
+
+      - name: 🗑️ Terraform Destroy
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: "us-east-1"
+        run: terraform destroy -auto-approve -input=false -lock=false
