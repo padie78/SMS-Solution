@@ -19,8 +19,24 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
   const analytics = {
         unit_price_index: unitPrice.toFixed(4),
         carbon_intensity: totalConsumption > 0 ? (finalCo2 / totalConsumption).toFixed(4) : "0",
-        daily_avg_consumption: (totalConsumption / days).toFixed(2),
         daily_avg_cost: (totalAmount / days).toFixed(2),
+        // KPI ISO 50001: Intensidad por superficie (si tienes el dato en el perfil de la empresa)
+    energy_intensity_m2: facility_m2 > 0 ? (totalConsumption / facility_m2).toFixed(2) : null,
+    
+    // KPI Financiero: Costo unitario normalizado
+    unit_price_index: totalConsumption > 0 ? (totalAmount / totalConsumption).toFixed(4) : "0",
+    
+    // KPI Sostenibilidad: Factor de emisión real capturado
+    carbon_intensity: totalConsumption > 0 ? (finalCo2 / totalConsumption).toFixed(4) : "0",
+    
+    // Normalización temporal (Estándar para prorrateos)
+    daily_avg_consumption: (totalConsumption / days).toFixed(2),
+    
+    // Detección de Anomalías (Lógica de control de varianza)
+    anomaly_detected: unitPrice > (REFERENCE_PRICE * 1.2),
+    
+    // Calidad del dato para auditoría
+    data_quality_score: aiAnalysis.confidence_score || 0.85,
         
         // CORRECCIÓN AQUÍ: Intentamos varias rutas comunes
         confidence_score: aiAnalysis.confidence_score || 
