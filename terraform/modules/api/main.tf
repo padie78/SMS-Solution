@@ -146,19 +146,31 @@ resource "aws_appsync_datasource" "analytics_lambda_ds" {
 
 # Bloque para Operaciones de Escritura (type Mutation)
 resource "aws_appsync_resolver" "mutation_resolvers" {
-  for_each = toset([
+for_each = toset([
+    # Infraestructura y Configuración
     "saveOrgConfig",
-    "saveUserProfile",
     "createBranch",
-    "updateBranch",
-    "saveBranchConfig",
-    "createAsset",
-    "deleteAsset",
+    "saveBuilding",         # Nueva: Gestión de edificios físicos
     "saveCostCenter",
-    "saveUtilityTariff",
-    "logProduction",
+    
+    # Activos y Monitoreo IoT
+    "saveAsset",            # Reemplaza createAsset para lógica upsert
+    "saveMeter",            # Nueva: Configuración de hardware/medidores
+    
+    # Finanzas y Operaciones
+    "saveTariff",           # Reemplaza saveUtilityTariff para el nuevo esquema
+    "saveProductionLog",    # Reemplaza logProduction para mayor granularidad
+    "updateProductionLog",  # Nueva: Para actualizaciones parciales de métricas
+    
+    # Sostenibilidad y Usuarios
+    "saveEmissionFactor",   # Nueva: Factores de carbono por región
+    "saveUser",             # Reemplaza saveUserProfile
+    "saveAlertRule",        # Nueva: Motor de reglas de eficiencia
+    
+    # Procesamiento de Facturas
     "approveInvoice",
-    "confirmInvoice"
+    "confirmInvoice",
+    "getPresignedUrl"
   ])
 
   api_id      = aws_appsync_graphql_api.api.id
