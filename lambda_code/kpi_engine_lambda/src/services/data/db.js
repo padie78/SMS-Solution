@@ -2,22 +2,25 @@ import { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, TABLE_NAME } from "./client.js";
 import { buildStatsOps } from "./operations.js";
 
+/**
+ * Persiste la factura confirmada y actualiza todas las tablas de agregación (Stats).
+ * Garantiza que el bloque de analytics y metadatos de S3 se mantengan íntegros.
+ */
 export const persistTransaction = async (record) => {
-    // 0. DESESTRUCTURACIÓN DE ENTRADA
-    const { PK, SK, extracted_data, climatiq_result, ai_analysis } = record;
+    // 1. DESESTRUCTURACIÓN Y LIMPIEZA DE ENTRADA
+    const { PK, SK, extracted_data, climatiq_result, ai_analysis, analytics } = record;
     const isoNow = new Date().toISOString();
 
-    // 1. GESTIÓN DE METADATA (PROTECCIÓN DE S3_KEY)
-    // Buscamos el contenido real sin importar si viene como { M: {...} } o {...}
+    // Normalización de Metadatos y Analytics (Soporta formato Marshalled y Plano)
     const currentMetadata = record.metadata?.M || record.metadata || {};
+    const currentAnalytics = analytics?.M || analytics || {};
     
-    // 2. EXTRACCIÓN Y VALIDACIÓN DE FECHAS
+    // Extracción segura de fechas de facturación
     const billing = extracted_data?.M?.billing_period?.M || extracted_data?.billing_period || {};
     const rawStart = billing.start?.S || billing.start;
     const rawEnd = billing.end?.S || billing.end;
 
     const facilityId = currentMetadata.facility_id?.S || currentMetadata.facility_id || "GENERAL_ASSET";
-
     const startDate = new Date(rawStart);
     const endDate = new Date(rawEnd);
 
@@ -25,10 +28,11 @@ export const persistTransaction = async (record) => {
         throw new Error(`Invalid billing_period dates for SK: ${SK}`);
     }
 
+    // Cálculo de días para prorrateo
     const diffTime = Math.abs(endDate - startDate);
     const totalDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1);
 
-    // 3. EXTRACCIÓN DE MÉTRICAS
+    // 2. EXTRACCIÓN DE MÉTRICAS PARA DISTRIBUCIÓN DIARIA
     const totalCo2 = Number(climatiq_result?.M?.co2e?.N || climatiq_result?.co2e || 0);
     const totalAmount = Number(extracted_data?.M?.total_amount?.N || extracted_data?.total_amount || 0);
     const totalCons = Number(ai_analysis?.M?.value?.N || ai_analysis?.value || 0);
@@ -42,7 +46,7 @@ export const persistTransaction = async (record) => {
         vCons: totalCons / totalDays
     };
 
-    // 4. PERSISTENCIA DEL REGISTRO MAESTRO (CON MERGE)
+    // 3. PERSISTENCIA DEL REGISTRO MAESTRO (GOLDEN RECORD)
     try {
         await ddb.send(new TransactWriteCommand({
             TransactItems: [{
@@ -50,16 +54,18 @@ export const persistTransaction = async (record) => {
                     TableName: TABLE_NAME,
                     Item: { 
                         ...record, 
+                        analytics: currentAnalytics, // Se guarda explícitamente el bloque KPI
                         processed_at: isoNow, 
                         status: "DONE",
                         total_days_prorated: totalDays,
                         metadata: {
-                            // IMPORTANTE: Expandimos lo que ya existía (s3_key, upload_date...)
                             ...currentMetadata, 
                             processed_at: isoNow,
-                            status: "VALIDATED"
+                            status: "VALIDATED",
+                            is_draft: false
                         }
                     },
+                    // Protección contra doble procesamiento
                     ConditionExpression: "attribute_not_exists(SK) OR #st <> :done",
                     ExpressionAttributeNames: { "#st": "status" },
                     ExpressionAttributeValues: { ":done": "DONE" }
@@ -68,17 +74,18 @@ export const persistTransaction = async (record) => {
         }));
     } catch (e) {
         if (e.name === "TransactionCanceledException") {
-            console.warn(`[DB] ⚠️ Registro ${SK} ya procesado.`);
+            console.warn(`[DB] ⚠️ Registro ${SK} ya confirmado. Omitiendo actualización.`);
             return { success: false, message: "Duplicate" };
         }
         throw e;
     }
 
-    // 5. AGREGACIÓN DE ESTADÍSTICAS (Stats Mapping)
+    // 4. MOTOR DE AGREGACIÓN (Generación de StatsMap)
     const statsMap = new Map();
     let currentDate = new Date(startDate);
     let iterations = 0;
 
+    // Recorremos cada día del periodo para generar las llaves de agregación
     while (currentDate <= endDate && iterations < 730) {
         iterations++;
         const y = currentDate.getFullYear();
@@ -88,6 +95,7 @@ export const persistTransaction = async (record) => {
         const wStr = String(getWeekISO(currentDate)).padStart(2, '0');
         const dStr = String(currentDate.getDate()).padStart(2, '0');
 
+        // Definición de dimensiones: Globales y por Instalación (Facility)
         const keys = [
             { sk: `STATS#${y}`, type: 'ANNUAL' },
             { sk: `STATS#${y}#Q${q}#M${mStr}`, type: 'MONTHLY' },
@@ -102,14 +110,14 @@ export const persistTransaction = async (record) => {
             current.nSpend += dailyMetrics.nSpend;
             current.nCo2e += dailyMetrics.nCo2e;
             current.vCons += dailyMetrics.vCons;
-            current.count += (1 / totalDays);
+            current.count += (1 / totalDays); // Incremento proporcional del contador de facturas
             statsMap.set(sk, current);
         });
 
         currentDate.setDate(currentDate.getDate() + 1);
     }
 
-    // 6. PERSISTENCIA DE STATS
+    // 5. PERSISTENCIA DE ESTADÍSTICAS POR BLOQUES (Batch de 100)
     const finalOps = Array.from(statsMap.entries()).map(([sk, data]) =>
         buildStatsOps(PK, sk, data, unit, service, isoNow)
     );
@@ -119,14 +127,16 @@ export const persistTransaction = async (record) => {
         try {
             await ddb.send(new TransactWriteCommand({ TransactItems: chunk }));
         } catch (err) {
-            console.error(`❌ Error en batch stats para ${SK}:`, err);
+            console.error(`❌ Error persistiendo bloque de estadísticas para ${SK}:`, err);
         }
     }
 
     return { success: true };
 };
 
-// Helpers (getWeekISO permanece igual)
+/**
+ * Helper para obtener el número de semana ISO.
+ */
 function getWeekISO(d) {
     const target = new Date(d);
     const dayNr = (target.getDay() + 6) % 7;
