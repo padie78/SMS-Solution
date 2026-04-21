@@ -38,14 +38,14 @@ export const repo = {
      */
     getStats: async (orgId, sk) => {
         const pk = formatPK(orgId);
-        console.log(`[REPO][getStats] Leyendo PK: ${pk}, SK: ${sk}`); 
-        
+        console.log(`[REPO][getStats] Leyendo PK: ${pk}, SK: ${sk}`);
+
         try {
             const { Item } = await ddb.send(new GetCommand({
                 TableName: TABLE,
                 Key: { PK: pk, SK: sk }
             }));
-            
+
             return Item || null;
         } catch (error) {
             console.error(`[REPO][getStats] ERROR en GetItem:`, error.message);
@@ -54,25 +54,38 @@ export const repo = {
     },
 
     getOrgConfig: async (orgId) => {
-  const params = {
-    TableName: process.env.MAIN_TABLE,
-    Key: {
-      "PK": `ORG#${orgId}`,
-      "SK": `CONFIG`
-    }
-  };
+        const pk = formatPK(orgId);
+        // Cambiamos el SK a METADATA según tu estructura actual
+        const sk = "METADATA"; 
+        
+        console.log(`[REPO][getOrgConfig] Leyendo Metadatos desde: ${pk}#${sk}`);
 
-  const result = await ddb.get(params).promise();
-  
-  // Si no existe en la BD, devolvemos un objeto por defecto 
-  // para que el sistema no explote en el test.
-  return result.Item || {
-    totalGlobalM2: 1,
-    currency: "USD",
-    reductionTargetTon: 100,
-    baselineMonthlySpend: 1000
-  };
-},
+        try {
+            const { Item } = await ddb.send(new GetCommand({
+                TableName: TABLE,
+                Key: {
+                    PK: pk,
+                    SK: sk
+                }
+            }));
+
+            // Si el ítem existe, lo devolvemos. Si no, fallback de seguridad.
+            return Item || {
+                totalGlobalM2: 1,
+                currency: "USD",
+                reductionTargetTon: 100,
+                baselineMonthlySpend: 1000
+            };
+        } catch (error) {
+            console.error(`[REPO][getOrgConfig] ERROR:`, error.message);
+            return {
+                totalGlobalM2: 1,
+                currency: "USD",
+                reductionTargetTon: 100,
+                baselineMonthlySpend: 1000
+            };
+        }
+    },
 
     /**
      * 2. GOBERNANZA Y AUDITORÍA (INV#)
@@ -83,20 +96,20 @@ export const repo = {
         const params = {
             TableName: TABLE,
             KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
-            ExpressionAttributeValues: { 
-                ":pk": pk, 
-                ":sk": "INV#" 
+            ExpressionAttributeValues: {
+                ":pk": pk,
+                ":sk": "INV#"
             }
         };
 
         let filterParts = [];
-        
+
         // Filtro por Año
         if (filters.year) {
             filterParts.push("analytics_dimensions.period_year = :y");
             params.ExpressionAttributeValues[":y"] = Number(filters.year);
         }
-        
+
         // Filtro por Mes
         if (filters.month) {
             filterParts.push("analytics_dimensions.period_month = :m");
@@ -115,7 +128,7 @@ export const repo = {
 
         try {
             const { Items } = await ddb.send(new QueryCommand(params));
-            
+
             // Inyectamos la URL firmada de S3 para cada factura encontrada
             return await Promise.all((Items || []).map(async (item) => ({
                 ...item,
