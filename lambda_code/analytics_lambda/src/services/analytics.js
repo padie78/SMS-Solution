@@ -27,13 +27,12 @@ export const analyticsService = {
         const year = args.year || "2026";
         const { quarter, month, week, day } = args;
 
-        // 1. Construcción de SK Aditiva (STATS#2026#Q2#M04)
+        // 1. Construcción de SK Aditiva (Ej: STATS#2026#Q2#M04)
         let skParts = ['STATS', year];
         if (quarter) {
             skParts.push(quarter.toUpperCase());
         } else if (month) {
-            const q = Math.ceil(parseInt(month) / 3);
-            skParts.push(`Q${q}`);
+            skParts.push(`Q${Math.ceil(parseInt(month) / 3)}`);
         }
 
         if (month) {
@@ -49,7 +48,7 @@ export const analyticsService = {
             const item = await repo.getStats(orgId, finalSK);
             if (!item) return null;
 
-            // 2. Mapeo usando los campos REALES de tu base de datos
+            // 2. Retorno con Inyección de Data Cruda
             return {
                 id: item.SK,
                 metadata: {
@@ -58,68 +57,26 @@ export const analyticsService = {
                     quarter: item.SK.split('#')[2] || null,
                     month,
                     week,
-                    granularity: month ? "MONTHLY" : "YEARLY",
-                    lastUpdated: item.last_updated,
-                    version: item.metadata?.version || "1.2"
+                    granularity: week ? "WEEKLY" : (month ? "MONTHLY" : "YEARLY"),
+                    lastUpdated: item.last_updated || new Date().toISOString()
                 },
+                
+                // --- DATA PASSTHROUGH ---
+                // Enviamos el objeto de la BD tal cual para que el cliente decida
+                sourceData: JSON.stringify(item),
 
+                // Dejamos mapeos mínimos para los widgets principales del Dashboard
                 financials: {
                     totalSpend: parseFloat(item.financials_total_spend) || 0,
-                    currency: "USD", // Hardcoded según tu BD
-                    costPerM2: 0, // Requiere dato de superficie externa
-                    savingsRealized: 0,
-                    // Usamos el riesgo financiero del motor predictivo
-                    savingsPending: parseFloat(item.predictive_engine?.financial_risk_exposure) || 0,
-                    // Exponemos los escenarios de impuestos al carbono en el JSON de riesgo
-                    taxRiskExposure: JSON.stringify(item.advanced_analytics?.transition_risk_scoring)
+                    currency: "USD"
                 },
-
                 energy: {
-                    // Mapeo directo de gas_val (puedes sumar elec_val si aparece luego)
-                    consumptionKwh: parseFloat(item.consumption_gas_val) || 0,
-                    // Campo exacto: energy_intensity_index
-                    intensityIndex: parseFloat(item.advanced_analytics?.energy_intensity_index) || 0,
-                    phantomLoadKwh: 0, // No disponible en este item
-                    idleEnergyCost: 0
-                },
-
-                sustainability: {
-                    // Conversión: Toneladas a Kg (0.219397 -> 219.39)
-                    totalCo2eKg: (parseFloat(item.ghg_total_co2e_ton) || 0) * 1000,
-                    // Intensidad de carbono sobre ingresos (del management_reporting)
-                    carbonIntensity: parseFloat(item.management_reporting?.carbon_intensity_revenue) || 0,
-                    renewableRatio: parseFloat(item.advanced_analytics?.renewable_energy_mix_pct) || 0,
-                    // Brecha hacia el target (del predictive_engine)
-                    netZeroGapPct: parseFloat(item.predictive_engine?.current_vs_target_pct) || 0,
-                    complianceStatus: item.management_reporting?.reporting_period_status === "OPEN" ? "PENDING" : "COMPLIANT",
-                    weatherNormalizedUsage: 0
-                },
-
-                operational: {
-                    // Conversión de String "ESTIMATED" a valor numérico 0-100
-                    dataQualityScore: item.advanced_analytics?.data_quality_score === "ESTIMATED" ? 75.0 : 100.0,
-                    reliabilityPct: item.audit_trail ? 90.0 : 0, 
-                    // Usamos el conteo de facturas como proxy de incidentes o actividad
-                    gridHealthIncidents: parseInt(item.trazabilidad_total_invoices) || 0 
-                },
-
-                breakdowns: {
-                    byService: {
-                        elec_spend: 0,
-                        elec_val: 0,
-                        gas_spend: parseFloat(item.consumption_gas_spend) || 0,
-                        gas_val: parseFloat(item.consumption_gas_val) || 0,
-                        hvac_val: 0,
-                        lighting_val: 0,
-                        other_val: 0
-                    },
-                    // Guardamos el motor de cálculo usado como metadata de origen
-                    bySource: JSON.stringify({ engine: item.audit_trail?.[0]?.engine })
+                    consumptionKwh: parseFloat(item.consumption_gas_val) || parseFloat(item.consumption_elec_val) || 0
                 }
             };
         } catch (error) {
             console.error("Error en getPrecalculatedKPI:", error);
-            throw new Error(`Error mapeando campos de BD: ${error.message}`);
+            throw new Error(`Error en el servicio de analíticas: ${error.message}`);
         }
     },
     /**

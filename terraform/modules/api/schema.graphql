@@ -38,11 +38,13 @@ type PresignedUrlResponse {
 type AnalyticsResponse {
   id: ID!
   metadata: AnalyticsMetadata
+  # Mantenemos los tipos fijos para que el dashboard tenga una base estable
   financials: FinancialsAnalytics
   energy: EnergyAnalytics
   sustainability: SustainabilityAnalytics
   operational: OperationalAnalytics
   breakdowns: AnalyticsBreakdowns
+  sourceData: AWSJSON 
 }
 
 type AnalyticsMetadata {
@@ -50,11 +52,10 @@ type AnalyticsMetadata {
   year: String
   quarter: String
   month: String
-  week: String    # <--- TE FALTABA ESTE CAMPO AQUÍ
+  week: String
   day: String
   granularity: String
   lastUpdated: String
-  version: String
 }
 
 type FinancialsAnalytics {
