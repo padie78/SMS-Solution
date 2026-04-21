@@ -1231,7 +1231,7 @@ export const configService = {
                 // Protección contra sobreescritura accidental
                 ConditionExpression: "attribute_not_exists(SK)"
             }));
-            return { success: true, id: mId };
+            return { success: true, meterId: mId };
         } catch (error) {
             if (error.name === "ConditionalCheckFailedException") {
                 return { success: false, message: "Meter ID already exists" };
