@@ -10,8 +10,11 @@ type MutationResponse {
   orgId: ID
   branchId: ID
   buildingId: ID
+  ccId: ID          # <--- Agregado
   assetId: ID
   meterId: ID
+  tariffId: ID      # <--- Agregado
+  logKey: ID        # <--- Agregado (para production logs)
   service: String
   entity: AWSJSON
 }
@@ -270,6 +273,10 @@ type Mutation {
   saveMeter(orgId: ID!, branchId: ID!, meterId: ID!, input: MeterInput!): MutationResponse
   saveTariff(orgId: ID!, branchId: ID!, serviceType: String!, input: TariffInput!): MutationResponse
   saveProductionLog(orgId: ID!, branchId: ID!, period: String!, input: ProductionLogInput!): MutationResponse
+  saveCostCenter(orgId: ID!, input: CostCenterInput!): MutationResponse
+  saveAlertRule(orgId: ID!, branchId: ID!, entityId: ID!, alertType: String!, input: AlertRuleInput!): MutationResponse
+  saveUser(orgId: ID!, userId: ID!, input: UserInput!): MutationResponse
+  saveEmissionFactor(input: EmissionFactorInput!): MutationResponse
   
   # Procesamiento de Facturas
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
