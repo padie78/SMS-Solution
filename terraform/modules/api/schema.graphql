@@ -38,12 +38,13 @@ type PresignedUrlResponse {
 type AnalyticsResponse {
   id: ID!
   metadata: AnalyticsMetadata
-  financials: FinancialsAnalytics
-  energy: EnergyAnalytics
-  sustainability: SustainabilityAnalytics
-  operational: OperationalAnalytics
-  breakdowns: AnalyticsBreakdowns
-  # Este es el campo que transporta todo el objeto DynamoDB
+  # Usamos AWSJSON para que el nombre de las variables sea el mismo de la BD
+  financials: AWSJSON
+  energy: AWSJSON
+  sustainability: AWSJSON
+  operational: AWSJSON
+  predictive: AWSJSON
+  compliance: AWSJSON
   sourceData: AWSJSON 
 }
 
