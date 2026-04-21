@@ -1055,13 +1055,17 @@ export const configService = {
     saveMeter: async (orgId, branchId, meterId, input) => {
         const timestamp = new Date().toISOString();
         const mId = meterId.toUpperCase();
+        const bId = branchId.toUpperCase();
 
         const item = {
             PK: `ORG#${orgId}`,
             SK: `METER#${mId}`,
+            // GSI para buscar todos los medidores de una planta específica
+            GSI1_PK: `BRANCH#${bId}`,
+            GSI1_SK: `TYPE#${(input.type || 'ELECTRICITY').toUpperCase()}#${mId}`,
+
             entity_type: "METER_CONFIG",
 
-            // 1. Identidad del Hardware
             meter_info: {
                 name: input.name || "Nuevo Medidor",
                 serial_number: input.serialNumber,
@@ -1070,27 +1074,30 @@ export const configService = {
                 firmware_version: input.firmware || "1.0.0"
             },
 
-            // 2. Configuración de Telemetría (IoT Core)
+            metrology: {
+                unit: input.unit || "kWh",
+                scaling_factor: Number(input.scalingFactor) || 1.0,
+                ct_ratio: input.ctRatio || "1:1", // Importante para auditoría
+                accuracy_class: input.accuracyClass || "1.0",
+                is_fiscal: Boolean(input.isMain) || false
+            },
+
+            topology: {
+                parent_meter_id: input.parentMeterId ? `METER#${input.parentMeterId.toUpperCase()}` : null,
+                role: input.isMain ? "MAIN_REVENUE" : "SUB_METER",
+                building_id: input.buildingId || "UNASSIGNED",
+                cost_center_id: input.costCenterId || "GENERAL"
+            },
+
             connectivity: {
                 iot_thing_name: input.iotName || `MTR_${mId}`,
-                protocol: input.protocol || "MQTT", // [MQTT, MODBUS_TCP, HTTP_PUSH]
-                connection_status: "PROVISIONED",
-                last_heartbeat: null
+                protocol: input.protocol || "MQTT",
+                sampling_rate_sec: Number(input.samplingRate) || 900,
+                connection_status: "PROVISIONED"
             },
 
-            // 3. Lógica de Medición (Ingeniería)
-            meter_logic: {
-                meter_type: input.type || "ELECTRICITY", // [ELECTRICITY, GAS, WATER, THERMAL]
-                is_main_revenue_meter: Boolean(input.isMain) || false, // Si es el medidor de la empresa eléctrica
-                parent_meter_id: input.parentMeterId || null, // Para jerarquías de sub-medición
-                scaling_factor: Number(input.scalingFactor) || 1.0, // Multiplicador de CT/PT
-                unit: input.unit || "kWh"
-            },
-
-            // 4. Ubicación y Asignación
             assignment: {
-                branch_id: branchId,
-                building_id: input.buildingId,
+                branch_id: bId,
                 physical_location: input.location || "Tablero General"
             },
 
@@ -1098,42 +1105,59 @@ export const configService = {
         };
 
         try {
-            await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
-            return { success: true, meterId: mId, ...formatResponse(item) };
+            await docClient.send(new PutCommand({
+                TableName: TABLE_NAME,
+                Item: item,
+                // Protección contra sobreescritura accidental
+                ConditionExpression: "attribute_not_exists(SK)"
+            }));
+            return { success: true, id: mId };
         } catch (error) {
-            console.error("Error saving Meter:", error);
-            return { success: false, error: error.message };
+            if (error.name === "ConditionalCheckFailedException") {
+                return { success: false, message: "Meter ID already exists" };
+            }
+            console.error("[DB ERROR] saveMeter:", error);
+            throw error;
         }
     },
     updateMeter: async (orgId, meterId, input) => {
         const timestamp = new Date().toISOString();
-        const updates = [];
+        const mId = meterId.toUpperCase();
+
+        let updateExp = "SET last_updated = :t";
         const attrValues = { ":t": timestamp };
-        const attrNames = { "#mi": "meter_info", "#ml": "meter_logic", "#conn": "connectivity" };
+        const attrNames = { "#met": "metrology", "#top": "topology", "#conn": "connectivity" };
 
-        // Actualización de Hardware / Firmware
-        if (input.firmware) { updates.push("#mi.firmware_version = :fw"); attrValues[":fw"] = input.firmware; }
+        // Actualización de escalado (cuando cambian el hardware en planta)
+        if (input.scalingFactor) {
+            updateExp += ", #met.scaling_factor = :sf";
+            attrValues[":sf"] = Number(input.scalingFactor);
+        }
 
-        // Actualización de Lógica (Cambio de transformadores de corriente, por ejemplo)
-        if (input.scalingFactor) { updates.push("#ml.scaling_factor = :sf"); attrValues[":sf"] = Number(input.scalingFactor); }
+        // Cambio de ubicación jerárquica
+        if (input.parentMeterId !== undefined) {
+            updateExp += ", #top.parent_meter_id = :pm";
+            attrValues[":pm"] = input.parentMeterId ? `METER#${input.parentMeterId.toUpperCase()}` : null;
+        }
 
-        // Estado de Conexión
-        if (input.status) { updates.push("#conn.connection_status = :stat"); attrValues[":stat"] = input.status; }
-
-        if (updates.length === 0) return { success: false, message: "No fields to update" };
+        // Cambio de estado operativo
+        if (input.status) {
+            updateExp += ", #conn.connection_status = :stat";
+            attrValues[":stat"] = input.status;
+        }
 
         try {
             const response = await docClient.send(new UpdateCommand({
                 TableName: TABLE_NAME,
-                Key: { PK: `ORG#${orgId}`, SK: `METER#${meterId.toUpperCase()}` },
+                Key: { PK: `ORG#${orgId}`, SK: `METER#${mId}` },
                 ConditionExpression: "attribute_exists(PK)",
-                UpdateExpression: `SET ${updates.join(", ")}, last_updated = :t`,
+                UpdateExpression: updateExp,
                 ExpressionAttributeNames: attrNames,
                 ExpressionAttributeValues: attrValues,
                 ReturnValues: "ALL_NEW"
             }));
 
-            return { success: true, ...formatResponse(response.Attributes) };
+            return { success: true, entity: response.Attributes };
         } catch (error) {
             if (error.name === "ConditionalCheckFailedException") throw new Error("METER_NOT_FOUND");
             throw error;
