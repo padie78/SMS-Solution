@@ -29,7 +29,7 @@ export const analyticsService = {
         const month = args.month ? parseInt(args.month) : null;
         const { week, quarter, day } = args;
 
-        // 1. Construcción de SK Jerárquica
+        // 1. Construcción de SK (Jerarquía: STATS#YEAR#QUARTER#MONTH...)
         let skParts = ['STATS', year];
         if (quarter) skParts.push(quarter.toUpperCase());
         else if (month) skParts.push(`Q${Math.ceil(month / 3)}`);
@@ -51,13 +51,14 @@ export const analyticsService = {
 
             if (!item) return null;
 
-            // --- Valores Base ---
-            const totalSpend = parseFloat(item.financials_total_spend) || 0;
-            const gasVal = parseFloat(item.consumption_gas_val) || 0;
-            const co2Ton = parseFloat(item.ghg_total_co2e_ton) || 0;
-            const targetAnnualCo2 = parseFloat(orgConfig?.reductionTargetTon) || 50;
+            // 2. Extracción de Atributos Base de DynamoDB
+            const financials_total_spend = parseFloat(item.financials_total_spend) || 0;
+            const ghg_total_co2e_ton = parseFloat(item.ghg_total_co2e_ton) || 0;
+            const gas_val = parseFloat(item.consumption_gas_val) || 0;
+            const elec_val = parseFloat(item.consumption_elec_val) || 0;
+            const m2 = parseFloat(orgConfig?.totalGlobalM2) || 1;
 
-            // --- MAPEO AL SCHEMA TIPADO ---
+            // 3. Mapeo Integral 1:1 y Calculado
             return {
                 id: item.SK,
                 metadata: {
@@ -67,75 +68,55 @@ export const analyticsService = {
                     month: month?.toString(),
                     week,
                     day,
-                    granularity: week ? "WEEKLY" : (month ? "MONTHLY" : "YEARLY"),
+                    granularity: item.entity_type || (week ? "WEEKLY" : "MONTHLY"),
                     lastUpdated: item.last_updated
                 },
 
-                // Bloque Financiero
-                financials: {
-                    totalSpend: totalSpend,
-                    currency: orgConfig?.currency || "USD",
-                    costPerM2: totalSpend / (orgConfig?.totalGlobalM2 || 1),
-                    savingsRealized: parseFloat(item.savings_realized) || 0,
-                    savingsPending: parseFloat(item.predictive_engine?.financial_risk_exposure) || 0,
-                    avoidedCost: parseFloat(item.avoided_cost) || 0,
-                    taxRiskExposure: JSON.stringify(item.advanced_analytics?.transition_risk_scoring || {})
+                // --- KEY PERFORMANCE INDICATORS (KPIs) ---
+                
+                // Financieros
+                financials_total_spend,
+                cost_per_m2: financials_total_spend / m2,
+                savings_realized: parseFloat(item.savings_realized) || 0,
+                
+                // Energía e Intensidad
+                consumption_gas_val: gas_val,
+                consumption_elec_val: elec_val,
+                energy_intensity_index: parseFloat(item.advanced_analytics?.energy_intensity_index) || 0,
+                phantom_load_kwh: parseFloat(item.advanced_analytics?.phantom_load_kwh) || 0,
+                
+                // Sustentabilidad
+                ghg_total_co2e_ton,
+                ghg_total_co2e_kg: ghg_total_co2e_ton * 1000,
+                carbon_intensity_revenue: parseFloat(item.management_reporting?.carbon_intensity_revenue) || 0,
+                renewable_energy_mix_pct: parseFloat(item.advanced_analytics?.renewable_energy_mix_pct) || 0,
+
+                // Bloques Complejos (Mapeo por referencia)
+                advanced_analytics: {
+                    ...item.advanced_analytics,
+                    transition_risk_scoring: JSON.stringify(item.advanced_analytics?.transition_risk_scoring || {}),
+                    energy_source_mix: JSON.stringify(item.advanced_analytics?.energy_source_mix || { grid: 100 }),
+                    data_quality_score: item.advanced_analytics?.data_quality_score || "ESTIMATED"
                 },
 
-                // Bloque Energía
-                energy: {
-                    consumptionKwh: gasVal,
-                    intensityIndex: parseFloat(item.advanced_analytics?.energy_intensity_index) || 0,
-                    phantomLoadKwh: parseFloat(item.advanced_analytics?.phantom_load_kwh) || 0,
-                    idleEnergyCost: parseFloat(item.advanced_analytics?.idle_energy_cost) || 0,
-                    gridEfficiency: parseFloat(item.advanced_analytics?.grid_efficiency) || 1,
-                    baseloadKwh: parseFloat(item.advanced_analytics?.baseload_kwh) || 0
+                predictive_engine: {
+                    ...item.predictive_engine,
+                    // Si no hay forecast en DB, hacemos una proyección lineal simple
+                    forecast_year_end_co2: parseFloat(item.predictive_engine?.forecast_year_end_co2) || (ghg_total_co2e_ton * 12),
+                    current_vs_target_pct: parseFloat(item.predictive_engine?.current_vs_target_pct) || 0
                 },
 
-                // Bloque Sustentabilidad
-                sustainability: {
-                    totalCo2eKg: co2Ton * 1000,
-                    carbonIntensity: parseFloat(item.management_reporting?.carbon_intensity_revenue) || 0,
-                    renewableRatio: parseFloat(item.advanced_analytics?.renewable_energy_mix_pct) || 0,
-                    netZeroGapPct: parseFloat(item.predictive_engine?.current_vs_target_pct) || 0,
-                    complianceStatus: item.sustainability?.complianceStatus || "PENDING",
-                    weatherNormalizedUsage: parseFloat(item.advanced_analytics?.weather_normalized_usage) || gasVal
-                },
+                management_reporting: item.management_reporting,
+                regulatory_compliance: item.regulatory_compliance,
 
-                // Bloque Operacional
-                operational: {
-                    dataQualityScore: parseFloat(item.advanced_analytics?.data_quality_score_pct) || 75,
-                    reliabilityPct: parseFloat(item.advanced_analytics?.data_reliability_pct) || 100,
-                    gridHealthIncidents: parseInt(item.trazabilidad_total_invoices) || 0,
-                    activeVsIdleRatio: parseFloat(item.advanced_analytics?.active_idle_ratio) || 0,
-                    nominalLoadPerformance: parseFloat(item.advanced_analytics?.nominal_load_perf) || 0
-                },
-
-                // Bloque Predictivo
-                predictive: {
-                    financial_risk_exposure: parseFloat(item.predictive_engine?.financial_risk_exposure) || 0,
-                    target_annual_limit_ton: targetAnnualCo2,
-                    forecast_year_end_co2_ton: parseFloat(item.predictive_engine?.forecast_year_end_co2) || (co2Ton * 12),
-                    projected_gap_vs_target: targetAnnualCo2 - (co2Ton * 12)
-                },
-
-                // Bloque de cumplimiento
-                compliance: {
-                    methodology: item.regulatory_compliance?.methodology,
-                    standard: item.regulatory_compliance?.reporting_standard
-                },
-
-                // Mapeo del desglose por servicio (Requerido por el test)
-                breakdowns: {
-                    byService: mapServiceBreakdown(item),
-                    bySource: JSON.stringify(item.advanced_analytics?.energy_source_mix || { grid: 100 })
-                },
-
+                // Trazabilidad y Auditoría
+                trazabilidad_total_invoices: parseInt(item.trazabilidad_total_invoices) || 0,
+                last_updated: item.last_updated,
                 sourceData: JSON.stringify(item)
             };
         } catch (error) {
-            console.error("Analytics Service Error:", error);
-            throw new Error(`Error calculando KPIs: ${error.message}`);
+            console.error("[SERVICE_ERROR]:", error);
+            throw new Error(`Error procesando KPIs para ${finalSK}: ${error.message}`);
         }
     }
 };

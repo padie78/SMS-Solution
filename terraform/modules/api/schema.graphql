@@ -32,17 +32,31 @@ type PresignedUrlResponse {
   userId: String!
 }
 
-# --- 2. NÚCLEO ANALÍTICO ---
+# --- 2. NÚCLEO ANALÍTICO (Sincronizado con DynamoDB) ---
 type AnalyticsResponse {
   id: ID!
   metadata: AnalyticsMetadata
-  financials: FinancialsAnalytics
-  energy: EnergyAnalytics
-  sustainability: SustainabilityAnalytics
-  operational: OperationalAnalytics
-  predictive: PredictiveAnalytics
-  compliance: ComplianceAnalytics
-  breakdowns: AnalyticsBreakdowns  # <--- AGREGA ESTA LÍNEA
+  
+  # Campos Raíz de la BD
+  financials_total_spend: Float
+  ghg_total_co2e_ton: Float
+  trazabilidad_total_invoices: Int
+  last_updated: String
+  
+  # Bloques de Lógica (Mismo nombre que en la BD)
+  advanced_analytics: AdvancedAnalytics
+  predictive_engine: PredictiveEngine
+  management_reporting: ManagementReporting
+  regulatory_compliance: RegulatoryCompliance
+  
+  # Desgloses de consumo directo
+  consumption_gas_spend: Float
+  consumption_gas_val: Float
+  consumption_gas_unit: String
+  consumption_elec_spend: Float
+  consumption_elec_val: Float
+  consumption_elec_unit: String
+  
   sourceData: AWSJSON 
 }
 
@@ -57,67 +71,32 @@ type AnalyticsMetadata {
   lastUpdated: String
 }
 
-type FinancialsAnalytics {
-  totalSpend: Float
-  currency: String
-  costPerM2: Float
-  savingsRealized: Float
-  savingsPending: Float
-  avoidedCost: Float
-  taxRiskExposure: AWSJSON
+type AdvancedAnalytics {
+  data_quality_score: String
+  emission_factor_source: String
+  energy_intensity_index: Float
+  renewable_energy_mix_pct: Float
+  transition_risk_scoring: AWSJSON
+  energy_source_mix: AWSJSON
+  data_reliability_pct: Float
 }
 
-type EnergyAnalytics {
-  consumptionKwh: Float
-  intensityIndex: Float
-  phantomLoadKwh: Float
-  idleEnergyCost: Float
-  gridEfficiency: Float
-  baseloadKwh: Float
-}
-
-type SustainabilityAnalytics {
-  totalCo2eKg: Float
-  carbonIntensity: Float
-  renewableRatio: Float
-  netZeroGapPct: Float
-  complianceStatus: String
-  weatherNormalizedUsage: Float
-}
-
-type OperationalAnalytics {
-  dataQualityScore: Float
-  reliabilityPct: Float
-  gridHealthIncidents: Int
-  activeVsIdleRatio: Float
-  nominalLoadPerformance: Float
-}
-
-type PredictiveAnalytics {
+type PredictiveEngine {
+  current_vs_target_pct: Float
   financial_risk_exposure: Float
-  target_annual_limit_ton: Float
-  forecast_year_end_co2_ton: Float
-  projected_gap_vs_target: Float
+  forecast_year_end_co2: Float
+  target_annual_limit: Float
 }
 
-type ComplianceAnalytics {
+type ManagementReporting {
+  carbon_intensity_revenue: Float
+  reporting_period_status: String
+}
+
+type RegulatoryCompliance {
   methodology: String
-  standard: String
-}
-
-type AnalyticsBreakdowns {
-  byService: ServiceBreakdown    # Pregunta #10 (HVAC, Lighting, etc)
-  bySource: AWSJSON              # (Grid, Solar, GenSet)
-}
-
-type ServiceBreakdown {
-  elec_spend: Float
-  elec_val: Float
-  gas_spend: Float
-  gas_val: Float
-  hvac_val: Float
-  lighting_val: Float
-  other_val: Float
+  reporting_standard: String
+  scope_category: String
 }
 
 # --- 3. ENTIDADES ---
@@ -141,9 +120,7 @@ type NormalizationKPIs {
   intensity_per_production_unit: Float 
 }
 
-# --- 4. INPUTS (REQUERIDOS PARA MUTATIONS) ---
-# Aquí es donde fallaba tu despliegue
-
+# --- 4. INPUTS ---
 input OrgConfigInput {
   name: String
   taxId: String
