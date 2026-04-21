@@ -42,6 +42,7 @@ type AnalyticsResponse {
   operational: OperationalAnalytics
   predictive: PredictiveAnalytics
   compliance: ComplianceAnalytics
+  breakdowns: AnalyticsBreakdowns  # <--- AGREGA ESTA LÍNEA
   sourceData: AWSJSON 
 }
 
