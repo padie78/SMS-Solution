@@ -1,12 +1,11 @@
 /**
  * @fileoverview AppSync Resolver Handler - Orquestador de Configuraciones.
- * Integra la lógica de negocio del SMS con las peticiones de AppSync.
+ * Mapeo estricto entre Schema GraphQL y configService.
  */
 import { configService } from './services/config.js';
 
 export const handler = async (event) => {
     try {
-        // 1. Extracción de Identidad (Multi-tenant)
         const orgId = event.identity?.claims['custom:organization_id'] ||
             event.identity?.claims['sub'] ||
             "f3d4f8a2-90c1-708c-a446-2c8592524d62";
@@ -19,68 +18,58 @@ export const handler = async (event) => {
         let result;
 
         switch (methodName) {
-            // --- 1. CONFIGURACIONES BASE ---
+            // --- 1. CONFIGURACIONES Y USUARIOS ---
             case 'saveOrgConfig':
                 result = await configService.saveOrgConfig(orgId, args.input);
                 break;
 
-            case 'saveUserProfile':
+            case 'saveUser': // Mapeado desde el schema
                 result = await configService.saveUserProfile(orgId, args.input, event.identity);
                 break;
 
-            // --- 2. INFRAESTRUCTURA ---
+            // --- 2. INFRAESTRUCTURA (Branches, Buildings, Meters) ---
             case 'createBranch':
                 result = await configService.createBranch(orgId, args.input || args);
                 break;
 
-            case 'updateBranch':
-                result = await configService.updateBranch(orgId, args.id, args.input || args);
-                break;
-
-            case 'saveBranchConfig':
-                result = await configService.saveBranchConfig(orgId, args.input);
-                break;
-
-            // --- 2. INFRAESTRUCTURA (Añadir saveBuilding) ---
             case 'saveBuilding':
-                // Asegúrate de que configService tenga este método
                 result = await configService.saveBuilding(orgId, args.branchId, args.buildingId, args.input);
                 break;
 
-
-            // --- 3. ACTIVOS ---
-            case 'createAsset':
-                result = await configService.createAsset(orgId, args.input);
+            case 'saveMeter': // Añadido según logs
+                result = await configService.saveMeter(orgId, args.branchId, args.meterId, args.input);
                 break;
 
-            case 'deleteAsset':
-                result = await configService.deleteAsset(orgId, args.id);
+            // --- 3. ACTIVOS Y CENTROS DE COSTOS ---
+            case 'saveAsset': // Corregido: de 'createAsset' a 'saveAsset' para match con Schema
+                result = await configService.saveAsset(orgId, args.assetId, args.input);
                 break;
 
-            // --- 4. FINANZAS Y TARIFAS ---
             case 'saveCostCenter':
                 result = await configService.saveCostCenter(orgId, args.input);
                 break;
 
-            case 'saveUtilityTariff':
+            // --- 4. FINANZAS, TARIFAS Y REGLAS ---
+            case 'saveTariff': // Match con el error de los logs
                 result = await configService.saveUtilityTariff(orgId, args.input);
                 break;
 
-            // --- 5. OPERACIONES Y FACTURACIÓN ---
-            case 'logProduction':
+            case 'saveAlertRule': // Match con el error de los logs
+                result = await configService.saveAlertRule(orgId, args.branchId, args.entityId, args.alertType, args.input);
+                break;
+
+            // --- 5. OPERACIONES Y EMISIONES ---
+            case 'saveProductionLog': // Match con el error de los logs
                 result = await configService.logProduction(orgId, args.input);
                 break;
 
-            // PASO 6: Aprobación
+            case 'saveEmissionFactor': // Match con el error de los logs
+                result = await configService.saveEmissionFactor(args.input);
+                break;
 
             case 'confirmInvoice':
                 result = await configService.confirmInvoice(orgId, args.sk, args.input);
                 break;
-
-            // case 'approveInvoice':
-            //     // Si prefieres usar este nombre, lo mapeamos al mismo servicio
-            //     result = await configService.confirmInvoice(orgId, args.invoiceId, args.input);
-            //     break;
 
             default:
                 throw new Error(`Resolver handle for field "${methodName}" is not implemented.`);
@@ -89,13 +78,11 @@ export const handler = async (event) => {
         return result;
 
     } catch (error) {
-        console.error(`[LAMBDA FATAL ERROR] Method: ${event.info?.fieldName} | Message: ${error.message}`);
-
-        // Formato de error compatible con AppSync para evitar nulos inesperados
-        return {
-            success: false,
+        console.error(`[LAMBDA FATAL ERROR] Method: ${methodName} | Message: ${error.message}`);
+        return { 
+            success: false, 
             message: error.message,
-            id: null
+            id: null 
         };
     }
 };
