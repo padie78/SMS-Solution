@@ -273,8 +273,6 @@ QUERY_TARIFF="mutation {
     tariffId    # <--- Para saber qué ID se generó (el SK)
     assetId     # <--- Por compatibilidad genérica
     branchId    # <--- Para confirmar la sede
-    entity      # <--- Para recibir el JSON completo si lo necesitas
-    message     # <--- Por si hubo algún aviso no crítico
   } 
 }"
 
