@@ -1087,72 +1087,53 @@ export const configService = {
     saveEmissionFactor: async (input) => {
         const timestamp = new Date().toISOString();
 
-        // 1. Construcción de SK profesional para trazabilidad
-        // SK: YEAR#2026#REGION#ISR#SOURCE#CLIMATIQ#ELEC
-        const sourceName = (input.source || "UNKNOWN").toUpperCase();
-        const activity = (input.activityType || "UNKNOWN").toUpperCase();
-        const sk = `YEAR#${input.year}#REGION#${input.regionCode}#SOURCE#${sourceName}#${activity}`;
+        // SK robusta: Si falta algo, ponemos un fallback para que no explote el String literal
+        const sk = `YEAR#${input.year}#REGION#${input.regionCode}#SOURCE#${(input.source || 'MANUAL').toUpperCase()}#${(input.activityType || 'ELEC').toUpperCase()}`;
 
         const item = {
             PK: "GLOBAL#FACTORS",
             SK: sk,
             entity_type: "EMISSION_FACTOR",
 
-            // 2. Identidad y Trazabilidad
             factor_identity: {
-                name: input.name,
-                year: Number(input.year),
-                region: input.regionName || input.regionCode,
+                name: input.name || "Grid Factor",
+                year: Number(input.year) || 2026,
+                region: input.regionName || input.regionCode || "Global",
                 activity_id: input.activityId || sk,
-                source: input.source
+                source: input.source || "Climatiq" // Valor por defecto si falta
             },
 
-            // 3. Datos de Carbono (Cálculo Científico)
             carbon_data: {
                 co2e_unit: input.unit || "kg/kWh",
-                co2e_value: Number(input.value),
+                co2e_value: Number(input.value) || 0,
                 constituents: {
-                    co2: Number(input.co2) || Number(input.value),
-                    ch4: Number(input.ch4) || 0,
-                    n2o: Number(input.n2o) || 0
+                    co2: Number(input.co2 ?? input.value ?? 0), // Fallback en cadena
+                    ch4: Number(input.ch4 ?? 0),
+                    n2o: Number(input.n2o ?? 0)
                 }
             },
 
-            // 4. Clasificación (GHG Protocol Compliance)
             classification: {
                 scope: input.scope || "SCOPE_2",
                 category: input.category || "ENERGY_INDIRECT",
                 methodology: input.methodology || "LOCATION_BASED",
-                uncertainty_pct: Number(input.uncertainty) || 0
+                uncertainty_pct: Number(input.uncertainty ?? 0)
             },
 
             lifecycle: {
                 valid_from: input.validFrom || `${input.year}-01-01`,
                 valid_to: input.validTo || `${input.year}-12-31`,
-                is_latest: input.isLatest !== undefined ? input.isLatest : true
+                is_latest: input.isLatest ?? true // nullish coalescing para booleanos
             },
 
             last_updated: timestamp
         };
 
-        try {
-            await docClient.send(new PutCommand({
-                TableName: TABLE_NAME,
-                Item: item
-            }));
+        // DEBUG: Antes de enviar, mira si hay algún undefined
+        // console.log("ITEM TO SAVE:", JSON.stringify(item));
 
-            // 5. Retorno Seguro: Evitamos formatResponse para no chocar con lógica de OrgId
-            return {
-                success: true,
-                factorKey: sk,    // Campo específico si tu schema lo usa
-                ...formatResponse(item)
-            };
-        } catch (error) {
-            console.error("== [DYNAMODB ERROR] saveEmissionFactor ==");
-            console.error(error);
-            // Lanzamos el error para que el catch del handler lo capture y loguee
-            throw new Error(`Database error: ${error.message}`);
-        }
+        await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
+        return { success: true, factorKey: sk };
     },
 
     updateEmissionFactor: async (year, regionCode, source, activityType, input) => {
