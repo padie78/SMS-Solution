@@ -105,6 +105,21 @@ type ComplianceAnalytics {
   standard: String
 }
 
+type AnalyticsBreakdowns {
+  byService: ServiceBreakdown    # Pregunta #10 (HVAC, Lighting, etc)
+  bySource: AWSJSON              # (Grid, Solar, GenSet)
+}
+
+type ServiceBreakdown {
+  elec_spend: Float
+  elec_val: Float
+  gas_spend: Float
+  gas_val: Float
+  hvac_val: Float
+  lighting_val: Float
+  other_val: Float
+}
+
 # --- 3. ENTIDADES ---
 type Invoice {
   id: ID!
