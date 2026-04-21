@@ -98,6 +98,7 @@ export const persistTransaction = async (record) => {
         // Definición de dimensiones: Globales y por Instalación (Facility)
         const keys = [
             { sk: `STATS#${y}`, type: 'ANNUAL' },
+            { sk: `STATS#${y}#Q${q}`, type: 'QUARTERLY' },
             { sk: `STATS#${y}#Q${q}#M${mStr}`, type: 'MONTHLY' },
             { sk: `STATS#${y}#Q${q}#M${mStr}#D${dStr}`, type: 'DAILY' },
             { sk: `STATS#${y}#W${wStr}`, type: 'WEEKLY' },
