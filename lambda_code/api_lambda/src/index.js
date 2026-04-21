@@ -24,7 +24,7 @@ export const handler = async (event) => {
                 break;
 
             case 'saveUser': // Mapeado desde el schema
-                result = await configService.saveUser(orgId, args.input.userId, args.input);
+                result = await configService.saveUser(orgId, args.userId, args.input);
                 break;
 
             // --- 2. INFRAESTRUCTURA (Branches, Buildings, Meters) ---
