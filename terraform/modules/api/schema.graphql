@@ -3,22 +3,16 @@ schema {
   mutation: Mutation
 }
 
-# --- 1. RESPUESTAS --2
+# --- 1. RESPUESTAS Y CONTROL ---
 type MutationResponse {
   success: Boolean!
   message: String
   orgId: ID
   branchId: ID
   buildingId: ID
-  ccId: ID
   assetId: ID
   meterId: ID
-  tariffId: ID
   service: String
-  alertKey: String
-  userId: ID
-  logKey: String
-  factorKey: String
   entity: AWSJSON
 }
 
@@ -34,7 +28,82 @@ type PresignedUrlResponse {
   userId: String!
 }
 
-# --- 2. ENTIDADES ---
+# --- 2. NÚCLEO ANALÍTICO (Unified Analytics) ---
+# Unifica Yearly, Quarterly, Monthly, Weekly y Daily en una sola estructura
+
+type AnalyticsResponse {
+  id: ID!
+  metadata: AnalyticsMetadata
+  financials: FinancialsAnalytics
+  energy: EnergyAnalytics
+  sustainability: SustainabilityAnalytics
+  operational: OperationalAnalytics
+  breakdowns: AnalyticsBreakdowns
+}
+
+type AnalyticsMetadata {
+  orgId: ID
+  year: String
+  quarter: String
+  month: String
+  day: String
+  granularity: String
+  lastUpdated: String
+  version: String
+}
+
+type FinancialsAnalytics {
+  totalSpend: Float
+  currency: String
+  costPerM2: Float               # Pregunta #15
+  savingsRealized: Float         # Pregunta #17
+  savingsPending: Float          # Pregunta #18 (Costo Procrastinación)
+  avoidedCost: Float             # Ahorro proyectado vs real
+  taxRiskExposure: AWSJSON       # Pregunta #21
+}
+
+type EnergyAnalytics {
+  consumptionKwh: Float
+  intensityIndex: Float          # Pregunta #3 y #11
+  phantomLoadKwh: Float          # Pregunta #14 (Consumos Fantasmas)
+  idleEnergyCost: Float          # Pregunta #22 (No aprovechada)
+  gridEfficiency: Float          # Pregunta #12
+  baseloadKwh: Float             # Consumo base constante
+}
+
+type SustainabilityAnalytics {
+  totalCo2eKg: Float
+  carbonIntensity: Float         # Emisiones / Producción
+  renewableRatio: Float          # % de energía limpia
+  netZeroGapPct: Float           # Pregunta #19
+  complianceStatus: String       # Pregunta #8
+  weatherNormalizedUsage: Float  # Pregunta #23
+}
+
+type OperationalAnalytics {
+  dataQualityScore: Float        # Pregunta #9
+  reliabilityPct: Float          # Pregunta #24 (Cadena Custodia)
+  gridHealthIncidents: Int       # Pregunta #7 y #16
+  activeVsIdleRatio: Float       # Pregunta #5
+  nominalLoadPerformance: Float  # Pregunta #13
+}
+
+type AnalyticsBreakdowns {
+  byService: ServiceBreakdown    # Pregunta #10 (HVAC, Lighting, etc)
+  bySource: AWSJSON              # (Grid, Solar, GenSet)
+}
+
+type ServiceBreakdown {
+  elec_spend: Float
+  elec_val: Float
+  gas_spend: Float
+  gas_val: Float
+  hvac_val: Float
+  lighting_val: Float
+  other_val: Float
+}
+
+# --- 3. ENTIDADES ---
 type Invoice {
   id: ID!
   vendor: String
@@ -44,43 +113,9 @@ type Invoice {
   consumptionVal: Float
   serviceType: String
   pdfUrl: String
-  aiThoughtProcess: String
   status: String
-  approvedBy: String
-  approvedAt: String
+  aiThoughtProcess: String
   lastUpdated: String
-}
-
-type YearlyKPI {
-  id: ID!
-  totalCo2eTon: Float
-  totalSpend: Float
-  invoiceCount: Int
-  lastUpdated: String
-  byService: ServiceBreakdown
-  normalization: NormalizationKPIs
-  environmental: EnvironmentalImpact
-  weather: WeatherAdjustment
-  metadata: RecordMetadata
-}
-
-type HighFrequencyKPI {
-  id: ID!
-  totalCo2eKg: Float
-  totalSpend: Float
-  lastUpdated: String
-  byService: ServiceBreakdown
-  normalization: NormalizationKPIs
-  performance: AWSJSON
-}
-
-type ServiceBreakdown {
-  elec_spend: Float
-  elec_val: Float
-  elec_unit: String
-  gas_spend: Float
-  gas_val: Float
-  gas_unit: String
 }
 
 type NormalizationKPIs {
@@ -89,21 +124,7 @@ type NormalizationKPIs {
   intensity_per_production_unit: Float 
 }
 
-type EnvironmentalImpact {
-  avoided_emissions_ton: Float
-  renewable_energy_ratio: Float
-}
-
-type WeatherAdjustment {
-  weather_normalized_usage: Float
-}
-
-type RecordMetadata {
-  version: String
-  is_fiscal_closed: Boolean
-}
-
-# --- 3. INPUTS ---
+# --- 4. INPUTS ---
 
 input OrgConfigInput {
   name: String
@@ -114,15 +135,9 @@ input OrgConfigInput {
   currency: String
   reportingCurrency: String
   minConfidence: Float
-  gasConversion: Float
-  referenceUnitRate: Float
-  carbonShadowPrice: Float
   baselineYear: Int
-  ghgMethodology: String
   reductionTarget: Float
   targetYear: Int
-  activeBranches: Int
-  totalAssets: Int
   subscriptionPlan: String
 }
 
@@ -130,63 +145,26 @@ input BranchInput {
   branchId: String!
   name: String!
   m2Surface: Float
-  m3Volume: Float
-  manager: String
   facilityType: String
   timezone: String
   geoLocation: String
   energyTarget: Float
   carbonBudget: Float
-  baseloadThreshold: Float
-  maxPowerCapacity: Float
-  operatingHours: String
-  emissionFactor: Float
-  isIsoCertified: Boolean
-  lastAuditDate: String
   region: String
   criticality: String
-  primaryCC: String
-  userId: String
 }
 
 input BuildingInput {
-	name: String!
-	usageType: String
-	status: String           # <--- Faltaba
-	yearBuilt: Int           # <--- Faltaba
-	managerContact: String   # <--- Faltaba
-	m2Surface: Float         # <--- Faltaba (era totalM2)
-	m3Volume: Float          # <--- Faltaba
-	maxOccupancy: Int        # <--- Faltaba
-	roofType: String         # <--- Faltaba
-	uValue: Float            # <--- Faltaba
-	hvacType: String         # <--- Faltaba
-	lightingTech: String     # <--- Faltaba
-	hasBms: Boolean          # <--- Faltaba
-	hasBackup: Boolean       # <--- Faltaba
-	zoneId: String           # <--- Faltaba
-	isShared: Boolean        # <--- Faltaba
-	criticality: String      # <--- Faltaba
-	primaryCC: String        # <--- Faltaba
-	# Campos antiguos (opcionales para compatibilidad)
-	type: String
-	mainAssetId: String
-}
-
-input CostCenterInput {
-  id: String
-  name: String
-  accountingCode: String
-  managerId: String
-  branchId: String
-  method: String
-  percentage: Float
-  operatingHours: Int
-  isVatExempt: Boolean
-  annualBudget: Float
-  thresholds: [Int]
-  budgetPolicy: String
-  glMapping: String
+  name: String!
+  usageType: String
+  status: String
+  yearBuilt: Int
+  m2Surface: Float
+  m3Volume: Float
+  hvacType: String
+  lightingTech: String
+  hasBms: Boolean
+  zoneId: String
 }
 
 input AssetInput {
@@ -195,73 +173,28 @@ input AssetInput {
   status: String
   criticality: String
   nominalPower: Float
-  efficiencyClass: String
-  powerFactor: Float
   meterId: String
-  iotName: String
   branchId: String
   buildingId: String
   costCenterId: String
-  geoXyz: String
 }
 
 input TariffInput {
   providerName: String
   contractId: String
   accountNumber: String
-  supportContact: String
-  billingCycle: String
-  currency: String
   pricingModel: String
   baseRate: Float
   peakRate: Float
   offPeakRate: Float
-  fixedFee: Float
-  reactivePenalty: Float
   taxes: [TaxInput]
-  contractedPower: Float
-  voltageLevel: String
-  meterId: String
   validFrom: String
   validTo: String
-  userId: String
 }
 
 input TaxInput {
   name: String
   rate: Float
-}
-
-input AlertRuleInput {
-  name: String
-  description: String
-  status: String
-  priority: String
-  metricSource: String
-  operator: String
-  threshold: Float
-  durationMins: Int
-  hysteresis: Float
-  channels: [String]
-  recipients: [String]
-  escalationPolicy: String
-  suppressionMins: Int
-  autoIncident: Boolean
-  remediation: String
-}
-
-input UserInput {
-  fullName: String
-  email: String
-  position: String
-  cognitoSub: String
-  role: String
-  permissions: [String]
-  accessScope: String
-  defaultDashboard: String
-  language: String
-  emailAlerts: Boolean
-  smsAlerts: Boolean
 }
 
 input ProductionLogInput {
@@ -270,51 +203,18 @@ input ProductionLogInput {
   shiftMode: String
   efficiency: Float
   waste: Float
-  downtime: Float
   activeLines: Int
-  temperature: Float
-  humidity: Float
-  rawMaterialBatch: String
-  activeM2: Float
-}
-
-input EmissionFactorInput {
-  name: String
-  year: Int
-  regionCode: String
-  regionName: String
-  source: String
-  activityType: String
-  activityId: String
-  unit: String
-  value: Float
-  co2: Float
-  ch4: Float
-  n2o: Float
-  scope: String
-  category: String
-  methodology: String
-  uncertainty: Float
-  validFrom: String
-  validTo: String
-  isLatest: Boolean
 }
 
 input MeterInput {
   name: String
   serialNumber: String
-  manufacturer: String
-  model: String
-  firmware: String
   iotName: String
   protocol: String
   type: String
   isMain: Boolean
   parentMeterId: String
-  scalingFactor: Float
-  unit: String
   buildingId: String
-  location: String
 }
 
 input ConfirmInvoiceInput {
@@ -334,48 +234,45 @@ input SimplifiedDataInput {
   vendor_tax_id: String
   invoice_number: String
   total_amount: Float
-  tax_amount: Float
-  base_amount: Float
   currency: String
 }
 
-# --- 4. CONSULTAS (QUERIES) ---
+# --- 5. CONSULTAS (QUERIES) ---
 type Query {
-  getYearlyKPI(year: String!): YearlyKPI
-  getQuarterlyKPI(year: String!, quarter: String!): YearlyKPI
-  getMonthlyKPI(year: String!, month: String!): YearlyKPI
-  getWeeklyKPI(year: String!, week: String!): HighFrequencyKPI
-  getDailyKPI(day: String!): HighFrequencyKPI
+  # El punto de entrada unificado para todos los periodos pre-calculados
+  getPrecalculatedKPI(
+    year: String!, 
+    quarter: String, 
+    month: String, 
+    day: String
+  ): AnalyticsResponse
+
+  # Query dinámico para GSI1 (Análisis por Branch o Asset)
+  getConsumptionAnalytics(
+    entityId: ID!, 
+    type: String!, 
+    startDate: String!, 
+    endDate: String!
+  ): AnalyticsResponse
+
   getInvoicesByPeriod(year: String!, month: String): [Invoice]
-  getIntensityReport(year: String!): NormalizationKPIs
   getCostCenters: [AWSJSON]
   getTariffsByBranch(branchId: ID!): [AWSJSON]
+  getIntensityReport(year: String!): NormalizationKPIs
 }
 
-# --- 5. ACCIONES (MUTATIONS) ---
+# --- 6. ACCIONES (MUTATIONS) ---
 type Mutation {
-  # Infraestructura Base
   saveOrgConfig(orgId: ID!, input: OrgConfigInput!): MutationResponse
   createBranch(orgId: ID!, input: BranchInput!): MutationResponse
   saveBuilding(orgId: ID!, branchId: ID!, buildingId: ID!, input: BuildingInput!): MutationResponse
-  saveCostCenter(orgId: ID!, input: CostCenterInput!): MutationResponse
-  
-  # Activos y Medición
   saveAsset(orgId: ID!, assetId: ID!, input: AssetInput!): MutationResponse
   saveMeter(orgId: ID!, branchId: ID!, meterId: ID!, input: MeterInput!): MutationResponse
-  
-  # Finanzas y Reglas
   saveTariff(orgId: ID!, branchId: ID!, serviceType: String!, input: TariffInput!): MutationResponse
-  saveAlertRule(orgId: ID!, branchId: ID!, entityId: ID!, alertType: String!, input: AlertRuleInput!): MutationResponse
-  
-  # Usuarios y Logs
-  saveUser(orgId: ID!, userId: ID!, input: UserInput!): MutationResponse
   saveProductionLog(orgId: ID!, branchId: ID!, period: String!, input: ProductionLogInput!): MutationResponse
-  updateProductionLog(orgId: ID!, branchId: ID!, period: String!, input: ProductionLogInput!): MutationResponse
-  saveEmissionFactor(input: EmissionFactorInput!): MutationResponse
-
+  
   # Procesamiento de Facturas
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
-  approveInvoice(invoiceId: ID!): Invoice 
   confirmInvoice(sk: String!, input: ConfirmInvoiceInput!): ActionResponse!
+  approveInvoice(invoiceId: ID!): Invoice 
 }

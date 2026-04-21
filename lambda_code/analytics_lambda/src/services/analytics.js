@@ -20,86 +20,86 @@ const mapServiceBreakdown = (item) => {
 export const analyticsService = {
 
     /**
-     * 1. ESTRATÉGICO: KPIs (Anuales, Mensuales y Trimestrales)
-     */
-    getYearlyKPI: async (orgId, year) => {
-        const SK = `STATS#YEAR#${year}`;
-        const item = await repo.getStats(orgId, SK); // Usamos el repo!
-        if (!item) return null;
+ * Recupera KPIs pre-calculados desde la tabla principal (Patrón Single Table).
+ * Soporta granularidad: Año, Quarter, Mes y Día.
+ */
+    getPrecalculatedKPI: async (orgId, args) => {
+        // 1. Construcción de SK (Jerarquía: STATS#2026#Q2#M04#D01)
+        const year = args.year || "2026";
+        const { quarter, month, day } = args;
 
-        return {
-            id: item.SK,
-            totalCo2eTon: item.ghg_total_co2e_ton || 0,
-            totalSpend: item.financials_total_spend || 0,
-            invoiceCount: item.trazabilidad_total_invoices || 0,
-            lastUpdated: item.last_updated,
-            byService: mapServiceBreakdown(item),
-            normalization: item.normalization_kpis,
-            environmental: item.environmental_impact,
-            weather: item.weather_adjustment,
-            metadata: item.metadata
-        };
+        let skParts = ['STATS', year];
+        if (quarter) skParts.push(quarter.toUpperCase());
+        if (month) skParts.push(`M${month.toString().padStart(2, '0')}`);
+        if (day) skParts.push(`D${day.toString().padStart(2, '0')}`);
+        const finalSK = skParts.join('#');
+
+        try {
+            const item = await repo.getStats(orgId, finalSK);
+            if (!item) return null;
+
+            // 2. Retorno de Objeto Enriquecido (Full Context)
+            return {
+                id: item.SK,
+                metadata: {
+                    orgId,
+                    timestamp: new Date().toISOString(),
+                    period: { year, quarter, month, day },
+                    status: item.status || "DRAFT"
+                },
+
+                // --- BLOQUE 1: FINANCIERO & COSTOS ---
+                financials: {
+                    totalSpend: item.financials_total_spend || 0,
+                    currency: item.financials_currency || "USD",
+                    // Pregunta #15: Costo por m2
+                    costPerM2: item.building_info?.m2 ? (item.financials_total_spend / item.building_info.m2) : 0,
+                    // Pregunta #17 & #18: Ahorros y Procrastinación
+                    savingsRealized: item.ai_analysis?.savings_realized || 0,
+                    savingsPending: item.ai_analysis?.pending_recommendations_value || 0,
+                    taxProjections: item.transition_risk_scoring || {}
+                },
+
+                // --- BLOQUE 2: ENERGÍA & INTENSIDAD ---
+                energy: {
+                    consumptionKwh: item.consumption_val || 0,
+                    // Pregunta #3 & #6: Benchmarking e Intensidad
+                    intensityIndex: item.analytics?.energy_intensity || 0,
+                    renewableMix: item.renewable_energy_mix_pct || 0,
+                    // Pregunta #14 & #22: Desperdicio
+                    phantomLoadKwh: item.analytics?.phantom_load || 0,
+                    idleWasteCost: item.analytics?.idle_energy_cost || 0
+                },
+
+                // --- BLOQUE 3: SOSTENIBILIDAD & ESG ---
+                sustainability: {
+                    totalCo2e: item.ghg_total_co2e_kg || 0,
+                    emissionFactor: item.factor_identity?.co2e_value || 0,
+                    // Pregunta #19: Brecha Net Zero
+                    netZeroGap: item.sustainability_standards?.net_zero_progress_pct || 0,
+                    complianceStatus: item.regulatory_compliance?.status || "COMPLIANT"
+                },
+
+                // --- BLOQUE 4: OPERATIVO & CALIDAD ---
+                operational: {
+                    // Pregunta #9 & #24: Integridad
+                    dataQualityScore: item.data_quality_score || "ESTIMATED",
+                    reliabilityPct: item.audit_trail?.reliability_score || 0,
+                    // Pregunta #7: Salud de Red
+                    gridHealthEvents: item.metrology?.grid_incidents_count || 0,
+                    avgVoltageDrift: item.metrology?.voltage_drift || 0
+                },
+
+                // --- BLOQUE 5: DESGLOSE (Para Gráficas de Tarta en Svelte) ---
+                breakdown: {
+                    byService: item.breakdown_service || {}, // HVAC, Lighting, etc.
+                    bySource: item.breakdown_source || {}    // Grid, Solar, GenSet
+                }
+            };
+        } catch (error) {
+            throw new Error(`Error en el análisis descriptivo: ${error.message}`);
+        }
     },
-
-    getQuarterlyKPI: async (orgId, year, quarter) => {
-        const SK = `STATS#YEAR#${year}#${quarter}`;
-        const item = await repo.getStats(orgId, SK);
-        if (!item) return null;
-
-        return {
-            id: item.SK,
-            totalCo2eTon: item.ghg_total_co2e_ton || 0,
-            totalSpend: item.financials_total_spend || 0,
-            byService: mapServiceBreakdown(item),
-            normalization: item.normalization_kpis
-        };
-    },
-
-    getMonthlyKPI: async (orgId, year, month) => {
-        const m = month.padStart(2, '0');
-        const SK = `STATS#YEAR#${year}#M${m}`; // Formato correcto M01
-        const item = await repo.getStats(orgId, SK);
-        if (!item) return null;
-
-        return {
-            id: item.SK,
-            totalCo2eTon: item.ghg_total_co2e_ton || 0,
-            totalSpend: item.financials_total_spend || 0,
-            byService: mapServiceBreakdown(item),
-            normalization: item.normalization_kpis
-        };
-    },
-
-    getWeeklyKPI: async (orgId, year, week) => {
-        const w = week.padStart(2, '0');
-        const SK = `STATS#WEEK#${year}#W${w}`;
-        const item = await repo.getStats(orgId, SK);
-        if (!item) return null;
-
-        return {
-            id: item.SK,
-            totalCo2eKg: item.ghg_total_co2e_kg || 0,
-            totalSpend: item.financials_total_spend || 0,
-            lastUpdated: item.last_updated,
-            byService: mapServiceBreakdown(item),
-            normalization: item.normalization_kpis
-        };
-    },
-
-    getDailyKPI: async (orgId, day) => {
-        const SK = `STATS#DAY#${day}`; 
-        const item = await repo.getStats(orgId, SK);
-        if (!item) return null;
-
-        return {
-            id: item.SK,
-            totalCo2eKg: item.ghg_total_co2e_kg || 0,
-            totalSpend: item.financials_total_spend || 0,
-            byService: mapServiceBreakdown(item),
-            normalization: item.normalization_kpis
-        };
-    },
-
     /**
      * 2. TENDENCIAS (Year over Year)
      */
