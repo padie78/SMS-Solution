@@ -13,6 +13,7 @@ type MutationResponse {
   ccId: ID
   assetId: ID
   meterId: ID
+  tariffId: ID
   service: String
   alertKey: String
   userId: ID

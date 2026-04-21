@@ -662,8 +662,13 @@ export const configService = {
 
             return {
                 success: true,
-                tariffId: item.SK,
-                validFrom: item.validity.from
+                orgId: orgId,
+                branchId: bId,
+                tariffId: responseId, // El campo específico que agregamos
+                assetId: responseId,  // Lo mantenemos por si algún componente genérico lo usa
+                service: service,     // "ELECTRICITY"
+                entity: JSON.stringify(item),
+                ...formatResponse(item)
             };
         } catch (error) {
             if (error.name === "ConditionalCheckFailedException") {
