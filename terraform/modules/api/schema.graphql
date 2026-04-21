@@ -240,6 +240,56 @@ input SimplifiedDataInput {
   currency: String
 }
 
+# --- 1. Para saveCostCenter ---
+input CostCenterInput {
+  id: ID!
+  name: String!
+  accountingCode: String
+  managerId: String
+  branchId: ID!
+  method: String # Ej: SQUARE_METERS, PERCENTAGE
+  percentage: Float
+  operatingHours: Int
+  annualBudget: Float
+  glMapping: String
+}
+
+# --- 2. Para saveAlertRule ---
+input AlertRuleInput {
+  name: String!
+  description: String
+  status: String # ENABLED, DISABLED
+  priority: String # P1, P2, P3
+  metricSource: String
+  operator: String # GREATER_THAN, LESS_THAN
+  threshold: Float!
+  durationMins: Int
+  channels: [String]
+  recipients: [String]
+}
+
+# --- 3. Para saveUser ---
+input UserInput {
+  fullName: String!
+  email: String!
+  position: String
+  role: String! # ADMIN, MANAGER, VIEWER
+  language: String
+  emailAlerts: Boolean
+}
+
+# --- 4. Para saveEmissionFactor ---
+input EmissionFactorInput {
+  name: String!
+  year: Int!
+  regionCode: String!
+  activityType: String! # ELEC, GAS, etc
+  unit: String! # kg/kWh
+  value: Float!
+  scope: String # SCOPE_1, SCOPE_2, SCOPE_3
+  methodology: String
+}
+
 # --- 5. CONSULTAS (QUERIES) ---
 type Query {
   # El punto de entrada unificado para todos los periodos pre-calculados
