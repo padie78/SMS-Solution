@@ -60,7 +60,7 @@ export const handler = async (event) => {
 
             // --- 5. OPERACIONES Y EMISIONES ---
             case 'saveProductionLog': // Match con el error de los logs
-                result = await configService.logProduction(orgId, args.input);
+                result = await configService.saveProductionLog(orgId, args.input);
                 break;
 
             case 'saveEmissionFactor': // Match con el error de los logs
