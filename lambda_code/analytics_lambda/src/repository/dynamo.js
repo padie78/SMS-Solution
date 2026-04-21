@@ -62,7 +62,7 @@ export const repo = {
     }
   };
 
-  const result = await docClient.get(params).promise();
+  const result = await ddb.get(params).promise();
   
   // Si no existe en la BD, devolvemos un objeto por defecto 
   // para que el sistema no explote en el test.
