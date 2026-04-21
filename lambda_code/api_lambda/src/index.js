@@ -51,7 +51,7 @@ export const handler = async (event) => {
 
             // --- 4. FINANZAS, TARIFAS Y REGLAS ---
             case 'saveTariff': // Match con el error de los logs
-                result = await configService.saveTariff(orgId, args.input);
+                result = await configService.saveTariff(orgId, args.branchId, args.serviceType, args.input);
                 break;
 
             case 'saveAlertRule': // Match con el error de los logs

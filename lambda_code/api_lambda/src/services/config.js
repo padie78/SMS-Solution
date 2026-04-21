@@ -587,23 +587,27 @@ export const configService = {
     },
 
     saveTariff: async (orgId, branchId, serviceType, input) => {
+        // Fail-fast: Si no hay branch o service, el SK será inválido
+        if (!branchId || !serviceType) {
+            return { success: false, error: "MISSING_MANDATORY_KEYS: branchId and serviceType are required." };
+        }
+
         const timestamp = new Date().toISOString();
         const service = serviceType.toUpperCase();
         const bId = branchId.toUpperCase();
 
-        // Usamos el validFrom en el SK para permitir histórico de tarifas
         const validFrom = input.validFrom || timestamp;
-        const skDate = validFrom.split('T')[0]; // YYYY-MM-DD
+        const skDate = validFrom.split('T')[0];
 
         const item = {
             PK: `ORG#${orgId}`,
+            // SK Único: permite múltiples tarifas históricas por sede y servicio
             SK: `TARIFF#${bId}#${service}#${skDate}`,
             GSI1_PK: `BRANCH#${bId}`,
-            GSI1_SK: `TARIFF#${service}`, // Para buscar la tarifa actual de una planta rápido
+            GSI1_SK: `TARIFF#${service}`,
 
             entity_type: "UTILITY_CONFIG",
 
-            // 1. Datos del Contrato
             provider_info: {
                 name: input.providerName || "IEC",
                 service_type: service,
@@ -611,13 +615,10 @@ export const configService = {
                 account_number: input.accountNumber || "N/A",
             },
 
-            // 2. Estructura de Costos Dinámica
             tariff_structure: {
                 billing_cycle: input.billingCycle || "MONTHLY",
                 currency: input.currency || "ILS",
                 pricing_model: input.pricingModel || "TIME_OF_USE",
-
-                // Centralizamos los números para evitar errores de coma/punto
                 rates: {
                     base_unit_rate: Number(input.baseRate) || 0,
                     peak_rate: Number(input.peakRate) || 0,
@@ -625,8 +626,6 @@ export const configService = {
                     fixed_fee: Number(input.fixedFee) || 0,
                     reactive_penalty_rate: Number(input.reactivePenalty) || 0
                 },
-
-                // Estructura de impuestos mejorada para la lógica de cálculo
                 taxes: (input.taxes || []).map(t => ({
                     name: t.name,
                     value: Number(t.value) || 0,
@@ -634,18 +633,15 @@ export const configService = {
                 }))
             },
 
-            // 3. Parámetros de Ingeniería
             technical_constraints: {
                 contracted_power_kw: Number(input.contractedPower) || 0,
                 voltage_level: input.voltageLevel || "LOW_VOLTAGE",
-                // Si la tarifa aplica a un medidor fiscal específico
                 associated_meter_id: input.meterId ? `METER#${input.meterId.toUpperCase()}` : "ALL"
             },
 
-            // 4. Control de Vigencia (Crucial para el SMS)
             validity: {
                 from: validFrom,
-                to: input.validTo || "2099-12-31T23:59:59Z", // Default lejano
+                to: input.validTo || "2099-12-31T23:59:59Z",
                 is_active: true
             },
 
@@ -659,10 +655,10 @@ export const configService = {
         try {
             await docClient.send(new PutCommand({
                 TableName: TABLE_NAME,
-                Item: item
+                Item: item,
+                // Opcional: Impedir duplicados exactos en el mismo día
+                ConditionExpression: "attribute_not_exists(SK)"
             }));
-
-            // Opcional: Podrías disparar una función para invalidar la tarifa anterior si es necesario
 
             return {
                 success: true,
@@ -670,6 +666,9 @@ export const configService = {
                 validFrom: item.validity.from
             };
         } catch (error) {
+            if (error.name === "ConditionalCheckFailedException") {
+                return { success: false, error: "TARIFF_ALREADY_EXISTS_FOR_THIS_DATE" };
+            }
             console.error("[DB ERROR] saveTariff:", error);
             return { success: false, error: error.message };
         }
@@ -680,8 +679,8 @@ export const configService = {
         const service = serviceType.toUpperCase();
         const bId = branchId.toUpperCase();
 
-        // Si implementaste el versionado por fecha que te sugerí antes, 
-        // el SK debería incluir la fecha. Si no, usamos el SK estático:
+        // Si usas el versionado por fecha, el SK debe venir en el input. 
+        // Si no, usamos el SK estándar por defecto.
         const targetSK = input.sk || `TARIFF#${bId}#${service}`;
 
         const updates = [];
@@ -693,7 +692,7 @@ export const configService = {
             "#v": "validity"
         };
 
-        // 1. Actualización granular de Rates (Evita pisar todo el objeto rates)
+        // Actualización Granular de Precios (Evita pisar todo el mapa 'rates')
         if (input.baseRate !== undefined) {
             updates.push("#ts.#r.base_unit_rate = :br");
             attrValues[":br"] = Number(input.baseRate);
@@ -707,14 +706,16 @@ export const configService = {
             attrValues[":opr"] = Number(input.offPeakRate);
         }
 
-        // 2. Actualización de Potencia y Vigencia
+        // Actualización de Potencia Contratada
         if (input.contractedPower !== undefined) {
             updates.push("#tc.contracted_power_kw = :cp");
             attrValues[":cp"] = Number(input.contractedPower);
         }
+
+        // Gestión de Vigencia (Cierre de tarifa)
         if (input.validTo) {
             updates.push("#v.#to = :vto");
-            attrNames["#to"] = "to"; // "to" es palabra reservada en DynamoDB
+            attrNames["#to"] = "to"; // "to" es reservada en DynamoDB
             attrValues[":vto"] = input.validTo;
         }
 
@@ -727,7 +728,7 @@ export const configService = {
                     PK: `ORG#${orgId}`,
                     SK: targetSK
                 },
-                ConditionExpression: "attribute_exists(PK)",
+                ConditionExpression: "attribute_exists(PK)", // Solo actualiza si existe
                 UpdateExpression: `SET ${updates.join(", ")}, last_updated = :t`,
                 ExpressionAttributeNames: attrNames,
                 ExpressionAttributeValues: attrValues,
@@ -737,7 +738,7 @@ export const configService = {
             return { success: true, ...formatResponse(response.Attributes) };
         } catch (error) {
             if (error.name === "ConditionalCheckFailedException") {
-                return { success: false, message: "Tariff not found" };
+                return { success: false, error: "TARIFF_NOT_FOUND" };
             }
             console.error("[DB ERROR] updateTariff:", error);
             throw error;
