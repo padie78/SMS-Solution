@@ -588,83 +588,145 @@ export const configService = {
 
     saveTariff: async (orgId, branchId, serviceType, input) => {
         const timestamp = new Date().toISOString();
-        const service = serviceType.toUpperCase(); // ELECTRICITY, GAS, WATER
+        const service = serviceType.toUpperCase();
+        const bId = branchId.toUpperCase();
+
+        // Usamos el validFrom en el SK para permitir histórico de tarifas
+        const validFrom = input.validFrom || timestamp;
+        const skDate = validFrom.split('T')[0]; // YYYY-MM-DD
 
         const item = {
             PK: `ORG#${orgId}`,
-            SK: `TARIFF#${branchId}#${service}`,
+            SK: `TARIFF#${bId}#${service}#${skDate}`,
+            GSI1_PK: `BRANCH#${bId}`,
+            GSI1_SK: `TARIFF#${service}`, // Para buscar la tarifa actual de una planta rápido
+
             entity_type: "UTILITY_CONFIG",
 
-            // 1. Información del Proveedor
+            // 1. Datos del Contrato
             provider_info: {
                 name: input.providerName || "IEC",
                 service_type: service,
                 contract_id: input.contractId || "N/A",
-                utility_account_number: input.accountNumber || "N/A",
-                customer_support_contact: input.supportContact || "N/A"
+                account_number: input.accountNumber || "N/A",
             },
 
-            // 2. Estructura de Costos (Core Financiero)
+            // 2. Estructura de Costos Dinámica
             tariff_structure: {
                 billing_cycle: input.billingCycle || "MONTHLY",
                 currency: input.currency || "ILS",
                 pricing_model: input.pricingModel || "TIME_OF_USE",
+
+                // Centralizamos los números para evitar errores de coma/punto
                 rates: {
                     base_unit_rate: Number(input.baseRate) || 0,
-                    peak_hour_rate: Number(input.peakRate) || 0,
+                    peak_rate: Number(input.peakRate) || 0,
                     off_peak_rate: Number(input.offPeakRate) || 0,
-                    fixed_monthly_fee: Number(input.fixedFee) || 0,
-                    reactive_energy_penalty: Number(input.reactivePenalty) || 0
+                    fixed_fee: Number(input.fixedFee) || 0,
+                    reactive_penalty_rate: Number(input.reactivePenalty) || 0
                 },
-                taxes_and_levies: input.taxes || []
+
+                // Estructura de impuestos mejorada para la lógica de cálculo
+                taxes: (input.taxes || []).map(t => ({
+                    name: t.name,
+                    value: Number(t.value) || 0,
+                    is_percentage: t.isPercentage ?? true
+                }))
             },
 
-            // 3. Restricciones Técnicas (Límites de contrato)
+            // 3. Parámetros de Ingeniería
             technical_constraints: {
                 contracted_power_kw: Number(input.contractedPower) || 0,
                 voltage_level: input.voltageLevel || "LOW_VOLTAGE",
-                meter_id: input.meterId || "N/A"
+                // Si la tarifa aplica a un medidor fiscal específico
+                associated_meter_id: input.meterId ? `METER#${input.meterId.toUpperCase()}` : "ALL"
+            },
+
+            // 4. Control de Vigencia (Crucial para el SMS)
+            validity: {
+                from: validFrom,
+                to: input.validTo || "2099-12-31T23:59:59Z", // Default lejano
+                is_active: true
             },
 
             metadata: {
-                calculation_type: "AUTOMATED",
-                valid_from: input.validFrom || timestamp,
-                valid_to: input.validTo || null,
-                last_updated_by: input.userId || "system"
-            },
-
-            last_updated: timestamp
+                updated_at: timestamp,
+                updated_by: input.userId || "system",
+                version: "2.0"
+            }
         };
 
         try {
-            await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
-            return { success: true, service: service, ...formatResponse(item) };
+            await docClient.send(new PutCommand({
+                TableName: TABLE_NAME,
+                Item: item
+            }));
+
+            // Opcional: Podrías disparar una función para invalidar la tarifa anterior si es necesario
+
+            return {
+                success: true,
+                tariffId: item.SK,
+                validFrom: item.validity.from
+            };
         } catch (error) {
-            console.error("Error saving Tariff:", error);
+            console.error("[DB ERROR] saveTariff:", error);
             return { success: false, error: error.message };
         }
     },
 
     updateTariff: async (orgId, branchId, serviceType, input) => {
         const timestamp = new Date().toISOString();
+        const service = serviceType.toUpperCase();
+        const bId = branchId.toUpperCase();
+
+        // Si implementaste el versionado por fecha que te sugerí antes, 
+        // el SK debería incluir la fecha. Si no, usamos el SK estático:
+        const targetSK = input.sk || `TARIFF#${bId}#${service}`;
+
         const updates = [];
         const attrValues = { ":t": timestamp };
-        const attrNames = { "#ts": "tariff_structure", "#tc": "technical_constraints" };
+        const attrNames = {
+            "#ts": "tariff_structure",
+            "#r": "rates",
+            "#tc": "technical_constraints",
+            "#v": "validity"
+        };
 
-        // Actualización de Precios (Rates)
-        if (input.baseRate) { updates.push("#ts.rates.base_unit_rate = :br"); attrValues[":br"] = Number(input.baseRate); }
-        if (input.peakRate) { updates.push("#ts.rates.peak_hour_rate = :pr"); attrValues[":pr"] = Number(input.peakRate); }
-        if (input.offPeakRate) { updates.push("#ts.rates.off_peak_rate = :opr"); attrValues[":opr"] = Number(input.offPeakRate); }
+        // 1. Actualización granular de Rates (Evita pisar todo el objeto rates)
+        if (input.baseRate !== undefined) {
+            updates.push("#ts.#r.base_unit_rate = :br");
+            attrValues[":br"] = Number(input.baseRate);
+        }
+        if (input.peakRate !== undefined) {
+            updates.push("#ts.#r.peak_rate = :pr");
+            attrValues[":pr"] = Number(input.peakRate);
+        }
+        if (input.offPeakRate !== undefined) {
+            updates.push("#ts.#r.off_peak_rate = :opr");
+            attrValues[":opr"] = Number(input.offPeakRate);
+        }
 
-        // Actualización de Potencia Contratada
-        if (input.contractedPower) { updates.push("#tc.contracted_power_kw = :cp"); attrValues[":cp"] = Number(input.contractedPower); }
+        // 2. Actualización de Potencia y Vigencia
+        if (input.contractedPower !== undefined) {
+            updates.push("#tc.contracted_power_kw = :cp");
+            attrValues[":cp"] = Number(input.contractedPower);
+        }
+        if (input.validTo) {
+            updates.push("#v.#to = :vto");
+            attrNames["#to"] = "to"; // "to" es palabra reservada en DynamoDB
+            attrValues[":vto"] = input.validTo;
+        }
 
         if (updates.length === 0) return { success: false, message: "No fields to update" };
 
         try {
             const response = await docClient.send(new UpdateCommand({
                 TableName: TABLE_NAME,
-                Key: { PK: `ORG#${orgId}`, SK: `TARIFF#${branchId}#${serviceType.toUpperCase()}` },
+                Key: {
+                    PK: `ORG#${orgId}`,
+                    SK: targetSK
+                },
                 ConditionExpression: "attribute_exists(PK)",
                 UpdateExpression: `SET ${updates.join(", ")}, last_updated = :t`,
                 ExpressionAttributeNames: attrNames,
@@ -674,7 +736,10 @@ export const configService = {
 
             return { success: true, ...formatResponse(response.Attributes) };
         } catch (error) {
-            if (error.name === "ConditionalCheckFailedException") throw new Error("TARIFF_NOT_FOUND");
+            if (error.name === "ConditionalCheckFailedException") {
+                return { success: false, message: "Tariff not found" };
+            }
+            console.error("[DB ERROR] updateTariff:", error);
             throw error;
         }
     },
