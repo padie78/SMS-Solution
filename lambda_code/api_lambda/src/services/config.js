@@ -664,8 +664,8 @@ export const configService = {
                 success: true,
                 orgId: orgId,
                 branchId: bId,
-                tariffId: responseId, // El campo específico que agregamos
-                assetId: responseId,  // Lo mantenemos por si algún componente genérico lo usa
+                tariffId: item.SK, // El campo específico que agregamos
+                assetId: item.SK,  // Lo mantenemos por si algún componente genérico lo usa
                 service: service,     // "ELECTRICITY"
                 entity: JSON.stringify(item),
                 ...formatResponse(item)
