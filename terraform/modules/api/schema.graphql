@@ -50,6 +50,7 @@ type AnalyticsMetadata {
   year: String
   quarter: String
   month: String
+  week: String    # <--- TE FALTABA ESTE CAMPO AQUÍ
   day: String
   granularity: String
   lastUpdated: String
