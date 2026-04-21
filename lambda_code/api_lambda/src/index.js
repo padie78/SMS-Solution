@@ -60,7 +60,12 @@ export const handler = async (event) => {
 
             // --- 5. OPERACIONES Y EMISIONES ---
             case 'saveProductionLog': // Match con el error de los logs
-                result = await configService.saveProductionLog(orgId, args.input);
+                result = await configService.saveProductionLog(
+                    event.arguments.orgId,
+                    event.arguments.branchId,
+                    event.arguments.period,
+                    event.arguments.input
+                );
                 break;
 
             case 'saveEmissionFactor': // Match con el error de los logs
@@ -79,10 +84,10 @@ export const handler = async (event) => {
 
     } catch (error) {
         console.error(`[LAMBDA FATAL ERROR] Method: ${methodName} | Message: ${error.message}`);
-        return { 
-            success: false, 
+        return {
+            success: false,
             message: error.message,
-            id: null 
+            id: null
         };
     }
 };
