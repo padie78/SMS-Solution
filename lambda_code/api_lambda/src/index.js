@@ -41,6 +41,13 @@ export const handler = async (event) => {
                 result = await configService.saveBranchConfig(orgId, args.input);
                 break;
 
+            // --- 2. INFRAESTRUCTURA (Añadir saveBuilding) ---
+            case 'saveBuilding':
+                // Asegúrate de que configService tenga este método
+                result = await configService.saveBuilding(orgId, args.branchId, args.buildingId, args.input);
+                break;
+
+
             // --- 3. ACTIVOS ---
             case 'createAsset':
                 result = await configService.createAsset(orgId, args.input);
@@ -83,12 +90,12 @@ export const handler = async (event) => {
 
     } catch (error) {
         console.error(`[LAMBDA FATAL ERROR] Method: ${event.info?.fieldName} | Message: ${error.message}`);
-        
+
         // Formato de error compatible con AppSync para evitar nulos inesperados
-        return { 
-            success: false, 
+        return {
+            success: false,
             message: error.message,
-            id: null 
+            id: null
         };
     }
 };
