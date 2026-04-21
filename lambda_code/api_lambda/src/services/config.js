@@ -964,125 +964,125 @@ export const configService = {
     },
 
     saveProductionLog: async (orgId, branchId, period, input = {}) => {
-    const timestamp = new Date().toISOString();
-    // Normalización: Aseguramos que el periodo sea consistente (ej: 2026-04)
-    const formattedPeriod = period.trim().toUpperCase();
-    const bId = branchId.toUpperCase();
-    const logKey = `PROD#${formattedPeriod}#${bId}`;
+        const timestamp = new Date().toISOString();
+        // Normalización: Aseguramos que el periodo sea consistente (ej: 2026-04)
+        const formattedPeriod = period.trim().toUpperCase();
+        const bId = branchId.toUpperCase();
+        const logKey = `PROD#${formattedPeriod}#${bId}`;
 
-    const item = {
-        PK: `ORG#${orgId}`,
-        SK: logKey,
-        
-        // GSI para obtener producción de todas las sedes en un mismo mes
-        GSI1_PK: `ORG#${orgId}#PERIOD#${formattedPeriod}`,
-        GSI1_SK: `BRANCH#${bId}`,
+        const item = {
+            PK: `ORG#${orgId}`,
+            SK: logKey,
 
-        entity_type: "PRODUCTION_LOG",
-        version: "2.0",
+            // GSI para obtener producción de todas las sedes en un mismo mes
+            GSI1_PK: `ORG#${orgId}#PERIOD#${formattedPeriod}`,
+            GSI1_SK: `BRANCH#${bId}`,
 
-        // Métricas de Producción (Core para KPIs)
-        metrics: {
-            units_produced: Number(input.units) || 0,
-            unit_type: input.unitType || "TONS",
-            efficiency_ratio: Number(input.efficiency) || 1.0,
-            waste_generated: Number(input.waste) || 0,
-            downtime_hours: Number(input.downtime) || 0,
-            active_lines: Number(input.activeLines) || 1
-        },
+            entity_type: "PRODUCTION_LOG",
+            version: "2.0",
 
-        // Contexto Operativo (Clave para IA y normalización por clima)
-        operational_context: {
-            shift_mode: input.shiftMode || "24/7",
-            avg_temperature: Number(input.temperature) || 25.0,
-            avg_humidity: Number(input.humidity) || 50,
-            raw_material_batch: input.rawMaterialBatch || "N/A",
-            active_m2: Number(input.activeM2) || 0
-        },
+            // Métricas de Producción (Core para KPIs)
+            metrics: {
+                units_produced: Number(input.units) || 0,
+                unit_type: input.unitType || "TONS",
+                efficiency_ratio: Number(input.efficiency) || 1.0,
+                waste_generated: Number(input.waste) || 0,
+                downtime_hours: Number(input.downtime) || 0,
+                active_lines: Number(input.activeLines) || 1
+            },
 
-        // Trazabilidad
-        metadata: {
-            branch_id: bId,
-            period: formattedPeriod,
-            created_at: timestamp,
-            updated_at: timestamp,
-            updated_by: input.userId || "SYSTEM"
-        }
-    };
+            // Contexto Operativo (Clave para IA y normalización por clima)
+            operational_context: {
+                shift_mode: input.shiftMode || "24/7",
+                avg_temperature: Number(input.temperature) || 25.0,
+                avg_humidity: Number(input.humidity) || 50,
+                raw_material_batch: input.rawMaterialBatch || "N/A",
+                active_m2: Number(input.activeM2) || 0
+            },
 
-    try {
-        await docClient.send(new PutCommand({
-            TableName: TABLE_NAME,
-            Item: item
-        }));
-
-        return { 
-            success: true, 
-            logKey: logKey, 
-            orgId,
-            branchId: bId,
-            ...formatResponse(item) 
+            // Trazabilidad
+            metadata: {
+                branch_id: bId,
+                period: formattedPeriod,
+                created_at: timestamp,
+                updated_at: timestamp,
+                updated_by: input.userId || "SYSTEM"
+            }
         };
-    } catch (error) {
-        console.error("[DB ERROR] saveProductionLog:", error);
-        return { success: false, error: error.message };
-    }
-},
 
- updateProductionLog: async (orgId, period, branchId, input = {}) => {
-    const timestamp = new Date().toISOString();
-    const formattedPeriod = period.trim().toUpperCase();
-    const bId = branchId.toUpperCase();
-    const logKey = `PROD#${formattedPeriod}#${bId}`;
+        try {
+            await docClient.send(new PutCommand({
+                TableName: TABLE_NAME,
+                Item: item
+            }));
 
-    const updates = [];
-    const attrValues = { ":t": timestamp };
-    const attrNames = { "#m": "metrics", "#oc": "operational_context", "#meta": "metadata" };
-
-    // Mapeo dinámico y seguro de campos
-    if (input.units !== undefined) { 
-        updates.push("#m.units_produced = :u"); 
-        attrValues[":u"] = Number(input.units); 
-    }
-    if (input.efficiency !== undefined) { 
-        updates.push("#m.efficiency_ratio = :e"); 
-        attrValues[":e"] = Number(input.efficiency); 
-    }
-    if (input.temperature !== undefined) { 
-        updates.push("#oc.avg_temperature = :temp"); 
-        attrValues[":temp"] = Number(input.temperature); 
-    }
-    if (input.rawMaterialBatch) { 
-        updates.push("#oc.raw_material_batch = :batch"); 
-        attrValues[":batch"] = input.rawMaterialBatch; 
-    }
-
-    if (updates.length === 0) return { success: false, message: "No fields to update" };
-
-    try {
-        const response = await docClient.send(new UpdateCommand({
-            TableName: TABLE_NAME,
-            Key: { PK: `ORG#${orgId}`, SK: logKey },
-            ConditionExpression: "attribute_exists(PK)",
-            UpdateExpression: `SET ${updates.join(", ")}, #meta.updated_at = :t`,
-            ExpressionAttributeNames: attrNames,
-            ExpressionAttributeValues: attrValues,
-            ReturnValues: "ALL_NEW"
-        }));
-
-        return { 
-            success: true, 
-            logKey: logKey,
-            ...formatResponse(response.Attributes) 
-        };
-    } catch (error) {
-        if (error.name === "ConditionalCheckFailedException") {
-            return { success: false, error: "PRODUCTION_LOG_NOT_FOUND" };
+            return {
+                success: true,
+                logKey: logKey,
+                orgId,
+                branchId: bId,
+                ...formatResponse(item)
+            };
+        } catch (error) {
+            console.error("[DB ERROR] saveProductionLog:", error);
+            return { success: false, error: error.message };
         }
-        console.error("[DB ERROR] updateProductionLog:", error);
-        return { success: false, error: error.message };
-    }
-},
+    },
+
+    updateProductionLog: async (orgId, period, branchId, input = {}) => {
+        const timestamp = new Date().toISOString();
+        const formattedPeriod = period.trim().toUpperCase();
+        const bId = branchId.toUpperCase();
+        const logKey = `PROD#${formattedPeriod}#${bId}`;
+
+        const updates = [];
+        const attrValues = { ":t": timestamp };
+        const attrNames = { "#m": "metrics", "#oc": "operational_context", "#meta": "metadata" };
+
+        // Mapeo dinámico y seguro de campos
+        if (input.units !== undefined) {
+            updates.push("#m.units_produced = :u");
+            attrValues[":u"] = Number(input.units);
+        }
+        if (input.efficiency !== undefined) {
+            updates.push("#m.efficiency_ratio = :e");
+            attrValues[":e"] = Number(input.efficiency);
+        }
+        if (input.temperature !== undefined) {
+            updates.push("#oc.avg_temperature = :temp");
+            attrValues[":temp"] = Number(input.temperature);
+        }
+        if (input.rawMaterialBatch) {
+            updates.push("#oc.raw_material_batch = :batch");
+            attrValues[":batch"] = input.rawMaterialBatch;
+        }
+
+        if (updates.length === 0) return { success: false, message: "No fields to update" };
+
+        try {
+            const response = await docClient.send(new UpdateCommand({
+                TableName: TABLE_NAME,
+                Key: { PK: `ORG#${orgId}`, SK: logKey },
+                ConditionExpression: "attribute_exists(PK)",
+                UpdateExpression: `SET ${updates.join(", ")}, #meta.updated_at = :t`,
+                ExpressionAttributeNames: attrNames,
+                ExpressionAttributeValues: attrValues,
+                ReturnValues: "ALL_NEW"
+            }));
+
+            return {
+                success: true,
+                logKey: logKey,
+                ...formatResponse(response.Attributes)
+            };
+        } catch (error) {
+            if (error.name === "ConditionalCheckFailedException") {
+                return { success: false, error: "PRODUCTION_LOG_NOT_FOUND" };
+            }
+            console.error("[DB ERROR] updateProductionLog:", error);
+            return { success: false, error: error.message };
+        }
+    },
 
     saveEmissionFactor: async (input) => {
         const timestamp = new Date().toISOString();
