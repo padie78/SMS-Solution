@@ -32,12 +32,10 @@ type PresignedUrlResponse {
   userId: String!
 }
 
-# --- 2. NÚCLEO ANALÍTICO (Unified Analytics) ---
-
+# --- 2. NÚCLEO ANALÍTICO ---
 type AnalyticsResponse {
   id: ID!
   metadata: AnalyticsMetadata
-  # CRITICAL: Cambiado de AWSJSON a Tipos Estructurados para permitir sub-selección
   financials: FinancialsAnalytics
   energy: EnergyAnalytics
   sustainability: SustainabilityAnalytics
@@ -106,9 +104,7 @@ type ComplianceAnalytics {
   standard: String
 }
 
-# --- 3. ENTIDADES Y DEMÁS ESTRUCTURAS ---
-# (Se mantienen igual a tu definición original para Invoice, Inputs, etc.)
-
+# --- 3. ENTIDADES ---
 type Invoice {
   id: ID!
   vendor: String
@@ -127,6 +123,168 @@ type NormalizationKPIs {
   intensity_per_revenue: Float
   intensity_per_sqm: Float
   intensity_per_production_unit: Float 
+}
+
+# --- 4. INPUTS (REQUERIDOS PARA MUTATIONS) ---
+# Aquí es donde fallaba tu despliegue
+
+input OrgConfigInput {
+  name: String
+  taxId: String
+  hqAddress: String
+  totalGlobalM2: Float
+  industrySector: String
+  currency: String
+  reportingCurrency: String
+  minConfidence: Float
+  baselineYear: Int
+  reductionTarget: Float
+  targetYear: Int
+  subscriptionPlan: String
+}
+
+input BranchInput {
+  branchId: String!
+  name: String!
+  m2Surface: Float
+  facilityType: String
+  timezone: String
+  geoLocation: String
+  energyTarget: Float
+  carbonBudget: Float
+  region: String
+  criticality: String
+}
+
+input BuildingInput {
+  name: String!
+  usageType: String
+  status: String
+  yearBuilt: Int
+  m2Surface: Float
+  m3Volume: Float
+  hvacType: String
+  lightingTech: String
+  hasBms: Boolean
+  zoneId: String
+}
+
+input AssetInput {
+  name: String
+  category: String
+  status: String
+  criticality: String
+  nominalPower: Float
+  meterId: String
+  branchId: String
+  buildingId: String
+  costCenterId: String
+}
+
+input TariffInput {
+  providerName: String
+  contractId: String
+  accountNumber: String
+  pricingModel: String
+  baseRate: Float
+  peakRate: Float
+  offPeakRate: Float
+  taxes: [TaxInput]
+  validFrom: String
+  validTo: String
+}
+
+input TaxInput {
+  name: String
+  rate: Float
+}
+
+input ProductionLogInput {
+  units: Float
+  unitType: String
+  shiftMode: String
+  efficiency: Float
+  waste: Float
+  activeLines: Int
+}
+
+input MeterInput {
+  name: String
+  serialNumber: String
+  iotName: String
+  protocol: String
+  type: String
+  isMain: Boolean
+  parentMeterId: String
+  buildingId: String
+}
+
+input BillingPeriodInput {
+  start: String!
+  end: String!
+}
+
+input SimplifiedDataInput {
+  vendor_name: String
+  vendor_tax_id: String
+  invoice_number: String
+  total_amount: Float
+  tax_amount: Float
+  base_amount: Float
+  currency: String
+}
+
+input ConfirmInvoiceInput {
+  service_type: String!
+  total_magnitude_sum: Float!
+  billing_period: BillingPeriodInput!
+  extracted_data: SimplifiedDataInput!
+}
+
+input CostCenterInput {
+  id: ID!
+  name: String!
+  accountingCode: String
+  managerId: String
+  branchId: ID!
+  method: String 
+  percentage: Float
+  operatingHours: Int
+  annualBudget: Float
+  glMapping: String
+}
+
+input AlertRuleInput {
+  name: String!
+  description: String
+  status: String 
+  priority: String 
+  metricSource: String
+  operator: String 
+  threshold: Float!
+  durationMins: Int
+  channels: [String]
+  recipients: [String]
+}
+
+input UserInput {
+  fullName: String!
+  email: String!
+  position: String
+  role: String! 
+  language: String
+  emailAlerts: Boolean
+}
+
+input EmissionFactorInput {
+  name: String!
+  year: Int!
+  regionCode: String!
+  activityType: String! 
+  unit: String! 
+  value: Float!
+  scope: String 
+  methodology: String
 }
 
 # --- 5. CONSULTAS (QUERIES) ---
