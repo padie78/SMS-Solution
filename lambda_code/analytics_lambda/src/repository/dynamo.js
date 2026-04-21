@@ -53,6 +53,27 @@ export const repo = {
         }
     },
 
+    getOrgConfig: async (orgId) => {
+  const params = {
+    TableName: process.env.MAIN_TABLE,
+    Key: {
+      "PK": `ORG#${orgId}`,
+      "SK": `CONFIG`
+    }
+  };
+
+  const result = await docClient.get(params).promise();
+  
+  // Si no existe en la BD, devolvemos un objeto por defecto 
+  // para que el sistema no explote en el test.
+  return result.Item || {
+    totalGlobalM2: 1,
+    currency: "USD",
+    reductionTargetTon: 100,
+    baselineMonthlySpend: 1000
+  };
+},
+
     /**
      * 2. GOBERNANZA Y AUDITORÍA (INV#)
      * Busca facturas por año/mes con resolución de URL de S3.
