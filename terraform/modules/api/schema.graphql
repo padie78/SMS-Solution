@@ -238,6 +238,8 @@ input SimplifiedDataInput {
   vendor_tax_id: String
   invoice_number: String
   total_amount: Float
+  tax_amount: Float     # <--- Agregar este
+  base_amount: Float    # <--- Agregar este
   currency: String
 }
 
