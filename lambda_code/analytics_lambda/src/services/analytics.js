@@ -27,67 +27,108 @@ export const analyticsService = {
         const year = args.year || "2026";
         const { quarter, month, week, day } = args;
 
-        // 1. Construcción de SK Jerárquica
-        // Formatos: STATS#2026 | STATS#2026#Q2 | STATS#2026#W12 | STATS#2026#M04#D21
+        // --- 1. CONSTRUCCIÓN DE SK JERÁRQUICA ADITIVA ---
         let skParts = ['STATS', year];
 
+        // Lógica de Quarter: Si pides mes, calculamos el Q automáticamente para la SK
         if (quarter) {
             skParts.push(quarter.toUpperCase());
-        } else if (week) {
-            skParts.push(`W${week.toString().padStart(2, '0')}`);
         } else if (month) {
+            const calculatedQ = Math.ceil(parseInt(month) / 3);
+            skParts.push(`Q${calculatedQ}`);
+        }
+
+        // Lógica de Mes y Día
+        if (month) {
             skParts.push(`M${month.toString().padStart(2, '0')}`);
-            if (day) skParts.push(`D${day.toString().padStart(2, '0')}`);
+            if (day) {
+                skParts.push(`D${day.toString().padStart(2, '0')}`);
+            }
+        } 
+        // Lógica de Semana (Independiente de la jerarquía mensual para evitar traslapes)
+        else if (week) {
+            skParts.push(`W${week.toString().padStart(2, '0')}`);
         }
 
         const finalSK = skParts.join('#');
+        console.log(`[DEBUG ANALYTICS] Fetching Org: ${orgId} | SK: ${finalSK}`);
 
         try {
             const item = await repo.getStats(orgId, finalSK);
-            if (!item) return null;
+            
+            // Si no hay datos, retornamos null (AppSync lo manejará correctamente)
+            if (!item) {
+                console.warn(`[ANALYTICS] No data found for SK: ${finalSK}`);
+                return null;
+            }
 
-            // 2. Retorno Sincronizado con AnalyticsResponse (Schema)
+            // --- 2. RETORNO SINCRONIZADO CON EL SCHEMA (AnalyticsResponse) ---
             return {
                 id: item.SK,
                 metadata: {
                     orgId,
-                    year: year,
-                    quarter: quarter || null,
+                    year,
+                    quarter: quarter || (month ? `Q${Math.ceil(parseInt(month) / 3)}` : null),
                     month: month || null,
                     week: week || null,
                     day: day || null,
                     granularity: week ? "WEEKLY" : (day ? "DAILY" : (month ? "MONTHLY" : (quarter ? "QUARTERLY" : "YEARLY"))),
-                    lastUpdated: new Date().toISOString()
+                    lastUpdated: item.last_updated || new Date().toISOString(),
+                    version: item.version || "1.0"
                 },
+
                 financials: {
                     totalSpend: item.financials_total_spend || 0,
-                    currency: item.financials_currency || "EUR",
+                    currency: item.financials_currency || "USD",
+                    // Cálculo de costo por m2 basado en la info del edificio
                     costPerM2: item.building_info?.m2 ? (item.financials_total_spend / item.building_info.m2) : 0,
                     savingsRealized: item.ai_analysis?.savings_realized || 0,
-                    savingsPending: item.ai_analysis?.pending_recommendations_value || 0
+                    savingsPending: item.ai_analysis?.pending_recommendations_value || 0,
+                    avoidedCost: item.ai_analysis?.avoided_cost || 0,
+                    taxRiskExposure: item.transition_risk_scoring || {}
                 },
+
                 energy: {
                     consumptionKwh: item.consumption_val || 0,
                     intensityIndex: item.analytics?.energy_intensity || 0,
                     phantomLoadKwh: item.analytics?.phantom_load || 0,
-                    idleEnergyCost: item.analytics?.idle_energy_cost || 0
+                    idleEnergyCost: item.analytics?.idle_energy_cost || 0,
+                    gridEfficiency: item.analytics?.grid_efficiency || 0,
+                    baseloadKwh: item.analytics?.baseload_kwh || 0
                 },
+
                 sustainability: {
-                    totalCo2eKg: item.ghg_total_co2e_kg || 0, // Match con Schema
+                    totalCo2eKg: item.ghg_total_co2e_kg || 0,
+                    carbonIntensity: item.analytics?.carbon_intensity || 0,
+                    renewableRatio: item.renewable_energy_mix_pct || 0,
                     netZeroGapPct: item.sustainability_standards?.net_zero_progress_pct || 0,
-                    complianceStatus: item.regulatory_compliance?.status || "COMPLIANT"
+                    complianceStatus: item.regulatory_compliance?.status || "COMPLIANT",
+                    weatherNormalizedUsage: item.analytics?.weather_normalized_kwh || 0
                 },
+
                 operational: {
-                    dataQualityScore: item.data_quality_score === "VERIFIED" ? 100 : 70,
+                    dataQualityScore: item.data_quality_score === "VERIFIED" ? 100.0 : 75.0,
                     reliabilityPct: item.audit_trail?.reliability_score || 0,
-                    gridHealthIncidents: item.metrology?.grid_incidents_count || 0 // Match con Schema
+                    gridHealthIncidents: item.metrology?.grid_incidents_count || 0,
+                    activeVsIdleRatio: item.analytics?.active_idle_ratio || 0,
+                    nominalLoadPerformance: item.analytics?.nominal_load_perf || 0
                 },
+
                 breakdowns: {
-                    byService: item.breakdown_service || {}
+                    byService: {
+                        elec_spend: item.breakdown_service?.elec_spend || 0,
+                        elec_val: item.breakdown_service?.elec_val || 0,
+                        gas_spend: item.breakdown_service?.gas_spend || 0,
+                        gas_val: item.breakdown_service?.gas_val || 0,
+                        hvac_val: item.breakdown_service?.hvac_val || 0,
+                        lighting_val: item.breakdown_service?.lighting_val || 0,
+                        other_val: item.breakdown_service?.other_val || 0
+                    },
+                    bySource: item.breakdown_source || {}
                 }
             };
         } catch (error) {
-            console.error("Error en getPrecalculatedKPI:", error);
+            console.error(`[CRITICAL] Error in getPrecalculatedKPI: ${error.message}`);
             throw new Error(`Error en el análisis descriptivo: ${error.message}`);
         }
     },
