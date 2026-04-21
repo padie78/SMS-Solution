@@ -839,53 +839,73 @@ export const configService = {
 
     saveUser: async (orgId, userId, input) => {
         const timestamp = new Date().toISOString();
-        const uId = userId.toLowerCase().replace(/\s+/g, '_');
+        // Sanitización de ID para evitar caracteres extraños en el SK
+        const uId = userId.toLowerCase().trim().replace(/\s+/g, '_');
 
         const item = {
             PK: `ORG#${orgId}`,
             SK: `USER#${uId}`,
-            entity_type: "USER_CONFIG",
 
-            // 1. Identidad (Vínculo con IAM/Cognito)
-            identity: {
+            // GSI para buscar usuarios por rol dentro de una organización
+            GSI1_PK: `ORG#${orgId}#ROLE#${input.role || "VIEWER"}`,
+            GSI1_SK: `USER#${input.fullName || uId}`,
+
+            entity_type: "USER_CONFIG",
+            version: "1.0",
+
+            // Profile: Datos de identidad pública
+            profile: {
                 full_name: input.fullName || "Nuevo Usuario",
                 email: input.email,
-                position: input.position || "Staff",
-                cognito_sub: input.cognitoSub || null
+                job_title: input.position || "Staff",
+                external_id: input.cognitoSub || null, // Vínculo con Cognito
+                timezone: input.timezone || "UTC"
             },
 
-            // 2. Seguridad y Permisos (RBAC)
-            rbac_permissions: {
+            // Auth Context: El núcleo del RBAC
+            auth_context: {
                 role: input.role || "VIEWER",
-                permissions: input.permissions || ["VIEW_REPORTS"],
-                access_scope: input.accessScope || `ORG#${orgId}` // Default a toda la Org si no se limita
+                scope_type: input.scopeType || "BRANCH",
+                scope_id: input.accessScope || `ORG#${orgId}`,
+                permissions: input.permissions || ["reports:view"],
+                mfa_enabled: false
             },
 
-            // 3. Experiencia de Usuario
-            preferences: {
-                default_dashboard: input.defaultDashboard || "OVERVIEW",
-                language: input.language || "es",
-                notification_settings: {
-                    email_alerts: input.emailAlerts !== undefined ? input.emailAlerts : true,
-                    sms_critical: input.smsAlerts !== undefined ? input.smsAlerts : false
+            // UX Preferences: Configuración de interfaz
+            ux_preferences: {
+                default_view: input.defaultDashboard || "OVERVIEW",
+                locale: input.language || "es-IL",
+                notifications: {
+                    email: input.emailAlerts ?? true,
+                    push: true,
+                    sms_critical: input.smsAlerts ?? false
                 }
             },
 
-            // 4. Control de Estado
-            audit: {
-                last_login: null,
+            // Metadata de Sistema
+            system_metadata: {
                 account_status: "ACTIVE",
-                created_at: timestamp
-            },
-
-            last_updated: timestamp
+                created_at: timestamp,
+                updated_at: timestamp,
+                last_login: null,
+                updated_by: input.adminUserId || "SYSTEM"
+            }
         };
 
         try {
-            await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
-            return { success: true, userId: uId, ...formatResponse(item) };
+            await docClient.send(new PutCommand({
+                TableName: TABLE_NAME,
+                Item: item
+            }));
+
+            return {
+                success: true,
+                userId: uId,
+                orgId: orgId,
+                ...formatResponse(item)
+            };
         } catch (error) {
-            console.error("Error saving User:", error);
+            console.error("[DB ERROR] saveUser:", error);
             return { success: false, error: error.message };
         }
     },
@@ -894,37 +914,52 @@ export const configService = {
         const timestamp = new Date().toISOString();
         const updates = [];
         const attrValues = { ":t": timestamp };
-        const attrNames = { "#id": "identity", "#rb": "rbac_permissions", "#pr": "preferences" };
+        const attrNames = { "#sys": "system_metadata" };
 
-        // Actualización de Perfil
-        if (input.fullName) { updates.push("#id.full_name = :fn"); attrValues[":fn"] = input.fullName; }
-        if (input.position) { updates.push("#id.position = :pos"); attrValues[":pos"] = input.position; }
-
-        // Actualización de Permisos (Sensible)
-        if (input.role) { updates.push("#rb.#r = :role"); attrNames["#r"] = "role"; attrValues[":role"] = input.role; }
-        if (input.accessScope) { updates.push("#rb.access_scope = :scope"); attrValues[":scope"] = input.accessScope; }
-
-        // Actualización de Preferencias
-        if (input.language) { updates.push("#pr.#l = :lang"); attrNames["#l"] = "language"; attrValues[":l"] = input.language; }
-        if (input.defaultDashboard) { updates.push("#pr.default_dashboard = :db"); attrValues[":db"] = input.defaultDashboard; }
+        // Mapeo dinámico para mantener el UpdateExpression limpio
+        if (input.fullName) {
+            updates.push("profile.full_name = :fn");
+            attrValues[":fn"] = input.fullName;
+        }
+        if (input.role) {
+            updates.push("auth_context.#r = :role");
+            attrNames["#r"] = "role";
+            attrValues[":role"] = input.role;
+            // Nota: Si cambia el rol, idealmente deberías actualizar también el GSI1_PK
+        }
+        if (input.emailAlerts !== undefined) {
+            updates.push("ux_preferences.notifications.email = :ea");
+            attrValues[":ea"] = input.emailAlerts;
+        }
 
         if (updates.length === 0) return { success: false, message: "No fields to update" };
 
         try {
             const response = await docClient.send(new UpdateCommand({
                 TableName: TABLE_NAME,
-                Key: { PK: `ORG#${orgId}`, SK: `USER#${userId.toLowerCase()}` },
+                Key: {
+                    PK: `ORG#${orgId}`,
+                    SK: `USER#${userId.toLowerCase()}`
+                },
                 ConditionExpression: "attribute_exists(PK)",
-                UpdateExpression: `SET ${updates.join(", ")}, last_updated = :t`,
+                UpdateExpression: `SET ${updates.join(", ")}, #sys.updated_at = :t`,
                 ExpressionAttributeNames: attrNames,
                 ExpressionAttributeValues: attrValues,
                 ReturnValues: "ALL_NEW"
             }));
 
-            return { success: true, ...formatResponse(response.Attributes) };
+            const updated = response.Attributes;
+            return {
+                success: true,
+                userId: userId,
+                ...formatResponse(updated)
+            };
         } catch (error) {
-            if (error.name === "ConditionalCheckFailedException") throw new Error("USER_NOT_FOUND");
-            throw error;
+            if (error.name === "ConditionalCheckFailedException") {
+                return { success: false, error: "USER_NOT_FOUND" };
+            }
+            console.error("[DB ERROR] updateUser:", error);
+            return { success: false, error: error.message };
         }
     },
 
