@@ -300,6 +300,7 @@ type Query {
     year: String!, 
     quarter: String, 
     month: String, 
+    week: String,   # <--- Agregado
     day: String
   ): AnalyticsResponse
 
