@@ -27,56 +27,76 @@ export const analyticsService = {
         const year = args.year || "2026";
         const { quarter, month, week, day } = args;
 
-        // 1. Construcción de SK Aditiva (Ej: STATS#2026#Q2#M04)
+        // --- 1. CONSTRUCCIÓN DE SK ADITIVA ---
         let skParts = ['STATS', year];
+        
+        // Manejo de Quarter (automático si hay mes)
         if (quarter) {
             skParts.push(quarter.toUpperCase());
         } else if (month) {
-            skParts.push(`Q${Math.ceil(parseInt(month) / 3)}`);
+            const calculatedQ = Math.ceil(parseInt(month) / 3);
+            skParts.push(`Q${calculatedQ}`);
         }
 
+        // Manejo de Mes y Día
         if (month) {
             skParts.push(`M${month.toString().padStart(2, '0')}`);
-            if (day) skParts.push(`D${day.toString().padStart(2, '0')}`);
-        } else if (week) {
+            if (day) {
+                skParts.push(`D${day.toString().padStart(2, '0')}`);
+            }
+        } 
+        // Manejo de Semana (Independiente)
+        else if (week) {
             skParts.push(`W${week.toString().padStart(2, '0')}`);
         }
 
         const finalSK = skParts.join('#');
+        console.log(`[DEBUG] Querying DynamoDB -> Org: ${orgId} | SK: ${finalSK}`);
 
         try {
             const item = await repo.getStats(orgId, finalSK);
             if (!item) return null;
 
-            // 2. Retorno con Inyección de Data Cruda
+            // --- 2. RETORNO CON PASSTHROUGH (sourceData) ---
             return {
                 id: item.SK,
                 metadata: {
                     orgId,
                     year,
                     quarter: item.SK.split('#')[2] || null,
-                    month,
-                    week,
-                    granularity: week ? "WEEKLY" : (month ? "MONTHLY" : "YEARLY"),
+                    month: month || null,
+                    week: week || null,
+                    day: day || null,
+                    granularity: week ? "WEEKLY" : (day ? "DAILY" : (month ? "MONTHLY" : (quarter ? "QUARTERLY" : "YEARLY"))),
                     lastUpdated: item.last_updated || new Date().toISOString()
                 },
-                
-                // --- DATA PASSTHROUGH ---
-                // Enviamos el objeto de la BD tal cual para que el cliente decida
+
+                // INYECCIÓN CRUDA: El cliente recibe el objeto de la BD tal cual lo posteaste
                 sourceData: JSON.stringify(item),
 
-                // Dejamos mapeos mínimos para los widgets principales del Dashboard
+                // MAPEOS MÍNIMOS: Solo para asegurar que los componentes base del Dashboard funcionen
                 financials: {
                     totalSpend: parseFloat(item.financials_total_spend) || 0,
-                    currency: "USD"
+                    currency: "USD",
+                    savingsPending: parseFloat(item.predictive_engine?.financial_risk_exposure) || 0,
+                    taxRiskExposure: JSON.stringify(item.advanced_analytics?.transition_risk_scoring)
                 },
                 energy: {
-                    consumptionKwh: parseFloat(item.consumption_gas_val) || parseFloat(item.consumption_elec_val) || 0
+                    consumptionKwh: parseFloat(item.consumption_gas_val) || 0,
+                    intensityIndex: parseFloat(item.advanced_analytics?.energy_intensity_index) || 0
+                },
+                sustainability: {
+                    totalCo2eKg: (parseFloat(item.ghg_total_co2e_ton) || 0) * 1000, // Ton a Kg
+                    complianceStatus: item.management_reporting?.reporting_period_status === "OPEN" ? "PENDING" : "COMPLIANT"
+                },
+                operational: {
+                    dataQualityScore: item.advanced_analytics?.data_quality_score === "ESTIMATED" ? 75.0 : 100.0,
+                    gridHealthIncidents: parseInt(item.trazabilidad_total_invoices) || 0
                 }
             };
         } catch (error) {
-            console.error("Error en getPrecalculatedKPI:", error);
-            throw new Error(`Error en el servicio de analíticas: ${error.message}`);
+            console.error(`[ERROR] Analytics: ${error.message}`);
+            throw new Error(`Error mapeando el Energy Efficiency System: ${error.message}`);
         }
     },
     /**

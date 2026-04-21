@@ -38,12 +38,12 @@ type PresignedUrlResponse {
 type AnalyticsResponse {
   id: ID!
   metadata: AnalyticsMetadata
-  # Mantenemos los tipos fijos para que el dashboard tenga una base estable
   financials: FinancialsAnalytics
   energy: EnergyAnalytics
   sustainability: SustainabilityAnalytics
   operational: OperationalAnalytics
   breakdowns: AnalyticsBreakdowns
+  # Este es el campo que transporta todo el objeto DynamoDB
   sourceData: AWSJSON 
 }
 
