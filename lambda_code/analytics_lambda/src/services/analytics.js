@@ -27,109 +27,99 @@ export const analyticsService = {
         const year = args.year || "2026";
         const { quarter, month, week, day } = args;
 
-        // --- 1. CONSTRUCCIÓN DE SK JERÁRQUICA ADITIVA ---
+        // 1. Construcción de SK Aditiva (STATS#2026#Q2#M04)
         let skParts = ['STATS', year];
-
-        // Lógica de Quarter: Si pides mes, calculamos el Q automáticamente para la SK
         if (quarter) {
             skParts.push(quarter.toUpperCase());
         } else if (month) {
-            const calculatedQ = Math.ceil(parseInt(month) / 3);
-            skParts.push(`Q${calculatedQ}`);
+            const q = Math.ceil(parseInt(month) / 3);
+            skParts.push(`Q${q}`);
         }
 
-        // Lógica de Mes y Día
         if (month) {
             skParts.push(`M${month.toString().padStart(2, '0')}`);
-            if (day) {
-                skParts.push(`D${day.toString().padStart(2, '0')}`);
-            }
-        } 
-        // Lógica de Semana (Independiente de la jerarquía mensual para evitar traslapes)
-        else if (week) {
+            if (day) skParts.push(`D${day.toString().padStart(2, '0')}`);
+        } else if (week) {
             skParts.push(`W${week.toString().padStart(2, '0')}`);
         }
 
         const finalSK = skParts.join('#');
-        console.log(`[DEBUG ANALYTICS] Fetching Org: ${orgId} | SK: ${finalSK}`);
 
         try {
             const item = await repo.getStats(orgId, finalSK);
-            
-            // Si no hay datos, retornamos null (AppSync lo manejará correctamente)
-            if (!item) {
-                console.warn(`[ANALYTICS] No data found for SK: ${finalSK}`);
-                return null;
-            }
+            if (!item) return null;
 
-            // --- 2. RETORNO SINCRONIZADO CON EL SCHEMA (AnalyticsResponse) ---
+            // 2. Mapeo usando los campos REALES de tu base de datos
             return {
                 id: item.SK,
                 metadata: {
                     orgId,
                     year,
-                    quarter: quarter || (month ? `Q${Math.ceil(parseInt(month) / 3)}` : null),
-                    month: month || null,
-                    week: week || null,
-                    day: day || null,
-                    granularity: week ? "WEEKLY" : (day ? "DAILY" : (month ? "MONTHLY" : (quarter ? "QUARTERLY" : "YEARLY"))),
-                    lastUpdated: item.last_updated || new Date().toISOString(),
-                    version: item.version || "1.0"
+                    quarter: item.SK.split('#')[2] || null,
+                    month,
+                    week,
+                    granularity: month ? "MONTHLY" : "YEARLY",
+                    lastUpdated: item.last_updated,
+                    version: item.metadata?.version || "1.2"
                 },
 
                 financials: {
-                    totalSpend: item.financials_total_spend || 0,
-                    currency: item.financials_currency || "USD",
-                    // Cálculo de costo por m2 basado en la info del edificio
-                    costPerM2: item.building_info?.m2 ? (item.financials_total_spend / item.building_info.m2) : 0,
-                    savingsRealized: item.ai_analysis?.savings_realized || 0,
-                    savingsPending: item.ai_analysis?.pending_recommendations_value || 0,
-                    avoidedCost: item.ai_analysis?.avoided_cost || 0,
-                    taxRiskExposure: item.transition_risk_scoring || {}
+                    totalSpend: parseFloat(item.financials_total_spend) || 0,
+                    currency: "USD", // Hardcoded según tu BD
+                    costPerM2: 0, // Requiere dato de superficie externa
+                    savingsRealized: 0,
+                    // Usamos el riesgo financiero del motor predictivo
+                    savingsPending: parseFloat(item.predictive_engine?.financial_risk_exposure) || 0,
+                    // Exponemos los escenarios de impuestos al carbono en el JSON de riesgo
+                    taxRiskExposure: JSON.stringify(item.advanced_analytics?.transition_risk_scoring)
                 },
 
                 energy: {
-                    consumptionKwh: item.consumption_val || 0,
-                    intensityIndex: item.analytics?.energy_intensity || 0,
-                    phantomLoadKwh: item.analytics?.phantom_load || 0,
-                    idleEnergyCost: item.analytics?.idle_energy_cost || 0,
-                    gridEfficiency: item.analytics?.grid_efficiency || 0,
-                    baseloadKwh: item.analytics?.baseload_kwh || 0
+                    // Mapeo directo de gas_val (puedes sumar elec_val si aparece luego)
+                    consumptionKwh: parseFloat(item.consumption_gas_val) || 0,
+                    // Campo exacto: energy_intensity_index
+                    intensityIndex: parseFloat(item.advanced_analytics?.energy_intensity_index) || 0,
+                    phantomLoadKwh: 0, // No disponible en este item
+                    idleEnergyCost: 0
                 },
 
                 sustainability: {
-                    totalCo2eKg: item.ghg_total_co2e_kg || 0,
-                    carbonIntensity: item.analytics?.carbon_intensity || 0,
-                    renewableRatio: item.renewable_energy_mix_pct || 0,
-                    netZeroGapPct: item.sustainability_standards?.net_zero_progress_pct || 0,
-                    complianceStatus: item.regulatory_compliance?.status || "COMPLIANT",
-                    weatherNormalizedUsage: item.analytics?.weather_normalized_kwh || 0
+                    // Conversión: Toneladas a Kg (0.219397 -> 219.39)
+                    totalCo2eKg: (parseFloat(item.ghg_total_co2e_ton) || 0) * 1000,
+                    // Intensidad de carbono sobre ingresos (del management_reporting)
+                    carbonIntensity: parseFloat(item.management_reporting?.carbon_intensity_revenue) || 0,
+                    renewableRatio: parseFloat(item.advanced_analytics?.renewable_energy_mix_pct) || 0,
+                    // Brecha hacia el target (del predictive_engine)
+                    netZeroGapPct: parseFloat(item.predictive_engine?.current_vs_target_pct) || 0,
+                    complianceStatus: item.management_reporting?.reporting_period_status === "OPEN" ? "PENDING" : "COMPLIANT",
+                    weatherNormalizedUsage: 0
                 },
 
                 operational: {
-                    dataQualityScore: item.data_quality_score === "VERIFIED" ? 100.0 : 75.0,
-                    reliabilityPct: item.audit_trail?.reliability_score || 0,
-                    gridHealthIncidents: item.metrology?.grid_incidents_count || 0,
-                    activeVsIdleRatio: item.analytics?.active_idle_ratio || 0,
-                    nominalLoadPerformance: item.analytics?.nominal_load_perf || 0
+                    // Conversión de String "ESTIMATED" a valor numérico 0-100
+                    dataQualityScore: item.advanced_analytics?.data_quality_score === "ESTIMATED" ? 75.0 : 100.0,
+                    reliabilityPct: item.audit_trail ? 90.0 : 0, 
+                    // Usamos el conteo de facturas como proxy de incidentes o actividad
+                    gridHealthIncidents: parseInt(item.trazabilidad_total_invoices) || 0 
                 },
 
                 breakdowns: {
                     byService: {
-                        elec_spend: item.breakdown_service?.elec_spend || 0,
-                        elec_val: item.breakdown_service?.elec_val || 0,
-                        gas_spend: item.breakdown_service?.gas_spend || 0,
-                        gas_val: item.breakdown_service?.gas_val || 0,
-                        hvac_val: item.breakdown_service?.hvac_val || 0,
-                        lighting_val: item.breakdown_service?.lighting_val || 0,
-                        other_val: item.breakdown_service?.other_val || 0
+                        elec_spend: 0,
+                        elec_val: 0,
+                        gas_spend: parseFloat(item.consumption_gas_spend) || 0,
+                        gas_val: parseFloat(item.consumption_gas_val) || 0,
+                        hvac_val: 0,
+                        lighting_val: 0,
+                        other_val: 0
                     },
-                    bySource: item.breakdown_source || {}
+                    // Guardamos el motor de cálculo usado como metadata de origen
+                    bySource: JSON.stringify({ engine: item.audit_trail?.[0]?.engine })
                 }
             };
         } catch (error) {
-            console.error(`[CRITICAL] Error in getPrecalculatedKPI: ${error.message}`);
-            throw new Error(`Error en el análisis descriptivo: ${error.message}`);
+            console.error("Error en getPrecalculatedKPI:", error);
+            throw new Error(`Error mapeando campos de BD: ${error.message}`);
         }
     },
     /**
