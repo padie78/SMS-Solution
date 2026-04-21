@@ -37,25 +37,25 @@ type AnalyticsResponse {
   id: ID!
   metadata: AnalyticsMetadata
   
-  # Campos Raíz de la BD
+  # --- CAMPOS RAÍZ (Sincronizados con Service) ---
   financials_total_spend: Float
   ghg_total_co2e_ton: Float
+  ghg_total_co2e_kg: Float       # <--- Faltaba este
+  cost_per_m2: Float             # <--- Faltaba este
   trazabilidad_total_invoices: Int
   last_updated: String
   
-  # Bloques de Lógica (Mismo nombre que en la BD)
+  # --- CONSUMOS E INTENSIDAD ---
+  consumption_gas_val: Float
+  consumption_elec_val: Float
+  energy_intensity_index: Float  # <--- Faltaba este
+  phantom_load_kwh: Float        # <--- Faltaba este
+  
+  # --- BLOQUES ---
   advanced_analytics: AdvancedAnalytics
   predictive_engine: PredictiveEngine
   management_reporting: ManagementReporting
   regulatory_compliance: RegulatoryCompliance
-  
-  # Desgloses de consumo directo
-  consumption_gas_spend: Float
-  consumption_gas_val: Float
-  consumption_gas_unit: String
-  consumption_elec_spend: Float
-  consumption_elec_val: Float
-  consumption_elec_unit: String
   
   sourceData: AWSJSON 
 }
