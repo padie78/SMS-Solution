@@ -149,12 +149,27 @@ input BranchInput {
 }
 
 input BuildingInput {
-  name: String!
-  type: String
-  totalM2: Float
-  usageType: String
-  isConditioned: Boolean
-  mainAssetId: String
+	name: String!
+	usageType: String
+	status: String           # <--- Faltaba
+	yearBuilt: Int           # <--- Faltaba
+	managerContact: String   # <--- Faltaba
+	m2Surface: Float         # <--- Faltaba (era totalM2)
+	m3Volume: Float          # <--- Faltaba
+	maxOccupancy: Int        # <--- Faltaba
+	roofType: String         # <--- Faltaba
+	uValue: Float            # <--- Faltaba
+	hvacType: String         # <--- Faltaba
+	lightingTech: String     # <--- Faltaba
+	hasBms: Boolean          # <--- Faltaba
+	hasBackup: Boolean       # <--- Faltaba
+	zoneId: String           # <--- Faltaba
+	isShared: Boolean        # <--- Faltaba
+	criticality: String      # <--- Faltaba
+	primaryCC: String        # <--- Faltaba
+	# Campos antiguos (opcionales para compatibilidad)
+	type: String
+	mainAssetId: String
 }
 
 input CostCenterInput {
