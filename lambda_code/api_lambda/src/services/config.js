@@ -1086,24 +1086,28 @@ export const configService = {
 
     saveEmissionFactor: async (input) => {
         const timestamp = new Date().toISOString();
+
+        // 1. Construcción de SK profesional para trazabilidad
         // SK: YEAR#2026#REGION#ISR#SOURCE#CLIMATIQ#ELEC
-        const sk = `YEAR#${input.year}#REGION#${input.regionCode}#SOURCE#${input.source.toUpperCase()}#${input.activityType.toUpperCase()}`;
+        const sourceName = (input.source || "UNKNOWN").toUpperCase();
+        const activity = (input.activityType || "UNKNOWN").toUpperCase();
+        const sk = `YEAR#${input.year}#REGION#${input.regionCode}#SOURCE#${sourceName}#${activity}`;
 
         const item = {
             PK: "GLOBAL#FACTORS",
             SK: sk,
             entity_type: "EMISSION_FACTOR",
 
-            // 1. Identidad y Trazabilidad
+            // 2. Identidad y Trazabilidad
             factor_identity: {
                 name: input.name,
                 year: Number(input.year),
-                region: input.regionName,
-                activity_id: input.activityId,
+                region: input.regionName || input.regionCode,
+                activity_id: input.activityId || sk,
                 source: input.source
             },
 
-            // 2. Datos de Carbono (Cálculo Científico)
+            // 3. Datos de Carbono (Cálculo Científico)
             carbon_data: {
                 co2e_unit: input.unit || "kg/kWh",
                 co2e_value: Number(input.value),
@@ -1114,7 +1118,7 @@ export const configService = {
                 }
             },
 
-            // 3. Clasificación (GHG Protocol Compliance)
+            // 4. Clasificación (GHG Protocol Compliance)
             classification: {
                 scope: input.scope || "SCOPE_2",
                 category: input.category || "ENERGY_INDIRECT",
@@ -1132,11 +1136,22 @@ export const configService = {
         };
 
         try {
-            await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
-            return { success: true, factorKey: sk, ...formatResponse(item) };
+            await docClient.send(new PutCommand({
+                TableName: TABLE_NAME,
+                Item: item
+            }));
+
+            // 5. Retorno Seguro: Evitamos formatResponse para no chocar con lógica de OrgId
+            return {
+                success: true,
+                factorKey: sk,    // Campo específico si tu schema lo usa
+                ...formatResponse(item)
+            };
         } catch (error) {
-            console.error("Error saving Emission Factor:", error);
-            return { success: false, error: error.message };
+            console.error("== [DYNAMODB ERROR] saveEmissionFactor ==");
+            console.error(error);
+            // Lanzamos el error para que el catch del handler lo capture y loguee
+            throw new Error(`Database error: ${error.message}`);
         }
     },
 

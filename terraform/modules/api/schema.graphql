@@ -15,6 +15,7 @@ type MutationResponse {
   meterId: ID
   tariffId: ID      # <--- Agregado
   logKey: ID        # <--- Agregado (para production logs)
+  factorKey: ID
   service: String
   entity: AWSJSON
 }
