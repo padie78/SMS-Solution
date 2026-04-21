@@ -29,7 +29,7 @@ export const analyticsService = {
         const month = args.month ? parseInt(args.month) : null;
         const { week, quarter, day } = args;
 
-        // 1. Construcción de SK (Jerarquía: STATS#YEAR#QUARTER#MONTH...)
+        // 1. Construcción de SK Jerárquica
         let skParts = ['STATS', year];
         if (quarter) skParts.push(quarter.toUpperCase());
         else if (month) skParts.push(`Q${Math.ceil(month / 3)}`);
@@ -51,14 +51,18 @@ export const analyticsService = {
 
             if (!item) return null;
 
-            // 2. Extracción de Atributos Base de DynamoDB
+            // --- Extracción de Atributos y Configuración ---
             const financials_total_spend = parseFloat(item.financials_total_spend) || 0;
             const ghg_total_co2e_ton = parseFloat(item.ghg_total_co2e_ton) || 0;
             const gas_val = parseFloat(item.consumption_gas_val) || 0;
             const elec_val = parseFloat(item.consumption_elec_val) || 0;
             const m2 = parseFloat(orgConfig?.totalGlobalM2) || 1;
 
-            // 3. Mapeo Integral 1:1 y Calculado
+            // Lógica de Benchmarking (Prorrateo Mensual)
+            const monthlyBudget = (parseFloat(orgConfig?.annualBudget) / 12) || 0;
+            const monthlyTargetTon = (parseFloat(orgConfig?.reductionTargetTon) / 12) || 0;
+
+            // --- Retorno con KPIs Comparativos ---
             return {
                 id: item.SK,
                 metadata: {
@@ -72,26 +76,31 @@ export const analyticsService = {
                     lastUpdated: item.last_updated
                 },
 
-                // --- KEY PERFORMANCE INDICATORS (KPIs) ---
-                
-                // Financieros
+                // --- KPIs FINANCIEROS (Real vs Budget) ---
                 financials_total_spend,
                 cost_per_m2: financials_total_spend / m2,
+                budget_deviation_pct: monthlyBudget > 0 
+                    ? ((financials_total_spend - monthlyBudget) / monthlyBudget) * 100 
+                    : 0,
                 savings_realized: parseFloat(item.savings_realized) || 0,
                 
-                // Energía e Intensidad
+                // --- KPIs ENERGÍA (Eficiencia Operativa) ---
                 consumption_gas_val: gas_val,
                 consumption_elec_val: elec_val,
                 energy_intensity_index: parseFloat(item.advanced_analytics?.energy_intensity_index) || 0,
+                energy_intensity_per_m2: (gas_val + elec_val) / m2,
                 phantom_load_kwh: parseFloat(item.advanced_analytics?.phantom_load_kwh) || 0,
                 
-                // Sustentabilidad
+                // --- KPIs SUSTENTABILIDAD (Real vs Target) ---
                 ghg_total_co2e_ton,
                 ghg_total_co2e_kg: ghg_total_co2e_ton * 1000,
+                target_deviation_pct: monthlyTargetTon > 0 
+                    ? ((ghg_total_co2e_ton - monthlyTargetTon) / monthlyTargetTon) * 100 
+                    : 0,
                 carbon_intensity_revenue: parseFloat(item.management_reporting?.carbon_intensity_revenue) || 0,
                 renewable_energy_mix_pct: parseFloat(item.advanced_analytics?.renewable_energy_mix_pct) || 0,
 
-                // Bloques Complejos (Mapeo por referencia)
+                // Bloques de Lógica (Preservando estructura 1:1)
                 advanced_analytics: {
                     ...item.advanced_analytics,
                     transition_risk_scoring: JSON.stringify(item.advanced_analytics?.transition_risk_scoring || {}),
@@ -101,22 +110,22 @@ export const analyticsService = {
 
                 predictive_engine: {
                     ...item.predictive_engine,
-                    // Si no hay forecast en DB, hacemos una proyección lineal simple
                     forecast_year_end_co2: parseFloat(item.predictive_engine?.forecast_year_end_co2) || (ghg_total_co2e_ton * 12),
-                    current_vs_target_pct: parseFloat(item.predictive_engine?.current_vs_target_pct) || 0
+                    current_vs_target_pct: parseFloat(item.predictive_engine?.current_vs_target_pct) || 0,
+                    projected_gap_vs_target: (parseFloat(orgConfig?.reductionTargetTon) || 0) - (parseFloat(item.predictive_engine?.forecast_year_end_co2) || (ghg_total_co2e_ton * 12))
                 },
 
                 management_reporting: item.management_reporting,
                 regulatory_compliance: item.regulatory_compliance,
 
-                // Trazabilidad y Auditoría
+                // Trazabilidad
                 trazabilidad_total_invoices: parseInt(item.trazabilidad_total_invoices) || 0,
                 last_updated: item.last_updated,
-                sourceData: JSON.stringify(item)
+                sourceData: JSON.stringify({ ...item, applied_config: { monthlyBudget, monthlyTargetTon } })
             };
         } catch (error) {
             console.error("[SERVICE_ERROR]:", error);
-            throw new Error(`Error procesando KPIs para ${finalSK}: ${error.message}`);
+            throw new Error(`Error procesando Energy Intelligence para ${finalSK}: ${error.message}`);
         }
     }
 };

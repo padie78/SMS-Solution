@@ -44,6 +44,10 @@ type AnalyticsResponse {
   cost_per_m2: Float             # <--- Faltaba este
   trazabilidad_total_invoices: Int
   last_updated: String
+
+  budget_deviation_pct: Float      # <--- AGREGAR
+  target_deviation_pct: Float      # <--- AGREGAR
+  energy_intensity_per_m2: Float   # <--- AGREGAR
   
   # --- CONSUMOS E INTENSIDAD ---
   consumption_gas_val: Float
@@ -79,6 +83,7 @@ type AdvancedAnalytics {
   transition_risk_scoring: AWSJSON
   energy_source_mix: AWSJSON
   data_reliability_pct: Float
+  # phantom_load_kwh: Float   # Podrías moverlo aquí si prefieres sacarlo de la raíz
 }
 
 type PredictiveEngine {
@@ -86,6 +91,7 @@ type PredictiveEngine {
   financial_risk_exposure: Float
   forecast_year_end_co2: Float
   target_annual_limit: Float
+  projected_gap_vs_target: Float
 }
 
 type ManagementReporting {
