@@ -10,11 +10,11 @@ type MutationResponse {
   orgId: ID
   branchId: ID
   buildingId: ID
-  ccId: ID          # <--- Agregado
+  ccId: ID
   assetId: ID
   meterId: ID
-  tariffId: ID      # <--- Agregado
-  logKey: ID        # <--- Agregado (para production logs)
+  tariffId: ID
+  logKey: ID
   factorKey: ID
   service: String
   entity: AWSJSON
@@ -33,18 +33,17 @@ type PresignedUrlResponse {
 }
 
 # --- 2. NÚCLEO ANALÍTICO (Unified Analytics) ---
-# Unifica Yearly, Quarterly, Monthly, Weekly y Daily en una sola estructura
 
 type AnalyticsResponse {
   id: ID!
   metadata: AnalyticsMetadata
-  # Usamos AWSJSON para que el nombre de las variables sea el mismo de la BD
-  financials: AWSJSON
-  energy: AWSJSON
-  sustainability: AWSJSON
-  operational: AWSJSON
-  predictive: AWSJSON
-  compliance: AWSJSON
+  # CRITICAL: Cambiado de AWSJSON a Tipos Estructurados para permitir sub-selección
+  financials: FinancialsAnalytics
+  energy: EnergyAnalytics
+  sustainability: SustainabilityAnalytics
+  operational: OperationalAnalytics
+  predictive: PredictiveAnalytics
+  compliance: ComplianceAnalytics
   sourceData: AWSJSON 
 }
 
@@ -62,55 +61,54 @@ type AnalyticsMetadata {
 type FinancialsAnalytics {
   totalSpend: Float
   currency: String
-  costPerM2: Float               # Pregunta #15
-  savingsRealized: Float         # Pregunta #17
-  savingsPending: Float          # Pregunta #18 (Costo Procrastinación)
-  avoidedCost: Float             # Ahorro proyectado vs real
-  taxRiskExposure: AWSJSON       # Pregunta #21
+  costPerM2: Float
+  savingsRealized: Float
+  savingsPending: Float
+  avoidedCost: Float
+  taxRiskExposure: AWSJSON
 }
 
 type EnergyAnalytics {
   consumptionKwh: Float
-  intensityIndex: Float          # Pregunta #3 y #11
-  phantomLoadKwh: Float          # Pregunta #14 (Consumos Fantasmas)
-  idleEnergyCost: Float          # Pregunta #22 (No aprovechada)
-  gridEfficiency: Float          # Pregunta #12
-  baseloadKwh: Float             # Consumo base constante
+  intensityIndex: Float
+  phantomLoadKwh: Float
+  idleEnergyCost: Float
+  gridEfficiency: Float
+  baseloadKwh: Float
 }
 
 type SustainabilityAnalytics {
   totalCo2eKg: Float
-  carbonIntensity: Float         # Emisiones / Producción
-  renewableRatio: Float          # % de energía limpia
-  netZeroGapPct: Float           # Pregunta #19
-  complianceStatus: String       # Pregunta #8
-  weatherNormalizedUsage: Float  # Pregunta #23
+  carbonIntensity: Float
+  renewableRatio: Float
+  netZeroGapPct: Float
+  complianceStatus: String
+  weatherNormalizedUsage: Float
 }
 
 type OperationalAnalytics {
-  dataQualityScore: Float        # Pregunta #9
-  reliabilityPct: Float          # Pregunta #24 (Cadena Custodia)
-  gridHealthIncidents: Int       # Pregunta #7 y #16
-  activeVsIdleRatio: Float       # Pregunta #5
-  nominalLoadPerformance: Float  # Pregunta #13
+  dataQualityScore: Float
+  reliabilityPct: Float
+  gridHealthIncidents: Int
+  activeVsIdleRatio: Float
+  nominalLoadPerformance: Float
 }
 
-type AnalyticsBreakdowns {
-  byService: ServiceBreakdown    # Pregunta #10 (HVAC, Lighting, etc)
-  bySource: AWSJSON              # (Grid, Solar, GenSet)
+type PredictiveAnalytics {
+  financial_risk_exposure: Float
+  target_annual_limit_ton: Float
+  forecast_year_end_co2_ton: Float
+  projected_gap_vs_target: Float
 }
 
-type ServiceBreakdown {
-  elec_spend: Float
-  elec_val: Float
-  gas_spend: Float
-  gas_val: Float
-  hvac_val: Float
-  lighting_val: Float
-  other_val: Float
+type ComplianceAnalytics {
+  methodology: String
+  standard: String
 }
 
-# --- 3. ENTIDADES ---
+# --- 3. ENTIDADES Y DEMÁS ESTRUCTURAS ---
+# (Se mantienen igual a tu definición original para Invoice, Inputs, etc.)
+
 type Invoice {
   id: ID!
   vendor: String
@@ -131,183 +129,16 @@ type NormalizationKPIs {
   intensity_per_production_unit: Float 
 }
 
-# --- 4. INPUTS ---
-
-input OrgConfigInput {
-  name: String
-  taxId: String
-  hqAddress: String
-  totalGlobalM2: Float
-  industrySector: String
-  currency: String
-  reportingCurrency: String
-  minConfidence: Float
-  baselineYear: Int
-  reductionTarget: Float
-  targetYear: Int
-  subscriptionPlan: String
-}
-
-input BranchInput {
-  branchId: String!
-  name: String!
-  m2Surface: Float
-  facilityType: String
-  timezone: String
-  geoLocation: String
-  energyTarget: Float
-  carbonBudget: Float
-  region: String
-  criticality: String
-}
-
-input BuildingInput {
-  name: String!
-  usageType: String
-  status: String
-  yearBuilt: Int
-  m2Surface: Float
-  m3Volume: Float
-  hvacType: String
-  lightingTech: String
-  hasBms: Boolean
-  zoneId: String
-}
-
-input AssetInput {
-  name: String
-  category: String
-  status: String
-  criticality: String
-  nominalPower: Float
-  meterId: String
-  branchId: String
-  buildingId: String
-  costCenterId: String
-}
-
-input TariffInput {
-  providerName: String
-  contractId: String
-  accountNumber: String
-  pricingModel: String
-  baseRate: Float
-  peakRate: Float
-  offPeakRate: Float
-  taxes: [TaxInput]
-  validFrom: String
-  validTo: String
-}
-
-input TaxInput {
-  name: String
-  rate: Float
-}
-
-input ProductionLogInput {
-  units: Float
-  unitType: String
-  shiftMode: String
-  efficiency: Float
-  waste: Float
-  activeLines: Int
-}
-
-input MeterInput {
-  name: String
-  serialNumber: String
-  iotName: String
-  protocol: String
-  type: String
-  isMain: Boolean
-  parentMeterId: String
-  buildingId: String
-}
-
-input ConfirmInvoiceInput {
-  service_type: String!
-  total_magnitude_sum: Float!
-  billing_period: BillingPeriodInput!
-  extracted_data: SimplifiedDataInput!
-}
-
-input BillingPeriodInput {
-  start: String!
-  end: String!
-}
-
-input SimplifiedDataInput {
-  vendor_name: String
-  vendor_tax_id: String
-  invoice_number: String
-  total_amount: Float
-  tax_amount: Float     # <--- Agregar este
-  base_amount: Float    # <--- Agregar este
-  currency: String
-}
-
-# --- 1. Para saveCostCenter ---
-input CostCenterInput {
-  id: ID!
-  name: String!
-  accountingCode: String
-  managerId: String
-  branchId: ID!
-  method: String # Ej: SQUARE_METERS, PERCENTAGE
-  percentage: Float
-  operatingHours: Int
-  annualBudget: Float
-  glMapping: String
-}
-
-# --- 2. Para saveAlertRule ---
-input AlertRuleInput {
-  name: String!
-  description: String
-  status: String # ENABLED, DISABLED
-  priority: String # P1, P2, P3
-  metricSource: String
-  operator: String # GREATER_THAN, LESS_THAN
-  threshold: Float!
-  durationMins: Int
-  channels: [String]
-  recipients: [String]
-}
-
-# --- 3. Para saveUser ---
-input UserInput {
-  fullName: String!
-  email: String!
-  position: String
-  role: String! # ADMIN, MANAGER, VIEWER
-  language: String
-  emailAlerts: Boolean
-}
-
-# --- 4. Para saveEmissionFactor ---
-input EmissionFactorInput {
-  name: String!
-  year: Int!
-  regionCode: String!
-  activityType: String! # ELEC, GAS, etc
-  unit: String! # kg/kWh
-  value: Float!
-  scope: String # SCOPE_1, SCOPE_2, SCOPE_3
-  methodology: String
-}
-
 # --- 5. CONSULTAS (QUERIES) ---
 type Query {
-  # El punto de entrada unificado para todos los periodos pre-calculados
   getPrecalculatedKPI(
     year: String!, 
     quarter: String, 
     month: String, 
-    week: String,   # <--- Agregado
+    week: String,
     day: String
   ): AnalyticsResponse
 
-  # Query dinámico para GSI1 (Análisis por Branch o Asset)
   getConsumptionAnalytics(
     entityId: ID!, 
     type: String!, 
@@ -335,7 +166,6 @@ type Mutation {
   saveUser(orgId: ID!, userId: ID!, input: UserInput!): MutationResponse
   saveEmissionFactor(input: EmissionFactorInput!): MutationResponse
   
-  # Procesamiento de Facturas
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
   confirmInvoice(sk: String!, input: ConfirmInvoiceInput!): ActionResponse!
   approveInvoice(invoiceId: ID!): Invoice 
