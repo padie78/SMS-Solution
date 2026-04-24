@@ -36,7 +36,6 @@
               "src/styles.css"
             ],
             "scripts": [],
-            "server": null,
             "ssr": false,
             "prerender": false
           },
