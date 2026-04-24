@@ -1,0 +1,17 @@
+<p-sidebar [(visible)]="visible" [baseZIndex]="10000" styleClass="w-72">
+  <h3 class="font-bold text-lg mb-4 px-3">Menú Principal</h3>
+  <nav class="flex flex-col gap-2">
+    <a routerLink="/dashboard" routerLinkActive="bg-emerald-50 text-emerald-700" 
+       (click)="visible = false" class="p-3 hover:bg-slate-50 rounded flex items-center gap-3">
+      <i class="pi pi-home"></i> Dashboard
+    </a>
+    <a routerLink="/energy" routerLinkActive="bg-emerald-50 text-emerald-700"
+       (click)="visible = false" class="p-3 hover:bg-slate-50 rounded flex items-center gap-3">
+      <i class="pi pi-bolt"></i> Consumo Energía
+    </a>
+    <a routerLink="/carbon" routerLinkActive="bg-emerald-50 text-emerald-700"
+       (click)="visible = false" class="p-3 hover:bg-slate-50 rounded flex items-center gap-3">
+      <i class="pi pi-globe"></i> Huella Carbono
+    </a>
+  </nav>
+</p-sidebar>
