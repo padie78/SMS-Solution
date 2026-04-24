@@ -1,43 +1,45 @@
 <p-sidebar [(visible)]="visible" [baseZIndex]="10000" styleClass="w-80 border-r-0 shadow-2xl">
-  <div class="flex flex-col h-full bg-slate-900 -m-5">
+  <div class="flex flex-col h-full bg-slate-900 -m-5 min-h-screen">
     
-    <div class="p-6 border-b border-slate-800 flex items-center gap-3">
-      <div class="bg-emerald-500 p-2 rounded-lg shadow-lg shadow-emerald-900/20">
-        <i class="pi pi-shield text-white text-xl"></i>
+    <div class="p-6 border-b border-slate-800/50 flex items-center gap-4">
+      <div class="flex-shrink-0 bg-emerald-500 w-10 h-10 rounded-lg shadow-lg shadow-emerald-500/20 flex items-center justify-center">
+        <i class="pi pi-bolt text-white text-xl"></i>
       </div>
-      <div>
-        <h2 class="text-white font-bold text-lg leading-none tracking-tight">SMS</h2>
-        <p class="text-slate-500 text-[10px] uppercase tracking-widest mt-1 font-bold">Sustainability OS</p>
+      <div class="flex flex-col">
+        <span class="text-white font-black text-xl leading-none tracking-tight">SMS</span>
+        <span class="text-emerald-500/80 text-[9px] uppercase tracking-[0.2em] font-black mt-1.5 leading-none">
+          Sustainability OS
+        </span>
       </div>
     </div>
 
-    <div class="flex-1 overflow-y-auto py-4 px-3 custom-scrollbar">
-      <div *ngFor="let group of menuGroups" class="mb-6">
-        <h3 class="text-slate-500 text-[10px] font-bold uppercase tracking-[0.15em] mb-3 px-3">
+    <div class="flex-1 overflow-y-auto py-6 px-3 custom-scrollbar">
+      <div *ngFor="let group of menuGroups" class="mb-8">
+        <h3 class="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mb-4 px-3 opacity-80">
           {{ group.label }}
         </h3>
         
-        <nav class="flex flex-col gap-1">
+        <nav class="flex flex-col gap-1.5">
           <a *ngFor="let item of group.items"
              [routerLink]="item.route"
-             routerLinkActive="bg-emerald-600/10 text-emerald-400 border-l-2 border-emerald-500"
+             routerLinkActive="active-link"
              (click)="visible = false"
-             class="flex items-center gap-3 p-3 text-slate-400 hover:bg-slate-800 hover:text-white rounded-md transition-all group">
-            <i [class]="item.icon + ' text-slate-500 group-hover:text-emerald-400 transition-colors'"></i>
+             class="flex items-center gap-3 p-3 text-slate-400 hover:bg-slate-800/50 hover:text-emerald-400 rounded-lg transition-all group">
+            <i [class]="item.icon + ' text-base group-hover:scale-110 transition-transform'"></i>
             <span class="text-sm font-medium">{{ item.label }}</span>
           </a>
         </nav>
       </div>
     </div>
 
-    <div class="p-4 bg-slate-950/50 border-t border-slate-800">
-      <div class="flex items-center gap-3 p-2 rounded-lg bg-slate-900/50 border border-slate-800/50">
-        <div class="w-8 h-8 rounded bg-emerald-600 flex items-center justify-center text-xs font-bold text-white">
+    <div class="p-4 bg-slate-950 border-t border-slate-800">
+      <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+        <div class="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-emerald-500 shadow-inner">
           DH
         </div>
-        <div class="overflow-hidden">
-          <p class="text-xs text-slate-200 font-bold truncate">Diego Liascovich</p>
-          <p class="text-[9px] text-slate-500 uppercase font-bold tracking-tighter">Cloud Architect</p>
+        <div class="flex flex-col min-w-0">
+          <p class="text-xs text-slate-200 font-bold truncate leading-tight">Diego Liascovich</p>
+          <p class="text-[9px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">Cloud Architect</p>
         </div>
       </div>
     </div>

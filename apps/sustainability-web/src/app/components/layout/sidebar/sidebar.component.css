@@ -1,32 +1,33 @@
-/* Scrollbar con estilo moderno para que no rompa el diseño oscuro */
-.custom-scrollbar::-webkit-scrollbar {
-  width: 4px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #334155; /* slate-700 */
-  border-radius: 10px;
-}
-
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #10b981; /* emerald-500 */
-}
-
-/* Forzar que el sidebar ocupe todo el alto interno */
+/* Limpiar estilos de PrimeNG que causan el amontonamiento */
 ::ng-deep .p-sidebar {
     background-color: #0f172a !important; /* slate-900 */
-    border: none !important;
+    padding: 0 !important;
 }
 
 ::ng-deep .p-sidebar-header {
     background-color: #0f172a !important;
-    padding: 1rem !important;
+    z-index: 100;
 }
 
 ::ng-deep .p-sidebar-close {
-    color: #94a3b8 !important;
+    color: #64748b !important;
+    top: 1.5rem !important;
+    right: 1rem !important;
+}
+
+/* Estilo para el link activo */
+.active-link {
+    background-color: rgba(16, 185, 129, 0.1) !important; /* emerald-500 with opacity */
+    color: #10b981 !important; /* emerald-500 */
+    border-left: 3px solid #10b981;
+    border-radius: 0 8px 8px 0 !important;
+}
+
+/* Scrollbar minimalista */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 4px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #1e293b;
+    border-radius: 10px;
 }
