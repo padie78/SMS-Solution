@@ -1,28 +1,40 @@
 <p-toast></p-toast>
 
 <div class="stepper-wrapper p-8 max-w-7xl mx-auto">
-  <p-stepper [(activeStep)]="activeStep" [linear]="true">
+  <p-stepper [(activeStep)]="activeStep">
     
-    <p-stepperPanel header="Upload">
+    <p-stepper-panel header="Upload">
       <ng-template pTemplate="content" let-nextCallback="nextCallback">
-        <app-invoice-upload 
-          (onComplete)="handleUploadComplete($event); nextCallback()">
-        </app-invoice-upload>
+        <div class="flex flex-column">
+          <div class="w-full min-h-[400px]">
+             <app-invoice-upload 
+               (onComplete)="handleUploadComplete($event); nextCallback()">
+             </app-invoice-upload>
+          </div>
+        </div>
       </ng-template>
-    </p-stepperPanel>
+    </p-stepper-panel>
 
-    <p-stepperPanel header="AI Validation">
+    <p-stepper-panel header="AI Validation">
       <ng-template pTemplate="content" let-nextCallback="nextCallback" let-prevCallback="prevCallback">
-        <app-invoice-validation 
-          [invoice]="processedInvoiceData"
-          (onConfirm)="handleValidationConfirm($event); nextCallback()" 
-          (onBack)="prevCallback()">
-        </app-invoice-validation>
+        <div class="flex flex-column">
+          <app-invoice-validation 
+            [invoice]="processedInvoiceData"
+            (onConfirm)="handleValidationConfirm($event); nextCallback()" 
+            (onBack)="prevCallback()">
+          </app-invoice-validation>
+        </div>
       </ng-template>
-    </p-stepperPanel>
+    </p-stepper-panel>
 
-    <p-stepperPanel header="Success">
-      </p-stepperPanel>
+    <p-stepper-panel header="Success">
+       <ng-template pTemplate="content">
+          <div class="p-8 text-center bg-white rounded-xl border border-slate-200">
+             <i class="pi pi-check-circle text-emerald-500 text-6xl"></i>
+             <h2 class="mt-4 font-bold">Registration Complete</h2>
+          </div>
+       </ng-template>
+    </p-stepper-panel>
 
   </p-stepper>
 </div>

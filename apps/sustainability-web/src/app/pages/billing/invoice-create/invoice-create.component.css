@@ -31,6 +31,13 @@ p {
     border: none;
 }
 
+/* Asegura que el contenido del stepper no colapse */
+::ng-deep .p-stepper-content {
+    display: block !important;
+    min-height: 400px;
+    padding: 1.5rem 0;
+}
+
 ::ng-deep .p-datatable .p-datatable-tbody > tr {
     background-color: #ffffff;
     transition: background-color 0.2s;
