@@ -1,22 +1,55 @@
-<div class="upload-step-container flex flex-col items-center justify-center p-12 bg-white border-2 border-dashed border-slate-200 rounded-2xl">
-  <div class="icon-circle w-20 h-20 bg-emerald-50 rounded-full flex items-center justify-center mb-6">
-    <i class="pi pi-cloud-upload text-3xl text-emerald-500"></i>
-  </div>
+<div class="upload-form-container grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
   
-  <h2 class="text-xl font-bold text-slate-800 mb-2">Upload Utility Invoice</h2>
-  <p class="text-slate-500 text-center max-w-xs mb-8 text-sm">
-    Drop your PDF invoice here. Our AI will automatically extract consumption and cost data.
-  </p>
+  <div [formGroup]="uploadForm" class="flex flex-col gap-6">
+    <h3 class="text-lg font-bold text-slate-800 mb-2">Invoice Details</h3>
+    
+    <div class="flex flex-col gap-2">
+      <label class="text-xs font-bold text-slate-500 uppercase">Service Category</label>
+      <p-dropdown 
+        [options]="serviceTypes" 
+        formControlName="serviceType" 
+        placeholder="Select Service Type"
+        styleClass="w-full">
+      </p-dropdown>
+    </div>
 
-  <p-fileUpload 
-    mode="basic" 
-    name="invoice" 
-    chooseLabel="Select PDF File" 
-    accept="application/pdf" 
-    maxFileSize="10000000" 
-    (onSelect)="onUpload($event)"
-    styleClass="p-button-emerald">
-  </p-fileUpload>
-  
-  <span class="mt-4 text-[10px] text-slate-400 font-bold uppercase tracking-widest">Supports: PDF, JPG, PNG</span>
+    <div class="flex flex-col gap-2">
+      <label class="text-xs font-bold text-slate-500 uppercase">Meter / Asset ID</label>
+      <input pInputText formControlName="meterId" placeholder="e.g. METER-12345" />
+    </div>
+
+    <div class="flex flex-col gap-2">
+      <label class="text-xs font-bold text-slate-500 uppercase">Internal Note</label>
+      <input pInputText formControlName="description" placeholder="Optional description..." />
+    </div>
+  </div>
+
+  <div class="flex flex-col gap-4">
+    <h3 class="text-lg font-bold text-slate-800 mb-2">Document Carga</h3>
+    
+    <div class="drop-zone flex-1 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center p-8 bg-slate-50 hover:border-emerald-400 transition-colors">
+      <i class="pi pi-file-pdf text-4xl text-slate-300 mb-4"></i>
+      
+      <p-fileUpload 
+        mode="basic" 
+        (onSelect)="onFileSelect($event)" 
+        chooseLabel="Choose Invoice PDF" 
+        styleClass="p-button-outlined p-button-secondary p-button-sm">
+      </p-fileUpload>
+      
+      <p *ngIf="selectedFile" class="mt-4 text-xs font-bold text-emerald-600 italic">
+        <i class="pi pi-check text-[10px]"></i> {{selectedFile.name}} ready
+      </p>
+    </div>
+  </div>
+
+  <div class="col-span-1 md:col-span-2 pt-6 border-t border-slate-100 flex justify-end">
+    <p-button 
+      label="Analyze with IA" 
+      icon="pi pi-sparkles" 
+      [disabled]="!uploadForm.valid || !selectedFile"
+      (click)="processAndContinue()"
+      styleClass="p-button-emerald h-12 px-8">
+    </p-button>
+  </div>
 </div>
