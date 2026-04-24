@@ -1,57 +1,60 @@
-<div class="upload-form-container grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-white rounded-2xl border border-slate-200 shadow-sm"
-     [formGroup]="uploadForm">
-  
-  <div class="flex flex-col gap-6">
-    <h3 class="text-lg font-bold text-slate-800 mb-2">Invoice Details</h3>
+<form [formGroup]="uploadForm" (ngSubmit)="processAndContinue()">
+  <div class="upload-form-container grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
     
-    <div class="flex flex-col gap-2">
-      <label class="text-xs font-bold text-slate-500 uppercase">Service Category</label>
-      <p-dropdown 
-        [options]="serviceTypes" 
-        formControlName="serviceType" 
-        placeholder="Select Service Type"
-        appendTo="body"
-        styleClass="w-full">
-      </p-dropdown>
-    </div>
-
-    <div class="flex flex-col gap-2">
-      <label class="text-xs font-bold text-slate-500 uppercase">Meter / Asset ID</label>
-      <input pInputText formControlName="meterId" placeholder="e.g. METER-12345" />
-    </div>
-
-    <div class="flex flex-col gap-2">
-      <label class="text-xs font-bold text-slate-500 uppercase">Internal Note</label>
-      <input pInputText formControlName="description" placeholder="Optional description..." />
-    </div>
-  </div>
-
-  <div class="flex flex-col gap-4">
-    <h3 class="text-lg font-bold text-slate-800 mb-2">Document Carga</h3>
-    
-    <div class="drop-zone flex-1 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center p-8 bg-slate-50 hover:border-emerald-400 transition-colors">
-      <i class="pi pi-file-pdf text-4xl text-slate-300 mb-4"></i>
+    <div class="flex flex-col gap-6">
+      <h3 class="text-lg font-bold text-slate-800 mb-2 border-b pb-2">Invoice Details</h3>
       
-      <p-fileUpload 
-        mode="basic" 
-        (onSelect)="onFileSelect($event)" 
-        chooseLabel="Choose Invoice PDF" 
-        styleClass="p-button-outlined p-button-secondary p-button-sm">
-      </p-fileUpload>
+      <div class="flex flex-col gap-2">
+        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Service Category</label>
+        <p-dropdown 
+          [options]="serviceTypes" 
+          formControlName="serviceType" 
+          placeholder="Select Service Type"
+          appendTo="body"
+          styleClass="w-full">
+        </p-dropdown>
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Meter / Asset ID</label>
+        <input pInputText formControlName="meterId" placeholder="e.g. METER-12345" class="w-full" />
+      </div>
+
+      <div class="flex flex-col gap-2">
+        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">Internal Note</label>
+        <input pInputText formControlName="description" placeholder="Optional description..." class="w-full" />
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-4">
+      <h3 class="text-lg font-bold text-slate-800 mb-2 border-b pb-2">Document</h3>
       
-      <p *ngIf="selectedFile" class="mt-4 text-xs font-bold text-emerald-600 italic">
-        <i class="pi pi-check text-[10px]"></i> {{selectedFile.name}} ready
-      </p>
+      <div class="drop-zone flex-1 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center p-8 bg-slate-50 hover:border-emerald-400 transition-all">
+        <i class="pi pi-file-pdf text-4xl text-slate-300 mb-4"></i>
+        
+        <p-fileUpload 
+          mode="basic" 
+          name="invoiceFile"
+          (onSelect)="onFileSelect($event)" 
+          chooseLabel="Choose Invoice PDF" 
+          styleClass="p-button-outlined p-button-secondary p-button-sm">
+        </p-fileUpload>
+        
+        <div *ngIf="selectedFile" class="mt-4 p-2 bg-emerald-50 rounded-lg flex items-center gap-2 border border-emerald-100">
+          <i class="pi pi-check-circle text-emerald-500"></i>
+          <span class="text-xs font-medium text-emerald-700 truncate max-w-[200px]">{{selectedFile.name}}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-span-1 md:col-span-2 pt-6 mt-4 border-t border-slate-100 flex justify-end">
+      <p-button 
+        type="submit"
+        label="Analyze with IA" 
+        icon="pi pi-sparkles" 
+        [disabled]="uploadForm.invalid || !selectedFile"
+        styleClass="p-button-emerald h-12 px-10 rounded-xl">
+      </p-button>
     </div>
   </div>
-
-  <div class="col-span-1 md:col-span-2 pt-6 border-t border-slate-100 flex justify-end">
-    <p-button 
-      label="Analyze with IA" 
-      icon="pi pi-sparkles" 
-      [disabled]="uploadForm.invalid || !selectedFile"
-      (click)="processAndContinue()"
-      styleClass="p-button-emerald h-12 px-8">
-    </p-button>
-  </div>
-</div>
+</form>
