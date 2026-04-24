@@ -15,15 +15,15 @@ export class SidebarComponent {
 
   menuGroups = [
     {
-      label: 'Monitoring & Insights',
+      label: 'Real-Time Monitoring',
       items: [
         { label: 'Global Dashboard', icon: 'pi pi-chart-bar', route: '/dashboard' },
-        { label: 'Smart Metering & IoT', icon: 'pi pi-bolt', route: '/iot' },
+        { label: 'IoT & Smart Metering', icon: 'pi pi-bolt', route: '/iot' },
         { label: 'Virtual Meters', icon: 'pi pi-calculator', route: '/virtual-meters' }
       ]
     },
     {
-      label: 'AI & Climate Intelligence',
+      label: 'AI & Strategy',
       items: [
         { label: 'Sustainability AI Chat', icon: 'pi pi-comments', route: '/ai-chat' },
         { label: 'Infra Simulator', icon: 'pi pi-map', route: '/simulator' },
@@ -31,9 +31,9 @@ export class SidebarComponent {
       ]
     },
     {
-      label: 'Operations & Logistics',
+      label: 'Operations & Assets',
       items: [
-        { label: 'Asset Management', icon: 'pi pi-sitemap', route: '/assets' },
+        { label: 'Location Management', icon: 'pi pi-sitemap', route: '/assets' },
         { label: 'Action Plan (Kanban)', icon: 'pi pi-list', route: '/kanban' },
         { label: 'Supply Chain (Scope 3)', icon: 'pi pi-truck', route: '/supply-chain' }
       ]
@@ -42,7 +42,7 @@ export class SidebarComponent {
       label: 'Data & Evidence',
       items: [
         { label: 'Invoice Intake', icon: 'pi pi-file-import', route: '/invoices' },
-        { label: 'Reconciliation', icon: 'pi pi-check-circle', route: '/reconciliation' },
+        { label: 'Bill Reconciliation', icon: 'pi pi-check-circle', route: '/reconciliation' },
         { label: 'Auditability Vault', icon: 'pi pi-lock', route: '/vault' }
       ]
     }
