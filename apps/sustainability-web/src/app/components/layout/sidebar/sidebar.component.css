@@ -1,0 +1,32 @@
+/* Scrollbar con estilo moderno para que no rompa el diseño oscuro */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #334155; /* slate-700 */
+  border-radius: 10px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #10b981; /* emerald-500 */
+}
+
+/* Forzar que el sidebar ocupe todo el alto interno */
+::ng-deep .p-sidebar {
+    background-color: #0f172a !important; /* slate-900 */
+    border: none !important;
+}
+
+::ng-deep .p-sidebar-header {
+    background-color: #0f172a !important;
+    padding: 1rem !important;
+}
+
+::ng-deep .p-sidebar-close {
+    color: #94a3b8 !important;
+}
