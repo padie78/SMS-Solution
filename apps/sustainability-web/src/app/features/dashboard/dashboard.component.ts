@@ -12,7 +12,7 @@ import { ButtonModule } from 'primeng/button';
   template: `
     <div class="p-8 max-w-7xl mx-auto">
       <header class="flex justify-between items-center mb-8">
-        <h1 class="text-3xl font-bold text-slate-800">Sustentabilidad SaaS</h1>
+        <h1 class="text-3xl font-bold text-slate-800">Sustentabilidad SaaS2</h1>
         <p-button label="Actualizar" icon="pi pi-refresh" 
                   [loading]="store.isLoading()" (onClick)="store.loadMetrics()"></p-button>
       </header>
