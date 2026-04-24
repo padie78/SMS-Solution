@@ -1,0 +1,41 @@
+<div class="manager-container p-8">
+  <div class="flex justify-between items-center mb-8">
+    <div>
+      <h1 class="text-2xl font-bold text-slate-900">Utility Management</h1>
+      <p class="text-slate-500 text-sm">Review and audit your enterprise utility consumption.</p>
+    </div>
+    <p-button label="Register New Invoice" icon="pi pi-plus" 
+              (click)="navToCreate()" styleClass="p-button-emerald"></p-button>
+  </div>
+
+  <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+    <p-table [value]="invoices" styleClass="p-datatable-sm">
+      <ng-template pTemplate="header">
+        <tr>
+          <th>ID</th>
+          <th>Provider</th>
+          <th>Date</th>
+          <th>Amount</th>
+          <th>Status</th>
+          <th class="w-24 text-center">Actions</th>
+        </tr>
+      </ng-template>
+      <ng-template pTemplate="body" let-inv>
+        <tr class="hover:bg-slate-50">
+          <td class="font-mono text-xs font-bold text-slate-500">{{inv.id}}</td>
+          <td class="font-semibold text-slate-700">{{inv.provider}}</td>
+          <td>{{inv.date}}</td>
+          <td class="font-bold text-slate-800">{{inv.amount | currency}}</td>
+          <td>
+            <span class="status-badge px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-[10px] font-black tracking-wider">
+              {{inv.status}}
+            </span>
+          </td>
+          <td class="text-center">
+            <button pButton icon="pi pi-eye" class="p-button-text p-button-sm p-button-secondary"></button>
+          </td>
+        </tr>
+      </ng-template>
+    </p-table>
+  </div>
+</div>
