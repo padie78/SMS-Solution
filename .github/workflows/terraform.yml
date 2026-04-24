@@ -69,7 +69,7 @@ jobs:
           
           # Sincronizar la carpeta de salida (ajusta 'sustainability-web' si el nombre del proyecto cambia)
           # En Angular 18 la ruta suele ser dist/sustainability-web/browser
-          aws s3 sync ../apps/sustainability-web/dist/sustainability-web/browser s3://$BUCKET_NAME --delete
+          aws s3 sync ../apps/sustainability-web/dist/sustainability-web s3://$BUCKET_NAME --delete
           
           # Invalidad caché para que los usuarios vean la nueva versión inmediatamente
           aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
