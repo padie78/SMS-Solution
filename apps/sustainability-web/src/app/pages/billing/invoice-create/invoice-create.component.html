@@ -1,23 +1,21 @@
 <p-toast></p-toast>
 
 <div class="stepper-wrapper p-8 max-w-7xl mx-auto">
-  <p-stepper [(activeStep)]="activeStep">
+  <p-stepper [(activeStep)]="activeStep" [linear]="true">
     
-    <p-stepper-panel header="Upload">
+    <p-stepperPanel header="Upload">
       <ng-template pTemplate="content" let-nextCallback="nextCallback">
-        <div class="flex flex-column">
-          <div class="w-full min-h-[400px]">
-             <app-invoice-upload 
-               (onComplete)="handleUploadComplete($event); nextCallback()">
-             </app-invoice-upload>
-          </div>
+        <div class="py-4">
+          <app-invoice-upload 
+            (onComplete)="handleUploadComplete($event); nextCallback()">
+          </app-invoice-upload>
         </div>
       </ng-template>
-    </p-stepper-panel>
+    </p-stepperPanel>
 
-    <p-stepper-panel header="AI Validation">
+    <p-stepperPanel header="AI Validation">
       <ng-template pTemplate="content" let-nextCallback="nextCallback" let-prevCallback="prevCallback">
-        <div class="flex flex-column">
+        <div class="py-4">
           <app-invoice-validation 
             [invoice]="processedInvoiceData"
             (onConfirm)="handleValidationConfirm($event); nextCallback()" 
@@ -25,16 +23,23 @@
           </app-invoice-validation>
         </div>
       </ng-template>
-    </p-stepper-panel>
+    </p-stepperPanel>
 
-    <p-stepper-panel header="Success">
-       <ng-template pTemplate="content">
-          <div class="p-8 text-center bg-white rounded-xl border border-slate-200">
-             <i class="pi pi-check-circle text-emerald-500 text-6xl"></i>
-             <h2 class="mt-4 font-bold">Registration Complete</h2>
-          </div>
-       </ng-template>
-    </p-stepper-panel>
+    <p-stepperPanel header="Success">
+      <ng-template pTemplate="content">
+        <div class="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-sm">
+           <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
+             <i class="pi pi-check text-4xl"></i>
+           </div>
+           <h2 class="text-2xl font-bold text-slate-800">Invoice Synchronized</h2>
+           <p class="text-slate-500 mt-2">The data has been successfully integrated into the Sustainability OS.</p>
+           <div class="mt-10 flex gap-3 justify-center">
+             <p-button label="View Invoices" icon="pi pi-list" styleClass="p-button-text p-button-secondary" (click)="exit()"></p-button>
+             <p-button label="New Upload" icon="pi pi-plus" styleClass="p-button-emerald" (click)="activeStep = 0"></p-button>
+           </div>
+        </div>
+      </ng-template>
+    </p-stepperPanel>
 
   </p-stepper>
 </div>

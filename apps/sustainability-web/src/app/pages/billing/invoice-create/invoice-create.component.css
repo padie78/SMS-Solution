@@ -38,6 +38,12 @@ p {
     padding: 1.5rem 0;
 }
 
+:host ::ng-deep .p-stepper-panel-content {
+    background: transparent;
+    padding: 1rem 0;
+    width: 100%;
+}
+
 ::ng-deep .p-datatable .p-datatable-tbody > tr {
     background-color: #ffffff;
     transition: background-color 0.2s;
