@@ -19,31 +19,16 @@
             "tsConfig": "tsconfig.app.json",
             "assets": ["src/favicon.ico", "src/assets"],
             "styles": ["src/styles.css"],
-            "scripts": [],
-            "vendorChunk": true,
-            "extractLicenses": false,
-            "buildOptimizer": false,
-            "sourceMap": true,
-            "optimization": false,
-            "namedChunks": true
+            "scripts": []
           },
           "configurations": {
             "production": {
-              "fileReplacements": [],
-              "optimization": true,
+              "budgets": [{ "type": "initial", "maximumWarning": "500kb", "maximumError": "1mb" }],
               "outputHashing": "all",
+              "optimization": true,
               "sourceMap": false,
-              "namedChunks": false,
               "extractLicenses": true,
-              "vendorChunk": false,
-              "buildOptimizer": true,
-              "budgets": [
-                {
-                  "type": "initial",
-                  "maximumWarning": "500kb",
-                  "maximumError": "1mb"
-                }
-              ]
+              "buildOptimizer": true
             }
           },
           "defaultConfiguration": "production"
@@ -53,8 +38,7 @@
           "configurations": {
             "production": { "buildTarget": "sustainability-web:build:production" },
             "development": { "buildTarget": "sustainability-web:build:development" }
-          },
-          "defaultConfiguration": "development"
+          }
         }
       }
     }
