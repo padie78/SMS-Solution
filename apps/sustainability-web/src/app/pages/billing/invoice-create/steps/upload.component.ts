@@ -1,4 +1,4 @@
-import { Component, Output, EventEmitter } from '@angular/common';
+import { Component, Output, EventEmitter } from '@angular/core'; // <-- DEBE SER @angular/core
 import { CommonModule } from '@angular/common';
 import { FileUploadModule } from 'primeng/fileupload';
 import { ButtonModule } from 'primeng/button';
