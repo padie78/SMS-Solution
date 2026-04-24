@@ -1,16 +1,27 @@
-import { Component } from '@angular/core';
+import { Component, EventEmitter, Output } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { RouterLink } from '@angular/router';
+
+// PrimeNG Critical Imports
+import { MenuModule } from 'primeng/menu';
+import { BadgeModule } from 'primeng/badge';
 import { MenuItem } from 'primeng/api';
 
 @Component({
   selector: 'app-header',
   standalone: true,
-  // Ensure you include these in your imports array
-  // imports: [MenuModule, BadgeModule, AvatarModule, CommonModule, RouterLink]
-  templateUrl: './header.component.html'
+  imports: [
+    CommonModule, 
+    RouterLink, 
+    MenuModule,   // Crucial para <p-menu>
+    BadgeModule   // Crucial para los badges (PRO, 1.2k)
+  ],
+  templateUrl: './header.component.html',
+  styleUrls: ['./header.component.css']
 })
 export class HeaderComponent {
-  
-  // User configuration menu focused on Management, Credits, and Subscription
+  @Output() toggleSidebar = new EventEmitter<void>();
+
   userConfigItems: MenuItem[] = [
     {
       label: 'Personal',
@@ -34,13 +45,13 @@ export class HeaderComponent {
         { 
           label: 'Plan & Subscription', 
           icon: 'pi pi-credit-card', 
-          badge: 'PRO', // You can bind this dynamically to the user's plan
+          badge: 'PRO', 
           routerLink: '/billing/plan' 
         },
         { 
           label: 'Carbon Credits', 
           icon: 'pi pi-cloud', 
-          badge: '1.2k', // Example of available credits
+          badge: '1.2k', 
           routerLink: '/billing/credits' 
         },
         { label: 'API / IoT Usage', icon: 'pi pi-bolt', routerLink: '/billing/usage' }
@@ -51,7 +62,7 @@ export class HeaderComponent {
       label: 'Labs & Beta Features', 
       icon: 'pi pi-flask', 
       routerLink: '/labs',
-      styleClass: 'text-emerald-600' 
+      styleClass: 'text-emerald-600 font-bold' 
     },
     { 
       label: 'Sign Out', 
@@ -61,7 +72,7 @@ export class HeaderComponent {
   ];
 
   logout() {
-    // Logic for AWS Amplify Auth.signOut()
+    // Aquí integrarás Amplify Auth.signOut()
     console.log('Logging out...');
   }
 }
