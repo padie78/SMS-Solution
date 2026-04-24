@@ -33,3 +33,9 @@
     background-color: #059669 !important;
     transform: translateY(-2px);
 }
+
+/* Limpio de metadatos de webpack */
+.upload-step-container {
+    display: flex;
+    flex-direction: column;
+}

@@ -1,0 +1,60 @@
+/* Contenedor principal del paso */
+.upload-step-container {
+    transition: all 0.3s ease;
+    min-height: 300px;
+}
+
+/* Efecto hover sobre la zona dashed de carga */
+.upload-step-container:hover {
+    border-color: #10b981; /* emerald-500 */
+    background-color: #f0fdf4; /* emerald-50 */
+}
+
+/* Animación para el icono de la nube */
+.icon-circle {
+    transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.upload-step-container:hover .icon-circle {
+    transform: translateY(-5px) scale(1.1);
+}
+
+/* Estilización del componente PrimeNG FileUpload */
+::ng-deep .p-fileupload-basic {
+    display: flex;
+    justify-content: center;
+}
+
+/* Customización del botón "Select PDF File" */
+::ng-deep .p-button.p-button-emerald {
+    background-color: #10b981 !important;
+    border: none !important;
+    padding: 0.75rem 2rem !important;
+    font-weight: 700 !important;
+    border-radius: 12px !important;
+    box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
+    transition: all 0.2s ease;
+}
+
+::ng-deep .p-button.p-button-emerald:hover {
+    background-color: #059669 !important; /* emerald-600 */
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);
+}
+
+::ng-deep .p-button.p-button-emerald:active {
+    transform: translateY(0);
+}
+
+/* Ajuste para el texto descriptivo */
+p {
+    line-height: 1.6;
+}
+
+/* Soporte para modo oscuro (opcional si tu dashboard cambia) */
+@media (prefers-color-scheme: dark) {
+    .upload-step-container {
+        background-color: #0f172a; /* slate-900 */
+        border-color: #1e293b; /* slate-800 */
+    }
+}
