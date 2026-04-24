@@ -1,7 +1,6 @@
-variable "project_name" {}
-variable "index_document" { default = "index.html" }
-variable "error_document" { default = "error.html" }
-variable "extra_tags" { 
-    type = map(string) 
-    default = {} 
-}
+variable "project_name"   { type = string }
+variable "environment"    { type = string }
+variable "appsync_url"    { type = string }
+variable "appsync_region" { type = string }
+variable "user_pool_id"   { type = string }
+variable "client_id"      { type = string }

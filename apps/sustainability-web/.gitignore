@@ -1,0 +1,54 @@
+# ==========================================
+# 1. DEPENDENCIAS Y COMPILACIÓN
+# ==========================================
+node_modules/
+dist/
+.angular/
+tmp/
+out-tsc/
+bazel-out/
+
+# ==========================================
+# 2. CONFIGURACIÓN DE ENTORNO (SENSÍBLE)
+# ==========================================
+# No subas credenciales reales o variables locales
+.env
+.env.*
+! .env.example # Permitir subir el ejemplo
+
+# Si usas el archivo generado por Terraform dinámicamente
+src/assets/config.json
+
+# ==========================================
+# 3. AWS AMPLIFY / APPSYNC
+# ==========================================
+# Archivos generados por el CLI de Amplify (si lo usas localmente)
+amplify/.config/
+amplify/**/*-parameters.json
+amplify/backend/amplify-meta.json
+amplify/backend/.temp/
+aws-exports.js
+awsconfiguration.json
+
+# ==========================================
+# 4. TESTING Y LOGS
+# ==========================================
+/coverage
+/reports
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.eslintcache
+
+# ==========================================
+# 5. IDEs Y SISTEMA OPERATIVO
+# ==========================================
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db

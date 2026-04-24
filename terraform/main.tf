@@ -161,3 +161,17 @@ module "api" {
 #     runtime_version = "1.0.0"
 #   }
 # }
+
+# ==============================================================================
+# 6. FRONTEND HOSTING (Angular + PrimeNG + Tailwind)
+# ==============================================================================
+module "frontend" {
+  source       = "./modules/frontend"
+  project_name = var.project_name
+  environment  = var.environment
+
+  appsync_url    = module.api.appsync_url
+  appsync_region = var.aws_region
+  user_pool_id   = module.auth.user_pool_id
+  client_id      = module.auth.user_pool_client_id
+}

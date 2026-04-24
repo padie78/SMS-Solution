@@ -1,45 +1,76 @@
-name: Terraform CI/CD
+name: Terraform & Frontend CI/CD
 
 on:
-  #workflow_dispatch: # <--- ESTO permite el botón "Run workflow" en GitHub Actions
-  #Comentamos los automáticos para que no te sorprendan
   push:
     branches:
       - main
+  workflow_dispatch: # Permite ejecución manual desde la UI de GitHub
 
 jobs:
-  terraform:
-    name: Terraform Apply
+  deploy:
+    name: Infrastructure & Web Deploy
     runs-on: ubuntu-latest
 
     steps:
+      # 1. Preparación del Entorno
       - name: Checkout code
-        uses: actions/checkout@v4 # Actualizado a v4 (más rápido)
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: apps/sustainability-web/package.json
 
       - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3 # Actualizado a v3
+        uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.10.0 # <--- Cambia esto
+          terraform_version: 1.10.0
+          terraform_wrapper: false # Necesario para capturar outputs correctamente
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-central-1 # Ajustala a tu región real si no es Virginia
+          aws-region: eu-central-1 # Tu región real
 
+      # 2. Infraestructura con Terraform
       - name: Terraform Init
         run: terraform init -input=false
         working-directory: ./terraform
 
       - name: Terraform Plan
-        # Quitamos el -var-file si tu archivo se llama terraform.tfvars (lo toma solo)
-        # Agregamos -input=false para que no se cuelgue 6 minutos si falta algo
         run: terraform plan -out=tfplan -input=false
         working-directory: ./terraform
 
       - name: Terraform Apply
-        # Se ejecuta solo si le das al botón manual y estás en main
         if: github.ref == 'refs/heads/main'
         run: terraform apply -auto-approve tfplan
+        working-directory: ./terraform
+
+      # 3. Construcción del Frontend (Angular)
+      - name: Install Frontend Dependencies
+        run: npm ci # 'ci' es más rápido y limpio en pipelines que 'install'
+        working-directory: apps/sustainability-web
+
+      - name: Build Angular App
+        run: npm run build -- --configuration production
+        working-directory: apps/sustainability-web
+
+      # 4. Despliegue de Activos a AWS
+      - name: Sync S3 and Invalidate CloudFront
+        if: github.ref == 'refs/heads/main'
+        run: |
+          # Extraer variables de los outputs de Terraform
+          BUCKET_NAME=$(terraform output -raw s3_bucket_name)
+          DIST_ID=$(terraform output -raw cloudfront_distribution_id)
+          
+          # Sincronizar la carpeta de salida (ajusta 'sustainability-web' si el nombre del proyecto cambia)
+          # En Angular 18 la ruta suele ser dist/sustainability-web/browser
+          aws s3 sync ../apps/sustainability-web/dist/sustainability-web/browser s3://$BUCKET_NAME --delete
+          
+          # Invalidad caché para que los usuarios vean la nueva versión inmediatamente
+          aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
         working-directory: ./terraform
