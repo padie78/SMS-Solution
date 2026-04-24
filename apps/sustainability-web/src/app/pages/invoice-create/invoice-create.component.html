@@ -1,0 +1,28 @@
+<p-toast></p-toast>
+
+<div class="stepper-wrapper p-8 max-w-7xl mx-auto">
+  <p-stepper [(activeStep)]="activeStep" [linear]="true">
+    
+    <p-stepperPanel header="Upload">
+      <ng-template pTemplate="content" let-nextCallback="nextCallback">
+        <app-invoice-upload 
+          (onComplete)="handleUploadComplete($event); nextCallback()">
+        </app-invoice-upload>
+      </ng-template>
+    </p-stepperPanel>
+
+    <p-stepperPanel header="AI Validation">
+      <ng-template pTemplate="content" let-nextCallback="nextCallback" let-prevCallback="prevCallback">
+        <app-invoice-validation 
+          [invoice]="processedInvoiceData"
+          (onConfirm)="handleValidationConfirm($event); nextCallback()" 
+          (onBack)="prevCallback()">
+        </app-invoice-validation>
+      </ng-template>
+    </p-stepperPanel>
+
+    <p-stepperPanel header="Success">
+      </p-stepperPanel>
+
+  </p-stepper>
+</div>

@@ -41,7 +41,7 @@ export class SidebarComponent {
     {
       label: 'Data & Evidence',
       items: [
-        { label: 'Invoice Intake', icon: 'pi pi-file-import', route: '/invoices' },
+        { label: 'Invoice Intake', icon: 'pi pi-file-import', route: '/billing/invoices' },
         { label: 'Bill Reconciliation', icon: 'pi pi-check-circle', route: '/reconciliation' },
         { label: 'Auditability Vault', icon: 'pi pi-lock', route: '/vault' }
       ]
