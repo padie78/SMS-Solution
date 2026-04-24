@@ -173,5 +173,6 @@ module "frontend" {
   appsync_url    = module.api.appsync_url
   appsync_region = var.aws_region
   user_pool_id   = module.auth.user_pool_id
-  client_id      = module.auth.user_pool_client_id
+  # ANTES: user_pool_client_id -> AHORA: client_id (porque así se llama en tu output de auth)
+  client_id      = module.auth.client_id 
 }
