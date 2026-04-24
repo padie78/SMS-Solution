@@ -1,5 +1,6 @@
 import { Component, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
+// Importaciones críticas para el Formulario
 import { FormsModule, ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 
 // PrimeNG
@@ -14,7 +15,7 @@ import { DropdownModule } from 'primeng/dropdown';
   imports: [
     CommonModule, 
     FormsModule, 
-    ReactiveFormsModule,
+    ReactiveFormsModule, // <--- VITAL: Sin esto el HTML no entiende [formGroup]
     FileUploadModule, 
     ButtonModule,
     InputTextModule,
@@ -26,14 +27,14 @@ import { DropdownModule } from 'primeng/dropdown';
 export class InvoiceUploadComponent {
   @Output() onComplete = new EventEmitter<any>();
 
-  // Opciones para el formulario
+  // 1. Definición de opciones para el combo de servicios
   serviceTypes = [
     { label: 'Electricity', value: 'electricity' },
     { label: 'Water', value: 'water' },
     { label: 'Gas', value: 'gas' }
   ];
 
-  // Formulario reactivo
+  // 2. Aquí va el bloque que consultaste (Inicialización del Formulario)
   uploadForm = new FormGroup({
     serviceType: new FormControl('', [Validators.required]),
     meterId: new FormControl(''),
@@ -42,19 +43,20 @@ export class InvoiceUploadComponent {
 
   selectedFile: File | null = null;
 
+  // Maneja la selección del archivo PDF
   onFileSelect(event: any) {
     this.selectedFile = event.files[0];
   }
 
+  // Lógica para enviar los datos al siguiente paso (Validación IA)
   processAndContinue() {
     if (this.uploadForm.valid && this.selectedFile) {
-      // Unimos los datos del formulario con el archivo
       const payload = {
         ...this.uploadForm.value,
         file: this.selectedFile
       };
       
-      console.log('Iniciando procesamiento con IA para:', payload);
+      console.log('Iniciando procesamiento con IA...', payload);
       this.onComplete.emit(payload);
     }
   }
