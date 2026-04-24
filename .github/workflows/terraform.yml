@@ -52,7 +52,7 @@ jobs:
 
       # 3. Construcción del Frontend (Angular)
       - name: Install Frontend Dependencies
-        run: npm ci # Ahora sí va a funcionar perfecto
+        run: npm install --no-audit --no-fund
         working-directory: apps/sustainability-web
 
       - name: Build Angular App
