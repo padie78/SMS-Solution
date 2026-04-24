@@ -1,0 +1,100 @@
+/* Contenedor principal del Header */
+:host {
+  display: block;
+  width: 100%;
+}
+
+/* Animación sutil para los ítems de navegación superior */
+nav a {
+  position: relative;
+  transition: color 0.2s ease;
+}
+
+nav a::after {
+  content: '';
+  position: absolute;
+  bottom: -1px; /* Alineado con el borde inferior del header */
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background-color: #10b981; /* emerald-500 */
+  transform: scaleX(0);
+  transition: transform 0.2s ease-in-out;
+}
+
+nav a:hover::after, 
+nav a.text-emerald-600::after {
+  transform: scaleX(1);
+}
+
+/* Personalización profunda de p-menu (PrimeNG) */
+::ng-deep .p-menu.p-component {
+  background: #ffffff;
+  border: 1px solid #e2e8f0; /* slate-200 */
+  border-radius: 12px;
+  padding: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+::ng-deep .p-menu .p-menuitem-link {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  transition: all 0.15s ease;
+}
+
+::ng-deep .p-menu .p-menuitem-link:hover {
+  background-color: #f8fafc; /* slate-50 */
+}
+
+::ng-deep .p-menu .p-menuitem-text {
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #475569; /* slate-600 */
+}
+
+::ng-deep .p-menu .p-menuitem-icon {
+  color: #94a3b8; /* slate-400 */
+  margin-right: 0.75rem;
+  font-size: 1rem;
+}
+
+/* Estilo para los encabezados de grupo dentro del menú */
+::ng-deep .p-menu .p-submenu-header {
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.65rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.75rem 1rem 0.25rem;
+}
+
+/* Estilo para los Badges dentro del menú (ej: PRO) */
+::ng-deep .p-menu .p-menuitem-badge {
+  background: #ecfdf5; /* emerald-50 */
+  color: #059669; /* emerald-600 */
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+}
+
+/* Efecto de pulso para alertas (ya definido en Tailwind, pero aquí lo reforzamos si es necesario) */
+.animate-ping {
+  animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes ping {
+  75%, 100% {
+    transform: scale(2);
+    opacity: 0;
+  }
+}
+
+/* Ajuste para dispositivos táctiles */
+@media (max-width: 768px) {
+  ::ng-deep .p-menu {
+    width: 90vw !important; /* Casi todo el ancho en móvil */
+    left: 5vw !important;
+  }
+}
