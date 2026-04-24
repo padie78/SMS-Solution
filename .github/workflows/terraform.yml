@@ -61,16 +61,10 @@ jobs:
 
       # 4. Despliegue de Activos a AWS
       - name: Sync S3 and Invalidate CloudFront
-        if: github.ref == 'refs/heads/main'
         run: |
-          # Extraer variables de los outputs de Terraform
           BUCKET_NAME=$(terraform output -raw s3_bucket_name)
           DIST_ID=$(terraform output -raw cloudfront_distribution_id)
-          
-          # Sincronizar la carpeta de salida (ajusta 'sustainability-web' si el nombre del proyecto cambia)
-          # En Angular 18 la ruta suele ser dist/sustainability-web/browser
+          # NOTA: Quité el "/browser" del final de la ruta dist
           aws s3 sync ../apps/sustainability-web/dist/sustainability-web s3://$BUCKET_NAME --delete
-          
-          # Invalidad caché para que los usuarios vean la nueva versión inmediatamente
           aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
         working-directory: ./terraform
