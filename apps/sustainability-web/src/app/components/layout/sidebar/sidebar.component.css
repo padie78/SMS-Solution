@@ -1,17 +1,22 @@
-/* Sobreescritura de estilos base de PrimeNG para el modo oscuro */
+/* 1. Global Sidebar Overrides (PrimeNG Deep) */
 ::ng-deep .p-sidebar {
     background-color: #0f172a !important; /* slate-900 */
+    border-right: 1px solid #1e293b !important; /* slate-800 */
     padding: 0 !important;
+    box-shadow: 20px 0 25px -5px rgba(0, 0, 0, 0.1), 10px 0 10px -5px rgba(0, 0, 0, 0.04);
 }
 
 ::ng-deep .p-sidebar-header {
     background-color: #0f172a !important;
-    padding: 0.5rem 1rem !important;
+    padding: 1rem 1rem 0.5rem 1rem !important;
+    z-index: 100;
 }
 
 ::ng-deep .p-sidebar-close {
     color: #64748b !important;
-    transition: all 0.2s;
+    width: 2rem !important;
+    height: 2rem !important;
+    transition: all 0.2s ease;
 }
 
 ::ng-deep .p-sidebar-close:hover {
@@ -19,11 +24,37 @@
     background-color: #1e293b !important;
 }
 
-/* Estado Activo de los Links */
+/* 2. Scroll Invisible (Efecto Estático) */
+.custom-scrollbar {
+    /* Ocultar barra en Firefox */
+    scrollbar-width: none; 
+    /* Ocultar barra en IE/Edge */
+    -ms-overflow-style: none; 
+}
+
+/* Ocultar barra en Chrome/Safari */
+.custom-scrollbar::-webkit-scrollbar {
+    display: none; 
+}
+
+/* 3. Navigation Links Styling */
+nav a {
+    text-decoration: none;
+    margin: 0 0.5rem;
+    padding-top: 0.65rem !important;   /* Más compacto verticalmente */
+    padding-bottom: 0.65rem !important;
+    border-left: 3px solid transparent;
+}
+
+nav a i {
+    font-size: 1.1rem;
+}
+
+/* 4. Active Route State */
 .active-link {
-    background-color: rgba(16, 185, 129, 0.1) !important; /* emerald opacity */
+    background-color: rgba(16, 185, 129, 0.08) !important; /* emerald-500 @ 8% */
     color: #10b981 !important; /* emerald-500 */
-    border-left: 3px solid #10b981;
+    border-left: 3px solid #10b981 !important;
     border-radius: 0 8px 8px 0 !important;
 }
 
@@ -31,16 +62,28 @@
     color: #10b981 !important;
 }
 
-/* Scrollbar minimalista para el menú */
-.custom-scrollbar::-webkit-scrollbar {
-    width: 4px;
+/* 5. Typography & Spacing Fixes */
+h3 {
+    letter-spacing: 0.15em;
+    margin-top: 0.5rem;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-    background: transparent;
+.mb-8 {
+    margin-bottom: 1.5rem !important; /* Reducido para evitar el scroll */
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-    background: #1e293b;
-    border-radius: 10px;
+/* 6. User Footer Enhancements */
+.bg-slate-950 {
+    background-color: #020617; /* Extra dark para contraste */
+}
+
+/* 7. Hover Transitions */
+nav a:hover:not(.active-link) {
+    background-color: rgba(30, 41, 59, 0.5); /* slate-800/50 */
+    color: #f8fafc;
+}
+
+nav a:hover i {
+    transform: translateX(2px);
+    transition: transform 0.2s ease;
 }
