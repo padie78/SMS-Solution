@@ -1,4 +1,4 @@
-/* Limpiar estilos de PrimeNG que causan el amontonamiento */
+/* Sobreescritura de estilos base de PrimeNG para el modo oscuro */
 ::ng-deep .p-sidebar {
     background-color: #0f172a !important; /* slate-900 */
     padding: 0 !important;
@@ -6,27 +6,40 @@
 
 ::ng-deep .p-sidebar-header {
     background-color: #0f172a !important;
-    z-index: 100;
+    padding: 0.5rem 1rem !important;
 }
 
 ::ng-deep .p-sidebar-close {
     color: #64748b !important;
-    top: 1.5rem !important;
-    right: 1rem !important;
+    transition: all 0.2s;
 }
 
-/* Estilo para el link activo */
+::ng-deep .p-sidebar-close:hover {
+    color: #ffffff !important;
+    background-color: #1e293b !important;
+}
+
+/* Estado Activo de los Links */
 .active-link {
-    background-color: rgba(16, 185, 129, 0.1) !important; /* emerald-500 with opacity */
+    background-color: rgba(16, 185, 129, 0.1) !important; /* emerald opacity */
     color: #10b981 !important; /* emerald-500 */
     border-left: 3px solid #10b981;
     border-radius: 0 8px 8px 0 !important;
 }
 
-/* Scrollbar minimalista */
+.active-link i {
+    color: #10b981 !important;
+}
+
+/* Scrollbar minimalista para el menú */
 .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
 }
+
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+
 .custom-scrollbar::-webkit-scrollbar-thumb {
     background: #1e293b;
     border-radius: 10px;

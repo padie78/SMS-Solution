@@ -13,13 +13,14 @@ import { MenuItem } from 'primeng/api';
   imports: [
     CommonModule, 
     RouterLink, 
-    MenuModule,   // Crucial para <p-menu>
-    BadgeModule   // Crucial para los badges (PRO, 1.2k)
+    MenuModule,   
+    BadgeModule   
   ],
   templateUrl: './header.component.html',
   styleUrls: ['./header.component.css']
 })
 export class HeaderComponent {
+  // Evento para abrir el sidebar desde el botón hamburguesa
   @Output() toggleSidebar = new EventEmitter<void>();
 
   userConfigItems: MenuItem[] = [
@@ -72,7 +73,7 @@ export class HeaderComponent {
   ];
 
   logout() {
-    // Aquí integrarás Amplify Auth.signOut()
     console.log('Logging out...');
+    // Aquí llamarás a Auth.signOut() de AWS Amplify
   }
 }
