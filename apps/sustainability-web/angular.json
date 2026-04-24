@@ -20,8 +20,8 @@
               "zone.js"
             ],
             "tsConfig": "tsconfig.app.json",
-            "ssr": false, // <--- FORZAR FALSE
-            "prerender": false, // <--- FORZAR FALSE
+            "ssr": false,
+            "prerender": false,
             "assets": [
               "src/favicon.ico",
               "src/assets"
