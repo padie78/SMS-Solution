@@ -1352,57 +1352,56 @@ processInvoiceIA: async (orgId, fileName, bucket) => {
         console.log(`\n--- ⚙️ STARTING AI PIPELINE [ORG: ${orgId}] [FILE: ${key}] ---`);
 
         try {
-            // 1. OBTENCIÓN DEL TEXTO (OCR / Textract)
+            // 1. OBTENCIÓN DEL TEXTO
             const extractionResponse = await callExtractionAgent(bucket, key);
-                                
-            if (!extractionResponse) {
-                throw new Error("No se pudo extraer texto del documento.");
-            }
-
-            // --- FIX: Sanitización de rawText ---
-            // Aseguramos que rawText sea un string plano, ya que el agente puede devolver un objeto
+            
+            // LOG DE EXTRACCIÓN: ¿Qué nos dio el agente?
+            console.log(`[DEBUG_STEP_1] Extraction Type: ${typeof extractionResponse}`);
+            
             let rawText = "";
             if (typeof extractionResponse === 'string') {
                 rawText = extractionResponse;
             } else if (typeof extractionResponse === 'object') {
-                // Buscamos propiedades comunes de texto en respuestas de AWS/LangChain
-                rawText = extractionResponse.text || 
-                          extractionResponse.body || 
-                          extractionResponse.content || 
-                          JSON.stringify(extractionResponse);
+                console.log(`[DEBUG_STEP_1] Extraction Keys: ${Object.keys(extractionResponse).join(', ')}`);
+                rawText = extractionResponse.text || extractionResponse.body || extractionResponse.content || JSON.stringify(extractionResponse);
             }
 
-            if (!rawText || rawText.trim().length === 0) {
-                throw new Error("El contenido extraído está vacío o no es procesable.");
-            }
-            // ------------------------------------
+            // LOG DE CONTENIDO: Ver los primeros 200 caracteres del texto real
+            console.log(`[DEBUG_STEP_1] RawText Preview: "${rawText.substring(0, 200).replace(/\n/g, ' ')}..."`);
+            console.log(`[DEBUG_STEP_1] Total Characters: ${rawText.length}`);
 
-            // 2. CLASIFICACIÓN DE CONTEXTO
-            // Al ser rawText un string, ya no fallará .substring() o .toLowerCase()
+            if (!rawText || rawText.trim().length < 10) {
+                throw new Error("El texto extraído es demasiado corto para ser una factura válida.");
+            }
+
+            // 2. CLASIFICACIÓN
             const detectedCategory = await identifyCategory(rawText);
             console.log(`[PIPELINE] 1. Contexto: Cat detectada "${detectedCategory}"`);
 
-            // 3. ANÁLISIS INTELIGENTE (Bedrock)
+            // 3. ANÁLISIS BEDROCK
             console.log(`[PIPELINE] 2. Llamando a Bedrock para análisis...`);
             const aiAnalysis = await analyzeInvoice(rawText, detectedCategory);
+
+            // LOG DE IA: ¿Qué respondió Bedrock exactamente?
+            console.log(`[DEBUG_STEP_2] Bedrock Raw Response: ${JSON.stringify(aiAnalysis)}`);
 
             const aiCat = aiAnalysis?.category || 'N/A';
             const aiConf = (aiAnalysis?.confidence_score || 0).toFixed(2);
             console.log(`[PIPELINE] 2. IA: Procesado como ${aiCat} (Confianza: ${aiConf})`);
 
-            // 4. MOTOR DE EMISIONES (Climatiq)
+            // 4. MOTOR DE EMISIONES
             console.log(`[PIPELINE] 3. Calculando huella con Climatiq...`);
             const emissionLines = (aiAnalysis.emission_lines || []).map(line => ({
                 ...line,
                 category: line.category || aiAnalysis.category || "ELEC"
             }));
+            
+            console.log(`[DEBUG_STEP_3] Emission Lines to calculate: ${emissionLines.length}`);
 
             const country = aiAnalysis.extracted_data?.location?.country || "ES";
             const emissionCalculations = await calculateFootprint(emissionLines, country);
 
-            console.log(`[PIPELINE] 3. Cálculo: ${emissionCalculations.total_kg.toFixed(2)} kgCO2e`);
-
-            // 5. MAPEADO (Golden Record)
+            // 5. MAPEADO
             const goldenRecord = buildGoldenRecord(
                 `ORG#${orgId}`,
                 key,
@@ -1413,16 +1412,14 @@ processInvoiceIA: async (orgId, fileName, bucket) => {
                 { source: 'web_upload', uploadedAt: new Date().toISOString() }
             );
 
-            // 6. PERSISTENCIA
-            console.log(`\n--- 📊 DATA CHECK [${goldenRecord.SK}] ---`);
+            // 6. PERSISTENCIA Y CIERRE
+            console.log(`\n--- 📊 DATA CHECK [${key}] ---`);
             console.log(`   🌍 CO2:      ${goldenRecord.climatiq_result?.co2e || 0} kg`);
             console.log(`   💰 Spend:    ${goldenRecord.extracted_data?.total_amount || 0}`);
+            console.log(`   📝 Vendor:   ${goldenRecord.extracted_data?.vendor || 'N/A'}`);
             console.log(`------------------------------------------`);
 
             await persistTransaction(goldenRecord);
-            console.log(`[PIPELINE] 5. Éxito: Registro guardado en DB.`);
-
-            // 7. RESPUESTA AL FRONTEND
             return {
                 vendor: goldenRecord.extracted_data?.vendor || 'Unknown',
                 total: goldenRecord.extracted_data?.total_amount || 0,
@@ -1435,10 +1432,8 @@ processInvoiceIA: async (orgId, fileName, bucket) => {
         } catch (error) {
             console.error(`\n❌ [PIPELINE_ERROR]: Fallo en ${key}`);
             console.error(`Detalle: ${error.message}`);
-            // Re-lanzamos para que el handler de index.js capture el error
             throw error; 
         }
     }
-
 
 };
