@@ -90,6 +90,36 @@ resource "aws_iam_policy" "s3_upload_policy" {
   })
 }
 
+resource "aws_iam_role_policy" "processor_s3_and_ai" {
+  name = "InvoiceProcessorS3AndAIPolicy"
+  role = aws_iam_role.invoice_processor_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "AllowReadUploads"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:ListBucket"]
+        Resource = [
+          "arn:aws:s3:::sms-platform-dev-uploads",
+          "arn:aws:s3:::sms-platform-dev-uploads/*"
+        ]
+      },
+      {
+        Sid      = "AllowAI"
+        Effect   = "Allow"
+        Action   = [
+          "textract:AnalyzeDocument",
+          "textract:DetectDocumentText",
+          "bedrock:InvokeModel"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}
+
 # --- Data: DynamoDB Full App Access ---
 resource "aws_iam_policy" "dynamo_app_policy" {
   name   = "${var.project_name}-dynamo-policy-${var.environment}"
