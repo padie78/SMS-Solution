@@ -14,7 +14,7 @@ export const handler = async (event) => {
     const args = event.arguments || {};
 
     // 2. Configuración de Infraestructura
-    const bucket = process.env.S3_BUCKET_NAME || "sms-platform-storage-dev";
+    const bucket = process.env.S3_BUCKET_NAME || "sms-platform-dev-uploads";
 
     console.log(`[RESOLVER] Method: ${methodName} | Org: ${orgId}`);
 
