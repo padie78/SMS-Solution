@@ -2,7 +2,7 @@ import { Component, Output, EventEmitter, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 
-// PrimeNG
+// PrimeNG Modules
 import { FileUploadModule } from 'primeng/fileupload';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
@@ -13,19 +13,22 @@ import { InputTextareaModule } from 'primeng/inputtextarea';
   selector: 'app-invoice-upload',
   standalone: true,
   imports: [
-    CommonModule, FormsModule, ReactiveFormsModule,
-    FileUploadModule, ButtonModule, InputTextModule, 
-    DropdownModule, InputTextareaModule
+    CommonModule, 
+    FormsModule, 
+    ReactiveFormsModule,
+    FileUploadModule, 
+    ButtonModule,
+    InputTextModule,
+    DropdownModule,
+    InputTextareaModule
   ],
-  templateUrl: './invoice-upload.component.html',
-  styleUrls: ['./invoice-upload.component.css']
+  templateUrl: './upload.component.html',
+  styleUrls: ['./upload.component.css']
 })
 export class InvoiceUploadComponent implements OnInit {
   @Output() onComplete = new EventEmitter<any>();
 
-  uploadForm: FormGroup;
-  selectedFile: File | null = null;
-
+  // 1. Opciones maestras para los selectores
   serviceTypes = [
     { label: 'Electricity', value: 'electricity' },
     { label: 'Water', value: 'water' },
@@ -34,42 +37,73 @@ export class InvoiceUploadComponent implements OnInit {
 
   buildings = [
     { label: 'Main Headquarters', value: 'bld-01' },
-    { label: 'Manufacturing Plant', value: 'bld-02' }
+    { label: 'Warehouse North', value: 'bld-02' },
+    { label: 'Manufacturing Plant', value: 'bld-03' }
   ];
 
-  // Datos maestros de medidores vinculados a edificios
-  allMeters = [
-    { label: 'Main Grid - Meter A1', value: 'MTR-A1', bId: 'bld-01' },
-    { label: 'Solar Array - Meter S1', value: 'MTR-S1', bId: 'bld-01' },
-    { label: 'Main Gas Inlet', value: 'GAS-P1', bId: 'bld-02' }
+  costCenters = [
+    { label: 'Operations', value: 'cc-ops' },
+    { label: 'Administration', value: 'cc-adm' },
+    { label: 'Logistics', value: 'cc-log' }
   ];
+
+  // 2. Lista completa de Medidores vinculados a sus edificios (BuildingId)
+  private allMeters = [
+    { label: 'Main Meter - A1', value: 'MTR-A1', buildingId: 'bld-01' },
+    { label: 'Server Room Meter', value: 'MTR-SR', buildingId: 'bld-01' },
+    { label: 'HVAC System North', value: 'MTR-HVAC-N', buildingId: 'bld-02' },
+    { label: 'Production Line 1', value: 'MTR-PL1', buildingId: 'bld-03' },
+    { label: 'Production Line 2', value: 'MTR-PL2', buildingId: 'bld-03' }
+  ];
+
+  // Esta es la lista que se mostrará en el dropdown de la UI
   filteredMeters: any[] = [];
 
-  constructor() {
-    this.uploadForm = new FormGroup({
-      serviceType: new FormControl('', [Validators.required]),
-      building: new FormControl('', [Validators.required]),
-      meterId: new FormControl('', [Validators.required]),
-      costCenter: new FormControl('', [Validators.required]),
-      internalNote: new FormControl('')
+  // Inicialización del Formulario
+  uploadForm = new FormGroup({
+    serviceType: new FormControl('', [Validators.required]),
+    building: new FormControl('', [Validators.required]),
+    meterId: new FormControl('', [Validators.required]),
+    costCenter: new FormControl('', [Validators.required]),
+    internalNote: new FormControl('')
+  });
+
+  selectedFile: File | null = null;
+
+  ngOnInit() {
+    // Escuchar cambios en el campo Building para filtrar los medidores disponibles
+    this.uploadForm.get('building')?.valueChanges.subscribe(selectedBuildingId => {
+      this.filterMeters(selectedBuildingId);
     });
   }
 
-  ngOnInit() {
-    // Filtrar medidores cuando cambie el edificio
-    this.uploadForm.get('building')?.valueChanges.subscribe(val => {
-      this.filteredMeters = this.allMeters.filter(m => m.bId === val);
-      this.uploadForm.get('meterId')?.setValue('');
-    });
+  // Lógica de filtrado
+  private filterMeters(buildingId: string | null) {
+    if (buildingId) {
+      this.filteredMeters = this.allMeters.filter(m => m.buildingId === buildingId);
+    } else {
+      this.filteredMeters = [];
+    }
+    
+    // Resetear el valor del medidor seleccionado para evitar datos inconsistentes
+    this.uploadForm.get('meterId')?.setValue('');
   }
 
   onFileSelect(event: any) {
-    this.selectedFile = event.files[0];
+    if (event.files && event.files.length > 0) {
+      this.selectedFile = event.files[0];
+    }
   }
 
   processAndContinue() {
     if (this.uploadForm.valid && this.selectedFile) {
-      this.onComplete.emit({ ...this.uploadForm.value, file: this.selectedFile });
+      const payload = {
+        ...this.uploadForm.value,
+        file: this.selectedFile
+      };
+      
+      console.log('Enviando a procesamiento IA:', payload);
+      this.onComplete.emit(payload);
     }
   }
 }
