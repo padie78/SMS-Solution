@@ -8,9 +8,28 @@ import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputTextareaModule } from 'primeng/inputtextarea';
+import { ToastModule } from 'primeng/toast';
+import { MessageService } from 'primeng/api';
 
-// State Management
-import { InvoiceStateService } from '../../../core/services/invoice-state.service';
+// AWS Amplify Auth 
+import { signIn, getCurrentUser } from 'aws-amplify/auth';
+
+// State & AWS Services - Rutas corregidas para 3 niveles desde steps/
+import { InvoiceStateService } from '../../../../core/services/invoice-state.service';
+import { AppSyncService } from '../../../../core/services/appsync.service';
+
+/**
+ * Interfaz para el tipado del estado y evitar errores de 'unknown'
+ */
+interface InvoiceStateSnapshot {
+  file: File | null;
+  building?: string;
+  serviceType?: string;
+  meterId?: string;
+  costCenter?: string;
+  internalNote?: string;
+  [key: string]: any;
+}
 
 @Component({
   selector: 'app-invoice-upload',
@@ -23,18 +42,24 @@ import { InvoiceStateService } from '../../../core/services/invoice-state.servic
     ButtonModule,
     InputTextModule,
     DropdownModule,
-    InputTextareaModule
+    InputTextareaModule,
+    ToastModule
   ],
+  providers: [MessageService],
   templateUrl: './upload.component.html',
   styleUrls: ['./upload.component.css']
 })
 export class InvoiceUploadComponent implements OnInit {
-  // Inyección del servicio de estado
   private stateService = inject(InvoiceStateService);
-
+  private appsyncService = inject(AppSyncService);
+  private messageService = inject(MessageService);
+  
   @Output() onComplete = new EventEmitter<void>();
 
-  // 1. Opciones maestras para los selectores
+  isLoading = false;
+  selectedFile: File | null = null;
+
+  // --- MOCK DATA PARA SMS SYSTEM ---
   serviceTypes = [
     { label: 'Electricity', value: 'electricity' },
     { label: 'Water', value: 'water' },
@@ -53,19 +78,16 @@ export class InvoiceUploadComponent implements OnInit {
     { label: 'Logistics', value: 'cc-log' }
   ];
 
-  // 2. Lista completa de Medidores vinculados a sus edificios (BuildingId)
   private allMeters = [
     { label: 'Main Meter - A1', value: 'MTR-A1', buildingId: 'bld-01' },
     { label: 'Server Room Meter', value: 'MTR-SR', buildingId: 'bld-01' },
     { label: 'HVAC System North', value: 'MTR-HVAC-N', buildingId: 'bld-02' },
-    { label: 'Production Line 1', value: 'MTR-PL1', buildingId: 'bld-03' },
-    { label: 'Production Line 2', value: 'MTR-PL2', buildingId: 'bld-03' }
+    { label: 'Production Line 1', value: 'MTR-PL1', buildingId: 'bld-03' }
   ];
 
-  // Lista filtrada para el dropdown de la UI
   filteredMeters: any[] = [];
 
-  // Inicialización del Formulario con todos los campos necesarios
+  // --- FORMULARIO REACTIVO ---
   uploadForm = new FormGroup({
     serviceType: new FormControl('', [Validators.required]),
     building: new FormControl('', [Validators.required]),
@@ -74,50 +96,101 @@ export class InvoiceUploadComponent implements OnInit {
     internalNote: new FormControl('')
   });
 
-  selectedFile: File | null = null;
+  async ngOnInit() {
+    // 1. Asegurar sesión activa (USER_PASSWORD_AUTH para desarrollo/scripts)
+    await this.ensureAuthenticated();
 
-  ngOnInit() {
-    // Escuchar cambios en el campo Building para filtrar los medidores
-    this.uploadForm.get('building')?.valueChanges.subscribe(selectedBuildingId => {
-      this.filterMeters(selectedBuildingId);
+    // 2. Reactividad para filtrado de medidores por edificio
+    this.uploadForm.get('building')?.valueChanges.subscribe(val => {
+      this.filterMeters(val);
     });
 
-    // Opcional: Si regresas del paso 2, podrías recuperar datos previos aquí
-    const savedState = this.stateService.getSnapshot();
-    if (savedState) {
-      this.uploadForm.patchValue(savedState);
+    // 3. Restauración de estado persistido (si el usuario vuelve atrás)
+    const savedState = this.stateService.getSnapshot() as InvoiceStateSnapshot;
+    if (savedState && (savedState.building || savedState.file)) {
+      this.uploadForm.patchValue({
+        building: savedState.building,
+        serviceType: savedState.serviceType,
+        meterId: savedState.meterId,
+        costCenter: savedState.costCenter,
+        internalNote: savedState.internalNote
+      });
+      this.filterMeters(savedState.building || null);
       this.selectedFile = savedState.file;
     }
   }
 
-  private filterMeters(buildingId: string | null) {
-    if (buildingId) {
-      this.filteredMeters = this.allMeters.filter(m => m.buildingId === buildingId);
-    } else {
-      this.filteredMeters = [];
+  private async ensureAuthenticated() {
+    try {
+      await getCurrentUser();
+      console.log('✅ AWS Auth: Session Active');
+    } catch {
+      console.log('🔐 Initiating login with USER_PASSWORD_AUTH...');
+      try {
+        await signIn({
+          username: 'diego_liascovich',
+          password: 'DLpdp1980!',
+          options: { authFlowType: 'USER_PASSWORD_AUTH' }
+        });
+        console.log('🚀 AWS Auth: Login Success');
+      } catch (err) {
+        console.error('❌ AWS Auth Error:', err);
+      }
     }
-    // Resetear el valor del medidor si cambia el edificio
-    this.uploadForm.get('meterId')?.setValue('');
+  }
+
+  private filterMeters(buildingId: string | null) {
+    this.filteredMeters = buildingId ? this.allMeters.filter(m => m.buildingId === buildingId) : [];
+    
+    // Validar que el medidor seleccionado siga siendo válido para el edificio
+    const currentMeter = this.uploadForm.get('meterId')?.value;
+    if (!this.filteredMeters.find(m => m.value === currentMeter)) {
+      this.uploadForm.get('meterId')?.setValue('');
+    }
   }
 
   onFileSelect(event: any) {
     if (event.files && event.files.length > 0) {
       this.selectedFile = event.files[0];
+      this.messageService.add({ severity: 'info', summary: 'File Selected', detail: this.selectedFile?.name });
     }
   }
 
   /**
-   * Procesa los datos, los guarda en el State Service y avanza el Stepper.
+   * Pipeline: AppSync (Presigned URL) -> S3 (Binary Put) -> Next Step
    */
-  processAndContinue() {
+  async processAndContinue() {
     if (this.uploadForm.valid && this.selectedFile) {
-      // Guardamos en el State Manager antes de emitir
-      this.stateService.setStep1Data(this.uploadForm.value, this.selectedFile);
+      this.isLoading = true;
       
-      console.log('Datos guardados en el Service. Iniciando pipeline de IA...');
-      
-      // Emitimos al padre para que dispare el loader de IA y cambie de paso
-      this.onComplete.emit();
+      try {
+        // 1. Obtener URL firmada
+        console.log('📡 Fetching Presigned URL...');
+        const uploadUrl = await this.appsyncService.getPresignedUrl(
+          this.selectedFile.name, 
+          this.selectedFile.type
+        );
+
+        // 2. Subida directa a S3 (PUT binario)
+        console.log('📤 Uploading to S3...');
+        await this.appsyncService.uploadFileToS3(uploadUrl, this.selectedFile);
+
+        // 3. Persistir en el State local para que el Step 2 (IA) sepa qué procesar
+        this.stateService.setStep1Data(this.uploadForm.value, this.selectedFile);
+        
+        this.messageService.add({ severity: 'success', summary: 'Success', detail: 'File uploaded to S3' });
+        
+        // 4. Navegar al siguiente paso del Stepper
+        this.onComplete.emit();
+
+      } catch (error) {
+        console.error('❌ Pipeline Failed:', error);
+        this.messageService.add({ severity: 'error', summary: 'Upload Error', detail: 'Failed to upload to S3' });
+      } finally {
+        this.isLoading = false;
+      }
+    } else {
+      this.messageService.add({ severity: 'warn', summary: 'Attention', detail: 'Please complete all fields and select a file' });
     }
   }
 }
