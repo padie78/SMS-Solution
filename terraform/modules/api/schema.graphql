@@ -4,6 +4,7 @@ schema {
 }
 
 # --- 1. RESPUESTAS Y CONTROL ---
+
 type MutationResponse {
   success: Boolean!
   message: String
@@ -32,35 +33,42 @@ type PresignedUrlResponse {
   userId: String!
 }
 
-# --- 2. NÚCLEO ANALÍTICO (Sincronizado con DynamoDB) ---
+# Respuesta específica para el Pipeline de IA (Bedrock + Climatiq)
+type InvoiceIAProcessingResponse {
+  success: Boolean!
+  message: String
+  vendor: String
+  date: String
+  total: Float
+  consumption: Float
+  co2e: Float
+  currency: String
+  category: String
+  confidence: Float
+}
+
+# --- 2. NÚCLEO ANALÍTICO ---
+
 type AnalyticsResponse {
   id: ID!
   metadata: AnalyticsMetadata
-  
-  # --- CAMPOS RAÍZ (Sincronizados con Service) ---
   financials_total_spend: Float
   ghg_total_co2e_ton: Float
-  ghg_total_co2e_kg: Float       # <--- Faltaba este
-  cost_per_m2: Float             # <--- Faltaba este
+  ghg_total_co2e_kg: Float
+  cost_per_m2: Float
   trazabilidad_total_invoices: Int
   last_updated: String
-
-  budget_deviation_pct: Float      # <--- AGREGAR
-  target_deviation_pct: Float      # <--- AGREGAR
-  energy_intensity_per_m2: Float   # <--- AGREGAR
-  
-  # --- CONSUMOS E INTENSIDAD ---
+  budget_deviation_pct: Float
+  target_deviation_pct: Float
+  energy_intensity_per_m2: Float
   consumption_gas_val: Float
   consumption_elec_val: Float
-  energy_intensity_index: Float  # <--- Faltaba este
-  phantom_load_kwh: Float        # <--- Faltaba este
-  
-  # --- BLOQUES ---
+  energy_intensity_index: Float
+  phantom_load_kwh: Float
   advanced_analytics: AdvancedAnalytics
   predictive_engine: PredictiveEngine
   management_reporting: ManagementReporting
   regulatory_compliance: RegulatoryCompliance
-  
   sourceData: AWSJSON 
 }
 
@@ -83,7 +91,6 @@ type AdvancedAnalytics {
   transition_risk_scoring: AWSJSON
   energy_source_mix: AWSJSON
   data_reliability_pct: Float
-  # phantom_load_kwh: Float   # Podrías moverlo aquí si prefieres sacarlo de la raíz
 }
 
 type PredictiveEngine {
@@ -106,6 +113,7 @@ type RegulatoryCompliance {
 }
 
 # --- 3. ENTIDADES ---
+
 type Invoice {
   id: ID!
   vendor: String
@@ -127,6 +135,7 @@ type NormalizationKPIs {
 }
 
 # --- 4. INPUTS ---
+
 input OrgConfigInput {
   name: String
   taxId: String
@@ -287,6 +296,7 @@ input EmissionFactorInput {
 }
 
 # --- 5. CONSULTAS (QUERIES) ---
+
 type Query {
   getPrecalculatedKPI(
     year: String!, 
@@ -310,7 +320,9 @@ type Query {
 }
 
 # --- 6. ACCIONES (MUTATIONS) ---
+
 type Mutation {
+  # --- Configuración y Core ---
   saveOrgConfig(orgId: ID!, input: OrgConfigInput!): MutationResponse
   createBranch(orgId: ID!, input: BranchInput!): MutationResponse
   saveBuilding(orgId: ID!, branchId: ID!, buildingId: ID!, input: BuildingInput!): MutationResponse
@@ -323,7 +335,12 @@ type Mutation {
   saveUser(orgId: ID!, userId: ID!, input: UserInput!): MutationResponse
   saveEmissionFactor(input: EmissionFactorInput!): MutationResponse
   
+  # --- Pipeline de Facturación e IA ---
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
+  
+  # Esta es la mutación que dispara el orquestador Bedrock -> Climatiq -> DB
+  processInvoice(fileName: String!, folderId: String): InvoiceIAProcessingResponse
+  
   confirmInvoice(sk: String!, input: ConfirmInvoiceInput!): ActionResponse!
   approveInvoice(invoiceId: ID!): Invoice 
 }

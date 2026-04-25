@@ -72,6 +72,11 @@ export const handler = async (event) => {
                 result = await configService.saveEmissionFactor(args.input);
                 break;
 
+            case 'processInvoice':
+                // Llamamos al servicio de IA pasándole el nombre del archivo y la organización
+                result = await configService.processInvoiceIA(orgId, args.fileName);
+                break;
+
             case 'confirmInvoice':
                 result = await configService.confirmInvoice(orgId, args.sk, args.input);
                 break;

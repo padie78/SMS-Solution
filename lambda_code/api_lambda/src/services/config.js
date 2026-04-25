@@ -6,6 +6,12 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, UpdateCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
 
+import { identifyCategory } from "./ia/classifier.js";
+import { analyzeInvoice } from "./ia/bedrock.js";
+import { calculateFootprint } from "./apis/climatiq.js";
+import { buildGoldenRecord } from "../utils/mapper.js";
+import { persistTransaction } from "./data/db.js";
+
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.DATABASE_NAME || "sms-platform-dev-emissions";
@@ -1339,6 +1345,85 @@ export const configService = {
             message: "Invoice confirmed and ESG metrics generated."
         };
     },
+
+    processInvoiceIA: async (orgId, fileName) {
+        const key = fileName || "unknown_key";
+        console.log(`\n--- ⚙️ STARTING AI PIPELINE [ORG: ${orgId}] [FILE: ${key}] ---`);
+
+        try {
+            // 1. OBTENCIÓN DEL TEXTO (RAW CAPTURE)
+            // Aquí deberías obtener el texto del PDF. 
+            // Si ya tienes una función que hace el OCR con Textract, úsala.
+            // const rawText = await s3Service.getOCRText(fileName);
+            
+            // Simulación de la estructura que esperaba tu código original:
+            const rawText = "Contenido extraído del PDF via Textract..."; 
+
+            if (!rawText) {
+                throw new Error("No se pudo extraer texto del documento.");
+            }
+
+            // 2. CLASIFICACIÓN DE CONTEXTO
+            const detectedCategory = await identifyCategory(rawText);
+            console.log(`[PIPELINE] 1. Contexto: Cat detectada "${detectedCategory}"`);
+
+            // 3. ANÁLISIS INTELIGENTE (Bedrock)
+            console.log(`[PIPELINE] 2. Llamando a Bedrock para análisis...`);
+            const aiAnalysis = await analyzeInvoice(rawText, detectedCategory);
+
+            const aiCat = aiAnalysis?.category || 'N/A';
+            const aiConf = (aiAnalysis?.confidence_score || 0).toFixed(2);
+            console.log(`[PIPELINE] 2. IA: Procesado como ${aiCat} (Confianza: ${aiConf})`);
+
+            // 4. MOTOR DE EMISIONES (Climatiq)
+            console.log(`[PIPELINE] 3. Calculando huella con Climatiq...`);
+            const emissionLines = (aiAnalysis.emission_lines || []).map(line => ({
+                ...line,
+                category: line.category || aiAnalysis.category || "ELEC"
+            }));
+
+            const country = aiAnalysis.extracted_data?.location?.country || "ES";
+            const emissionCalculations = await calculateFootprint(emissionLines, country);
+
+            console.log(`[PIPELINE] 3. Cálculo: ${emissionCalculations.total_kg.toFixed(2)} kgCO2e`);
+
+            // 5. MAPEADO (Golden Record)
+            // Ajustamos el mapeo para que coincida con tu estructura de DynamoDB
+            const goldenRecord = buildGoldenRecord(
+                `ORG#${orgId}`,
+                key,
+                aiAnalysis,
+                emissionCalculations,
+                "VALIDATED",
+                detectedCategory,
+                { source: 'web_upload', uploadedAt: new Date().toISOString() }
+            );
+
+            // 6. PERSISTENCIA
+            console.log(`\n--- 📊 DATA CHECK [${goldenRecord.SK}] ---`);
+            console.log(`   🌍 CO2:      ${goldenRecord.climatiq_result?.co2e || 0} kg`);
+            console.log(`   💰 Spend:    ${goldenRecord.extracted_data?.total_amount || 0}`);
+            console.log(`------------------------------------------`);
+
+            await persistTransaction(goldenRecord);
+            console.log(`[PIPELINE] 5. Éxito: Registro guardado en DB.`);
+
+            // Devolvemos el objeto que el Frontend necesita para el Step 2 (Validation)
+            return {
+                vendor: goldenRecord.extracted_data?.vendor || 'Unknown',
+                total: goldenRecord.extracted_data?.total_amount || 0,
+                date: goldenRecord.extracted_data?.date || '',
+                consumption: goldenRecord.extracted_data?.consumption || 0,
+                co2e: goldenRecord.climatiq_result?.co2e || 0,
+                success: true
+            };
+
+        } catch (error) {
+            console.error(`\n❌ [PIPELINE_ERROR]: Fallo en ${key}`);
+            console.error(`Detalle: ${error.message}`);
+            throw error; // Re-lanzar para que el handler lo capture
+        }
+    }
 
 
 };
