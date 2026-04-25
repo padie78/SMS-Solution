@@ -1,8 +1,8 @@
-import { Component, Output, EventEmitter } from '@angular/core';
+import { Component, Output, EventEmitter, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 
-// PrimeNG Modules
+// PrimeNG
 import { FileUploadModule } from 'primeng/fileupload';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
@@ -13,22 +13,19 @@ import { InputTextareaModule } from 'primeng/inputtextarea';
   selector: 'app-invoice-upload',
   standalone: true,
   imports: [
-    CommonModule, 
-    FormsModule, 
-    ReactiveFormsModule,
-    FileUploadModule, 
-    ButtonModule,
-    InputTextModule,
-    DropdownModule,
-    InputTextareaModule
+    CommonModule, FormsModule, ReactiveFormsModule,
+    FileUploadModule, ButtonModule, InputTextModule, 
+    DropdownModule, InputTextareaModule
   ],
-  templateUrl: './upload.component.html',
-  styleUrls: ['./upload.component.css']
+  templateUrl: './invoice-upload.component.html',
+  styleUrls: ['./invoice-upload.component.css']
 })
-export class InvoiceUploadComponent {
+export class InvoiceUploadComponent implements OnInit {
   @Output() onComplete = new EventEmitter<any>();
 
-  // Opciones para los selectores
+  uploadForm: FormGroup;
+  selectedFile: File | null = null;
+
   serviceTypes = [
     { label: 'Electricity', value: 'electricity' },
     { label: 'Water', value: 'water' },
@@ -37,42 +34,42 @@ export class InvoiceUploadComponent {
 
   buildings = [
     { label: 'Main Headquarters', value: 'bld-01' },
-    { label: 'Warehouse North', value: 'bld-02' },
-    { label: 'Manufacturing Plant', value: 'bld-03' }
+    { label: 'Manufacturing Plant', value: 'bld-02' }
   ];
 
-  costCenters = [
-    { label: 'Operations', value: 'cc-ops' },
-    { label: 'Administration', value: 'cc-adm' },
-    { label: 'Logistics', value: 'cc-log' }
+  // Datos maestros de medidores vinculados a edificios
+  allMeters = [
+    { label: 'Main Grid - Meter A1', value: 'MTR-A1', bId: 'bld-01' },
+    { label: 'Solar Array - Meter S1', value: 'MTR-S1', bId: 'bld-01' },
+    { label: 'Main Gas Inlet', value: 'GAS-P1', bId: 'bld-02' }
   ];
+  filteredMeters: any[] = [];
 
-  // Inicialización del Formulario con los campos manuales necesarios
-  uploadForm = new FormGroup({
-    serviceType: new FormControl('', [Validators.required]),
-    meterId: new FormControl('', [Validators.required]),
-    building: new FormControl('', [Validators.required]),
-    costCenter: new FormControl('', [Validators.required]),
-    internalNote: new FormControl('')
-  });
+  constructor() {
+    this.uploadForm = new FormGroup({
+      serviceType: new FormControl('', [Validators.required]),
+      building: new FormControl('', [Validators.required]),
+      meterId: new FormControl('', [Validators.required]),
+      costCenter: new FormControl('', [Validators.required]),
+      internalNote: new FormControl('')
+    });
+  }
 
-  selectedFile: File | null = null;
+  ngOnInit() {
+    // Filtrar medidores cuando cambie el edificio
+    this.uploadForm.get('building')?.valueChanges.subscribe(val => {
+      this.filteredMeters = this.allMeters.filter(m => m.bId === val);
+      this.uploadForm.get('meterId')?.setValue('');
+    });
+  }
 
   onFileSelect(event: any) {
-    if (event.files && event.files.length > 0) {
-      this.selectedFile = event.files[0];
-    }
+    this.selectedFile = event.files[0];
   }
 
   processAndContinue() {
     if (this.uploadForm.valid && this.selectedFile) {
-      const payload = {
-        ...this.uploadForm.value,
-        file: this.selectedFile
-      };
-      
-      console.log('Enviando a procesamiento IA:', payload);
-      this.onComplete.emit(payload);
+      this.onComplete.emit({ ...this.uploadForm.value, file: this.selectedFile });
     }
   }
 }

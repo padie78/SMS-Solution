@@ -1,32 +1,26 @@
-import { Component, Output, EventEmitter, Input } from '@angular/core';
-import { CommonModule } from '@angular/common'; // Necesario para el pipe 'currency'
-import { FormsModule } from '@angular/forms'; // Necesario para '[(ngModel)]'
-
-// PrimeNG Imports (Deben estar aquí para ser reconocidos en el HTML)
+import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
-import { ButtonModule } from 'primeng/button'; // Necesario para 'p-button'
-import { TagModule } from 'primeng/tag'; // Necesario para 'p-tag'
+import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 
 @Component({
   selector: 'app-invoice-validation',
   standalone: true,
-  imports: [
-    CommonModule,     // Resuelve el error de 'currency' pipe
-    FormsModule,      // Resuelve el error de 'ngModel'
-    InputTextModule,
-    ButtonModule,     // Resuelve el error de 'p-button'
-    TagModule,        // Resuelve el error de 'p-tag'
-    TooltipModule
-  ],
-  templateUrl: './validation.component.html',
-  styleUrls: ['./validation.component.css']
+  imports: [CommonModule, FormsModule, ButtonModule, InputTextModule, TagModule, TooltipModule],
+  templateUrl: './invoice-validation.component.html',
+  styleUrls: ['./invoice-validation.component.css']
 })
 export class InvoiceValidationComponent {
-  @Input() invoice: any = { total: 0, date: '', provider: '' }; 
-
-  @Output() onConfirm = new EventEmitter();
-  @Output() onBack = new EventEmitter();
+  @Input() invoice: any = {
+    total: 1250.45,
+    date: '2026-04-15',
+    vendor: 'ENERGIA GLOBAL'
+  };
+  @Output() onConfirm = new EventEmitter<any>();
+  @Output() onBack = new EventEmitter<void>();
 
   confirm() {
     this.onConfirm.emit(this.invoice);
