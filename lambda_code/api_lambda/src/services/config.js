@@ -8,6 +8,7 @@ import { randomUUID } from "crypto";
 
 import { identifyCategory } from "./ia/classifier.js";
 import { analyzeInvoice } from "./ia/bedrock.js";
+import { callExtractionAgent } from "./ia/agent.js";
 import { calculateFootprint } from "./apis/climatiq.js";
 import { buildGoldenRecord } from "../utils/mapper.js";
 import { persistTransaction } from "./data/db.js";
@@ -1346,7 +1347,7 @@ export const configService = {
         };
     },
 
-    processInvoiceIA: async (orgId, fileName) {
+    processInvoiceIA: async (orgId, fileName) => {
         const key = fileName || "unknown_key";
         console.log(`\n--- ⚙️ STARTING AI PIPELINE [ORG: ${orgId}] [FILE: ${key}] ---`);
 
@@ -1354,11 +1355,8 @@ export const configService = {
             // 1. OBTENCIÓN DEL TEXTO (RAW CAPTURE)
             // Aquí deberías obtener el texto del PDF. 
             // Si ya tienes una función que hace el OCR con Textract, úsala.
-            // const rawText = await s3Service.getOCRText(fileName);
-            
-            // Simulación de la estructura que esperaba tu código original:
-            const rawText = "Contenido extraído del PDF via Textract..."; 
-
+            const rawText = await callExtractionAgent(bucket, key);
+                                
             if (!rawText) {
                 throw new Error("No se pudo extraer texto del documento.");
             }
