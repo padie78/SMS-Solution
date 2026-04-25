@@ -5,41 +5,35 @@ import { configService } from './services/config.js';
 
 export const handler = async (event) => {
     const methodName = event.info?.fieldName || event.fieldName || "unknown";
-    
+
+    // 1. Identidad y Organización
+    const orgId = event.identity?.claims['custom:organization_id'] ||
+        event.identity?.claims['sub'] ||
+        "f3d4f8a2-90c1-708c-a446-2c8592524d62";
+
+    const args = event.arguments || {};
+
+    // 2. Configuración de Infraestructura
+    const bucket = process.env.S3_BUCKET_NAME || "sms-platform-storage-dev";
+
+    console.log(`[RESOLVER] Method: ${methodName} | Org: ${orgId}`);
+
     try {
-        // 1. Identidad y Organización
-        const orgId = event.identity?.claims['custom:organization_id'] ||
-            event.identity?.claims['sub'] ||
-            "f3d4f8a2-90c1-708c-a446-2c8592524d62";
-
-        const args = event.arguments || {};
-        
-        // 2. Configuración de Infraestructura
-        const bucket = process.env.S3_BUCKET_NAME || "sms-platform-storage-dev";
-
-        console.log(`[RESOLVER] Method: ${methodName} | Org: ${orgId}`);
-
         let result;
 
         switch (methodName) {
             case 'processInvoice':
-                /**
-                 * FIX CRÍTICO: Verificación de la Key de S3
-                 * Si el frontend envía 'factura.pdf' pero en los logs vemos 
-                 * prefijos con timestamp, aquí aseguramos que la key sea la correcta.
-                 */
-                const rawFileName = args.fileName;
-                
-                // Log preventivo para debuggear qué está llegando del frontend
-                console.log(`[DEBUG] FileName recibido del frontend: "${rawFileName}"`);
+                // FIX: El frontend ahora envía la Key completa (timestamp-nombre.pdf)
+                const s3Key = args.fileName;
 
-                if (!rawFileName) {
-                    throw new Error("El argumento 'fileName' es requerido para procesar la factura.");
+                console.log(`[PIPELINE_INIT] Procesando factura con Key: "${s3Key}"`);
+
+                if (!s3Key) {
+                    throw new Error("Error: El nombre del archivo (fileName) no fue proporcionado.");
                 }
 
-                // Invocamos el pipeline con el nombre de archivo tal cual viene
-                // Si el error persiste, el problema está en cómo el frontend genera la Key al subir a S3
-                result = await configService.processInvoiceIA(orgId, rawFileName, bucket);
+                // Iniciamos el análisis inteligente con Bedrock & Textract
+                result = await configService.processInvoiceIA(orgId, s3Key, bucket);
                 break;
 
             case 'confirmInvoice':
@@ -100,11 +94,10 @@ export const handler = async (event) => {
         }
 
         return result;
-
     } catch (error) {
         // Log detallado para CloudWatch
         console.error(`[LAMBDA FATAL ERROR] Method: ${methodName} | Message: ${error.message}`);
-        
+
         // Retornamos un objeto que AppSync pueda entender como error sin romper el front
         return {
             success: false,
