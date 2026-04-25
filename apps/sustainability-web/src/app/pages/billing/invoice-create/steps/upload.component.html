@@ -5,7 +5,7 @@
       <h3 class="text-lg font-black text-slate-800 border-b pb-3 uppercase tracking-tighter">Asignación de Activos</h3>
       
       <div class="flex flex-col gap-2">
-        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Building Location</label>
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Building Location / Branch</label>
         <p-dropdown [options]="buildings" formControlName="building" placeholder="Seleccionar Ubicación"
           styleClass="w-full" [style]="{'width':'100%'}" appendTo="body"></p-dropdown>
       </div>
@@ -17,15 +17,22 @@
             styleClass="w-full" [style]="{'width':'100%'}" appendTo="body"></p-dropdown>
         </div>
         <div class="flex flex-col gap-2">
-          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Meter ID</label>
-          <p-dropdown [options]="filteredMeters" formControlName="meterId" placeholder="ID Medidor"
-            styleClass="w-full" [style]="{'width':'100%'}" appendTo="body" [disabled]="!uploadForm.get('building')?.value"></p-dropdown>
+          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cost Center</label>
+          <p-dropdown [options]="costCenters" formControlName="costCenter" placeholder="Centro de Costo"
+            styleClass="w-full" [style]="{'width':'100%'}" appendTo="body"></p-dropdown>
         </div>
       </div>
 
       <div class="flex flex-col gap-2">
+        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Meter ID</label>
+        <p-dropdown [options]="filteredMeters" formControlName="meterId" placeholder="ID Medidor"
+          styleClass="w-full" [style]="{'width':'100%'}" appendTo="body" 
+          [disabled]="!uploadForm.get('building')?.value"></p-dropdown>
+      </div>
+
+      <div class="flex flex-col gap-2">
         <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Internal Notes</label>
-        <textarea pInputTextarea formControlName="internalNote" rows="4" class="w-full resize-none" placeholder="Detalles de auditoría..."></textarea>
+        <textarea pInputTextarea formControlName="internalNote" rows="3" class="w-full resize-none" placeholder="Detalles de auditoría..."></textarea>
       </div>
     </div>
 
@@ -34,12 +41,17 @@
       <div class="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-xl p-10 hover:bg-white transition-all">
         <i class="pi pi-cloud-upload text-4xl text-slate-300 mb-4"></i>
         <p-fileUpload mode="basic" (onSelect)="onFileSelect($event)" chooseLabel="Subir Factura" styleClass="p-button-secondary p-button-outlined"></p-fileUpload>
-        <span *ngIf="selectedFile" class="mt-4 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1 rounded-full">
-          <i class="pi pi-check mr-1"></i> {{selectedFile.name}}
-        </span>
+        
+        <div *ngIf="selectedFile" class="mt-4 flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100">
+          <i class="pi pi-file-pdf"></i>
+          <span>{{selectedFile.name}}</span>
+        </div>
       </div>
-      <p-button type="submit" label="Analyze with IA" icon="pi pi-sparkles" [disabled]="uploadForm.invalid || !selectedFile"
-        styleClass="p-button-emerald w-full h-14 rounded-xl shadow-lg shadow-emerald-500/20"></p-button>
+      
+      <p-button type="submit" label="Analyze with IA" icon="pi pi-sparkles" 
+        [disabled]="uploadForm.invalid || !selectedFile"
+        styleClass="p-button-emerald w-full h-14 rounded-xl shadow-lg shadow-emerald-500/20">
+      </p-button>
     </div>
   </div>
 </form>

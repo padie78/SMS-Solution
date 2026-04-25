@@ -1,4 +1,4 @@
-import { Component, Output, EventEmitter, OnInit } from '@angular/core';
+import { Component, Output, EventEmitter, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 
@@ -8,6 +8,9 @@ import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputTextareaModule } from 'primeng/inputtextarea';
+
+// State Management
+import { InvoiceStateService } from '../../../core/services/invoice-state.service';
 
 @Component({
   selector: 'app-invoice-upload',
@@ -26,7 +29,10 @@ import { InputTextareaModule } from 'primeng/inputtextarea';
   styleUrls: ['./upload.component.css']
 })
 export class InvoiceUploadComponent implements OnInit {
-  @Output() onComplete = new EventEmitter<any>();
+  // Inyección del servicio de estado
+  private stateService = inject(InvoiceStateService);
+
+  @Output() onComplete = new EventEmitter<void>();
 
   // 1. Opciones maestras para los selectores
   serviceTypes = [
@@ -56,10 +62,10 @@ export class InvoiceUploadComponent implements OnInit {
     { label: 'Production Line 2', value: 'MTR-PL2', buildingId: 'bld-03' }
   ];
 
-  // Esta es la lista que se mostrará en el dropdown de la UI
+  // Lista filtrada para el dropdown de la UI
   filteredMeters: any[] = [];
 
-  // Inicialización del Formulario
+  // Inicialización del Formulario con todos los campos necesarios
   uploadForm = new FormGroup({
     serviceType: new FormControl('', [Validators.required]),
     building: new FormControl('', [Validators.required]),
@@ -71,21 +77,26 @@ export class InvoiceUploadComponent implements OnInit {
   selectedFile: File | null = null;
 
   ngOnInit() {
-    // Escuchar cambios en el campo Building para filtrar los medidores disponibles
+    // Escuchar cambios en el campo Building para filtrar los medidores
     this.uploadForm.get('building')?.valueChanges.subscribe(selectedBuildingId => {
       this.filterMeters(selectedBuildingId);
     });
+
+    // Opcional: Si regresas del paso 2, podrías recuperar datos previos aquí
+    const savedState = this.stateService.getSnapshot();
+    if (savedState) {
+      this.uploadForm.patchValue(savedState);
+      this.selectedFile = savedState.file;
+    }
   }
 
-  // Lógica de filtrado
   private filterMeters(buildingId: string | null) {
     if (buildingId) {
       this.filteredMeters = this.allMeters.filter(m => m.buildingId === buildingId);
     } else {
       this.filteredMeters = [];
     }
-    
-    // Resetear el valor del medidor seleccionado para evitar datos inconsistentes
+    // Resetear el valor del medidor si cambia el edificio
     this.uploadForm.get('meterId')?.setValue('');
   }
 
@@ -95,15 +106,18 @@ export class InvoiceUploadComponent implements OnInit {
     }
   }
 
+  /**
+   * Procesa los datos, los guarda en el State Service y avanza el Stepper.
+   */
   processAndContinue() {
     if (this.uploadForm.valid && this.selectedFile) {
-      const payload = {
-        ...this.uploadForm.value,
-        file: this.selectedFile
-      };
+      // Guardamos en el State Manager antes de emitir
+      this.stateService.setStep1Data(this.uploadForm.value, this.selectedFile);
       
-      console.log('Enviando a procesamiento IA:', payload);
-      this.onComplete.emit(payload);
+      console.log('Datos guardados en el Service. Iniciando pipeline de IA...');
+      
+      // Emitimos al padre para que dispare el loader de IA y cambie de paso
+      this.onComplete.emit();
     }
   }
 }
