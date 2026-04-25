@@ -1,34 +1,13 @@
-/* Efecto de pulso para los recuadros de la IA */
-.ai-highlight-blue {
-    box-shadow: 0 0 15px rgba(56, 189, 248, 0.2);
-    animation: pulse-blue 2s infinite;
+.invoice-create-container {
+    animation: fadeIn 0.5s ease-out;
 }
 
-.ai-highlight-green {
-    box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
-    animation: pulse-green 2s infinite;
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes pulse-blue {
-    0% { border-color: rgba(56, 189, 248, 0.4); }
-    50% { border-color: rgba(56, 189, 248, 1); }
-    100% { border-color: rgba(56, 189, 248, 0.4); }
-}
-
-@keyframes pulse-green {
-    0% { transform: scale(1); }
-    50% { transform: scale(1.02); }
-    100% { transform: scale(1); }
-}
-
-::ng-deep .p-button-emerald {
-    background: #10b981 !important;
+:host ::ng-deep .p-button-emerald {
+    background-color: #10b981 !important;
     border: none !important;
-    font-weight: 900 !important;
-    letter-spacing: 0.05em;
-}
-
-.ai-input-group:focus-within {
-    background: #020617;
-    box-shadow: 0 0 30px rgba(16, 185, 129, 0.1);
 }

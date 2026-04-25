@@ -1,45 +1,41 @@
-<p-toast></p-toast>
-
-<div class="stepper-wrapper p-8 max-w-7xl mx-auto">
-  <p-stepper [(activeStep)]="activeStep" [linear]="true">
+<div class="invoice-create-container p-6 max-w-7xl mx-auto">
+  
+  <div class="stepper-header mb-8 flex items-center justify-between">
+    <div>
+      <h1 class="text-3xl font-black text-slate-900 tracking-tight">Nueva Factura</h1>
+      <p class="text-slate-500">Gestión de activos y auditoría inteligente</p>
+    </div>
     
-    <p-stepperPanel header="Upload">
-      <ng-template pTemplate="content" let-nextCallback="nextCallback">
-        <div class="py-4">
-          <app-invoice-upload 
-            (onComplete)="handleUploadComplete($event); nextCallback()">
-          </app-invoice-upload>
-        </div>
-      </ng-template>
-    </p-stepperPanel>
+    <div class="flex items-center gap-4">
+      <div [class]="'w-10 h-10 rounded-full flex items-center justify-center font-bold ' + (currentStep === 1 ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' : 'bg-slate-200 text-slate-500')">1</div>
+      <div class="w-12 h-1 bg-slate-200 rounded"></div>
+      <div [class]="'w-10 h-10 rounded-full flex items-center justify-center font-bold ' + (currentStep === 2 ? 'bg-emerald-500 text-white shadow-lg shadow-emerald-200' : 'bg-slate-200 text-slate-500')">2</div>
+    </div>
+  </div>
 
-    <p-stepperPanel header="AI Validation">
-      <ng-template pTemplate="content" let-nextCallback="nextCallback" let-prevCallback="prevCallback">
-        <div class="py-4">
-          <app-invoice-validation 
-            [invoice]="processedInvoiceData"
-            (onConfirm)="handleValidationConfirm($event); nextCallback()" 
-            (onBack)="prevCallback()">
-          </app-invoice-validation>
-        </div>
-      </ng-template>
-    </p-stepperPanel>
+  <div class="step-content relative">
+    
+    <app-invoice-upload 
+      *ngIf="currentStep === 1 && !isLoadingIA"
+      (onComplete)="handleStep1Complete()">
+    </app-invoice-upload>
 
-    <p-stepperPanel header="Success">
-      <ng-template pTemplate="content">
-        <div class="p-12 text-center bg-white rounded-2xl border border-slate-200 shadow-sm">
-           <div class="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
-             <i class="pi pi-check text-4xl"></i>
-           </div>
-           <h2 class="text-2xl font-bold text-slate-800">Invoice Synchronized</h2>
-           <p class="text-slate-500 mt-2">The data has been successfully integrated into the Sustainability OS.</p>
-           <div class="mt-10 flex gap-3 justify-center">
-             <p-button label="View Invoices" icon="pi pi-list" styleClass="p-button-text p-button-secondary" (click)="exit()"></p-button>
-             <p-button label="New Upload" icon="pi pi-plus" styleClass="p-button-emerald" (click)="activeStep = 0"></p-button>
-           </div>
-        </div>
-      </ng-template>
-    </p-stepperPanel>
+    <app-invoice-validation 
+      *ngIf="currentStep === 2 && !isLoadingIA"
+      [invoice]="extractedInvoiceData"
+      (onBack)="handleBack()"
+      (onConfirm)="handleFinalConfirm($event)">
+    </app-invoice-validation>
 
-  </p-stepper>
+    <div *ngIf="isLoadingIA" class="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-slate-200 shadow-sm">
+      <div class="relative w-24 h-24 mb-6">
+        <div class="absolute inset-0 border-4 border-emerald-100 rounded-full"></div>
+        <div class="absolute inset-0 border-4 border-emerald-500 rounded-full border-t-transparent animate-spin"></div>
+        <i class="pi pi-sparkles absolute inset-0 flex items-center justify-center text-emerald-500 text-2xl"></i>
+      </div>
+      <h2 class="text-xl font-bold text-slate-800">Analizando Documento</h2>
+      <p class="text-slate-500">Nuestro motor de IA está extrayendo métricas de consumo...</p>
+    </div>
+
+  </div>
 </div>

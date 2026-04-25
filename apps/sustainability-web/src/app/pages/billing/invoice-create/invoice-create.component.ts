@@ -1,76 +1,73 @@
-import { Component } from '@angular/core';
+import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { Router } from '@angular/router';
 
-// PrimeNG Imports
-import { StepperModule } from 'primeng/stepper';
-import { ButtonModule } from 'primeng/button';
-import { ToastModule } from 'primeng/toast';
-import { MessageService } from 'primeng/api';
-
-// Steps Components
+// Pasos
 import { InvoiceUploadComponent } from './steps/upload.component';
 import { InvoiceValidationComponent } from './steps/validation.component';
+
+// Estado Global
+import { InvoiceStateService } from '../../../core/services/invoice-state.service';
 
 @Component({
   selector: 'app-invoice-create',
   standalone: true,
   imports: [
     CommonModule,
-    StepperModule,
-    ButtonModule,
-    ToastModule,
     InvoiceUploadComponent,
     InvoiceValidationComponent
   ],
-  providers: [MessageService], // Necesario para notificaciones de éxito/error
   templateUrl: './invoice-create.component.html',
   styleUrls: ['./invoice-create.component.css']
 })
 export class InvoiceCreateComponent {
-  // Control de progreso del stepper
-  activeStep: number = 0;
-  
-  // Datos temporales del archivo procesado
-  processedInvoiceData: any = null;
+  // Inyección del servicio de estado (Management de Signals)
+  private stateService = inject(InvoiceStateService);
 
-  constructor(
-    private router: Router,
-    private messageService: MessageService
-  ) {}
+  currentStep: number = 1;
+  isLoadingIA: boolean = false;
+
+  // Propiedad para pasar datos extraídos al Paso 2
+  extractedInvoiceData: any = null;
 
   /**
    * Se ejecuta cuando el Paso 1 (Upload) termina con éxito.
-   * Recibe el archivo o la respuesta inicial del OCR.
+   * El hijo ya guardó los metadatos y el File en el Service.
    */
-  handleUploadComplete(data: any) {
-    this.processedInvoiceData = data;
-    this.messageService.add({ 
-      severity: 'info', 
-      summary: 'File Processed', 
-      detail: 'AI has extracted data for validation.' 
-    });
-    // El cambio de step se maneja vía el let-nextCallback en el HTML
-  }
-
-  /**
-   * Se ejecuta cuando el Paso 2 (Validación) es confirmado por el usuario.
-   */
-  handleValidationConfirm(finalData: any) {
-    console.log('Final data to save in DB:', finalData);
+  handleStep1Complete() {
+    this.isLoadingIA = true;
     
-    // Aquí iría la lógica de tu servicio para guardar en DynamoDB
-    this.messageService.add({ 
-      severity: 'success', 
-      summary: 'Sync Complete', 
-      detail: 'Invoice registered in Sustainability OS.' 
-    });
+    // Simulamos la llamada al motor de IA (Textract/Bedrock)
+    // En un escenario real, aquí llamarías a tu API enviando el archivo
+    setTimeout(() => {
+      const snapshot = this.stateService.getSnapshot();
+      
+      // Datos mockeados que vendrían de la extracción de IA
+      this.extractedInvoiceData = {
+        total: 1450.75, // Valor detectado en el PDF
+        date: '2026-04-20',
+        vendor: 'Energía Global S.A.',
+        meterId: snapshot?.meterId // Mantenemos el contexto manual
+      };
+
+      this.isLoadingIA = false;
+      this.currentStep = 2;
+    }, 2000);
   }
 
   /**
-   * Navegación de salida
+   * Se ejecuta cuando el usuario confirma los datos en el Paso 2.
    */
-  exit() {
-    this.router.navigate(['/billing/invoices']);
+  handleFinalConfirm(finalData: any) {
+    console.log('Sincronizando con DynamoDB...', {
+      context: this.stateService.getSnapshot(),
+      confirmedValues: finalData
+    });
+    
+    // Lógica para cerrar el stepper o navegar al dashboard
+    this.stateService.clear(); // Limpiamos estado en memoria
+  }
+
+  handleBack() {
+    this.currentStep = 1;
   }
 }
