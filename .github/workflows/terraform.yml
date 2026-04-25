@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-  workflow_dispatch: # Permite ejecución manual desde la UI de GitHub
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -27,14 +27,14 @@ jobs:
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.10.0
-          terraform_wrapper: false # Necesario para capturar outputs correctamente
+          terraform_wrapper: false 
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: eu-central-1 # Tu región real
+          aws-region: eu-central-1
 
       # 2. Infraestructura con Terraform
       - name: Terraform Init
@@ -60,28 +60,41 @@ jobs:
         working-directory: apps/sustainability-web
 
       # 4. Despliegue de Activos a AWS
-# 4. Despliegue de Activos a AWS
-      - name: Sync S3 and Invalidate CloudFront
+     # 4a. Capturar variables de infraestructura y exponerlas como outputs del step
+      - name: Export Terraform Outputs
+        id: tf_outputs
         run: |
-          # Extraemos los valores limpiando cualquier mensaje de advertencia de Terraform
-          BUCKET_NAME=$(terraform output -raw s3_bucket_name | tail -n 1 | tr -d '\r')
-          DIST_ID=$(terraform output -raw cloudfront_distribution_id | tail -n 1 | tr -d '\r')
+          # Obtenemos los valores y los limpiamos
+          BUCKET=$(terraform output -raw s3_bucket_name | tr -d '[:space:]')
+          DIST_ID=$(terraform output -raw cloudfront_distribution_id | tr -d '[:space:]')
           
-          echo "🚀 Desplegando en S3: $BUCKET_NAME"
-          
-          # IMPORTANTE: Validamos que la carpeta exista antes de sincronizar
-          # En Angular 17+, la ruta suele ser dist/sustainability-web/browser
-          if [ -d "../apps/sustainability-web/dist/sustainability-web/browser" ]; then
-            SOURCE_PATH="../apps/sustainability-web/dist/sustainability-web/browser"
-          else
-            SOURCE_PATH="../apps/sustainability-web/dist/sustainability-web"
+          # Validamos que no estén vacíos
+          if [ -z "$BUCKET" ] || [ -z "$DIST_ID" ]; then
+            echo "❌ ERROR: Outputs de Terraform no encontrados."
+            exit 1
           fi
 
-          echo "📂 Usando carpeta de origen: $SOURCE_PATH"
-
-          # Sincronización
-          aws s3 sync $SOURCE_PATH s3://$BUCKET_NAME --delete
-          
-          # Invalidación de cache
-          aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
+          # Seteamos los outputs del step usando el nuevo formato de GitHub
+          echo "bucket_name=$BUCKET" >> $GITHUB_OUTPUT
+          echo "cloudfront_id=$DIST_ID" >> $GITHUB_OUTPUT
         working-directory: ./terraform
+
+      # 4b. Sincronizar S3 e Invalidar CloudFront usando la referencia del step anterior
+      - name: Sync S3 and Invalidate CloudFront
+        run: |
+          # 1. Definir origen del build
+          if [ -d "apps/sustainability-web/dist/sustainability-web/browser" ]; then
+            SOURCE="./apps/sustainability-web/dist/sustainability-web/browser"
+          else
+            SOURCE="./apps/sustainability-web/dist/sustainability-web"
+          fi
+
+          # 2. Sincronizar usando steps.<id>.outputs.<name>
+          echo "🚀 Subiendo a: ${{ steps.tf_outputs.outputs.bucket_name }}"
+          aws s3 sync $SOURCE s3://${{ steps.tf_outputs.outputs.bucket_name }} --delete
+
+          # 3. Invalidar CloudFront
+          echo "🧹 Invalidando: ${{ steps.tf_outputs.outputs.cloudfront_id }}"
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ steps.tf_outputs.outputs.cloudfront_id }} \
+            --paths "/*"
