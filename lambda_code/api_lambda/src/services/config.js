@@ -1347,20 +1347,38 @@ export const configService = {
         };
     },
 
-   processInvoiceIA: async (orgId, fileName, bucket) => {
+processInvoiceIA: async (orgId, fileName, bucket) => {
         const key = fileName || "unknown_key";
         console.log(`\n--- ⚙️ STARTING AI PIPELINE [ORG: ${orgId}] [FILE: ${key}] ---`);
 
         try {
             // 1. OBTENCIÓN DEL TEXTO (OCR / Textract)
-            // 'bucket' ahora llega correctamente desde el handler
-            const rawText = await callExtractionAgent(bucket, key);
+            const extractionResponse = await callExtractionAgent(bucket, key);
                                 
-            if (!rawText) {
+            if (!extractionResponse) {
                 throw new Error("No se pudo extraer texto del documento.");
             }
 
+            // --- FIX: Sanitización de rawText ---
+            // Aseguramos que rawText sea un string plano, ya que el agente puede devolver un objeto
+            let rawText = "";
+            if (typeof extractionResponse === 'string') {
+                rawText = extractionResponse;
+            } else if (typeof extractionResponse === 'object') {
+                // Buscamos propiedades comunes de texto en respuestas de AWS/LangChain
+                rawText = extractionResponse.text || 
+                          extractionResponse.body || 
+                          extractionResponse.content || 
+                          JSON.stringify(extractionResponse);
+            }
+
+            if (!rawText || rawText.trim().length === 0) {
+                throw new Error("El contenido extraído está vacío o no es procesable.");
+            }
+            // ------------------------------------
+
             // 2. CLASIFICACIÓN DE CONTEXTO
+            // Al ser rawText un string, ya no fallará .substring() o .toLowerCase()
             const detectedCategory = await identifyCategory(rawText);
             console.log(`[PIPELINE] 1. Contexto: Cat detectada "${detectedCategory}"`);
 
@@ -1417,7 +1435,7 @@ export const configService = {
         } catch (error) {
             console.error(`\n❌ [PIPELINE_ERROR]: Fallo en ${key}`);
             console.error(`Detalle: ${error.message}`);
-            // Re-lanzamos para que el catch de index.js lo capture y formatee
+            // Re-lanzamos para que el handler de index.js capture el error
             throw error; 
         }
     }
