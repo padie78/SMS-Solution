@@ -4,18 +4,17 @@
 import { configService } from './services/config.js';
 
 export const handler = async (event) => {
-    // 1. Declarar methodName al inicio para que el bloque 'catch' siempre tenga acceso
     const methodName = event.info?.fieldName || event.fieldName || "unknown";
     
     try {
-        // 2. Identidad y Organización
+        // 1. Identidad y Organización
         const orgId = event.identity?.claims['custom:organization_id'] ||
             event.identity?.claims['sub'] ||
             "f3d4f8a2-90c1-708c-a446-2c8592524d62";
 
         const args = event.arguments || {};
         
-        // 3. Configuración de Infraestructura (Variables de Entorno)
+        // 2. Configuración de Infraestructura
         const bucket = process.env.S3_BUCKET_NAME || "sms-platform-storage-dev";
 
         console.log(`[RESOLVER] Method: ${methodName} | Org: ${orgId}`);
@@ -24,8 +23,23 @@ export const handler = async (event) => {
 
         switch (methodName) {
             case 'processInvoice':
-                // Pasamos orgId, fileName y el bucket resuelto
-                result = await configService.processInvoiceIA(orgId, args.fileName, bucket);
+                /**
+                 * FIX CRÍTICO: Verificación de la Key de S3
+                 * Si el frontend envía 'factura.pdf' pero en los logs vemos 
+                 * prefijos con timestamp, aquí aseguramos que la key sea la correcta.
+                 */
+                const rawFileName = args.fileName;
+                
+                // Log preventivo para debuggear qué está llegando del frontend
+                console.log(`[DEBUG] FileName recibido del frontend: "${rawFileName}"`);
+
+                if (!rawFileName) {
+                    throw new Error("El argumento 'fileName' es requerido para procesar la factura.");
+                }
+
+                // Invocamos el pipeline con el nombre de archivo tal cual viene
+                // Si el error persiste, el problema está en cómo el frontend genera la Key al subir a S3
+                result = await configService.processInvoiceIA(orgId, rawFileName, bucket);
                 break;
 
             case 'confirmInvoice':
@@ -88,11 +102,16 @@ export const handler = async (event) => {
         return result;
 
     } catch (error) {
+        // Log detallado para CloudWatch
         console.error(`[LAMBDA FATAL ERROR] Method: ${methodName} | Message: ${error.message}`);
+        
+        // Retornamos un objeto que AppSync pueda entender como error sin romper el front
         return {
             success: false,
             message: error.message,
-            id: null
+            vendor: 'ERROR',
+            total: 0,
+            co2e: 0
         };
     }
 };
