@@ -1347,14 +1347,13 @@ export const configService = {
         };
     },
 
-    processInvoiceIA: async (orgId, fileName) => {
+   processInvoiceIA: async (orgId, fileName, bucket) => {
         const key = fileName || "unknown_key";
         console.log(`\n--- ⚙️ STARTING AI PIPELINE [ORG: ${orgId}] [FILE: ${key}] ---`);
 
         try {
-            // 1. OBTENCIÓN DEL TEXTO (RAW CAPTURE)
-            // Aquí deberías obtener el texto del PDF. 
-            // Si ya tienes una función que hace el OCR con Textract, úsala.
+            // 1. OBTENCIÓN DEL TEXTO (OCR / Textract)
+            // 'bucket' ahora llega correctamente desde el handler
             const rawText = await callExtractionAgent(bucket, key);
                                 
             if (!rawText) {
@@ -1386,7 +1385,6 @@ export const configService = {
             console.log(`[PIPELINE] 3. Cálculo: ${emissionCalculations.total_kg.toFixed(2)} kgCO2e`);
 
             // 5. MAPEADO (Golden Record)
-            // Ajustamos el mapeo para que coincida con tu estructura de DynamoDB
             const goldenRecord = buildGoldenRecord(
                 `ORG#${orgId}`,
                 key,
@@ -1406,7 +1404,7 @@ export const configService = {
             await persistTransaction(goldenRecord);
             console.log(`[PIPELINE] 5. Éxito: Registro guardado en DB.`);
 
-            // Devolvemos el objeto que el Frontend necesita para el Step 2 (Validation)
+            // 7. RESPUESTA AL FRONTEND
             return {
                 vendor: goldenRecord.extracted_data?.vendor || 'Unknown',
                 total: goldenRecord.extracted_data?.total_amount || 0,
@@ -1419,7 +1417,8 @@ export const configService = {
         } catch (error) {
             console.error(`\n❌ [PIPELINE_ERROR]: Fallo en ${key}`);
             console.error(`Detalle: ${error.message}`);
-            throw error; // Re-lanzar para que el handler lo capture
+            // Re-lanzamos para que el catch de index.js lo capture y formatee
+            throw error; 
         }
     }
 

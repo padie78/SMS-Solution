@@ -1,33 +1,45 @@
 /**
- * @fileoverview AppSync Resolver Handler - Orquestador de Configuraciones.
- * Mapeo estricto entre Schema GraphQL y configService.
+ * @fileoverview AppSync Orquestador - SMS Platform
  */
 import { configService } from './services/config.js';
 
 export const handler = async (event) => {
+    // 1. Declarar methodName al inicio para que el bloque 'catch' siempre tenga acceso
+    const methodName = event.info?.fieldName || event.fieldName || "unknown";
+    
     try {
+        // 2. Identidad y Organización
         const orgId = event.identity?.claims['custom:organization_id'] ||
             event.identity?.claims['sub'] ||
             "f3d4f8a2-90c1-708c-a446-2c8592524d62";
 
         const args = event.arguments || {};
-        const methodName = event.info?.fieldName || event.fieldName;
+        
+        // 3. Configuración de Infraestructura (Variables de Entorno)
+        const bucket = process.env.S3_BUCKET_NAME || "sms-platform-storage-dev";
 
         console.log(`[RESOLVER] Method: ${methodName} | Org: ${orgId}`);
 
         let result;
 
         switch (methodName) {
-            // --- 1. CONFIGURACIONES Y USUARIOS ---
+            case 'processInvoice':
+                // Pasamos orgId, fileName y el bucket resuelto
+                result = await configService.processInvoiceIA(orgId, args.fileName, bucket);
+                break;
+
+            case 'confirmInvoice':
+                result = await configService.confirmInvoice(orgId, args.sk, args.input);
+                break;
+
             case 'saveOrgConfig':
                 result = await configService.saveOrgConfig(orgId, args.input);
                 break;
 
-            case 'saveUser': // Mapeado desde el schema
+            case 'saveUser':
                 result = await configService.saveUser(orgId, args.userId, args.input);
                 break;
 
-            // --- 2. INFRAESTRUCTURA (Branches, Buildings, Meters) ---
             case 'createBranch':
                 result = await configService.createBranch(orgId, args.input || args);
                 break;
@@ -36,12 +48,11 @@ export const handler = async (event) => {
                 result = await configService.saveBuilding(orgId, args.branchId, args.buildingId, args.input);
                 break;
 
-            case 'saveMeter': // Añadido según logs
+            case 'saveMeter':
                 result = await configService.saveMeter(orgId, args.branchId, args.meterId, args.input);
                 break;
 
-            // --- 3. ACTIVOS Y CENTROS DE COSTOS ---
-            case 'saveAsset': // Corregido: de 'createAsset' a 'saveAsset' para match con Schema
+            case 'saveAsset':
                 result = await configService.saveAsset(orgId, args.assetId, args.input);
                 break;
 
@@ -49,40 +60,29 @@ export const handler = async (event) => {
                 result = await configService.saveCostCenter(orgId, args.input);
                 break;
 
-            // --- 4. FINANZAS, TARIFAS Y REGLAS ---
-            case 'saveTariff': // Match con el error de los logs
+            case 'saveTariff':
                 result = await configService.saveTariff(orgId, args.branchId, args.serviceType, args.input);
                 break;
 
-            case 'saveAlertRule': // Match con el error de los logs
+            case 'saveAlertRule':
                 result = await configService.saveAlertRule(orgId, args.branchId, args.entityId, args.alertType, args.input);
                 break;
 
-            // --- 5. OPERACIONES Y EMISIONES ---
-            case 'saveProductionLog': // Match con el error de los logs
+            case 'saveProductionLog':
                 result = await configService.saveProductionLog(
-                    event.arguments.orgId,
-                    event.arguments.branchId,
-                    event.arguments.period,
-                    event.arguments.input
+                    args.orgId || orgId,
+                    args.branchId,
+                    args.period,
+                    args.input
                 );
                 break;
 
-            case 'saveEmissionFactor': // Match con el error de los logs
+            case 'saveEmissionFactor':
                 result = await configService.saveEmissionFactor(args.input);
                 break;
 
-            case 'processInvoice':
-                // Llamamos al servicio de IA pasándole el nombre del archivo y la organización
-                result = await configService.processInvoiceIA(orgId, args.fileName);
-                break;
-
-            case 'confirmInvoice':
-                result = await configService.confirmInvoice(orgId, args.sk, args.input);
-                break;
-
             default:
-                throw new Error(`Resolver handle for field "${methodName}" is not implemented.`);
+                throw new Error(`Resolver handler for field "${methodName}" is not implemented.`);
         }
 
         return result;
