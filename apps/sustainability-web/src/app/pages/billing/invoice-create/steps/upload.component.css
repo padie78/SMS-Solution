@@ -1,24 +1,45 @@
+:host ::ng-deep .p-dropdown {
+    border-radius: 8px;
+    border-color: #e2e8f0;
+}
+
+:host ::ng-deep .p-inputtext {
+    border-radius: 8px;
+    padding: 0.75rem;
+}
+
+.drop-zone {
+    min-height: 200px;
+    transition: all 0.2s ease-in-out;
+}
+
+/* Estilo del botón Analyze para que destaque */
+::ng-deep .p-button-emerald {
+    background-color: #10b981 !important;
+    border: none !important;
+    font-weight: 700;
+}
+
+::ng-deep .p-button-emerald:disabled {
+    background-color: #cbd5e1 !important;
+    opacity: 0.6;
+}
+
 /* Estilo para los Inputs (Meter ID, Notes) */
 :host ::ng-deep .p-inputtext {
-    background-color: #ffffff !important; /* Fondo blanco para que resalte del fondo de la app */
-    border: 1px solid #cbd5e1 !important; /* Borde gris suave (slate-300) siempre visible */
+    background-color: #ffffff !important; /* Fondo blanco sólido */
+    border: 1px solid #cbd5e1 !important; /* Borde gris visible (slate-300) */
     border-radius: 8px;
-    padding: 0.75rem 1rem;
-    transition: all 0.2s ease-in-out;
+    padding: 0.75rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
     width: 100%;
-    color: #1e293b;
 }
 
-/* Efecto Hover: cambia sutilmente el borde al pasar el mouse */
-:host ::ng-deep .p-inputtext:hover {
-    border-color: #94a3b8 !important; /* slate-400 */
-}
-
-/* Efecto Focus: cuando el usuario hace clic para escribir */
+/* Efecto cuando el usuario hace clic o foco */
 :host ::ng-deep .p-inputtext:focus {
-    border-color: #10b981 !important; /* Verde Esmeralda de tu marca */
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
-    outline: none;
+    border-color: #10b981 !important; /* Verde esmeralda */
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1) !important;
+    outline: 0 none;
 }
 
 /* Estilo para el Dropdown (Service Category) */
@@ -27,30 +48,17 @@
     border: 1px solid #cbd5e1 !important;
     border-radius: 8px;
     width: 100%;
-    height: 46px; /* Alineado con la altura de los inputs */
 }
 
 :host ::ng-deep .p-dropdown:not(.p-disabled).p-focus {
     border-color: #10b981 !important;
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
+    box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.1) !important;
 }
 
-/* Estilo para los Placeholders */
-::ng-deep .p-inputtext::placeholder {
-    color: #94a3b8; /* slate-400 */
-    font-size: 0.9rem;
-}
-
-/* Área de Carga (Dropzone) */
+/* Área de Carga de Archivos */
 .drop-zone {
-    min-height: 220px;
-    border-width: 2px;
-    transition: all 0.3s ease;
-}
-
-.drop-zone:hover {
-    background-color: #f0fdf4; /* emerald-50 */
-    border-color: #10b981;
+    min-height: 200px;
+    transition: all 0.2s ease-in-out;
 }
 
 /* Botón de Acción Principal */
@@ -58,17 +66,16 @@
     background-color: #10b981 !important;
     border: none !important;
     font-weight: 700;
-    box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
+    transition: transform 0.1s ease;
 }
 
 ::ng-deep .p-button-emerald:not(:disabled):hover {
-    background-color: #059669 !important; /* emerald-600 */
+    background-color: #059669 !important; /* Un poco más oscuro al pasar el mouse */
     transform: translateY(-1px);
-    box-shadow: 0 10px 15px -3px rgba(16, 185, 129, 0.3);
 }
 
 ::ng-deep .p-button-emerald:disabled {
-    background-color: #e2e8f0 !important; /* slate-200 */
-    color: #94a3b8 !important;
-    opacity: 1;
+    background-color: #cbd5e1 !important;
+    opacity: 0.6;
+    cursor: not-allowed;
 }

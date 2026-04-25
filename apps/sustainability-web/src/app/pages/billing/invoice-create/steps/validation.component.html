@@ -1,9 +1,20 @@
-<div class="validation-wrapper flex bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 h-[750px]">
+<p-toast></p-toast>
+
+<div class="validation-wrapper flex bg-slate-900 rounded-3xl overflow-hidden shadow-2xl border border-slate-800 h-[750px] relative">
   
+  <div *ngIf="isLoading" class="absolute inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center">
+    <p-progressSpinner strokeWidth="3" fill="transparent" animationDuration=".5s"></p-progressSpinner>
+    <div class="mt-6 text-center">
+      <h3 class="text-white font-bold text-xl mb-2">Analizando Documento</h3>
+      <p class="text-slate-400 text-sm animate-pulse">Invocando AWS Bedrock & Climatiq API...</p>
+    </div>
+  </div>
+
   <div class="w-1/2 flex flex-col bg-slate-950/50 p-8">
     <div class="flex justify-between items-center mb-6">
       <div class="flex items-center gap-2">
-        <div class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+        <div class="w-2 h-2 rounded-full animate-pulse" 
+             [ngClass]="isLoading ? 'bg-amber-500' : 'bg-emerald-500'"></div>
         <span class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">IA Interactive Visualizer</span>
       </div>
       <div class="flex gap-4 text-slate-600">
@@ -18,28 +29,28 @@
           <div class="w-12 h-12 bg-slate-900 rounded-lg flex items-center justify-center">
             <i class="pi pi-bolt text-emerald-400 text-xl"></i>
           </div>
-          <span class="font-black text-slate-900 tracking-tighter">ENERGIA<br>GLOBAL</span>
+          <span class="font-black text-slate-900 tracking-tighter uppercase">Energía<br>Sostenible</span>
         </div>
         <div class="text-right">
-          <p class="text-[9px] font-bold text-slate-400 uppercase mb-1">Invoice Date</p>
+          <p class="text-[9px] font-bold text-slate-400 uppercase mb-1">Billing Date</p>
           <div class="ai-highlight-blue border-2 border-sky-400 bg-sky-50 text-sky-600 px-3 py-1 font-mono text-[11px] font-black rounded"
-               pTooltip="Extracted with 98% Confidence">
-            {{invoice.date}}
+               [pTooltip]="'Confidence Score: ' + (invoice?.confidence || 0) + '%'">
+            {{ invoice?.date || 'YYYY-MM-DD' }}
           </div>
         </div>
       </div>
 
-      <div class="space-y-4 opacity-10 mt-20">
-        <div class="h-3 w-full bg-slate-900 rounded"></div>
-        <div class="h-3 w-5/6 bg-slate-900 rounded"></div>
-        <div class="h-3 w-4/6 bg-slate-900 rounded"></div>
+      <div class="space-y-4 mt-20">
+        <div class="h-3 w-full bg-slate-100 rounded"></div>
+        <div class="h-3 w-5/6 bg-slate-100 rounded"></div>
+        <div class="h-3 w-4/6 bg-slate-100 rounded"></div>
+        <div class="h-10 w-full bg-slate-50 rounded mt-8 border-dashed border-2 border-slate-200"></div>
       </div>
 
       <div class="absolute bottom-20 right-12">
-        <p class="text-[9px] font-bold text-slate-400 uppercase mb-1 text-right">Total Amount to Pay</p>
-        <div class="ai-highlight-green border-2 border-emerald-500 bg-emerald-50 text-emerald-600 px-6 py-3 font-black text-3xl rounded-lg shadow-lg"
-             pTooltip="Matched with IoT Telemetry">
-          {{invoice.total | currency}}
+        <p class="text-[9px] font-bold text-slate-400 uppercase mb-1 text-right">Extracted Total</p>
+        <div class="ai-highlight-green border-2 border-emerald-500 bg-emerald-50 text-emerald-600 px-6 py-3 font-black text-3xl rounded-lg shadow-lg">
+          {{ (invoice?.total || 0) | currency: (invoice?.currency || 'USD') }}
         </div>
       </div>
     </div>
@@ -47,47 +58,71 @@
 
   <div class="w-1/2 flex flex-col p-12 bg-slate-900 border-l border-slate-800">
     <div class="header mb-12">
-      <p-tag value="AI AUDIT ACTIVE" severity="success" [rounded]="true" class="mb-4"></p-tag>
-      <h2 class="text-white text-2xl font-bold tracking-tight">Confirm Extracted Data</h2>
-      <p class="text-slate-500 text-sm mt-1">Review the fields detected by the IA Engine.</p>
+      <p-tag [value]="isLoading ? 'PROCESSING...' : 'AI AUDIT COMPLETE'" 
+             [severity]="isLoading ? 'warning' : 'success'" 
+             [rounded]="true" class="mb-4"></p-tag>
+      <h2 class="text-white text-2xl font-bold tracking-tight">Confirmar Datos</h2>
+      <p class="text-slate-500 text-sm mt-1">Verifica la información extraída antes de sincronizar con el SMS.</p>
+    </div>
+
+    <div *ngIf="errorMessage" class="bg-red-500/10 border border-red-500/20 p-4 rounded-xl mb-6 flex items-center gap-3">
+      <i class="pi pi-exclamation-triangle text-red-500"></i>
+      <p class="text-red-200 text-xs">{{ errorMessage }}</p>
     </div>
 
     <div class="form-content flex-1 space-y-10">
+      
       <div class="field">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Total Amount (Detected)</label>
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Vendor / Service Provider</label>
+        <div class="ai-input-group bg-slate-950 p-1.5 rounded-xl border border-slate-800 flex items-center group focus-within:border-emerald-500 transition-all">
+          <i class="pi pi-building px-4 text-slate-500 group-focus-within:text-emerald-500"></i>
+          <input pInputText [(ngModel)]="invoice.vendor" placeholder="Nombre de la empresa"
+                 class="flex-1 bg-transparent border-none text-white font-bold focus:ring-0">
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Monto Total (Corregible)</label>
         <div class="ai-input-group bg-slate-950 p-1.5 rounded-xl border border-emerald-500/30 flex items-center group focus-within:border-emerald-500 transition-all">
           <span class="px-4 text-emerald-500 font-black text-lg">$</span>
-          <input pInputText [(ngModel)]="invoice.total" class="flex-1 bg-transparent border-none text-emerald-400 font-mono font-bold text-xl focus:ring-0">
-          <div class="flex items-center gap-2 pr-3">
-             <p-tag severity="success" value="MATCHED"></p-tag>
-             <i class="pi pi-check-circle text-emerald-500"></i>
+          <input pInputText type="number" [(ngModel)]="invoice.total" 
+                 class="flex-1 bg-transparent border-none text-emerald-400 font-mono font-bold text-xl focus:ring-0">
+          <div class="flex items-center gap-2 pr-3" *ngIf="!isLoading">
+             <p-tag severity="success" value="VALIDATED"></p-tag>
           </div>
         </div>
       </div>
 
       <div class="field">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Billing Date</label>
+        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Fecha de Emisión</label>
         <div class="ai-input-group bg-slate-950 p-1.5 rounded-xl border border-sky-500/30 flex items-center group focus-within:border-sky-500 transition-all">
           <i class="pi pi-calendar px-4 text-sky-500"></i>
-          <input pInputText [(ngModel)]="invoice.date" class="flex-1 bg-transparent border-none text-sky-400 font-mono font-bold focus:ring-0">
-          <i class="pi pi-info-circle text-sky-400 p-2 cursor-help" pTooltip="Confidence Score: 98.4%"></i>
+          <input pInputText [(ngModel)]="invoice.date" placeholder="YYYY-MM-DD"
+                 class="flex-1 bg-transparent border-none text-sky-400 font-mono font-bold focus:ring-0">
+          <i class="pi pi-info-circle text-sky-400 p-2 cursor-help" [pTooltip]="'Confianza IA: ' + (invoice?.confidence || 0) + '%'"></i>
         </div>
       </div>
 
       <div class="ai-suggestion-card bg-emerald-500/5 border border-emerald-500/20 p-5 rounded-2xl mt-10">
         <div class="flex items-center gap-3 text-emerald-400 mb-2">
           <i class="pi pi-sparkles text-lg"></i>
-          <span class="text-xs font-black uppercase tracking-wider">Sustainability AI Insight</span>
+          <span class="text-xs font-black uppercase tracking-wider">Carbon Footprint Analysis</span>
         </div>
         <p class="text-[12px] text-slate-400 leading-relaxed">
-          Everything looks correct. This bill matches your <span class="text-white font-bold">Smart Meter</span> readings for the same period (Delta: < 0.1%).
+          Basado en el consumo de <span class="text-white font-bold">{{invoice?.consumption || 0}} kWh</span>, 
+          estimamos una huella de <span class="text-emerald-400 font-bold">{{invoice?.co2e || 0}} kg CO2e</span> para este período.
         </p>
       </div>
     </div>
 
     <div class="footer-actions flex justify-between items-center mt-12">
-      <p-button label="Cancel" (click)="onBack.emit()" styleClass="p-button-text p-button-secondary font-bold"></p-button>
-      <p-button label="Confirm & Sync" icon="pi pi-sync" (click)="confirm()" styleClass="p-button-emerald px-10 h-14 rounded-xl shadow-lg shadow-emerald-500/20"></p-button>
+      <p-button label="Volver" icon="pi pi-arrow-left" (click)="goBack()" 
+                styleClass="p-button-text p-button-secondary font-bold"></p-button>
+      
+      <p-button label="Confirmar y Sincronizar" icon="pi pi-sync" [loading]="isLoading"
+                (click)="confirm()" 
+                styleClass="p-button-emerald px-10 h-14 rounded-xl shadow-lg shadow-emerald-500/20">
+      </p-button>
     </div>
   </div>
 </div>

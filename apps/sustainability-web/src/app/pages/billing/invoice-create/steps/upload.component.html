@@ -1,56 +1,114 @@
-<form [formGroup]="uploadForm" (ngSubmit)="processAndContinue()">
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-8 p-8 bg-white rounded-3xl border border-slate-200 shadow-xl">
+<form [formGroup]="uploadForm" (ngSubmit)="processAndContinue()" class="animate-fade-in">
+  <div class="upload-form-container grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
     
-    <div class="flex flex-col gap-6">
-      <h3 class="text-lg font-black text-slate-800 border-b pb-3 uppercase tracking-tighter">Asignación de Activos</h3>
+    <div class="flex flex-col gap-5">
+      <div class="flex items-center gap-3 border-b border-slate-100 pb-3">
+        <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+          <i class="pi pi-map-marker text-sm"></i>
+        </div>
+        <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Asignación del Gasto</h3>
+      </div>
       
-      <div class="flex flex-col gap-2">
-        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Building Location / Branch</label>
-        <p-dropdown [options]="buildings" formControlName="building" placeholder="Seleccionar Ubicación"
-          styleClass="w-full" [style]="{'width':'100%'}" appendTo="body"></p-dropdown>
-      </div>
-
-      <div class="grid grid-cols-2 gap-4">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div class="flex flex-col gap-2">
-          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Service</label>
-          <p-dropdown [options]="serviceTypes" formControlName="serviceType" placeholder="Tipo"
-            styleClass="w-full" [style]="{'width':'100%'}" appendTo="body"></p-dropdown>
+          <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Building / Location</label>
+          <p-dropdown 
+            [options]="buildings" 
+            formControlName="building" 
+            placeholder="Select Building"
+            appendTo="body"
+            styleClass="w-full shadow-none"
+            [style]="{'border-radius': '12px'}">
+          </p-dropdown>
         </div>
+
         <div class="flex flex-col gap-2">
-          <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Cost Center</label>
-          <p-dropdown [options]="costCenters" formControlName="costCenter" placeholder="Centro de Costo"
-            styleClass="w-full" [style]="{'width':'100%'}" appendTo="body"></p-dropdown>
+          <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Meter / Asset ID</label>
+          <p-dropdown 
+            [options]="filteredMeters" 
+            formControlName="meterId" 
+            placeholder="Select Meter"
+            [disabled]="!uploadForm.get('building')?.value"
+            appendTo="body"
+            styleClass="w-full shadow-none"
+            [style]="{'border-radius': '12px'}">
+          </p-dropdown>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="flex flex-col gap-2">
+          <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Service Category</label>
+          <p-dropdown 
+            [options]="serviceTypes" 
+            formControlName="serviceType" 
+            placeholder="Select Type"
+            appendTo="body"
+            styleClass="w-full shadow-none"
+            [style]="{'border-radius': '12px'}">
+          </p-dropdown>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Cost Center / Branch</label>
+          <p-dropdown 
+            [options]="costCenters" 
+            formControlName="costCenter" 
+            placeholder="Select Center"
+            appendTo="body"
+            styleClass="w-full shadow-none"
+            [style]="{'border-radius': '12px'}">
+          </p-dropdown>
         </div>
       </div>
 
       <div class="flex flex-col gap-2">
-        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Meter ID</label>
-        <p-dropdown [options]="filteredMeters" formControlName="meterId" placeholder="ID Medidor"
-          styleClass="w-full" [style]="{'width':'100%'}" appendTo="body" 
-          [disabled]="!uploadForm.get('building')?.value"></p-dropdown>
-      </div>
-
-      <div class="flex flex-col gap-2">
-        <label class="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Internal Notes</label>
-        <textarea pInputTextarea formControlName="internalNote" rows="3" class="w-full resize-none" placeholder="Detalles de auditoría..."></textarea>
+        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Internal Note</label>
+        <textarea 
+          pInputTextarea 
+          formControlName="internalNote" 
+          [rows]="3" 
+          placeholder="Detalles para la auditoría..." 
+          class="w-full resize-none rounded-xl border-slate-200 text-sm p-3 focus:ring-emerald-500">
+        </textarea>
       </div>
     </div>
 
-    <div class="flex flex-col gap-6 bg-slate-50 p-6 rounded-2xl border border-slate-100">
-      <h3 class="text-lg font-black text-slate-800 border-b pb-3 uppercase tracking-tighter">Documento PDF</h3>
-      <div class="flex-1 flex flex-col items-center justify-center border-2 border-dashed border-slate-200 rounded-xl p-10 hover:bg-white transition-all">
-        <i class="pi pi-cloud-upload text-4xl text-slate-300 mb-4"></i>
-        <p-fileUpload mode="basic" (onSelect)="onFileSelect($event)" chooseLabel="Subir Factura" styleClass="p-button-secondary p-button-outlined"></p-fileUpload>
-        
-        <div *ngIf="selectedFile" class="mt-4 flex items-center gap-2 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg border border-emerald-100">
-          <i class="pi pi-file-pdf"></i>
-          <span>{{selectedFile.name}}</span>
+    <div class="flex flex-col gap-4">
+      <div class="flex items-center gap-3 border-b border-slate-100 pb-3">
+        <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
+          <i class="pi pi-file-pdf text-sm"></i>
         </div>
+        <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Documento PDF</h3>
       </div>
       
-      <p-button type="submit" label="Analyze with IA" icon="pi pi-sparkles" 
+      <div class="drop-zone flex-1 flex flex-col items-center justify-center p-8 transition-all cursor-pointer">
+        <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
+          <i class="pi pi-cloud-upload text-2xl text-slate-400"></i>
+        </div>
+        
+        <p-fileUpload 
+          mode="basic" 
+          name="invoiceFile"
+          (onSelect)="onFileSelect($event)" 
+          chooseLabel="Subir Factura" 
+          styleClass="p-button-rounded p-button-secondary p-button-text text-sm">
+        </p-fileUpload>
+        
+        <div *ngIf="selectedFile" class="mt-6 flex items-center gap-3 text-xs font-bold text-emerald-700 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-200">
+          <i class="pi pi-check-circle"></i>
+          <span class="truncate max-w-[150px]">{{selectedFile.name}}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-span-1 md:col-span-2 pt-4 mt-2 border-t border-slate-100 flex justify-end">
+      <p-button 
+        type="submit"
+        label="Analyze with IA" 
+        icon="pi pi-sparkles" 
         [disabled]="uploadForm.invalid || !selectedFile"
-        styleClass="p-button-emerald w-full h-14 rounded-xl shadow-lg shadow-emerald-500/20">
+        styleClass="p-button-emerald h-12 px-10 rounded-xl font-bold shadow-lg shadow-emerald-500/10">
       </p-button>
     </div>
   </div>

@@ -1,11 +1,8 @@
 import { Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
-
-// PrimeNG (Asegúrate de importar los módulos de Stepper en tu app.config o módulo principal)
 import { StepperModule } from 'primeng/stepper'; 
 import { ButtonModule } from 'primeng/button';
 
-// Pasos e Infraestructura
 import { InvoiceUploadComponent } from './steps/upload.component';
 import { InvoiceValidationComponent } from './steps/validation.component';
 import { InvoiceStateService } from '../../../core/services/invoice-state.service';
@@ -24,73 +21,71 @@ import { InvoiceStateService } from '../../../core/services/invoice-state.servic
   styleUrls: ['./invoice-create.component.css']
 })
 export class InvoiceCreateComponent {
-  // Inyección correcta usando el motor de Angular
   private stateService = inject(InvoiceStateService);
 
   stepper = {
-    currentStepIndex: 0 // Base 0 para p-stepper
+    currentStepIndex: 0 
   };
 
   isLoadingIA: boolean = false;
-  extractedInvoiceData: any = null;
 
   /**
-   * Maneja la transición del Paso 1 al 2.
-   * Aquí es donde se invoca el "AI Extraction Pipeline".
+   * FIX para Línea 14 del HTML: (onComplete)="handleStep1Complete(nextCallback)"
    */
-  async handleStep1Complete(nextCallback: Function) {
-    this.isLoadingIA = true;
-    
-    try {
-      // Simulación de llamada a AWS Bedrock / Textract vía tu API Node.js
-      await new Promise(resolve => setTimeout(resolve, 2500));
-      
-      const aiResponse = {
-        total: 1450.75,
-        date: '2026-04-20',
-        vendor: 'ENERGIA GLOBAL S.A.',
-        consumption: 520.5
-      };
-
-      // Actualizamos el State Manager
-      this.stateService.setAiData(aiResponse);
-      this.extractedInvoiceData = aiResponse;
-
-      this.isLoadingIA = false;
-      
-      // Ejecutamos el callback de PrimeNG para cambiar de panel
-      nextCallback(); 
-      
-    } catch (error) {
-      this.isLoadingIA = false;
-      console.error("Pipeline Error:", error);
-    }
+  handleStep1Complete(nextCallback: any) {
+    this.executePrimeNGCallback(nextCallback);
   }
 
   /**
-   * Maneja la confirmación final y sincronización.
+   * FIX para Línea 24 del HTML: (onConfirm)="nextStep($event)"
+   * Agregamos este método porque el compilador lo busca específicamente.
    */
-  async handleFinalConfirm(confirmedData: any, nextCallback: Function) {
+  nextStep(data?: any) {
+    if (data) {
+      this.stateService.setAiData(data);
+    }
+    // Si no hay callback (porque viene del HTML plano), avanzamos el índice
+    this.stepper.currentStepIndex++;
+  }
+
+  /**
+   * Maneja la confirmación final de la IA con callback de PrimeNG
+   */
+  async handleFinalConfirm(confirmedData: any, nextCallback: any) {
     this.isLoadingIA = true;
-    
     try {
-      // Registro final en DynamoDB
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      this.isLoadingIA = false;
-      nextCallback(); 
+      this.stateService.setAiData(confirmedData);
+      this.executePrimeNGCallback(nextCallback);
     } catch (error) {
-      this.isLoadingIA = false;
       console.error("Sync Error:", error);
+    } finally {
+      this.isLoadingIA = false;
     }
   }
 
-  handleBack(prevCallback: Function) {
-    prevCallback();
+  /**
+   * Navegación hacia atrás (Soporta llamada con o sin argumentos)
+   */
+  prevStep(prevCallback?: any) {
+    if (prevCallback) {
+      this.executePrimeNGCallback(prevCallback);
+    } else if (this.stepper.currentStepIndex > 0) {
+      this.stepper.currentStepIndex--;
+    }
+  }
+
+  private executePrimeNGCallback(callback: any) {
+    if (callback && typeof callback.emit === 'function') {
+      callback.emit();
+    } else if (typeof callback === 'function') {
+      callback();
+    } else {
+      this.stepper.currentStepIndex++;
+    }
   }
 
   resetProcess() {
     this.stateService.clear();
     this.stepper.currentStepIndex = 0;
-    this.extractedInvoiceData = null;
   }
 }

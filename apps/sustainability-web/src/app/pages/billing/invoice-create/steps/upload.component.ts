@@ -14,22 +14,9 @@ import { MessageService } from 'primeng/api';
 // AWS Amplify Auth 
 import { signIn, getCurrentUser } from 'aws-amplify/auth';
 
-// State & AWS Services - Rutas corregidas para 3 niveles desde steps/
+// State & AWS Services
 import { InvoiceStateService } from '../../../../core/services/invoice-state.service';
 import { AppSyncService } from '../../../../core/services/appsync.service';
-
-/**
- * Interfaz para el tipado del estado y evitar errores de 'unknown'
- */
-interface InvoiceStateSnapshot {
-  file: File | null;
-  building?: string;
-  serviceType?: string;
-  meterId?: string;
-  costCenter?: string;
-  internalNote?: string;
-  [key: string]: any;
-}
 
 @Component({
   selector: 'app-invoice-upload',
@@ -59,7 +46,7 @@ export class InvoiceUploadComponent implements OnInit {
   isLoading = false;
   selectedFile: File | null = null;
 
-  // --- MOCK DATA PARA SMS SYSTEM ---
+  // --- DATA ESTRUCTURAL ---
   serviceTypes = [
     { label: 'Electricity', value: 'electricity' },
     { label: 'Water', value: 'water' },
@@ -87,27 +74,24 @@ export class InvoiceUploadComponent implements OnInit {
 
   filteredMeters: any[] = [];
 
-  // --- FORMULARIO REACTIVO ---
+  // --- FORMULARIO ---
   uploadForm = new FormGroup({
-    serviceType: new FormControl('', [Validators.required]),
-    building: new FormControl('', [Validators.required]),
-    meterId: new FormControl('', [Validators.required]),
-    costCenter: new FormControl('', [Validators.required]),
+    serviceType: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    building: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    meterId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    costCenter: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     internalNote: new FormControl('')
   });
 
   async ngOnInit() {
-    // 1. Asegurar sesión activa (USER_PASSWORD_AUTH para desarrollo/scripts)
     await this.ensureAuthenticated();
 
-    // 2. Reactividad para filtrado de medidores por edificio
     this.uploadForm.get('building')?.valueChanges.subscribe(val => {
       this.filterMeters(val);
     });
 
-    // 3. Restauración de estado persistido (si el usuario vuelve atrás)
-    const savedState = this.stateService.getSnapshot() as InvoiceStateSnapshot;
-    if (savedState && (savedState.building || savedState.file)) {
+    const savedState = this.stateService.getSnapshot();
+    if (savedState) {
       this.uploadForm.patchValue({
         building: savedState.building,
         serviceType: savedState.serviceType,
@@ -115,7 +99,7 @@ export class InvoiceUploadComponent implements OnInit {
         costCenter: savedState.costCenter,
         internalNote: savedState.internalNote
       });
-      this.filterMeters(savedState.building || null);
+      this.filterMeters(savedState.building);
       this.selectedFile = savedState.file;
     }
   }
@@ -123,26 +107,21 @@ export class InvoiceUploadComponent implements OnInit {
   private async ensureAuthenticated() {
     try {
       await getCurrentUser();
-      console.log('✅ AWS Auth: Session Active');
     } catch {
-      console.log('🔐 Initiating login with USER_PASSWORD_AUTH...');
       try {
         await signIn({
           username: 'diego_liascovich',
           password: 'DLpdp1980!',
           options: { authFlowType: 'USER_PASSWORD_AUTH' }
         });
-        console.log('🚀 AWS Auth: Login Success');
       } catch (err) {
-        console.error('❌ AWS Auth Error:', err);
+        console.error('❌ Auth Error:', err);
       }
     }
   }
 
   private filterMeters(buildingId: string | null) {
     this.filteredMeters = buildingId ? this.allMeters.filter(m => m.buildingId === buildingId) : [];
-    
-    // Validar que el medidor seleccionado siga siendo válido para el edificio
     const currentMeter = this.uploadForm.get('meterId')?.value;
     if (!this.filteredMeters.find(m => m.value === currentMeter)) {
       this.uploadForm.get('meterId')?.setValue('');
@@ -152,12 +131,12 @@ export class InvoiceUploadComponent implements OnInit {
   onFileSelect(event: any) {
     if (event.files && event.files.length > 0) {
       this.selectedFile = event.files[0];
-      this.messageService.add({ severity: 'info', summary: 'File Selected', detail: this.selectedFile?.name });
+      this.messageService.add({ severity: 'info', summary: 'Archivo seleccionado', detail: this.selectedFile?.name });
     }
   }
 
   /**
-   * Pipeline: AppSync (Presigned URL) -> S3 (Binary Put) -> Next Step
+   * Proceso de subida sincronizado con la Key real de S3
    */
   async processAndContinue() {
     if (this.uploadForm.valid && this.selectedFile) {
@@ -165,32 +144,54 @@ export class InvoiceUploadComponent implements OnInit {
       
       try {
         // 1. Obtener URL firmada
-        console.log('📡 Fetching Presigned URL...');
+        console.log('📡 Solicitando Presigned URL...');
         const uploadUrl = await this.appsyncService.getPresignedUrl(
           this.selectedFile.name, 
           this.selectedFile.type
         );
 
-        // 2. Subida directa a S3 (PUT binario)
-        console.log('📤 Uploading to S3...');
-        await this.appsyncService.uploadFileToS3(uploadUrl, this.selectedFile);
+        // 2. Subida a S3 y captura de la KEY REAL (Path completo: uploads/ID/timestamp-file.pdf)
+        console.log('📤 Subiendo a S3...');
+        const uploadResult = await this.appsyncService.uploadFileToS3(uploadUrl, this.selectedFile);
+        
+        if (!uploadResult.success || !uploadResult.key) {
+          throw new Error("La subida a S3 falló o no devolvió una Key válida.");
+        }
 
-        // 3. Persistir en el State local para que el Step 2 (IA) sepa qué procesar
+        // 3. Persistencia en el Estado Global (UN SOLO BLOQUE)
+        console.log('💾 Persistiendo estado con Key:', uploadResult.key);
+        
+        // Guardamos metadatos del formulario y referencia al archivo
         this.stateService.setStep1Data(this.uploadForm.value, this.selectedFile);
         
-        this.messageService.add({ severity: 'success', summary: 'Success', detail: 'File uploaded to S3' });
+        // Seteamos la Key real (la ruta completa en S3) para que la IA la encuentre
+        this.stateService.setStorageKey(uploadResult.key); 
+
+        this.messageService.add({ 
+          severity: 'success', 
+          summary: 'Subida exitosa', 
+          detail: 'Archivo listo para análisis de IA.' 
+        });
         
-        // 4. Navegar al siguiente paso del Stepper
+        // 4. Continuar al Step 2
         this.onComplete.emit();
 
-      } catch (error) {
-        console.error('❌ Pipeline Failed:', error);
-        this.messageService.add({ severity: 'error', summary: 'Upload Error', detail: 'Failed to upload to S3' });
+      } catch (error: any) {
+        console.error('❌ Error en el Pipeline:', error);
+        this.messageService.add({ 
+          severity: 'error', 
+          summary: 'Error de proceso', 
+          detail: error.message || 'Error al sincronizar con el almacenamiento cloud' 
+        });
       } finally {
         this.isLoading = false;
       }
     } else {
-      this.messageService.add({ severity: 'warn', summary: 'Attention', detail: 'Please complete all fields and select a file' });
+      this.messageService.add({ 
+        severity: 'warn', 
+        summary: 'Formulario incompleto', 
+        detail: 'Por favor completa todos los campos y selecciona un PDF.' 
+      });
     }
   }
 }
