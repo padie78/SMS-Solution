@@ -146,6 +146,29 @@ resource "aws_iam_policy" "kms_policy" {
   })
 }
 
+# main_iam.tf
+resource "aws_iam_policy" "s3_full_processing_policy" {
+  name        = "${var.project_name}-s3-processing-policy-${var.environment}"
+  description = "Permisos de lectura y metadatos para procesamiento de facturas"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = [
+          "s3:GetObject", 
+          "s3:ListBucket", 
+          "s3:GetBucketLocation" # CRÍTICO para que el SDK no falle al validar la región
+        ]
+        Resource = [
+          "arn:aws:s3:::sms-platform-dev-uploads",
+          "arn:aws:s3:::sms-platform-dev-uploads/*"
+        ]
+      }
+    ]
+  })
+}
+
 # ==============================================================================
 # 4. ASIGNACIÓN DE POLÍTICAS A ROLES (Attachments)
 # ==============================================================================
@@ -209,4 +232,15 @@ resource "aws_iam_role_policy_attachment" "lambda_kms" {
 resource "aws_iam_role_policy_attachment" "lambda_s3" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.s3_upload_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "api_s3_processing" {
+  role       = aws_iam_role.api_lambda_role.name
+  policy_arn = aws_iam_policy.s3_full_processing_policy.arn
+}
+
+# Asegurar que tenga Textract (ya lo tienes, pero verifícalo)
+resource "aws_iam_role_policy_attachment" "api_textract_full" {
+  role       = aws_iam_role.api_lambda_role.name
+  policy_arn = aws_iam_policy.textract_policy.arn
 }
