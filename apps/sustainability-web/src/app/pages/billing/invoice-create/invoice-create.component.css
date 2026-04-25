@@ -1,13 +1,27 @@
-.invoice-create-container {
-    animation: fadeIn 0.5s ease-out;
+:host ::ng-deep .p-stepper {
+    background: transparent;
 }
 
-@keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
+:host ::ng-deep .p-stepper-nav {
+    @apply bg-white border border-slate-200 rounded-2xl p-2 shadow-sm mb-6;
 }
 
-:host ::ng-deep .p-button-emerald {
-    background-color: #10b981 !important;
-    border: none !important;
+:host ::ng-deep .p-stepper-header.p-highlight .p-stepper-number {
+    @apply bg-emerald-500 text-white shadow-lg shadow-emerald-200;
+}
+
+:host ::ng-deep .p-stepper-header .p-stepper-number {
+    @apply font-black;
+}
+
+:host ::ng-deep .p-stepper-header .p-stepper-title {
+    @apply font-bold text-slate-400 uppercase tracking-widest text-xs;
+}
+
+:host ::ng-deep .p-stepper-header.p-highlight .p-stepper-title {
+    @apply text-slate-900;
+}
+
+.loading-overlay {
+    animation: fadeIn 0.3s ease-in-out;
 }
