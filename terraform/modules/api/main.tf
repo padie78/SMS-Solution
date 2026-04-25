@@ -120,7 +120,7 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
   for_each = toset([
     "saveOrgConfig", "createBranch", "saveBuilding", "saveCostCenter",
     "saveAsset", "saveMeter", "saveTariff", "saveProductionLog",
-    "saveEmissionFactor", "saveUser", "saveAlertRule",
+    "saveEmissionFactor", "saveUser", "saveAlertRule","processInvoice",
     "approveInvoice", "confirmInvoice"
   ])
 
