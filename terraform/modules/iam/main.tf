@@ -1,5 +1,5 @@
 # ==============================================================================
-# 1. POLÍTICAS DE CONFIANZA Y ACCESO S3
+# 1. POLÍTICAS DE CONFIANZA (Assume Role)
 # ==============================================================================
 
 data "aws_iam_policy_document" "lambda_assume_role" {
@@ -10,22 +10,6 @@ data "aws_iam_policy_document" "lambda_assume_role" {
       identifiers = ["lambda.amazonaws.com"]
     }
   }
-}
-
-resource "aws_iam_policy" "signer_s3_permissions" {
-  name        = "${var.project_name}-signer-s3-policy-${var.environment}"
-  description = "Permite a la Lambda generar URLs firmadas para el bucket de uploads"
-  
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["s3:PutObject", "s3:GetObject"]
-        Resource = ["arn:aws:s3:::${var.project_name}-${var.environment}-uploads/*"]
-      }
-    ]
-  })
 }
 
 # ==============================================================================
@@ -53,58 +37,52 @@ resource "aws_iam_role" "lambda_role" {
 }
 
 # ==============================================================================
-# 3. POLÍTICAS DE PERMISOS
+# 3. POLÍTICAS DE PERMISOS REUTILIZABLES (Managed Policies)
 # ==============================================================================
 
-# Política para lectura de DynamoDB Streams (Necesaria para KPI Engine)
-resource "aws_iam_policy" "lambda_stream_permissions" {
-  name   = "${var.project_name}-stream-policy-${var.environment}"
+# --- IA: Bedrock Invoke ---
+resource "aws_iam_policy" "bedrock_policy" {
+  name        = "${var.project_name}-bedrock-policy-${var.environment}"
+  description = "Permite invocar modelos de Claude en Bedrock"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = "bedrock:InvokeModel"
+      Resource = [
+        "arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0",
+        "arn:aws:bedrock:eu-central-1:*:inference-profile/eu.anthropic.claude-*"
+      ]
+    }]
+  })
+}
+
+# --- IA: Textract ---
+resource "aws_iam_policy" "textract_policy" {
+  name        = "${var.project_name}-textract-policy-${var.environment}"
+  description = "Permite uso de Textract para OCR de facturas"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["textract:DetectDocumentText", "textract:AnalyzeExpense", "textract:AnalyzeDocument"]
+      Resource = "*"
+    }]
+  })
+}
+
+# --- Storage: S3 Access ---
+resource "aws_iam_policy" "s3_upload_policy" {
+  name        = "${var.project_name}-s3-policy-${var.environment}"
+  description = "Acceso al bucket de uploads para procesamiento"
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetRecords",
-          "dynamodb:GetShardIterator",
-          "dynamodb:DescribeStream",
-          "dynamodb:ListStreams"
-        ]
-        Resource = "${var.dynamo_table_arn}/stream/*"
-      }
-    ]
-  })
-}
-
-# Política Integral para el Processor
-resource "aws_iam_policy" "processor_ai_permissions" {
-  name        = "${var.project_name}-processor-ai-policy-${var.environment}"
-  policy      = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
         Effect   = "Allow"
-        Action   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query"]
-        Resource = [var.dynamo_table_arn, "${var.dynamo_table_arn}/index/*"]
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["textract:DetectDocumentText", "textract:AnalyzeExpense", "textract:AnalyzeDocument"]
-        Resource = "*" 
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["bedrock:InvokeModel"]
+        Action   = ["s3:PutObject", "s3:GetObject", "s3:ListBucket"]
         Resource = [
-          "arn:aws:bedrock:eu-central-1:*:inference-profile/eu.anthropic.claude-*", 
-          "arn:aws:bedrock:eu-*:*:foundation-model/anthropic.claude-*"
-        ]
-      },
-      {
-        Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:PutObject", "s3:ListBucket"]
-        Resource = [
-          "arn:aws:s3:::${var.project_name}-${var.environment}-uploads", 
+          "arn:aws:s3:::${var.project_name}-${var.environment}-uploads",
           "arn:aws:s3:::${var.project_name}-${var.environment}-uploads/*"
         ]
       }
@@ -112,86 +90,41 @@ resource "aws_iam_policy" "processor_ai_permissions" {
   })
 }
 
-# Política Dynamo para la API Lambda
-resource "aws_iam_policy" "api_dynamo_permissions" {
-  name   = "${var.project_name}-api-dynamo-policy-${var.environment}"
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:DeleteItem"]
-        Resource = [var.dynamo_table_arn, format("%s/index/*", var.dynamo_table_arn)]
-      }
-    ]
-  })
-}
-
-# Política de KMS para desbloquear Lambdas y S3
-resource "aws_iam_policy" "lambda_kms_permissions" {
-  name        = "${var.project_name}-lambda-kms-policy-${var.environment}"
-  description = "Permite desencriptar variables de entorno y acceder a recursos cifrados"
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = [
-          "kms:Decrypt",
-          "kms:DescribeKey",
-          "kms:GenerateDataKey",
-          "kms:CreateGrant"
-        ]
-        Resource = "*" 
-      }
-    ]
-  })
-}
-
-# Permisos de Bedrock específicos para el lambda_role (KPI Engine)
-resource "aws_iam_role_policy" "lambda_bedrock_policy" {
-  name = "${var.project_name}-bedrock-policy-${var.environment}"
-  role = aws_iam_role.lambda_role.id 
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Action   = "bedrock:InvokeModel"
-        Effect   = "Allow"
-        Resource = [
-          "arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0",
-          "arn:aws:bedrock:eu-central-1:*:inference-profile/*"
-        ]
-      }
-    ]
-  })
-}
-
-# Permisos de Textract para el lambda_role (KPI Engine)
-resource "aws_iam_role_policy" "lambda_textract_policy" {
-  name = "${var.project_name}-textract-policy-${var.environment}"
-  role = aws_iam_role.lambda_role.id
+# --- Data: DynamoDB Full App Access ---
+resource "aws_iam_policy" "dynamo_app_policy" {
+  name   = "${var.project_name}-dynamo-policy-${var.environment}"
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = ["textract:DetectDocumentText", "textract:AnalyzeExpense"]
+      Action   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:DeleteItem"]
+      Resource = [var.dynamo_table_arn, "${var.dynamo_table_arn}/index/*"]
+    }]
+  })
+}
+
+# --- Seguridad: KMS ---
+resource "aws_iam_policy" "kms_policy" {
+  name   = "${var.project_name}-kms-policy-${var.environment}"
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["kms:Decrypt", "kms:DescribeKey", "kms:GenerateDataKey"]
       Resource = "*"
     }]
   })
 }
 
 # ==============================================================================
-# 4. ADJUNTAR POLÍTICAS (Attachments)
+# 4. ASIGNACIÓN DE POLÍTICAS A ROLES (Attachments)
 # ==============================================================================
 
-# 1. Logs de CloudWatch para TODOS los roles
-resource "aws_iam_role_policy_attachment" "logs" {
-  for_each   = toset([
-    aws_iam_role.invoice_processor_role.name, 
-    aws_iam_role.api_lambda_role.name, 
+# --- Logs de CloudWatch (Para todos los roles) ---
+resource "aws_iam_role_policy_attachment" "basic_execution" {
+  for_each = toset([
+    aws_iam_role.invoice_processor_role.name,
+    aws_iam_role.api_lambda_role.name,
     aws_iam_role.generic_lambda_role.name,
     aws_iam_role.lambda_role.name
   ])
@@ -199,38 +132,51 @@ resource "aws_iam_role_policy_attachment" "logs" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# 2. Permisos del Processor (IA + Data)
-resource "aws_iam_role_policy_attachment" "attach_processor" {
-  role       = aws_iam_role.invoice_processor_role.name
-  policy_arn = aws_iam_policy.processor_ai_permissions.arn
-}
-
-# 3. Permisos de la API (Dynamo)
-resource "aws_iam_role_policy_attachment" "attach_api" {
+# --- PERMISOS PARA LA API LAMBDA (El rol que fallaba) ---
+# Este rol necesita ejecutar el pipeline de IA directamente.
+resource "aws_iam_role_policy_attachment" "api_bedrock" {
   role       = aws_iam_role.api_lambda_role.name
-  policy_arn = aws_iam_policy.api_dynamo_permissions.arn
+  policy_arn = aws_iam_policy.bedrock_policy.arn
 }
 
-# 4. Permisos de S3 para el lambda_role (Signer / KPI Engine)
-resource "aws_iam_role_policy_attachment" "attach_lambda_role_s3" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.signer_s3_permissions.arn
+resource "aws_iam_role_policy_attachment" "api_textract" {
+  role       = aws_iam_role.api_lambda_role.name
+  policy_arn = aws_iam_policy.textract_policy.arn
 }
 
-# 5. Permisos de DynamoDB para el lambda_role (KPI Engine)
-resource "aws_iam_role_policy_attachment" "lambda_role_dynamo" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.api_dynamo_permissions.arn
+resource "aws_iam_role_policy_attachment" "api_s3" {
+  role       = aws_iam_role.api_lambda_role.name
+  policy_arn = aws_iam_policy.s3_upload_policy.arn
 }
 
-# 6. Permisos de Stream para el lambda_role (KPI Engine)
-resource "aws_iam_role_policy_attachment" "attach_lambda_stream" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.lambda_stream_permissions.arn
+resource "aws_iam_role_policy_attachment" "api_dynamo" {
+  role       = aws_iam_role.api_lambda_role.name
+  policy_arn = aws_iam_policy.dynamo_app_policy.arn
 }
 
-# 7. Permisos de KMS para el lambda_role
-resource "aws_iam_role_policy_attachment" "attach_lambda_kms" {
+# --- PERMISOS PARA EL PROCESSOR ROLE ---
+resource "aws_iam_role_policy_attachment" "processor_bedrock" {
+  role       = aws_iam_role.invoice_processor_role.name
+  policy_arn = aws_iam_policy.bedrock_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "processor_textract" {
+  role       = aws_iam_role.invoice_processor_role.name
+  policy_arn = aws_iam_policy.textract_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "processor_s3" {
+  role       = aws_iam_role.invoice_processor_role.name
+  policy_arn = aws_iam_policy.s3_upload_policy.arn
+}
+
+# --- PERMISOS PARA EL LAMBDA ROLE (KPI ENGINE / OTHERS) ---
+resource "aws_iam_role_policy_attachment" "lambda_kms" {
   role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.lambda_kms_permissions.arn
+  policy_arn = aws_iam_policy.kms_policy.arn
+}
+
+resource "aws_iam_role_policy_attachment" "lambda_s3" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.s3_upload_policy.arn
 }
