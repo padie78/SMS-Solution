@@ -1,13 +1,13 @@
 import { Component, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
-// Importaciones críticas para el Formulario
 import { FormsModule, ReactiveFormsModule, FormGroup, FormControl, Validators } from '@angular/forms';
 
-// PrimeNG
+// PrimeNG Modules
 import { FileUploadModule } from 'primeng/fileupload';
 import { ButtonModule } from 'primeng/button';
 import { InputTextModule } from 'primeng/inputtext';
 import { DropdownModule } from 'primeng/dropdown';
+import { InputTextareaModule } from 'primeng/inputtextarea';
 
 @Component({
   selector: 'app-invoice-upload',
@@ -15,11 +15,12 @@ import { DropdownModule } from 'primeng/dropdown';
   imports: [
     CommonModule, 
     FormsModule, 
-    ReactiveFormsModule, // <--- VITAL: Sin esto el HTML no entiende [formGroup]
+    ReactiveFormsModule,
     FileUploadModule, 
     ButtonModule,
     InputTextModule,
-    DropdownModule
+    DropdownModule,
+    InputTextareaModule
   ],
   templateUrl: './upload.component.html',
   styleUrls: ['./upload.component.css']
@@ -27,28 +28,42 @@ import { DropdownModule } from 'primeng/dropdown';
 export class InvoiceUploadComponent {
   @Output() onComplete = new EventEmitter<any>();
 
-  // 1. Definición de opciones para el combo de servicios
+  // Opciones para los selectores
   serviceTypes = [
     { label: 'Electricity', value: 'electricity' },
     { label: 'Water', value: 'water' },
     { label: 'Gas', value: 'gas' }
   ];
 
-  // 2. Aquí va el bloque que consultaste (Inicialización del Formulario)
+  buildings = [
+    { label: 'Main Headquarters', value: 'bld-01' },
+    { label: 'Warehouse North', value: 'bld-02' },
+    { label: 'Manufacturing Plant', value: 'bld-03' }
+  ];
+
+  costCenters = [
+    { label: 'Operations', value: 'cc-ops' },
+    { label: 'Administration', value: 'cc-adm' },
+    { label: 'Logistics', value: 'cc-log' }
+  ];
+
+  // Inicialización del Formulario con los campos manuales necesarios
   uploadForm = new FormGroup({
     serviceType: new FormControl('', [Validators.required]),
-    meterId: new FormControl(''),
-    description: new FormControl('')
+    meterId: new FormControl('', [Validators.required]),
+    building: new FormControl('', [Validators.required]),
+    costCenter: new FormControl('', [Validators.required]),
+    internalNote: new FormControl('')
   });
 
   selectedFile: File | null = null;
 
-  // Maneja la selección del archivo PDF
   onFileSelect(event: any) {
-    this.selectedFile = event.files[0];
+    if (event.files && event.files.length > 0) {
+      this.selectedFile = event.files[0];
+    }
   }
 
-  // Lógica para enviar los datos al siguiente paso (Validación IA)
   processAndContinue() {
     if (this.uploadForm.valid && this.selectedFile) {
       const payload = {
@@ -56,7 +71,7 @@ export class InvoiceUploadComponent {
         file: this.selectedFile
       };
       
-      console.log('Iniciando procesamiento con IA...', payload);
+      console.log('Enviando a procesamiento IA:', payload);
       this.onComplete.emit(payload);
     }
   }

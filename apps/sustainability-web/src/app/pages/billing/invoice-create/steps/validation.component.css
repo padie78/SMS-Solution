@@ -1,41 +1,33 @@
-/* Efecto de pulso para los recuadros de la IA */
-.ai-highlight-blue, .ai-highlight-green {
-    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
-    animation: pulse 2s infinite;
+/* Forzar visibilidad de bordes y fondos en todos los controles */
+:host ::ng-deep .p-inputtext,
+:host ::ng-deep .p-dropdown,
+:host ::ng-deep .p-inputtextarea {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important; /* Borde slate-300 */
+    border-radius: 8px !important;
+    padding: 0.75rem 1rem !important;
+    width: 100%;
 }
 
-@keyframes pulse {
-    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
-    70% { transform: scale(1.02); box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
-    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+:host ::ng-deep .p-inputtext:focus,
+:host ::ng-deep .p-dropdown:not(.p-disabled).p-focus,
+:host ::ng-deep .p-inputtextarea:focus {
+    border-color: #10b981 !important; /* Emerald */
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
+    outline: none;
 }
 
-/* Forzar que los inputs de PrimeNG sean invisibles sobre el fondo oscuro */
-::ng-deep .p-inputtext {
-    background: transparent !important;
-    border: none !important;
-    box-shadow: none !important;
+.drop-zone {
+    min-height: 250px;
 }
 
-/* Efecto Hover en los contenedores de los inputs */
-.ai-input-group:hover {
-    background-color: #020617; /* slate-950 pure */
-}
-
-/* Estilo para el botón Emerald */
 ::ng-deep .p-button-emerald {
     background-color: #10b981 !important;
     border: none !important;
-    font-weight: 800 !important;
 }
 
-::ng-deep .p-button-emerald:hover {
-    background-color: #059669 !important;
-    transform: translateY(-2px);
-}
-
-/* Limpio de metadatos de webpack */
-.upload-step-container {
-    display: flex;
-    flex-direction: column;
+::ng-deep .p-button-emerald:disabled {
+    background-color: #e2e8f0 !important;
+    color: #94a3b8 !important;
+    opacity: 1;
 }
