@@ -1,4 +1,4 @@
-import { Component, Output, EventEmitter, OnInit, inject } from '@angular/core';
+import { Component, Output, EventEmitter, OnInit, inject, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 
@@ -33,8 +33,7 @@ import { InvoiceStateService } from '../../../../core/services/invoice-state.ser
   providers: [MessageService],
   templateUrl: './validation.component.html', 
   styleUrls: ['./validation.component.css']
-})
-export class InvoiceValidationComponent implements OnInit {
+})export class InvoiceValidationComponent implements OnInit {
   private appsyncService = inject(AppSyncService);
   private stateService = inject(InvoiceStateService);
   private messageService = inject(MessageService);
@@ -42,7 +41,7 @@ export class InvoiceValidationComponent implements OnInit {
   @Output() onConfirm = new EventEmitter<any>();
   @Output() onBack = new EventEmitter<void>();
 
-  // FIX: Inicialización estructural para evitar "Cannot read properties of null"
+  // ✅ UNA SOLA DECLARACIÓN: Objeto interno para la vista
   invoice: any = {
     vendor: '',
     date: '',
@@ -58,84 +57,72 @@ export class InvoiceValidationComponent implements OnInit {
   errorMessage: string | null = null;
 
   async ngOnInit() {
-  const snapshot = this.stateService.getSnapshot();
-  
-  // FIX: Cambiamos .aiData por .extractedData para coincidir con la interfaz
-  if (snapshot && snapshot.extractedData) {
-    this.invoice = snapshot.extractedData;
-    this.isLoading = false;
-    return;
+    const snapshot = this.stateService.getSnapshot();
+    
+    // Si ya procesamos la IA antes, recuperamos los datos del Signal
+    if (snapshot && snapshot.extractedData) {
+      this.invoice = { ...snapshot.extractedData };
+      this.isLoading = false;
+      return;
+    }
+
+    // Si no, iniciamos el proceso
+    await this.processWithIA();
   }
 
-  await this.processWithIA();
-}
+  async processWithIA(retries = 3) {
+    const snapshot = this.stateService.getSnapshot();
+    const fileKey = snapshot?.storageKey;
 
-async processWithIA(retries = 3) { // Aumentamos a 3 intentos dada la latencia de la IA
-  const snapshot = this.stateService.getSnapshot();
-  const fileKey = snapshot?.storageKey;
+    if (!fileKey) {
+      console.error('❌ Error: storageKey es undefined');
+      this.errorMessage = "No se encontró la referencia del archivo.";
+      this.isLoading = false;
+      return; 
+    }
 
-  if (!fileKey) {
-    console.error('❌ Error: storageKey es undefined en el snapshot:', snapshot);
-    this.errorMessage = "No se encontró la referencia del archivo en el sistema.";
-    this.isLoading = false;
-    return; 
-  }
+    this.isLoading = true;
+    this.errorMessage = null;
 
-  this.isLoading = true;
-  this.errorMessage = null;
-
-  for (let i = 0; i <= retries; i++) {
-    try {
-      console.log(`🚀 [Intento ${i + 1}/${retries + 1}] Procesando: ${fileKey}`);
-      
-      const result = await this.appsyncService.processInvoiceIA(
-        fileKey, 
-        'f3d4f8a2-90c1-708c-a446-2c8592524d62'
-      );
-
-      if (result) {
-        this.invoice = { ...result };
-        this.stateService.setAiData(result);
-        this.isLoading = false;
-        return; 
-      }
-    } catch (error: any) {
-      const isLastRetry = i === retries;
-      const errorMsg = error.message || "";
-
-      if (isLastRetry) {
-        this.errorMessage = "Superado el límite de intentos. AWS Bedrock está saturado o el archivo es ilegible.";
-        this.isLoading = false;
-        console.error("❌ Fallo definitivo tras reintentos:", error);
-      } else {
-        // --- ESTRATEGIA DE ESPERA DINÁMICA ---
-        // Si es error 429 (Throttling), esperamos más tiempo.
-        // Sumamos un factor aleatorio (jitter) para evitar colisiones exactas.
-        const isThrottling = errorMsg.includes("429") || errorMsg.includes("wait");
-        const baseDelay = isThrottling ? 6000 : 3000; 
-        const jitter = Math.floor(Math.random() * 1000);
-        const delay = (baseDelay * (i + 1)) + jitter;
-
-        console.warn(`⚠️ Intento ${i + 1} falló (${isThrottling ? 'Throttling' : 'Consistency'}). Reintentando en ${delay/1000}s...`);
+    for (let i = 0; i <= retries; i++) {
+      try {
+        console.log(`🚀 [Intento ${i + 1}] Procesando: ${fileKey}`);
         
-        await new Promise(res => setTimeout(res, delay));
+        // Llamada a AppSync
+        const result = await this.appsyncService.processInvoiceIA(
+          fileKey, 
+          'f3d4f8a2-90c1-708c-a446-2c8592524d62'
+        );
+
+        if (result) {
+          this.invoice = { ...result };
+          this.stateService.setAiData(result); // Guardamos en el Signal global
+          this.isLoading = false;
+          return; 
+        }
+      } catch (error: any) {
+        // ... tu lógica de reintentos actual (está perfecta) ...
+        const isLastRetry = i === retries;
+        if (isLastRetry) {
+          this.errorMessage = "Fallo definitivo tras reintentos.";
+          this.isLoading = false;
+        } else {
+          const delay = (3000 * (i + 1)) + Math.floor(Math.random() * 1000);
+          await new Promise(res => setTimeout(res, delay));
+        }
       }
     }
   }
-}
-  /**
-   * Confirma los datos (validados o corregidos por el usuario)
-   */
+
   confirm() {
     if (!this.invoice.vendor || !this.invoice.total) {
       this.messageService.add({ 
         severity: 'warn', 
         summary: 'Datos incompletos', 
-        detail: 'Por favor verifica el proveedor y el monto total.' 
+        detail: 'Verifica proveedor y monto total.' 
       });
       return;
     }
-    
     this.stateService.setAiData(this.invoice);
     this.onConfirm.emit(this.invoice);
   }
