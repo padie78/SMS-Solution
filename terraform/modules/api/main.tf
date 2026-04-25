@@ -45,7 +45,7 @@ resource "aws_iam_role" "appsync_runtime_role" {
 
 resource "aws_iam_role_policy_attachment" "appsync_logs" {
   role       = aws_iam_role.appsync_runtime_role.name
-  policy_arn = "arn:aws:policy/service-role/AWSAppSyncPushToCloudWatchLogs"
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSAppSyncPushToCloudWatchLogs"
 }
 
 # ==============================================================================
@@ -162,8 +162,7 @@ resource "aws_iam_role_policy" "api_lambda_extended_policy" {
   # role = aws_iam_role.api_lambda_role.id 
   
   # Si el ID viene de una variable que SI existe, o si prefieres usar el nombre directo:
-  role = split("/", var.api_lambda_arn)[count.index == 0 ? 6 : 6] # Intento de extraer ID del ARN si no hay variable
-  # O mejor aún, asegúrate de pasarle el ID correcto desde el módulo donde resides.
+role = var.api_lambda_role_id # <--- Usamos la variable directa  # O mejor aún, asegúrate de pasarle el ID correcto desde el módulo donde resides.
   # Por ahora, usemos el ID que terraform espera recibir para la Lambda API:
   # role = var.api_lambda_role_name 
 
