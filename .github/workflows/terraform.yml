@@ -60,11 +60,28 @@ jobs:
         working-directory: apps/sustainability-web
 
       # 4. Despliegue de Activos a AWS
+# 4. Despliegue de Activos a AWS
       - name: Sync S3 and Invalidate CloudFront
         run: |
-          BUCKET_NAME=$(terraform output -raw s3_bucket_name)
-          DIST_ID=$(terraform output -raw cloudfront_distribution_id)
-          # NOTA: Quité el "/browser" del final de la ruta dist
-          aws s3 sync ../apps/sustainability-web/dist/sustainability-web s3://$BUCKET_NAME --delete
+          # Extraemos los valores limpiando cualquier mensaje de advertencia de Terraform
+          BUCKET_NAME=$(terraform output -raw s3_bucket_name | tail -n 1 | tr -d '\r')
+          DIST_ID=$(terraform output -raw cloudfront_distribution_id | tail -n 1 | tr -d '\r')
+          
+          echo "🚀 Desplegando en S3: $BUCKET_NAME"
+          
+          # IMPORTANTE: Validamos que la carpeta exista antes de sincronizar
+          # En Angular 17+, la ruta suele ser dist/sustainability-web/browser
+          if [ -d "../apps/sustainability-web/dist/sustainability-web/browser" ]; then
+            SOURCE_PATH="../apps/sustainability-web/dist/sustainability-web/browser"
+          else
+            SOURCE_PATH="../apps/sustainability-web/dist/sustainability-web"
+          fi
+
+          echo "📂 Usando carpeta de origen: $SOURCE_PATH"
+
+          # Sincronización
+          aws s3 sync $SOURCE_PATH s3://$BUCKET_NAME --delete
+          
+          # Invalidación de cache
           aws cloudfront create-invalidation --distribution-id $DIST_ID --paths "/*"
         working-directory: ./terraform
