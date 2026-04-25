@@ -1346,62 +1346,65 @@ export const configService = {
             message: "Invoice confirmed and ESG metrics generated."
         };
     },
-
 processInvoiceIA: async (orgId, fileName, bucket) => {
-        const key = fileName || "unknown_key";
-        console.log(`\n--- ⚙️ STARTING AI PIPELINE [ORG: ${orgId}] [FILE: ${key}] ---`);
+        // 1. Asegurar que la Key es la que recibimos (incluyendo timestamps)
+        const key = fileName; 
+        console.log(`\n--- ⚙️ STARTING AI PIPELINE [ORG: ${orgId}] ---`);
+        console.log(`[CHECK] S3 Target: s3://${bucket}/${key}`);
 
         try {
-            // 1. OBTENCIÓN DEL TEXTO
+            // 2. OBTENCIÓN DEL TEXTO
             const extractionResponse = await callExtractionAgent(bucket, key);
-            
-            // LOG DE EXTRACCIÓN: ¿Qué nos dio el agente?
-            console.log(`[DEBUG_STEP_1] Extraction Type: ${typeof extractionResponse}`);
             
             let rawText = "";
             if (typeof extractionResponse === 'string') {
                 rawText = extractionResponse;
-            } else if (typeof extractionResponse === 'object') {
-                console.log(`[DEBUG_STEP_1] Extraction Keys: ${Object.keys(extractionResponse).join(', ')}`);
-                rawText = extractionResponse.text || extractionResponse.body || extractionResponse.content || JSON.stringify(extractionResponse);
+            } else if (typeof extractionResponse === 'object' && extractionResponse !== null) {
+                // Si callExtractionAgent devuelve un objeto con ceros (el error que vimos), esto lo captura
+                rawText = extractionResponse.text || extractionResponse.body || extractionResponse.content;
+                
+                // Si no hay texto pero hay un objeto JSON, podría ser el error de "placeholder"
+                if (!rawText && extractionResponse.service_category) {
+                    throw new Error("El extractor devolvió un esquema vacío. ¿Es correcta la Key del archivo?");
+                }
             }
 
-            // LOG DE CONTENIDO: Ver los primeros 200 caracteres del texto real
-            console.log(`[DEBUG_STEP_1] RawText Preview: "${rawText.substring(0, 200).replace(/\n/g, ' ')}..."`);
-            console.log(`[DEBUG_STEP_1] Total Characters: ${rawText.length}`);
-
-            if (!rawText || rawText.trim().length < 10) {
-                throw new Error("El texto extraído es demasiado corto para ser una factura válida.");
+            // Validar longitud mínima real
+            if (!rawText || rawText.trim().length < 50) {
+                console.error(`[ERROR] Contenido insuficiente extraído: "${rawText}"`);
+                throw new Error(`Texto insuficiente (${rawText?.length || 0} chars). Textract no pudo leer el archivo o la Key es incorrecta.`);
             }
 
-            // 2. CLASIFICACIÓN
+            console.log(`[DEBUG_STEP_1] Text Size: ${rawText.length} chars. Preview: ${rawText.substring(0, 100)}...`);
+
+            // 3. CLASIFICACIÓN
             const detectedCategory = await identifyCategory(rawText);
             console.log(`[PIPELINE] 1. Contexto: Cat detectada "${detectedCategory}"`);
 
-            // 3. ANÁLISIS BEDROCK
+            // 4. ANÁLISIS BEDROCK
             console.log(`[PIPELINE] 2. Llamando a Bedrock para análisis...`);
             const aiAnalysis = await analyzeInvoice(rawText, detectedCategory);
 
-            // LOG DE IA: ¿Qué respondió Bedrock exactamente?
-            console.log(`[DEBUG_STEP_2] Bedrock Raw Response: ${JSON.stringify(aiAnalysis)}`);
+            // VALIDACIÓN CRÍTICA: Si Bedrock no extrajo nada útil, no seguimos a Climatiq
+            if (!aiAnalysis || !aiAnalysis.extracted_data || aiAnalysis.extracted_data.total_amount === 0) {
+                console.warn("[WARN] Bedrock no detectó datos monetarios. Revisar prompt o calidad del OCR.");
+            }
 
-            const aiCat = aiAnalysis?.category || 'N/A';
-            const aiConf = (aiAnalysis?.confidence_score || 0).toFixed(2);
-            console.log(`[PIPELINE] 2. IA: Procesado como ${aiCat} (Confianza: ${aiConf})`);
+            console.log(`[DEBUG_STEP_2] IA Response: ${aiAnalysis?.category} | Confidence: ${aiAnalysis?.confidence_score}`);
 
-            // 4. MOTOR DE EMISIONES
+            // 5. MOTOR DE EMISIONES
             console.log(`[PIPELINE] 3. Calculando huella con Climatiq...`);
-            const emissionLines = (aiAnalysis.emission_lines || []).map(line => ({
+            
+            // Protección contra aiAnalysis nulo o sin líneas
+            const emissionLines = (aiAnalysis?.emission_lines || []).map(line => ({
                 ...line,
-                category: line.category || aiAnalysis.category || "ELEC"
+                category: line.category || aiAnalysis?.category || "OTHERS"
             }));
             
-            console.log(`[DEBUG_STEP_3] Emission Lines to calculate: ${emissionLines.length}`);
-
-            const country = aiAnalysis.extracted_data?.location?.country || "ES";
+            const country = aiAnalysis?.extracted_data?.location?.country || "ES";
             const emissionCalculations = await calculateFootprint(emissionLines, country);
 
-            // 5. MAPEADO
+            // 6. MAPEADO (Golden Record)
             const goldenRecord = buildGoldenRecord(
                 `ORG#${orgId}`,
                 key,
@@ -1412,14 +1415,14 @@ processInvoiceIA: async (orgId, fileName, bucket) => {
                 { source: 'web_upload', uploadedAt: new Date().toISOString() }
             );
 
-            // 6. PERSISTENCIA Y CIERRE
+            // 7. PERSISTENCIA
             console.log(`\n--- 📊 DATA CHECK [${key}] ---`);
             console.log(`   🌍 CO2:      ${goldenRecord.climatiq_result?.co2e || 0} kg`);
-            console.log(`   💰 Spend:    ${goldenRecord.extracted_data?.total_amount || 0}`);
+            console.log(`   💰 Total:    ${goldenRecord.extracted_data?.total_amount || 0} ${goldenRecord.extracted_data?.currency || ''}`);
             console.log(`   📝 Vendor:   ${goldenRecord.extracted_data?.vendor || 'N/A'}`);
-            console.log(`------------------------------------------`);
 
             await persistTransaction(goldenRecord);
+            
             return {
                 vendor: goldenRecord.extracted_data?.vendor || 'Unknown',
                 total: goldenRecord.extracted_data?.total_amount || 0,
