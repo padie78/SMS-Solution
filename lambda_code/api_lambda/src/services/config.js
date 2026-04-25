@@ -1346,23 +1346,24 @@ export const configService = {
             message: "Invoice confirmed and ESG metrics generated."
         };
     },
-processInvoiceIA: async (orgId, fileName, bucket) => {
+
+    processInvoiceIA: async (orgId, fileName, bucket) => {
         // 1. Asegurar que la Key es la que recibimos (incluyendo timestamps)
-        const key = fileName; 
+        const key = fileName;
         console.log(`\n--- ⚙️ STARTING AI PIPELINE [ORG: ${orgId}] ---`);
         console.log(`[CHECK] S3 Target: s3://${bucket}/${key}`);
 
         try {
             // 2. OBTENCIÓN DEL TEXTO
             const extractionResponse = await callExtractionAgent(bucket, key);
-            
+
             let rawText = "";
             if (typeof extractionResponse === 'string') {
                 rawText = extractionResponse;
             } else if (typeof extractionResponse === 'object' && extractionResponse !== null) {
                 // Si callExtractionAgent devuelve un objeto con ceros (el error que vimos), esto lo captura
                 rawText = extractionResponse.text || extractionResponse.body || extractionResponse.content;
-                
+
                 // Si no hay texto pero hay un objeto JSON, podría ser el error de "placeholder"
                 if (!rawText && extractionResponse.service_category) {
                     throw new Error("El extractor devolvió un esquema vacío. ¿Es correcta la Key del archivo?");
@@ -1394,13 +1395,13 @@ processInvoiceIA: async (orgId, fileName, bucket) => {
 
             // 5. MOTOR DE EMISIONES
             console.log(`[PIPELINE] 3. Calculando huella con Climatiq...`);
-            
+
             // Protección contra aiAnalysis nulo o sin líneas
             const emissionLines = (aiAnalysis?.emission_lines || []).map(line => ({
                 ...line,
                 category: line.category || aiAnalysis?.category || "OTHERS"
             }));
-            
+
             const country = aiAnalysis?.extracted_data?.location?.country || "ES";
             const emissionCalculations = await calculateFootprint(emissionLines, country);
 
@@ -1422,7 +1423,7 @@ processInvoiceIA: async (orgId, fileName, bucket) => {
             console.log(`   📝 Vendor:   ${goldenRecord.extracted_data?.vendor || 'N/A'}`);
 
             await persistTransaction(goldenRecord);
-            
+
             return {
                 vendor: goldenRecord.extracted_data?.vendor || 'Unknown',
                 total: goldenRecord.extracted_data?.total_amount || 0,
@@ -1435,7 +1436,7 @@ processInvoiceIA: async (orgId, fileName, bucket) => {
         } catch (error) {
             console.error(`\n❌ [PIPELINE_ERROR]: Fallo en ${key}`);
             console.error(`Detalle: ${error.message}`);
-            throw error; 
+            throw error;
         }
     }
 

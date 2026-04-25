@@ -78,3 +78,8 @@ variable "kpi_lambda_role_id" {
   type        = string
   description = "El ID o nombre del rol de la Lambda de KPIs para adjuntar la política de streams"
 }
+
+variable "api_lambda_role_id" {
+  type        = string
+  description = "ID del rol de IAM de la Lambda API"
+}
