@@ -13,7 +13,6 @@ resource "aws_appsync_graphql_api" "api" {
     aws_region     = var.cognito_region
   }
 
-  # PERMITE TESTS CON API KEY (Soluciona UnauthorizedException en scripts)
   additional_authentication_provider {
     authentication_type = "API_KEY"
   }
@@ -29,44 +28,8 @@ resource "aws_appsync_api_key" "hub_key" {
   expires = timeadd(timestamp(), "8760h") 
 }
 
-# --- Lógica de DynamoDB Stream (Sin cambios) ---
-resource "time_sleep" "wait_for_iam" {
-  depends_on = [aws_iam_role_policy.lambda_stream_policy]
-  create_duration = "30s"
-}
-
-resource "aws_lambda_event_source_mapping" "stats_aggregator_trigger" {
-  event_source_arn  = var.emissions_table_stream_arn
-  function_name     = var.kpi_lambda_arn
-  starting_position = "LATEST"
-  filter_criteria {
-    filter {
-      pattern = jsonencode({
-        dynamodb = {
-          NewImage = { metadata = { M = { is_draft = { BOOL = [false] } } } },
-          OldImage = { metadata = { M = { is_draft = { BOOL = [true] } } } }
-        }
-      })
-    }
-  }
-  depends_on = [time_sleep.wait_for_iam]
-}
-
-resource "aws_iam_role_policy" "lambda_stream_policy" {
-  name = "sms-lambda-stream-policy"
-  role = var.kpi_lambda_role_id 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Effect   = "Allow"
-      Action   = ["dynamodb:GetRecords", "dynamodb:GetShardIterator", "dynamodb:DescribeStream", "dynamodb:ListStreams"]
-      Resource = [var.emissions_table_stream_arn, split("/stream/", var.emissions_table_stream_arn)[0]]
-    }]
-  })
-}
-
 # ==============================================================================
-# 2. ROL DE IAM PARA RUNTIME
+# 2. ROL DE IAM PARA RUNTIME (APPSYNC)
 # ==============================================================================
 resource "aws_iam_role" "appsync_runtime_role" {
   name = "${var.project_name}-appsync-runtime-role-${var.environment}"
@@ -82,7 +45,7 @@ resource "aws_iam_role" "appsync_runtime_role" {
 
 resource "aws_iam_role_policy_attachment" "appsync_logs" {
   role       = aws_iam_role.appsync_runtime_role.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSAppSyncPushToCloudWatchLogs"
+  policy_arn = "arn:aws:policy/service-role/AWSAppSyncPushToCloudWatchLogs"
 }
 
 # ==============================================================================
@@ -113,9 +76,8 @@ resource "aws_appsync_datasource" "analytics_lambda_ds" {
 }
 
 # ==============================================================================
-# 4. RESOLVERS (CON DEPENDENCIAS DE POLÍTICA)
+# 4. RESOLVERS
 # ==============================================================================
-
 resource "aws_appsync_resolver" "mutation_resolvers" {
   for_each = toset([
     "saveOrgConfig", "createBranch", "saveBuilding", "saveCostCenter",
@@ -129,17 +91,13 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
   field       = each.key
   data_source = aws_appsync_datasource.api_lambda_ds.name
   
-  # EVITA Unauthorized/AccessDenied al crear
   depends_on = [aws_iam_role_policy.appsync_access_policy] 
 }
 
 resource "aws_appsync_resolver" "kpi_resolvers" {
   for_each = toset([
-    "getPrecalculatedKPI",    # <--- Agrega este
-    "getConsumptionAnalytics", # <--- Agrega este
-    "getIntensityReport",
-    "getInvoicesByPeriod", 
-    "getCostCenters"
+    "getPrecalculatedKPI", "getConsumptionAnalytics", "getIntensityReport",
+    "getInvoicesByPeriod", "getCostCenters"
   ])
 
   api_id      = aws_appsync_graphql_api.api.id
@@ -160,7 +118,7 @@ resource "aws_appsync_resolver" "get_url_resolver" {
 }
 
 # ==============================================================================
-# 5. POLÍTICA DE ACCESO
+# 5. POLÍTICA DE ACCESO (APPSYNC -> LAMBDA)
 # ==============================================================================
 resource "aws_iam_role_policy" "appsync_access_policy" {
   name = "AppSyncAccessPolicy"
@@ -184,6 +142,52 @@ resource "aws_iam_role_policy" "appsync_access_policy" {
         Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:BatchGetItem"]
         Effect   = "Allow"
         Resource = [var.dynamo_table_arn, "${var.dynamo_table_arn}/index/*"]
+      }
+    ]
+  })
+}
+
+# ==============================================================================
+# 6. PERMISOS EXTENDIDOS PARA LA LAMBDA API (S3 + AI)
+# ==============================================================================
+
+# NOTA: Como no encuentra var.api_lambda_role_id, usamos el nombre del Rol 
+# que deberías tener definido donde creaste la Lambda. 
+# Si tu recurso de rol se llama diferente, cambia "api_lambda_role" abajo.
+
+resource "aws_iam_role_policy" "api_lambda_extended_policy" {
+  name = "${var.project_name}-api-extended-policy-${var.environment}"
+  
+  # Si el rol está definido en este mismo módulo:
+  # role = aws_iam_role.api_lambda_role.id 
+  
+  # Si el ID viene de una variable que SI existe, o si prefieres usar el nombre directo:
+  role = split("/", var.api_lambda_arn)[count.index == 0 ? 6 : 6] # Intento de extraer ID del ARN si no hay variable
+  # O mejor aún, asegúrate de pasarle el ID correcto desde el módulo donde resides.
+  # Por ahora, usemos el ID que terraform espera recibir para la Lambda API:
+  # role = var.api_lambda_role_name 
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "AllowS3ReadSpecificBucket"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation"]
+        Resource = [
+          "arn:aws:s3:::sms-platform-dev-uploads",
+          "arn:aws:s3:::sms-platform-dev-uploads/*"
+        ]
+      },
+      {
+        Sid      = "AllowAIProcessing"
+        Effect   = "Allow"
+        Action   = [
+          "textract:AnalyzeDocument",
+          "textract:DetectDocumentText",
+          "bedrock:InvokeModel"
+        ]
+        Resource = "*"
       }
     ]
   })

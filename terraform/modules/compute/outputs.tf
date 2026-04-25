@@ -68,3 +68,8 @@ output "kpi_lambda_name" {
   description = "Nombre de la función Lambda KPI Engine"
   value       = aws_lambda_function.kpi_engine.function_name
 }
+
+# En modules/lambda/outputs.tf
+output "api_lambda_role_id" {
+  value = aws_iam_role.api_lambda_role.id
+}
