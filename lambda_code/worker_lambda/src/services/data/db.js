@@ -32,6 +32,8 @@ export const persistTransaction = async (goldenRecord) => {
         // Operación A: Actualizar el Registro Maestro (De Skeleton a Golden)
         // services/data/db.js
 
+        // services/data/db.js
+
         const masterUpdate = {
             Update: {
                 TableName: TABLE_NAME,
@@ -42,7 +44,7 @@ export const persistTransaction = async (goldenRecord) => {
             climatiq_result = :cr, 
             extracted_data = :ed, 
             processed_at = :now,
-            total_days_prorated = :days,  // <--- CAMBIADO ':' POR '='
+            total_days_prorated = :days,
             metadata = :meta`,
                 ConditionExpression: "#st = :processing",
                 ExpressionAttributeNames: { "#st": "status" },
@@ -53,7 +55,7 @@ export const persistTransaction = async (goldenRecord) => {
                     ":cr": climatiq_result,
                     ":ed": extracted_data,
                     ":now": isoNow,
-                    ":days": totalDays, // <--- Este es el valor que se asigna
+                    ":days": totalDays,
                     ":meta": {
                         ...metadata,
                         processed_at: isoNow,
