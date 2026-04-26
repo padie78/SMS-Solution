@@ -34,11 +34,11 @@ export const persistTransaction = async (goldenRecord) => {
 
         // services/data/db.js
 
-        const masterUpdate = {
-            Update: {
-                TableName: TABLE_NAME,
-                Key: { PK, SK },
-                UpdateExpression: `SET 
+       const masterUpdate = {
+    Update: {
+        TableName: TABLE_NAME,
+        Key: { PK, SK },
+        UpdateExpression: `SET 
             #st = :done, 
             ai_analysis = :ai, 
             climatiq_result = :cr, 
@@ -46,25 +46,29 @@ export const persistTransaction = async (goldenRecord) => {
             processed_at = :now,
             total_days_prorated = :days,
             metadata = :meta`,
-                ConditionExpression: "#st = :processing",
-                ExpressionAttributeNames: { "#st": "status" },
-                ExpressionAttributeValues: {
-                    ":done": "DONE",
-                    ":processing": "PROCESSING",
-                    ":ai": ai_analysis,
-                    ":cr": climatiq_result,
-                    ":ed": extracted_data,
-                    ":now": isoNow,
-                    ":days": totalDays,
-                    ":meta": {
-                        ...metadata,
-                        processed_at: isoNow,
-                        status: "VALIDATED",
-                        is_draft: false
-                    }
-                }
+        // 1. CAMBIO CLAVE: Quitamos la dependencia del valor del status. 
+        // Solo verificamos que el registro exista.
+        ConditionExpression: "attribute_exists(PK)", 
+        
+        ExpressionAttributeNames: { "#st": "status" },
+        ExpressionAttributeValues: {
+            ":done": "DONE",
+            ":ai": ai_analysis,
+            ":cr": climatiq_result,
+            ":ed": extracted_data,
+            ":now": isoNow,
+            ":days": totalDays,
+            // 2. RE-SINCRONIZACIÓN: Pisamos metadata con los nuevos valores
+            // y unificamos el status interno también.
+            ":meta": {
+                ...metadata,
+                processed_at: isoNow,
+                status: "VALIDATED", 
+                is_draft: false
             }
-        };
+        }
+    }
+};
         // 3. MOTOR DE AGREGACIÓN (Tu lógica de StatsMap se mantiene igual)
         const statsMap = new Map();
         let currentDate = new Date(startDate);
