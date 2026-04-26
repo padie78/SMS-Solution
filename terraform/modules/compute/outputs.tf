@@ -30,3 +30,19 @@ output "api_lambda_arn" {
 output "signer_lambda_arn" {
   value = aws_lambda_function.signer.arn
 }
+
+# Agregá estos a los que ya tenías en modules/compute/outputs.tf
+
+output "analytics_lambda_arn" {
+  value = aws_lambda_function.analytics.arn
+}
+
+output "kpi_lambda_arn" {
+  value = aws_lambda_function.kpi_engine.arn
+}
+
+# OJO AQUÍ: El role_id suele venir del módulo IAM, no de compute.
+# Pero si tu módulo API lo pide de compute, exportalo así:
+output "api_lambda_role_id" {
+  value = var.api_lambda_role_arn # Pasamos el ARN o ID que entró por variable
+}
