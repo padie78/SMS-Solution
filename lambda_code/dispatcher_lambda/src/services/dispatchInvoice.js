@@ -12,7 +12,7 @@ export const dispatchInvoice = async (bucket, key, orgId) => {
         };
 
         await sqs.send(new SendMessageCommand({
-            QueueUrl: process.env.SQS_QUEUE_URL,
+            QueueUrl: process.env.SQS_QUEUE_URL || "https://sqs.eu-central-1.amazonaws.com/473959757331/sms-platform-invoice-queue-dev", // Asegúrate de configurar esta variable de entorno
             MessageBody: JSON.stringify(messageBody),
         }));
 
