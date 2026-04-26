@@ -1,6 +1,17 @@
 schema {
   query: Query
   mutation: Mutation
+  subscription: Subscription
+}
+
+# --- 0. ENUMS ---
+
+enum InvoiceStatus {
+  PROCESSING
+  READY
+  FAILED
+  VALIDATED
+  COMPLETED
 }
 
 # --- 1. RESPUESTAS Y CONTROL ---
@@ -33,7 +44,6 @@ type PresignedUrlResponse {
   userId: String!
 }
 
-# Respuesta específica para el Pipeline de IA (Bedrock + Climatiq)
 type InvoiceIAProcessingResponse {
   success: Boolean!
   message: String
@@ -123,9 +133,14 @@ type Invoice {
   consumptionVal: Float
   serviceType: String
   pdfUrl: String
-  status: String
+  status: InvoiceStatus
+  storageKey: String
+  extractedData: AWSJSON
   aiThoughtProcess: String
   lastUpdated: String
+  buildingId: ID
+  meterId: ID
+  costCenterId: ID
 }
 
 type NormalizationKPIs {
@@ -135,6 +150,16 @@ type NormalizationKPIs {
 }
 
 # --- 4. INPUTS ---
+
+input CreateInvoiceInput {
+  storageKey: String!
+  serviceType: String!
+  buildingId: ID
+  meterId: ID
+  costCenterId: ID
+  internalNote: String
+  status: InvoiceStatus
+}
 
 input OrgConfigInput {
   name: String
@@ -298,6 +323,8 @@ input EmissionFactorInput {
 # --- 5. CONSULTAS (QUERIES) ---
 
 type Query {
+  getInvoice(id: ID!): Invoice
+
   getPrecalculatedKPI(
     year: String!, 
     quarter: String, 
@@ -322,6 +349,16 @@ type Query {
 # --- 6. ACCIONES (MUTATIONS) ---
 
 type Mutation {
+  # --- Registro y Pipeline Asíncrono (SQS) ---
+  createInvoice(input: CreateInvoiceInput!): Invoice
+  
+  updateInvoiceStatus(
+    id: ID!, 
+    status: InvoiceStatus!, 
+    extractedData: AWSJSON,
+    message: String
+  ): Invoice
+
   # --- Configuración y Core ---
   saveOrgConfig(orgId: ID!, input: OrgConfigInput!): MutationResponse
   createBranch(orgId: ID!, input: BranchInput!): MutationResponse
@@ -337,10 +374,15 @@ type Mutation {
   
   # --- Pipeline de Facturación e IA ---
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
-  
-  # Esta es la mutación que dispara el orquestador Bedrock -> Climatiq -> DB
   processInvoice(fileName: String!, folderId: String): InvoiceIAProcessingResponse
-  
+  validateInvoice(orgId: ID!, storageKey: String!, input: ConfirmInvoiceInput!): ActionResponse!
   confirmInvoice(sk: String!, input: ConfirmInvoiceInput!): ActionResponse!
   approveInvoice(invoiceId: ID!): Invoice 
+}
+
+# --- 7. TIEMPO REAL (SUBSCRIPTIONS) ---
+
+type Subscription {
+  onInvoiceUpdated(id: ID!): Invoice
+    @aws_subscribe(mutations: ["updateInvoiceStatus"])
 }

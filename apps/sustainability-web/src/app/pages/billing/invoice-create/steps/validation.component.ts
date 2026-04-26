@@ -1,133 +1,108 @@
-import { Component, Output, EventEmitter, OnInit, inject, Input } from '@angular/core';
+import { Component, OnInit, inject, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import { FormsModule } from '@angular/forms'; // Necesario para [(ngModel)]
+import { Subscription } from 'rxjs';
 
-// PrimeNG 
+// PrimeNG
 import { ButtonModule } from 'primeng/button';
-import { InputTextModule } from 'primeng/inputtext';
 import { TagModule } from 'primeng/tag';
 import { TooltipModule } from 'primeng/tooltip';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
-import { CardModule } from 'primeng/card';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
+import { InputTextModule } from 'primeng/inputtext';
 
-// Services
-import { AppSyncService } from '../../../../core/services/appsync.service';
+// Core
 import { InvoiceStateService } from '../../../../core/services/invoice-state.service';
+import { AppSyncService } from '../../../../core/services/appsync.service';
 
 @Component({
   selector: 'app-invoice-validation',
   standalone: true,
   imports: [
-    CommonModule, 
-    FormsModule, 
-    ButtonModule, 
-    InputTextModule, 
-    TagModule, 
+    CommonModule,
+    FormsModule,
+    InputTextModule,
+    ButtonModule,
+    TagModule,
     TooltipModule,
     ProgressSpinnerModule,
-    CardModule,
     ToastModule
   ],
   providers: [MessageService],
-  templateUrl: './validation.component.html', 
+  templateUrl: './validation.component.html',
   styleUrls: ['./validation.component.css']
-})export class InvoiceValidationComponent implements OnInit {
-  private appsyncService = inject(AppSyncService);
+})
+export class InvoiceValidationComponent implements OnInit, OnDestroy {
   private stateService = inject(InvoiceStateService);
+  private appsyncService = inject(AppSyncService);
   private messageService = inject(MessageService);
 
-  @Output() onConfirm = new EventEmitter<any>();
-  @Output() onBack = new EventEmitter<void>();
-
-  // ✅ UNA SOLA DECLARACIÓN: Objeto interno para la vista
-  invoice: any = {
-    vendor: '',
-    date: '',
-    total: 0,
-    consumption: 0,
-    co2e: 0,
-    currency: 'USD',
-    category: '',
-    confidence: 0
-  };
-
+  // --- PROPIEDADES QUE EL HTML NECESITA ---
   isLoading = true;
-  errorMessage: string | null = null;
+  invoice: any = null;
+  errorMessage: string | null = null; // Fix para TS2339
+  private statusSubscription?: Subscription;
 
-  async ngOnInit() {
-    const snapshot = this.stateService.getSnapshot();
-    
-    // Si ya procesamos la IA antes, recuperamos los datos del Signal
-    if (snapshot && snapshot.extractedData) {
-      this.invoice = { ...snapshot.extractedData };
+  ngOnInit() {
+    const { invoiceId, extractedData } = this.stateService.getSnapshot();
+
+    if (extractedData) {
+      this.invoice = extractedData;
       this.isLoading = false;
       return;
     }
 
-    // Si no, iniciamos el proceso
-    await this.processWithIA();
+    if (invoiceId) {
+      this.subscribeToUpdates(invoiceId);
+    } else {
+      this.errorMessage = 'No se encontró una factura para validar.';
+      this.isLoading = false;
+    }
   }
 
-  async processWithIA(retries = 3) {
-    const snapshot = this.stateService.getSnapshot();
-    const fileKey = snapshot?.storageKey;
-
-    if (!fileKey) {
-      console.error('❌ Error: storageKey es undefined');
-      this.errorMessage = "No se encontró la referencia del archivo.";
-      this.isLoading = false;
-      return; 
-    }
-
-    this.isLoading = true;
-    this.errorMessage = null;
-
-    for (let i = 0; i <= retries; i++) {
-      try {
-        console.log(`🚀 [Intento ${i + 1}] Procesando: ${fileKey}`);
-        
-        // Llamada a AppSync
-        const result = await this.appsyncService.processInvoiceIA(
-          fileKey, 
-          'f3d4f8a2-90c1-708c-a446-2c8592524d62'
-        );
-
-        if (result) {
-          this.invoice = { ...result };
-          this.stateService.setAiData(result); // Guardamos en el Signal global
+  private subscribeToUpdates(id: string) {
+    this.statusSubscription = this.appsyncService.onInvoiceUpdated(id).subscribe({
+      next: ({ data }: any) => {
+        const updatedInvoice = data.onInvoiceUpdated;
+        if (updatedInvoice.status === 'READY') {
+          this.invoice = typeof updatedInvoice.extractedData === 'string' 
+            ? JSON.parse(updatedInvoice.extractedData) 
+            : updatedInvoice.extractedData;
+          this.stateService.setAiData(this.invoice);
           this.isLoading = false;
-          return; 
-        }
-      } catch (error: any) {
-        // ... tu lógica de reintentos actual (está perfecta) ...
-        const isLastRetry = i === retries;
-        if (isLastRetry) {
-          this.errorMessage = "Fallo definitivo tras reintentos.";
+          this.statusSubscription?.unsubscribe();
+        } 
+        else if (updatedInvoice.status === 'FAILED') {
           this.isLoading = false;
-        } else {
-          const delay = (3000 * (i + 1)) + Math.floor(Math.random() * 1000);
-          await new Promise(res => setTimeout(res, delay));
+          this.errorMessage = 'La IA no pudo procesar el documento.';
         }
+      },
+      error: (err) => {
+        this.errorMessage = 'Error en la conexión con AppSync.';
+        this.isLoading = false;
       }
-    }
+    });
   }
 
-  confirm() {
-    if (!this.invoice.vendor || !this.invoice.total) {
-      this.messageService.add({ 
-        severity: 'warn', 
-        summary: 'Datos incompletos', 
-        detail: 'Verifica proveedor y monto total.' 
-      });
-      return;
-    }
-    this.stateService.setAiData(this.invoice);
-    this.onConfirm.emit(this.invoice);
+  // --- MÉTODOS QUE EL HTML NECESITA ---
+  
+  goBack() { // Fix para TS2339 en (click)="goBack()"
+    // Aquí podrías inyectar el Router y volver al step anterior
+    console.log('Navegando hacia atrás...');
+    window.history.back(); 
   }
 
-  goBack() {
-    this.onBack.emit();
+  confirm() { // Fix para el botón de confirmar
+    this.handleConfirm();
+  }
+
+  async handleConfirm() {
+    console.log('Sincronizando factura...', this.invoice);
+    // Tu lógica de llamada a appsyncService.confirmInvoice(...)
+  }
+
+  ngOnDestroy() {
+    this.statusSubscription?.unsubscribe();
   }
 }

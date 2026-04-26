@@ -6,7 +6,7 @@
     <p-progressSpinner strokeWidth="3" fill="transparent" animationDuration=".5s"></p-progressSpinner>
     <div class="mt-6 text-center">
       <h3 class="text-white font-bold text-xl mb-2">Analizando Documento</h3>
-      <p class="text-slate-400 text-sm animate-pulse">Invocando AWS Bedrock & Climatiq API...</p>
+      <p class="text-slate-400 text-sm animate-pulse">Procesando en AWS (SQS & Bedrock)...</p>
     </div>
   </div>
 
@@ -70,7 +70,7 @@
       <p class="text-red-200 text-xs">{{ errorMessage }}</p>
     </div>
 
-    <div class="form-content flex-1 space-y-10">
+    <div class="form-content flex-1 space-y-10" *ngIf="invoice">
       
       <div class="field">
         <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Vendor / Service Provider</label>
@@ -119,8 +119,8 @@
       <p-button label="Volver" icon="pi pi-arrow-left" (click)="goBack()" 
                 styleClass="p-button-text p-button-secondary font-bold"></p-button>
       
-      <p-button label="Confirmar y Sincronizar" icon="pi pi-sync" [loading]="isLoading"
-                (click)="confirm()" 
+      <p-button label="Confirmar y Sincronizar" icon="pi pi-sync" [loading]="isLoading" [disabled]="isLoading || !invoice"
+                (click)="handleConfirm()" 
                 styleClass="p-button-emerald px-10 h-14 rounded-xl shadow-lg shadow-emerald-500/20">
       </p-button>
     </div>

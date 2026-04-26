@@ -22,10 +22,10 @@ import { AppSyncService } from '../../../../core/services/appsync.service';
   selector: 'app-invoice-upload',
   standalone: true,
   imports: [
-    CommonModule, 
-    FormsModule, 
+    CommonModule,
+    FormsModule,
     ReactiveFormsModule,
-    FileUploadModule, 
+    FileUploadModule,
     ButtonModule,
     InputTextModule,
     DropdownModule,
@@ -40,7 +40,7 @@ export class InvoiceUploadComponent implements OnInit {
   private stateService = inject(InvoiceStateService);
   private appsyncService = inject(AppSyncService);
   private messageService = inject(MessageService);
-  
+
   @Output() onComplete = new EventEmitter<void>();
 
   isLoading = false;
@@ -138,60 +138,68 @@ export class InvoiceUploadComponent implements OnInit {
   /**
    * Proceso de subida sincronizado con la Key real de S3
    */
+/**
+   * Proceso de subida reactivo usando S3 Metadata
+   */
   async processAndContinue() {
     if (this.uploadForm.valid && this.selectedFile) {
       this.isLoading = true;
-      
+
       try {
         // 1. Obtener URL firmada
-        console.log('📡 Solicitando Presigned URL...');
+        // Nota: Tu backend debe estar configurado para permitir estos metadatos en la URL firmada
         const uploadUrl = await this.appsyncService.getPresignedUrl(
-          this.selectedFile.name, 
+          this.selectedFile.name,
           this.selectedFile.type
         );
 
-        // 2. Subida a S3 y captura de la KEY REAL (Path completo: uploads/ID/timestamp-file.pdf)
-        console.log('📤 Subiendo a S3...');
-        const uploadResult = await this.appsyncService.uploadFileToS3(uploadUrl, this.selectedFile);
-        
+        // 2. Extraer metadatos del formulario para adjuntar al objeto S3
+        // S3 requiere que los metadatos sean strings
+        const metadata = {
+          serviceType: this.uploadForm.value.serviceType || '',
+          building: this.uploadForm.value.building || '',
+          meterId: this.uploadForm.value.meterId || '',
+          costCenter: this.uploadForm.value.costCenter || '',
+          internalNote: this.uploadForm.value.internalNote || ''
+        };
+
+        // 3. Subida a S3 incluyendo la "mochila" de datos
+        // Modificamos uploadFileToS3 para que acepte metadatos
+        const uploadResult = await this.appsyncService.uploadFileToS3(
+          uploadUrl, 
+          this.selectedFile, 
+          metadata
+        );
+
         if (!uploadResult.success || !uploadResult.key) {
-          throw new Error("La subida a S3 falló o no devolvió una Key válida.");
+          throw new Error("La subida a S3 falló.");
         }
 
-        // 3. Persistencia en el Estado Global (UN SOLO BLOQUE)
-        console.log('💾 Persistiendo estado con Key:', uploadResult.key);
-        
-        // Guardamos metadatos del formulario y referencia al archivo
+        // --- PASO 4: Persistencia en el Estado Local ---
+        // Como no tenemos el ID (lo genera la Lambda), usamos el storageKey
+        // para que el Step 2 sepa qué factura "escuchar" en la Subscription
+        this.stateService.setStorageKey(uploadResult.key);
         this.stateService.setStep1Data(this.uploadForm.value, this.selectedFile);
-        
-        // Seteamos la Key real (la ruta completa en S3) para que la IA la encuentre
-        this.stateService.setStorageKey(uploadResult.key); 
 
-        this.messageService.add({ 
-          severity: 'success', 
-          summary: 'Subida exitosa', 
-          detail: 'Archivo listo para análisis de IA.' 
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Documento en proceso',
+          detail: 'El servidor está analizando la factura...'
         });
-        
-        // 4. Continuar al Step 2
+
+        // 5. Continuar al Step 2 (Validation)
         this.onComplete.emit();
 
       } catch (error: any) {
         console.error('❌ Error en el Pipeline:', error);
         this.messageService.add({ 
           severity: 'error', 
-          summary: 'Error de proceso', 
-          detail: error.message || 'Error al sincronizar con el almacenamiento cloud' 
+          summary: 'Error', 
+          detail: error.message 
         });
       } finally {
         this.isLoading = false;
       }
-    } else {
-      this.messageService.add({ 
-        severity: 'warn', 
-        summary: 'Formulario incompleto', 
-        detail: 'Por favor completa todos los campos y selecciona un PDF.' 
-      });
     }
   }
 }

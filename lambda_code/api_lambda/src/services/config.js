@@ -1347,56 +1347,79 @@ export const configService = {
         };
     },
 
+    /**
+ * Procesa una factura mediante el pipeline de IA.
+ * @param {string} orgId - ID de la organización (Tenant)
+ * @param {string} fileName - La Key completa de S3 (uploads/org/file.pdf)
+ * @param {string} bucket - Nombre del bucket de S3
+ */
     processInvoiceIA: async (orgId, fileName, bucket) => {
-        // 1. Asegurar que la Key es la que recibimos (incluyendo timestamps)
         const key = fileName;
         console.log(`\n--- ⚙️ STARTING AI PIPELINE [ORG: ${orgId}] ---`);
         console.log(`[CHECK] S3 Target: s3://${bucket}/${key}`);
 
         try {
-            // 2. OBTENCIÓN DEL TEXTO
+            // 1. OBTENCIÓN DEL TEXTO (OCR / EXTRACCIÓN)
+            // Intentamos obtener el contenido del archivo
             const extractionResponse = await callExtractionAgent(bucket, key);
 
+            // Log para ver exactamente qué devuelve el agente antes de fallar
+            console.log(`[DEBUG] Extraction Agent Response Type: ${typeof extractionResponse}`);
+
             let rawText = "";
+
+            // 2. NORMALIZACIÓN DE LA RESPUESTA
             if (typeof extractionResponse === 'string') {
                 rawText = extractionResponse;
-            } else if (typeof extractionResponse === 'object' && extractionResponse !== null) {
-                // Si callExtractionAgent devuelve un objeto con ceros (el error que vimos), esto lo captura
-                rawText = extractionResponse.text || extractionResponse.body || extractionResponse.content;
+            } else if (extractionResponse && typeof extractionResponse === 'object') {
+                // Buscamos texto en todas las propiedades posibles que suelen devolver los agentes de AWS
+                rawText = extractionResponse.text ||
+                    extractionResponse.body ||
+                    extractionResponse.content ||
+                    "";
 
-                // Si no hay texto pero hay un objeto JSON, podría ser el error de "placeholder"
-                if (!rawText && extractionResponse.service_category) {
-                    throw new Error("El extractor devolvió un esquema vacío. ¿Es correcta la Key del archivo?");
+                // Si no hay texto pero el agente ya devolvió datos procesados (atajo)
+                if (!rawText && extractionResponse.total_amount > 0) {
+                    console.log("⚠️ El agente devolvió datos estructurados directamente sin texto plano.");
+                    // Podríamos saltar directamente al mapeo si el agente es muy avanzado
                 }
             }
 
-            // Validar longitud mínima real
-            if (!rawText || rawText.trim().length < 50) {
-                console.error(`[ERROR] Contenido insuficiente extraído: "${rawText}"`);
-                throw new Error(`Texto insuficiente (${rawText?.length || 0} chars). Textract no pudo leer el archivo o la Key es incorrecta.`);
+            // 3. VALIDACIÓN DE CONTENIDO REAL
+            // Bajamos el umbral de 50 a 10 caracteres por si son facturas muy minimalistas
+            if (!rawText || rawText.trim().length < 10) {
+                console.error(`[ERROR] Contenido insuficiente extraído. Key: ${key}`);
+
+                // Si el objeto tiene una categoría de servicio pero NO texto, 
+                // probablemente es el placeholder que estaba causando el error.
+                if (extractionResponse && extractionResponse.service_category) {
+                    console.warn("[WARN] Se detectó objeto de metadatos pero sin contenido de texto.");
+                }
+
+                throw new Error(`No se pudo leer el contenido del PDF. Verifica que el archivo no sea una imagen protegida o esté vacío.`);
             }
 
-            console.log(`[DEBUG_STEP_1] Text Size: ${rawText.length} chars. Preview: ${rawText.substring(0, 100)}...`);
+            console.log(`[DEBUG_STEP_1] Text Size: ${rawText.length} chars. Preview: ${rawText.substring(0, 60).replace(/\n/g, ' ')}...`);
 
-            // 3. CLASIFICACIÓN
+            // 4. CLASIFICACIÓN DE CONTEXTO
             const detectedCategory = await identifyCategory(rawText);
-            console.log(`[PIPELINE] 1. Contexto: Cat detectada "${detectedCategory}"`);
+            console.log(`[PIPELINE] 1. Contexto: Categoría detectada "${detectedCategory}"`);
 
-            // 4. ANÁLISIS BEDROCK
-            console.log(`[PIPELINE] 2. Llamando a Bedrock para análisis...`);
+            // 5. ANÁLISIS CON MODELO LLM (BEDROCK)
+            console.log(`[PIPELINE] 2. Llamando a Bedrock para análisis semántico...`);
             const aiAnalysis = await analyzeInvoice(rawText, detectedCategory);
 
-            // VALIDACIÓN CRÍTICA: Si Bedrock no extrajo nada útil, no seguimos a Climatiq
+            // Validación preventiva de datos financieros
             if (!aiAnalysis || !aiAnalysis.extracted_data || aiAnalysis.extracted_data.total_amount === 0) {
-                console.warn("[WARN] Bedrock no detectó datos monetarios. Revisar prompt o calidad del OCR.");
+                console.warn("[WARN] Bedrock no detectó montos económicos. Revisar calidad del OCR o el Prompt.");
             }
 
             console.log(`[DEBUG_STEP_2] IA Response: ${aiAnalysis?.category} | Confidence: ${aiAnalysis?.confidence_score}`);
 
-            // 5. MOTOR DE EMISIONES
-            console.log(`[PIPELINE] 3. Calculando huella con Climatiq...`);
+            // 6. MOTOR DE EMISIONES (CLIMATIQ)
+            console.log(`[PIPELINE] 3. Calculando huella de carbono...`);
 
-            // Protección contra aiAnalysis nulo o sin líneas
+            // Aseguramos que las líneas de emisión tengan la categoría correcta
             const emissionLines = (aiAnalysis?.emission_lines || []).map(line => ({
                 ...line,
                 category: line.category || aiAnalysis?.category || "OTHERS"
@@ -1405,7 +1428,7 @@ export const configService = {
             const country = aiAnalysis?.extracted_data?.location?.country || "ES";
             const emissionCalculations = await calculateFootprint(emissionLines, country);
 
-            // 6. MAPEADO (Golden Record)
+            // 7. CONSTRUCCIÓN DEL GOLDEN RECORD (PERSISTENCIA)
             const goldenRecord = buildGoldenRecord(
                 `ORG#${orgId}`,
                 key,
@@ -1416,27 +1439,36 @@ export const configService = {
                 { source: 'web_upload', uploadedAt: new Date().toISOString() }
             );
 
-            // 7. PERSISTENCIA
-            console.log(`\n--- 📊 DATA CHECK [${key}] ---`);
-            console.log(`   🌍 CO2:      ${goldenRecord.climatiq_result?.co2e || 0} kg`);
+            // 8. LOGS FINALES Y PERSISTENCIA EN DB
+            console.log(`\n--- 📊 DATA SUMMARY [${key}] ---`);
+            console.log(`   🌍 CO2e:     ${goldenRecord.climatiq_result?.co2e || 0} kg`);
             console.log(`   💰 Total:    ${goldenRecord.extracted_data?.total_amount || 0} ${goldenRecord.extracted_data?.currency || ''}`);
             console.log(`   📝 Vendor:   ${goldenRecord.extracted_data?.vendor || 'N/A'}`);
 
             await persistTransaction(goldenRecord);
 
+            // 9. RESPUESTA PARA EL FRONTEND (APPSYNC)
             return {
                 vendor: goldenRecord.extracted_data?.vendor || 'Unknown',
                 total: goldenRecord.extracted_data?.total_amount || 0,
                 date: goldenRecord.extracted_data?.date || '',
                 consumption: goldenRecord.extracted_data?.consumption || 0,
                 co2e: goldenRecord.climatiq_result?.co2e || 0,
-                success: true
+                success: true,
+                message: "Procesado correctamente"
             };
 
         } catch (error) {
-            console.error(`\n❌ [PIPELINE_ERROR]: Fallo en ${key}`);
-            console.error(`Detalle: ${error.message}`);
-            throw error;
+            console.error(`\n❌ [PIPELINE_ERROR]: Fallo crítico en ${key}`);
+            console.error(`Detalle técnico: ${error.message}`);
+
+            // Devolvemos un objeto estructurado para que AppSync no de error de null
+            return {
+                success: false,
+                message: error.message || "Error interno en el pipeline de IA",
+                vendor: "N/A",
+                total: 0
+            };
         }
     }
 
