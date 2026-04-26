@@ -30,20 +30,21 @@ export const persistTransaction = async (goldenRecord) => {
     // 2. PREPARACIÓN DE OPERACIONES TRANSACTIONALES
     try {
         // Operación A: Actualizar el Registro Maestro (De Skeleton a Golden)
+        // services/data/db.js
+
         const masterUpdate = {
             Update: {
                 TableName: TABLE_NAME,
                 Key: { PK, SK },
-                // Usamos UpdateExpression para NO pisar lo que el Dispatcher ya creó
                 UpdateExpression: `SET 
-                    #st = :done, 
-                    ai_analysis = :ai, 
-                    climatiq_result = :cr, 
-                    extracted_data = :ed, 
-                    processed_at = :now,
-                    total_days_prorated: :days,
-                    metadata = :meta`,
-                ConditionExpression: "#st = :processing", // Solo si sigue en procesamiento
+            #st = :done, 
+            ai_analysis = :ai, 
+            climatiq_result = :cr, 
+            extracted_data = :ed, 
+            processed_at = :now,
+            total_days_prorated = :days,  // <--- CAMBIADO ':' POR '='
+            metadata = :meta`,
+                ConditionExpression: "#st = :processing",
                 ExpressionAttributeNames: { "#st": "status" },
                 ExpressionAttributeValues: {
                     ":done": "DONE",
@@ -52,7 +53,7 @@ export const persistTransaction = async (goldenRecord) => {
                     ":cr": climatiq_result,
                     ":ed": extracted_data,
                     ":now": isoNow,
-                    ":days": totalDays,
+                    ":days": totalDays, // <--- Este es el valor que se asigna
                     ":meta": {
                         ...metadata,
                         processed_at: isoNow,
@@ -62,7 +63,6 @@ export const persistTransaction = async (goldenRecord) => {
                 }
             }
         };
-
         // 3. MOTOR DE AGREGACIÓN (Tu lógica de StatsMap se mantiene igual)
         const statsMap = new Map();
         let currentDate = new Date(startDate);
