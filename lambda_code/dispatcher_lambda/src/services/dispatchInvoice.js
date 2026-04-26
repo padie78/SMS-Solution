@@ -1,9 +1,9 @@
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 
-// 1. Instanciamos el cliente FUERA del handler para reutilizar la conexión (Best Practice)
 const sqs = new SQSClient({}); 
 
-export const dispatchInvoice = async (bucket, key, orgId) => {
+// 1. Agregamos 'sk' a los parámetros
+export const dispatchInvoice = async (bucket, key, orgId, sk) => {
     try {
         console.log(`📝 [DISPATCHER] | Despachando a SQS: ${key}`);
 
@@ -11,22 +11,22 @@ export const dispatchInvoice = async (bucket, key, orgId) => {
             bucket,
             key,
             orgId,
+            sk, // 2. IMPORTANTE: Ahora el Worker sí lo va a encontrar
             timestamp: new Date().toISOString(),
             status: "PENDING_WORKER"
         };
 
-        // 2. Ahora 'sqs' ya está definido y disponible aquí
         await sqs.send(new SendMessageCommand({
-            QueueUrl: "https://sqs.eu-central-1.amazonaws.com/473959757331/sms-platform-invoice-queue-dev", // Reemplaza con tu URL de SQS
+            // Tip: Usá process.env.QUEUE_URL si podés para no hardcodear el ID de cuenta
+            QueueUrl: "https://sqs.eu-central-1.amazonaws.com/473959757331/sms-platform-invoice-queue-dev", 
             MessageBody: JSON.stringify(messageBody),
         }));
 
-        console.log(`✅ [DISPATCHER] | Mensaje encolado con éxito.`);
+        console.log(`✅ [DISPATCHER] | Mensaje encolado con éxito: ${sk}`);
         
         return { success: true, message: "Enqueued" };
 
     } catch (error) {
-        // Aquí es donde capturabas el "sqs is not defined"
         console.error(`❌ [DISPATCHER_ERROR]: ${error.message}`);
         throw error;
     }
