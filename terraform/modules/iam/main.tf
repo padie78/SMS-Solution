@@ -15,13 +15,11 @@ data "aws_iam_policy_document" "lambda_assume_role" {
 # 2. DEFINICIÓN DE ROLES (Dispatcher y Worker)
 # ==============================================================================
 
-# Este es el nuevo rol para la Lambda que recibe de S3 y manda a SQS
 resource "aws_iam_role" "dispatcher_lambda_role" {
   name               = "${var.project_name}-dispatcher-role-${var.environment}"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
 }
 
-# Este es el rol para la Lambda que consume de SQS y hace el OCR/IA
 resource "aws_iam_role" "worker_lambda_role" {
   name               = "${var.project_name}-worker-role-${var.environment}"
   assume_role_policy = data.aws_iam_policy_document.lambda_assume_role.json
@@ -41,7 +39,6 @@ resource "aws_iam_role" "lambda_role" {
 # 3. POLÍTICAS DE PERMISOS (SQS, IA, S3, DYNAMO)
 # ==============================================================================
 
-# --- SQS: Dispatcher (Publish) ---
 resource "aws_iam_policy" "dispatcher_sqs_publish" {
   name        = "${var.project_name}-dispatcher-sqs-publish-${var.environment}"
   description = "Permite enviar mensajes a la cola de facturas"
@@ -50,12 +47,11 @@ resource "aws_iam_policy" "dispatcher_sqs_publish" {
     Statement = [{
       Action   = "sqs:SendMessage"
       Effect   = "Allow"
-      Resource = var.invoice_queue_arn # Usamos variable inyectada
+      Resource = var.invoice_queue_arn
     }]
   })
 }
 
-# --- SQS: Worker (Consume) ---
 resource "aws_iam_policy" "worker_sqs_consume" {
   name        = "${var.project_name}-worker-sqs-consume-${var.environment}"
   description = "Permite leer y borrar mensajes de la cola"
@@ -64,12 +60,11 @@ resource "aws_iam_policy" "worker_sqs_consume" {
     Statement = [{
       Action   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"]
       Effect   = "Allow"
-      Resource = var.invoice_queue_arn # Usamos variable inyectada
+      Resource = var.invoice_queue_arn
     }]
   })
 }
 
-# --- IA: Bedrock & Textract (Unificada para el Worker) ---
 resource "aws_iam_policy" "ai_processing_policy" {
   name        = "${var.project_name}-ai-policy-${var.environment}"
   policy = jsonencode({
@@ -92,20 +87,19 @@ resource "aws_iam_policy" "ai_processing_policy" {
   })
 }
 
-# --- Storage: S3 Access ---
+# --- Storage: S3 Access (MODIFICADO para incluir PutObject) ---
 resource "aws_iam_policy" "s3_processing_policy" {
   name        = "${var.project_name}-s3-policy-${var.environment}"
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
       Effect   = "Allow"
-      Action   = ["s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation"]
+      Action   = ["s3:GetObject", "s3:PutObject", "s3:ListBucket", "s3:GetBucketLocation"]
       Resource = ["arn:aws:s3:::${var.project_name}-${var.environment}-uploads", "arn:aws:s3:::${var.project_name}-${var.environment}-uploads/*"]
     }]
   })
 }
 
-# --- Data: DynamoDB Access ---
 resource "aws_iam_policy" "dynamo_app_policy" {
   name   = "${var.project_name}-dynamo-policy-${var.environment}"
   policy = jsonencode({
@@ -122,7 +116,6 @@ resource "aws_iam_policy" "dynamo_app_policy" {
 # 4. ATTACHMENTS (Vincular todo)
 # ==============================================================================
 
-# --- Logs para todos ---
 resource "aws_iam_role_policy_attachment" "basic_execution" {
   for_each = toset([
     aws_iam_role.dispatcher_lambda_role.name,
@@ -134,13 +127,11 @@ resource "aws_iam_role_policy_attachment" "basic_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
-# --- Dispatcher: SQS Send ---
 resource "aws_iam_role_policy_attachment" "dispatcher_sqs" {
   role       = aws_iam_role.dispatcher_lambda_role.name
   policy_arn = aws_iam_policy.dispatcher_sqs_publish.arn
 }
 
-# --- Worker: SQS Consume + IA + S3 + Dynamo ---
 resource "aws_iam_role_policy_attachment" "worker_sqs" {
   role       = aws_iam_role.worker_lambda_role.name
   policy_arn = aws_iam_policy.worker_sqs_consume.arn
@@ -158,10 +149,15 @@ resource "aws_iam_role_policy_attachment" "worker_dynamo" {
   policy_arn = aws_iam_policy.dynamo_app_policy.arn
 }
 
-# --- API Role: Dynamo + S3 ---
 resource "aws_iam_role_policy_attachment" "api_dynamo" {
   role       = aws_iam_role.api_lambda_role.name
   policy_arn = aws_iam_policy.dynamo_app_policy.arn
+}
+
+# --- NUEVO ATTACHMENT: S3 para el Signer (lambda_role) ---
+resource "aws_iam_role_policy_attachment" "generic_s3" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.s3_processing_policy.arn
 }
 
 # ==============================================================================
