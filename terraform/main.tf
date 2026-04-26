@@ -72,7 +72,7 @@ module "compute" {
   upload_bucket_arn   = module.storage.bucket_arn # REPARADO: Se agregó el ARN
   dynamo_table_name   = module.database.table_name
   dynamo_table_arn    = module.database.table_arn   # REPARADO: Se agregó el ARN
-  invoice_queue_arn = module.sqs.invoice_queue_arn # O como se llame tu salida de SQS
+  invoice_queue_arn = module.invoice_process_queue.invoice_queue_arn
   
   # 4. IA y APIs
   bedrock_model_id    = var.bedrock_model_id
