@@ -4,6 +4,7 @@ resource "aws_sqs_queue" "this" {
   max_message_size          = 262144
   message_retention_seconds = 86400 # 1 día
   receive_wait_time_seconds = 10    # Long polling
+  visibility_timeout_seconds = 1810
   
   # Redrive policy para conectar con la DLQ
   redrive_policy = var.dlq_arn != "" ? jsonencode({
