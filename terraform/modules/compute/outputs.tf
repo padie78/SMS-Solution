@@ -12,12 +12,12 @@ output "worker_lambda_arn" {
 
 # --- Aliases de Compatibilidad (Para no romper el resto del código) ---
 
-output "processor_lambda_arn" {
+output "dispatcher_lambda_arn" {
   description = "Alias para dispatcher (mantiene compatibilidad con storage/iam)"
   value       = aws_lambda_function.dispatcher_lambda.arn
 }
 
-output "processor_lambda_name" {
+output "dispatcher_lambda_name" {
   value = aws_lambda_function.dispatcher_lambda.function_name
 }
 

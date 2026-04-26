@@ -34,8 +34,8 @@ module "storage" {
   restrict_public_buckets = var.restrict_public_buckets
   
   # Trigger de la Lambda de procesamiento al subir archivos
-  processor_lambda_arn    = module.compute.processor_lambda_arn
-  processor_lambda_name   = module.compute.processor_lambda_name
+  dispatcher_lambda_arn    = module.compute.dispatcher_lambda_arn
+  dispatcher_lambda_name   = module.compute.dispatcher_lambda_name
 }
 
 module "database" {

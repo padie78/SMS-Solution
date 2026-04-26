@@ -55,23 +55,23 @@ resource "aws_s3_bucket_website_configuration" "frontend_config" {
 }
 
 # Permiso para que S3 invoque la Lambda
-resource "aws_lambda_permission" "s3_invoke_processor" {
-  statement_id  = "AllowS3InvokeProcessor"
+resource "aws_lambda_permission" "s3_invoke_dispatcher" {
+  statement_id  = "AllowS3InvokeDispatcher"
   action        = "lambda:InvokeFunction"
-  function_name = var.processor_lambda_name
+  function_name = var.dispatcher_lambda_name
   principal     = "s3.amazonaws.com"
   source_arn    = module.s3_bucket.s3_bucket_arn
 }
 
-resource "aws_s3_bucket_notification" "processor_trigger" {
+resource "aws_s3_bucket_notification" "dispatcher_trigger" {
   bucket = module.s3_bucket.s3_bucket_id
 
   lambda_function {
-    lambda_function_arn = var.processor_lambda_arn
+    lambda_function_arn = var.dispatcher_lambda_arn
     events              = ["s3:ObjectCreated:Put", "s3:ObjectCreated:Post"] 
     
     # Si el ID del cliente va al principio, dejamos el prefijo vacío 
     # o lo cambiamos para que busque en cualquier carpeta pero solo PDFs
   }
-  depends_on = [aws_lambda_permission.s3_invoke_processor]
+  depends_on = [aws_lambda_permission.s3_invoke_dispatcher]
 }

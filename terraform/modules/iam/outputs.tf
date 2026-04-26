@@ -1,5 +1,4 @@
-# El rol del Worker (el que antes era processor)
-output "invoice_processor_role_arn" {
+output "invoice_dispatcher_role_arn" {
   value = aws_iam_role.worker_lambda_role.arn
 }
 

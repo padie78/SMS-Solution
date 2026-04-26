@@ -44,10 +44,10 @@ variable "cors_allowed_headers" {
   description = "Encabezados permitidos para CORS."
 }
 
-variable "processor_lambda_arn" {
+variable "dispatcher_lambda_arn" {
   type = string
 }
 
-variable "processor_lambda_name" {
+variable "dispatcher_lambda_name" {
   type = string
 }
