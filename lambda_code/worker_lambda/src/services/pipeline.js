@@ -3,7 +3,7 @@ import { identifyCategory } from "./ia/classifier.js";
 import { analyzeInvoice } from "./ia/bedrock.js";
 import { calculateFootprint } from "./apis/climatiq.js";
 import { buildGoldenRecord } from "../utils/mapper.js";
-import { updateInvoiceRecord } from "./data/db.js"; // CAMBIO: de persist a update
+import { persistTransaction } from "./data/db.js"; // CAMBIO: de persist a update
 
 /**
  * Orquestador: S3 -> Textract -> IA -> Climatiq -> DB (Update)
@@ -52,7 +52,7 @@ export const pipeline = async (sqsMessage, orgId) => {
 
         // --- FASE 5: PERSISTENCIA (UpdateItem) ---
         // Cambiamos 'persistTransaction' por una función que haga UPDATE
-        await updateInvoiceRecord(goldenRecord);
+        await persistTransaction(goldenRecord);
         console.log(`[PIPELINE] 5. Éxito: Skeleton actualizado a Golden Record.`);
 
         return goldenRecord;
