@@ -87,7 +87,7 @@ resource "aws_iam_policy" "ai_processing_policy" {
   })
 }
 
-# --- Storage: S3 Access (MODIFICADO para incluir PutObject) ---
+# --- Storage: S3 Access ---
 resource "aws_iam_policy" "s3_processing_policy" {
   name        = "${var.project_name}-s3-policy-${var.environment}"
   policy = jsonencode({
@@ -116,6 +116,7 @@ resource "aws_iam_policy" "dynamo_app_policy" {
 # 4. ATTACHMENTS (Vincular todo)
 # ==============================================================================
 
+# Logs básicos para todos los roles
 resource "aws_iam_role_policy_attachment" "basic_execution" {
   for_each = toset([
     aws_iam_role.dispatcher_lambda_role.name,
@@ -127,11 +128,18 @@ resource "aws_iam_role_policy_attachment" "basic_execution" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
+# --- Dispatcher: SQS Send + Dynamo (Skeleton) ---
 resource "aws_iam_role_policy_attachment" "dispatcher_sqs" {
   role       = aws_iam_role.dispatcher_lambda_role.name
   policy_arn = aws_iam_policy.dispatcher_sqs_publish.arn
 }
 
+resource "aws_iam_role_policy_attachment" "dispatcher_dynamo" {
+  role       = aws_iam_role.dispatcher_lambda_role.name
+  policy_arn = aws_iam_policy.dynamo_app_policy.arn
+}
+
+# --- Worker: SQS Consume + IA + S3 + Dynamo ---
 resource "aws_iam_role_policy_attachment" "worker_sqs" {
   role       = aws_iam_role.worker_lambda_role.name
   policy_arn = aws_iam_policy.worker_sqs_consume.arn
@@ -149,24 +157,18 @@ resource "aws_iam_role_policy_attachment" "worker_dynamo" {
   policy_arn = aws_iam_policy.dynamo_app_policy.arn
 }
 
+# --- API Role: Dynamo + S3 ---
 resource "aws_iam_role_policy_attachment" "api_dynamo" {
   role       = aws_iam_role.api_lambda_role.name
   policy_arn = aws_iam_policy.dynamo_app_policy.arn
 }
 
-# --- NUEVO ATTACHMENT: S3 para el Signer (lambda_role) ---
+# --- Signer: S3 Access ---
 resource "aws_iam_role_policy_attachment" "generic_s3" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.s3_processing_policy.arn
 }
 
 # ==============================================================================
-# 5. TRIGGERS (Event Source Mapping)
+# 5. TRIGGERS (Nota: Definidos en raíz)
 # ==============================================================================
-# main.tf (RAÍZ) - Al final del archivo
-# resource "aws_lambda_event_source_mapping" "sqs_to_worker" {
-#   event_source_arn = module.invoice_process_queue.arn
-#   function_name    = module.compute.worker_lambda_arn
-#   batch_size       = 1
-#   enabled          = true
-# }
