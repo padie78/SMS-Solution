@@ -1,25 +1,23 @@
-# ==============================================================================
-# OUTPUTS DEL MÓDULO IAM
-# ==============================================================================
-
-# 1. ARN para la Lambda Processor (IA, S3, Textract, Dynamo)
+# El rol del Worker (el que antes era processor)
 output "invoice_processor_role_arn" {
-  description = "ARN del rol para la Lambda de procesamiento de facturas"
-  value       = aws_iam_role.invoice_processor_role.arn
+  value = aws_iam_role.worker_lambda_role.arn
 }
 
-# 2. ARN para la Lambda de la API (CRUD en DynamoDB)
+output "worker_lambda_role_arn" {
+  value = aws_iam_role.worker_lambda_role.arn
+}
+
+# El rol del Dispatcher
+output "dispatcher_lambda_role_arn" {
+  value = aws_iam_role.dispatcher_lambda_role.arn
+}
+
+# El rol de la API
 output "api_lambda_role_arn" {
-  description = "ARN del rol para la Lambda que maneja las peticiones de la API"
-  value       = aws_iam_role.api_lambda_role.arn
+  value = aws_iam_role.api_lambda_role.arn
 }
 
-# 3. ARN para el Rol Genérico (Utilizado por el Signer / S3)
+# Otros roles que tengas definidos
 output "lambda_role_arn" {
-  description = "ARN del rol genérico con permisos para generar URLs firmadas"
-  value       = aws_iam_role.lambda_role.arn # Asegúrate que apunte a lambda_role
-}
-
-output "lambda_role_name" {
-  value = aws_iam_role.lambda_role.name # O el nombre que tenga tu recurso de rol
+  value = aws_iam_role.lambda_role.arn
 }
