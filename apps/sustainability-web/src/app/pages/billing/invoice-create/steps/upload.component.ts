@@ -74,7 +74,6 @@ export class InvoiceUploadComponent implements OnInit {
 
   filteredMeters: any[] = [];
 
-  // --- FORMULARIO ---
   uploadForm = new FormGroup({
     serviceType: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
     building: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -136,67 +135,45 @@ export class InvoiceUploadComponent implements OnInit {
   }
 
   /**
-   * Proceso de subida sincronizado con la Key real de S3
+   * Proceso de subida estandar: S3 (archivo) -> AppSync (datos)
    */
-/**
-   * Proceso de subida reactivo usando S3 Metadata
-   */
-  async processAndContinue() {
+ async processAndContinue() {
     if (this.uploadForm.valid && this.selectedFile) {
       this.isLoading = true;
 
       try {
-        // 1. Obtener URL firmada
-        // Nota: Tu backend debe estar configurado para permitir estos metadatos en la URL firmada
+        // 1. Subida a S3 (Esto dispara tu Lambda de Background)
         const uploadUrl = await this.appsyncService.getPresignedUrl(
           this.selectedFile.name,
           this.selectedFile.type
         );
 
-        // 2. Extraer metadatos del formulario para adjuntar al objeto S3
-        // S3 requiere que los metadatos sean strings
-        const metadata = {
-          serviceType: this.uploadForm.value.serviceType || '',
-          building: this.uploadForm.value.building || '',
-          meterId: this.uploadForm.value.meterId || '',
-          costCenter: this.uploadForm.value.costCenter || '',
-          internalNote: this.uploadForm.value.internalNote || ''
-        };
-
-        // 3. Subida a S3 incluyendo la "mochila" de datos
-        // Modificamos uploadFileToS3 para que acepte metadatos
-        const uploadResult = await this.appsyncService.uploadFileToS3(
-          uploadUrl, 
-          this.selectedFile, 
-          metadata
-        );
+        const uploadResult = await this.appsyncService.uploadFileToS3(uploadUrl, this.selectedFile);
 
         if (!uploadResult.success || !uploadResult.key) {
           throw new Error("La subida a S3 falló.");
         }
 
-        // --- PASO 4: Persistencia en el Estado Local ---
-        // Como no tenemos el ID (lo genera la Lambda), usamos el storageKey
-        // para que el Step 2 sepa qué factura "escuchar" en la Subscription
+        // 2. Persistencia en el Estado Local
+        // IMPORTANTE: Guardamos los datos del formulario en el State Service
+        // para usarlos en el Step 2 (Validation)
         this.stateService.setStorageKey(uploadResult.key);
         this.stateService.setStep1Data(this.uploadForm.value, this.selectedFile);
 
         this.messageService.add({
           severity: 'success',
-          summary: 'Documento en proceso',
-          detail: 'El servidor está analizando la factura...'
+          summary: 'Archivo recibido',
+          detail: 'Procesando metadatos...'
         });
 
-        // 5. Continuar al Step 2 (Validation)
+        // 3. Continuar al Step 2
+        // En el Step 2, cuando el usuario vea los datos de la IA y de "Confirmar",
+        // ahí mandamos TODO el paquete (IA + Formulario del Step 1) en un solo Update.
         this.onComplete.emit();
 
       } catch (error: any) {
-        console.error('❌ Error en el Pipeline:', error);
-        this.messageService.add({ 
-          severity: 'error', 
-          summary: 'Error', 
-          detail: error.message 
-        });
+        console.error('❌ Error:', error);
+        this.messageService.add({ severity: 'error', summary: 'Error', detail: error.message });
       } finally {
         this.isLoading = false;
       }
