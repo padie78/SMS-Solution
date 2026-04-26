@@ -160,6 +160,15 @@ resource "aws_lambda_function" "kpi_engine" {
   source_code_hash = data.archive_file.kpi_zip.output_base64sha256
 }
 
+resource "aws_lambda_event_source_mapping" "sqs_to_worker" {
+  event_source_arn = var.invoice_queue_arn
+  function_name    = aws_lambda_function.worker_lambda.arn # <--- Verificá que se llame así
+  batch_size       = 1
+  enabled          = true
+
+  # Opcional: Ayuda a que Terraform entienda el orden de creación
+  depends_on = [aws_lambda_function.worker_lambda]
+}
 # ==============================================================================
 # 3. OBSERVABILIDAD (Logs)
 # ==============================================================================

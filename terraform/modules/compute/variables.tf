@@ -80,3 +80,8 @@ variable "emissions_api_key" {
   type      = string
   sensitive = true
 }
+
+variable "invoice_queue_arn" {
+  description = "ARN de la cola SQS de facturas"
+  type        = string
+}
