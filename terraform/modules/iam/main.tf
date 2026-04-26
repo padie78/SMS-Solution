@@ -167,9 +167,10 @@ resource "aws_iam_role_policy_attachment" "api_dynamo" {
 # ==============================================================================
 # 5. TRIGGERS (Event Source Mapping)
 # ==============================================================================
+# main.tf (RAÍZ) - Al final del archivo
 resource "aws_lambda_event_source_mapping" "sqs_to_worker" {
-  event_source_arn = var.invoice_queue_arn
-  function_name    = var.worker_lambda_arn # Inyectado desde el root
+  event_source_arn = module.invoice_process_queue.arn
+  function_name    = module.compute.worker_lambda_arn
   batch_size       = 1
   enabled          = true
 }

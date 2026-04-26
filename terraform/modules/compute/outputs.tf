@@ -27,3 +27,26 @@ output "processor_lambda_arn" {
 output "processor_lambda_name" {
   value = aws_lambda_function.processor.function_name
 }
+
+output "dispatcher_lambda_arn" {
+  description = "ARN de la Lambda que recibe eventos de S3 y despacha a SQS"
+  value       = aws_lambda_function.dispatcher_lambda.arn # O como se llame el resource de la lambda dispatcher
+}
+
+output "worker_lambda_arn" {
+  description = "ARN de la Lambda que procesa la factura (OCR/IA)"
+  value       = aws_lambda_function.worker_lambda.arn     # O como se llame el resource de la lambda worker
+}
+
+output "dispatcher_lambda_name" {
+  value = aws_lambda_function.dispatcher_lambda.function_name
+}
+
+output "processor_lambda_arn" {
+  # Mantenemos este para no romper el módulo storage que ya lo usaba
+  value = aws_lambda_function.dispatcher_lambda.arn
+}
+
+output "processor_lambda_name" {
+  value = aws_lambda_function.dispatcher_lambda.function_name
+}

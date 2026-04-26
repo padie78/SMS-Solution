@@ -2,16 +2,24 @@
 # 1. EMPAQUETADO DE CÓDIGO (ZIPs)
 # ==============================================================================
 
+# Lambda que recibe el evento de S3 y envía a SQS
+data "archive_file" "dispatcher_zip" {
+  type        = "zip"
+  source_dir  = "${path.root}/../lambda_code/dispatcher_lambda"
+  output_path = "${path.module}/zips/dispatcher.zip"
+}
+
+# Lambda que procesa los mensajes de SQS (OCR, IA, DynamoDB)
+data "archive_file" "worker_zip" {
+  type        = "zip"
+  source_dir  = "${path.root}/../lambda_code/worker_lambda"
+  output_path = "${path.module}/zips/worker.zip"
+}
+
 data "archive_file" "signer_zip" {
   type        = "zip"
   source_dir  = "${path.root}/../lambda_code/signer_lambda"
   output_path = "${path.module}/zips/signer.zip"
-}
-
-data "archive_file" "processor_zip" {
-  type        = "zip"
-  source_dir  = "${path.root}/../lambda_code/processor_lambda"
-  output_path = "${path.module}/zips/processor.zip"
 }
 
 data "archive_file" "api_lambda_zip" {
@@ -20,7 +28,6 @@ data "archive_file" "api_lambda_zip" {
   output_path = "${path.module}/zips/api_lambda.zip"
 }
 
-# Nuevo empaquetado para la lógica de analíticas (YoY, KPIs, etc.)
 data "archive_file" "analytics_zip" {
   type        = "zip"
   source_dir  = "${path.root}/../lambda_code/analytics_lambda"
@@ -37,71 +44,76 @@ data "archive_file" "kpi_zip" {
 # 2. CONFIGURACIÓN DE LAMBDAS
 # ==============================================================================
 
-# --- LAMBDA 1: SIGNER (Genera URL Firmadas) ---
+# --- DISPATCHER: Gatillo de S3 ---
+resource "aws_lambda_function" "dispatcher_lambda" {
+  function_name = "${var.project_name}-dispatcher-${var.environment}"
+  filename      = data.archive_file.dispatcher_zip.output_path
+  handler       = "src/index.handler"
+  runtime       = "nodejs20.x"
+  role          = var.dispatcher_role_arn
+  timeout       = 10
+  memory_size   = 128
+  architectures = [var.lambda_architecture]
+
+  environment {
+    variables = {
+      SQS_QUEUE_URL = var.sqs_queue_url
+      ENVIRONMENT   = var.environment
+    }
+  }
+  source_code_hash = data.archive_file.dispatcher_zip.output_base64sha256
+}
+
+# --- WORKER: Procesador de SQS (Pesado) ---
+resource "aws_lambda_function" "worker_lambda" {
+  function_name = "${var.project_name}-worker-${var.environment}"
+  filename      = data.archive_file.worker_zip.output_path
+  handler       = "src/index.handler"
+  runtime       = "nodejs20.x"
+  role          = var.worker_role_arn
+  timeout       = 300 # 5 minutos para Textract + Bedrock
+  memory_size   = 512
+  architectures = [var.lambda_architecture]
+
+  environment {
+    variables = {
+      DYNAMO_TABLE      = var.dynamo_table_name
+      BEDROCK_MODEL_ID  = var.bedrock_model_id
+      EMISSIONS_API_URL = var.emissions_api_url
+      EMISSIONS_API_KEY = var.emissions_api_key
+      ENVIRONMENT       = var.environment
+    }
+  }
+  source_code_hash = data.archive_file.worker_zip.output_base64sha256
+}
+
+# --- SIGNER: URLs de subida ---
 resource "aws_lambda_function" "signer" {
   function_name = "${var.project_name}-signer-${var.environment}"
   filename      = data.archive_file.signer_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
-  role          = var.lambda_role_arn 
+  role          = var.lambda_role_arn
   architectures = [var.lambda_architecture]
-
-  kms_key_arn = null 
 
   environment {
     variables = {
       UPLOAD_BUCKET = var.upload_bucket_name
-      # 2. CAMBIA ESTE VALOR (pon un 2 si había un 1). 
-      # Esto fuerza a Lambda a actualizar la configuración de cifrado.
-      KMS_REFRESH    = "v3_fixed"
     }
   }
   source_code_hash = data.archive_file.signer_zip.output_base64sha256
 }
 
-# --- LAMBDA 2: PROCESSOR (IA, OCR y Escritura) ---
-resource "aws_lambda_function" "processor" {
-  function_name = "${var.project_name}-processor-${var.environment}"
-  filename      = data.archive_file.processor_zip.output_path
-  handler       = "src/index.handler"
-  runtime       = "nodejs20.x"
-  role          = var.processor_role_arn 
-  timeout       = 60 
-  memory_size   = 512 
-  architectures = [var.lambda_architecture]
-
-  logging_config {
-    log_format = "JSON"
-    log_group  = aws_cloudwatch_log_group.processor_logs.name
-  }
-
-  environment {
-    variables = {
-      DYNAMO_TABLE                        = var.dynamo_table_name
-      BEDROCK_MODEL_ID                    = var.bedrock_model_id
-      EMISSIONS_API_URL                   = var.emissions_api_url
-      EMISSIONS_API_KEY                   = var.emissions_api_key
-      AWS_NODEJS_CONNECTION_REUSE_ENABLED = "1"
-    }
-  }
-  source_code_hash = data.archive_file.processor_zip.output_base64sha256
-}
-
-# --- LAMBDA 3: API_LAMBDA (CRUD / Mutations) ---
+# --- API: CRUD de GraphQL/AppSync ---
 resource "aws_lambda_function" "api_lambda" {
   function_name = "${var.project_name}-api-${var.environment}"
   filename      = data.archive_file.api_lambda_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
   role          = var.api_lambda_role_arn 
-  timeout       = 10 
+  timeout       = 15
   memory_size   = 256
   architectures = [var.lambda_architecture]
-
-  logging_config {
-    log_format = "JSON"
-    log_group  = aws_cloudwatch_log_group.api_lambda_logs.name
-  }
 
   environment {
     variables = {
@@ -111,21 +123,16 @@ resource "aws_lambda_function" "api_lambda" {
   source_code_hash = data.archive_file.api_lambda_zip.output_base64sha256
 }
 
-# --- LAMBDA 4: ANALYTICS (Consultas complejas de sostenibilidad) ---
+# --- ANALYTICS & KPI ENGINE ---
 resource "aws_lambda_function" "analytics" {
   function_name = "${var.project_name}-analytics-${var.environment}"
   filename      = data.archive_file.analytics_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
-  role          = var.api_lambda_role_arn # Reutilizamos el rol con permisos de Dynamo
+  role          = var.api_lambda_role_arn
   timeout       = 20
   memory_size   = 512
   architectures = [var.lambda_architecture]
-
-  logging_config {
-    log_format = "JSON"
-    log_group  = aws_cloudwatch_log_group.analytics_logs.name
-  }
 
   environment {
     variables = {
@@ -140,15 +147,10 @@ resource "aws_lambda_function" "kpi_engine" {
   filename      = data.archive_file.kpi_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
-  role          = var.lambda_role_arn # Antes decía api_lambda_role_arn
+  role          = var.lambda_role_arn
   timeout       = 20
   memory_size   = 512
   architectures = [var.lambda_architecture]
-
-  logging_config {
-    log_format = "JSON"
-    log_group  = aws_cloudwatch_log_group.kpi_engine_logs.name
-  }
 
   environment {
     variables = {
@@ -159,25 +161,15 @@ resource "aws_lambda_function" "kpi_engine" {
 }
 
 # ==============================================================================
-# 3. OBSERVABILIDAD
+# 3. OBSERVABILIDAD (Logs)
 # ==============================================================================
 
-resource "aws_cloudwatch_log_group" "processor_logs" {
-  name              = "/aws/lambda/${var.project_name}-processor-${var.environment}"
+resource "aws_cloudwatch_log_group" "dispatcher_logs" {
+  name              = "/aws/lambda/${var.project_name}-dispatcher-${var.environment}"
   retention_in_days = 14
 }
 
-resource "aws_cloudwatch_log_group" "api_lambda_logs" {
-  name              = "/aws/lambda/${var.project_name}-api-${var.environment}"
-  retention_in_days = 14
-}
-
-resource "aws_cloudwatch_log_group" "analytics_logs" {
-  name              = "/aws/lambda/${var.project_name}-analytics-${var.environment}"
-  retention_in_days = 14
-}
-
-resource "aws_cloudwatch_log_group" "kpi_engine_logs" {
-  name              = "/aws/lambda/${var.project_name}-kpi-engine-${var.environment}"
+resource "aws_cloudwatch_log_group" "worker_logs" {
+  name              = "/aws/lambda/${var.project_name}-worker-${var.environment}"
   retention_in_days = 14
 }

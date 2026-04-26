@@ -9,10 +9,7 @@ module "iam" {
   
   invoice_queue_arn     = module.invoice_process_queue.arn
   invoice_queue_url     = module.invoice_process_queue.url
-  worker_lambda_arn     = module.compute.worker_lambda_arn
-  
-  # AGREGÁ ESTA LÍNEA (Estaba comentada y por eso fallaba)
-  dispatcher_lambda_arn = module.compute.dispatcher_lambda_arn
+
 }
 
 module "auth" {
@@ -54,28 +51,34 @@ module "database" {
 # ==============================================================================
 # 3. CÓMPUTO (Lógica de Negocio / IA)
 # ==============================================================================
+# main.tf (Raíz)
+
 module "compute" {
   source       = "./modules/compute"
   project_name = var.project_name
   environment  = var.environment
   
-  # Roles inyectados desde IAM
-  api_lambda_role_arn        = module.iam.api_lambda_role_arn
-  processor_role_arn = module.iam.invoice_processor_role_arn 
-  lambda_role_arn            = module.iam.lambda_role_arn
+  # 1. Roles inyectados desde el módulo IAM
+  dispatcher_role_arn = module.iam.dispatcher_lambda_role_arn
+  worker_role_arn     = module.iam.worker_lambda_role_arn
+  lambda_role_arn     = module.iam.lambda_role_arn
+  api_lambda_role_arn = module.iam.api_lambda_role_arn
 
-  # Conexión S3 y Dynamo
-  upload_bucket_arn  = module.storage.bucket_arn 
-  upload_bucket_name = module.storage.bucket_name
-  dynamo_table_name  = module.database.table_name
-  dynamo_table_arn   = module.database.table_arn
+  # 2. Variable de SQS inyectada desde el módulo SQS
+  sqs_queue_url       = module.invoice_process_queue.url
 
-  # Configuración IA (Bedrock) y APIs externas
-  emissions_api_key   = var.emissions_api_key
-  emissions_api_url   = var.emissions_api_url
+  # 3. Conexión S3 y Dynamo (Nombres y ARNs)
+  upload_bucket_name  = module.storage.bucket_name
+  upload_bucket_arn   = module.storage.bucket_arn # REPARADO: Se agregó el ARN
+  dynamo_table_name   = module.database.table_name
+  dynamo_table_arn    = module.database.table_arn   # REPARADO: Se agregó el ARN
+  
+  # 4. IA y APIs
   bedrock_model_id    = var.bedrock_model_id
+  emissions_api_url   = var.emissions_api_url
+  emissions_api_key   = var.emissions_api_key
   lambda_architecture = var.lambda_architecture
-} 
+}
 
 # ==============================================================================
 # 4. ORQUESTACIÓN DE DATOS (GraphQL Hub con AppSync)
