@@ -177,3 +177,22 @@ module "frontend" {
   # ANTES: user_pool_client_id -> AHORA: client_id (porque así se llama en tu output de auth)
   client_id      = module.auth.client_id 
 }
+
+# 1. Cola de Errores (Dead Letter Queue)
+module "invoice_process_dlq" {
+  source = "./modules/sqs"
+  name   = "sms-invoice-process-dlq"
+  tags   = { Environment = "dev", Service = "billing" }
+}
+
+# 2. Cola de Ingesta/Proceso Principal
+module "invoice_process_queue" {
+  source  = "./modules/sqs"
+  name    = "sms-invoice-process-queue"
+  dlq_arn = module.invoice_process_dlq.arn # Vinculamos la DLQ
+  
+  tags = { 
+    Environment = "dev"
+    Service     = "billing"
+  }
+}

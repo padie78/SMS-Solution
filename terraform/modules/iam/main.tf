@@ -169,6 +169,81 @@ resource "aws_iam_policy" "s3_full_processing_policy" {
   })
 }
 
+resource "aws_iam_policy" "dispatcher_sqs_publish" {
+  name        = "sms-dispatcher-sqs-publish-policy"
+  description = "Permite a la Lambda Dispatcher enviar mensajes a la cola de facturas"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action   = "sqs:SendMessage"
+        Effect   = "Allow"
+        Resource = module.invoice_process_queue.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_dispatcher_sqs" {
+  role       = aws_iam_role.dispatcher_lambda_role.name
+  policy_arn = aws_iam_policy.dispatcher_sqs_publish.arn
+}
+
+# Permiso para consumir de la cola
+resource "aws_iam_policy" "worker_sqs_consume" {
+  name = "sms-worker-sqs-consume-policy"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Action = [
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes"
+        ]
+        Effect   = "Allow"
+        Resource = module.invoice_process_queue.arn
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "attach_worker_sqs" {
+  role       = aws_iam_role.worker_lambda_role.name
+  policy_arn = aws_iam_policy.worker_sqs_consume.arn
+}
+
+# El TRIGGER: El puente que une SQS con la Lambda Worker
+resource "aws_lambda_event_source_mapping" "sqs_to_worker" {
+  event_source_arn = module.invoice_process_queue.arn
+  function_name    = aws_lambda_function.worker_lambda.arn
+  batch_size       = 1 # Procesamos de a una para no estresar la IA y manejar errores fácil
+  enabled          = true
+}
+
+resource "aws_sqs_queue_policy" "invoice_queue_policy" {
+  queue_url = module.invoice_process_queue.url
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect    = "Allow"
+        Principal = { Service = "lambda.amazonaws.com" }
+        Action    = "sqs:SendMessage"
+        Resource  = module.invoice_process_queue.arn
+        Condition = {
+          ArnEquals = {
+            "aws:SourceArn" = aws_lambda_function.dispatcher_lambda.arn
+          }
+        }
+      }
+    ]
+  })
+}
+
 # ==============================================================================
 # 4. ASIGNACIÓN DE POLÍTICAS A ROLES (Attachments)
 # ==============================================================================
