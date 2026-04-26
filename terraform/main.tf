@@ -6,6 +6,13 @@ module "iam" {
   project_name     = var.project_name
   environment      = var.environment
   dynamo_table_arn = module.database.table_arn
+  
+  invoice_queue_arn     = module.invoice_process_queue.arn
+  invoice_queue_url     = module.invoice_process_queue.url
+  worker_lambda_arn     = module.compute.worker_lambda_arn
+  
+  # AGREGÁ ESTA LÍNEA (Estaba comentada y por eso fallaba)
+  dispatcher_lambda_arn = module.compute.dispatcher_lambda_arn
 }
 
 module "auth" {
@@ -178,21 +185,15 @@ module "frontend" {
   client_id      = module.auth.client_id 
 }
 
-# 1. Cola de Errores (Dead Letter Queue)
 module "invoice_process_dlq" {
   source = "./modules/sqs"
-  name   = "sms-invoice-process-dlq"
-  tags   = { Environment = "dev", Service = "billing" }
+  name   = "${var.project_name}-invoice-dlq-${var.environment}"
+  tags   = { Environment = var.environment, Service = "billing" }
 }
 
-# 2. Cola de Ingesta/Proceso Principal
 module "invoice_process_queue" {
   source  = "./modules/sqs"
-  name    = "sms-invoice-process-queue"
-  dlq_arn = module.invoice_process_dlq.arn # Vinculamos la DLQ
-  
-  tags = { 
-    Environment = "dev"
-    Service     = "billing"
-  }
+  name    = "${var.project_name}-invoice-queue-${var.environment}"
+  dlq_arn = module.invoice_process_dlq.arn 
+  tags    = { Environment = var.environment, Service = "billing" }
 }

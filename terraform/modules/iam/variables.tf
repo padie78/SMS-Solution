@@ -1,20 +1,14 @@
-# modules/iam/variables.tf
+variable "project_name" { type = string }
+variable "environment"  { type = string }
 
-variable "project_name" {
-  type        = string
-}
+variable "dynamo_table_arn" { type = string }
+variable "invoice_queue_arn" { type = string }
+variable "invoice_queue_url" { type = string }
 
-variable "environment" {
-  type        = string
-}
+# Estas son las que inyectamos desde compute
+variable "dispatcher_lambda_arn" { type = string }
+variable "worker_lambda_arn"     { type = string }
 
-# Agregá estas si tu política las usa (como vimos antes)
-variable "s3_uploads_bucket_arn" {
-  type    = string
-  default = "*" # O el ARN real
-}
-
-variable "dynamo_table_arn" {
-  type    = string
-  default = "*" # O el ARN real
-}
+# LAS QUE CAUSABAN EL ERROR (BORRADAS):
+# variable "worker_lambda_role_name" {} 
+# variable "dispatcher_lambda_role_name" {}
