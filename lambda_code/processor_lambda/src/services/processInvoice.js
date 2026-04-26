@@ -1,34 +1,31 @@
-import { extractText } from "./apis/textract.js";
-import { buildGoldenRecord } from "../utils/mapper.js"; // Usaremos tu mapper actual pero con lógica de poda
-import { persistTransaction } from "./data/db.js";
-import { callExtractionAgent } from "./ia/agent.js";
+import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
+
+const sqs = new SQSClient({});
 
 export const processInvoice = async (bucket, key, orgId) => {
     try {
-        // --- FASE 1: OCR ENRIQUECIDO ---
-        // extractText ahora debe devolver: { rawText, fields: { vendor, total, cups, etc } }
-        const ocrData = await extractText(bucket, key);
-        
-        const structuredData = await callExtractionAgent(ocrData.rawText);
+        console.log(`📝 [PROCESS_LOGIC] | Preparando despacho a SQS para: ${key}`);
 
-        // --- FASE 3: CONSTRUCCIÓN DEL "FULL DRAFT" ---
-        // Enviamos ocrData completo (con los fields detectados)
-       const goldenRecord = buildGoldenRecord(
-        `ORG#${orgId}`,
-        key,
-        { 
-            ...ocrData,
-            fields: structuredData // El agente llena los campos que antes estaban vacíos
-        }, 
-        "PENDING_REVIEW" 
-        );
+        const messageBody = {
+            bucket,
+            key,
+            orgId,
+            timestamp: new Date().toISOString(),
+            status: "READY_FOR_OCR"
+        };
 
-        await persistTransaction(goldenRecord);
+        // El envío a la cola sucede aquí adentro
+        await sqs.send(new SendMessageCommand({
+            QueueUrl: process.env.SQS_QUEUE_URL,
+            MessageBody: JSON.stringify(messageBody),
+        }));
+
+        console.log(`✅ [PROCESS_LOGIC] | Despacho exitoso.`);
         
-        return { success: true, sk: goldenRecord.SK };
+        return { success: true, message: "Enqueued for processing" };
 
     } catch (error) {
-        console.error(`❌ [PIPELINE_ERROR]: ${error.message}`);
+        console.error(`❌ [PROCESS_LOGIC_ERROR]: ${error.message}`);
         throw error;
     }
 };
