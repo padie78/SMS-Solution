@@ -6,7 +6,7 @@ schema {
 
 # --- 0. ENUMS ---
 
-enum InvoiceStatus {
+enum InvoiceStatus @aws_api_key @aws_cognito_user_pools {
   UPLOADED
   PROCESSING
   READY_FOR_REVIEW
@@ -42,8 +42,8 @@ type ActionResponse {
 type PresignedUrlResponse {
   uploadURL: String!
   key: String!
-  invoiceId: String!  # Cambiado de userId a invoiceId para el handshake inicial
-  userId: String!     # Mantener userId por trazabilidad si es necesario
+  invoiceId: String!
+  userId: String!
 }
 
 type InvoiceIAProcessingResponse {
@@ -168,10 +168,9 @@ input BillingPeriodInput {
   end: String!
 }
 
-# Este input debe coincidir con lo que enviamos desde handleConfirm()
 input ConfirmInvoiceInput {
   status: InvoiceStatus!
-  extracted_data: AWSJSON!       # Donde guardamos el JSON de la IA corregido
+  extracted_data: AWSJSON!
   buildingId: ID
   meterId: ID
   costCenterId: ID
@@ -179,50 +178,41 @@ input ConfirmInvoiceInput {
   notes: String
 }
 
-# Otros inputs se mantienen igual por brevedad...
-# OrgConfigInput, BranchInput, BuildingInput, AssetInput, etc.
-
 # --- 5. CONSULTAS (QUERIES) ---
 
 type Query {
-  getInvoice(id: ID!): Invoice
-  getPrecalculatedKPI(year: String!, quarter: String, month: String, week: String, day: String): AnalyticsResponse
-  getConsumptionAnalytics(entityId: ID!, type: String!, startDate: String!, endDate: String!): AnalyticsResponse
-  getInvoicesByPeriod(year: String!, month: String): [Invoice]
-  getCostCenters: [AWSJSON]
-  getTariffsByBranch(branchId: ID!): [AWSJSON]
-  getIntensityReport(year: String!): NormalizationKPIs
+  getInvoice(id: ID!): Invoice @aws_cognito_user_pools
+  getPrecalculatedKPI(year: String!, quarter: String, month: String, week: String, day: String): AnalyticsResponse @aws_cognito_user_pools
+  getConsumptionAnalytics(entityId: ID!, type: String!, startDate: String!, endDate: String!): AnalyticsResponse @aws_cognito_user_pools
+  getInvoicesByPeriod(year: String!, month: String): [Invoice] @aws_cognito_user_pools
+  getCostCenters: [AWSJSON] @aws_cognito_user_pools
+  getTariffsByBranch(branchId: ID!): [AWSJSON] @aws_cognito_user_pools
+  getIntensityReport(year: String!): NormalizationKPIs @aws_cognito_user_pools
 }
 
 # --- 6. ACCIONES (MUTATIONS) ---
 
 type Mutation {
-  # Registro inicial
-  createInvoice(input: CreateInvoiceInput!): Invoice
-  
-  # Usado por la Lambda de IA para avisar al Front
+  createInvoice(input: CreateInvoiceInput!): Invoice @aws_cognito_user_pools
+
+  # Mutación clave para el Worker (Lambda) y el Front
   updateInvoiceStatus(
     id: ID!, 
     status: InvoiceStatus!, 
-    extractedData: AWSJSON,
+    extractedData: AWSJSON, 
     message: String
-  ): Invoice : @aws_api_key @aws_cognito_user_pools
+  ): Invoice @aws_api_key @aws_cognito_user_pools
 
-  # Pipeline de Facturación e IA
-  getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
-  
-  # El método que llama el Step 2 al finalizar
-  confirmInvoice(id: ID!, input: ConfirmInvoiceInput!): ActionResponse!
-  
-  approveInvoice(invoiceId: ID!): Invoice 
-  
-  # Otros métodos de configuración...
+  getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse @aws_cognito_user_pools
+  confirmInvoice(id: ID!, input: ConfirmInvoiceInput!): ActionResponse! @aws_cognito_user_pools
+  approveInvoice(invoiceId: ID!): Invoice @aws_cognito_user_pools
 }
 
 # --- 7. TIEMPO REAL (SUBSCRIPTIONS) ---
 
 type Subscription {
-  # El ID es el invoiceId que guardamos en el Signal
+  # El Front se suscribe para recibir el cambio de status de la IA
   onInvoiceUpdated(id: ID!): Invoice
     @aws_subscribe(mutations: ["updateInvoiceStatus"])
+    @aws_api_key @aws_cognito_user_pools
 }
