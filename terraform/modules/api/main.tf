@@ -80,10 +80,14 @@ resource "aws_appsync_datasource" "analytics_lambda_ds" {
 # ==============================================================================
 resource "aws_appsync_resolver" "mutation_resolvers" {
   for_each = toset([
-    "saveOrgConfig", "createBranch", "saveBuilding", "saveCostCenter",
-    "saveAsset", "saveMeter", "saveTariff", "saveProductionLog",
-    "saveEmissionFactor", "saveUser", "saveAlertRule","processInvoice",
-    "approveInvoice", "confirmInvoice"
+    # "saveOrgConfig", "createBranch", "saveBuilding", "saveCostCenter",
+    # "saveAsset", "saveMeter", "saveTariff", "saveProductionLog",
+    # "saveEmissionFactor", "saveUser", "saveAlertRule","processInvoice",
+    # "approveInvoice", "confirmInvoice"
+    "createInvoice",
+    "updateInvoiceStatus",
+    "confirmInvoice",
+    "approveInvoice"
   ])
 
   api_id      = aws_appsync_graphql_api.api.id
