@@ -91,7 +91,12 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
   field       = each.key
   data_source = aws_appsync_datasource.api_lambda_ds.name
   
-  depends_on = [aws_iam_role_policy.appsync_access_policy] 
+  # Forzamos a que el Schema se haya cargado antes de intentar crear los resolvers
+  depends_on = [
+    aws_appsync_graphql_api.api,
+    aws_appsync_datasource.api_lambda_ds,
+    aws_iam_role_policy.appsync_access_policy
+  ]
 }
 
 resource "aws_appsync_resolver" "kpi_resolvers" {
