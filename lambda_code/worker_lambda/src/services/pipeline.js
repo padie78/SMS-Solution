@@ -45,7 +45,7 @@ export const pipeline = async (sqsMessage, orgId) => {
             sk, 
             aiAnalysis,
             emissionCalculations,
-            "DONE", // Status final
+            "READY_FOR_REVIEW", // Status final
             detectedCategory,
             { s3_key: key, bucket: bucket } // metadata básica
         );
@@ -55,10 +55,26 @@ export const pipeline = async (sqsMessage, orgId) => {
         await persistTransaction(goldenRecord);
         console.log(`[PIPELINE] 5. Éxito: Skeleton actualizado a Golden Record.`);
 
+        // --- FASE 6: NOTIFICACIÓN (AppSync) ---
+        try {
+            await notifyInvoiceUpdate(sk, "READY_FOR_REVIEW", "IA terminó: Datos listos para revision", goldenRecord);
+        } catch (err) {
+            // Silencioso para el flujo, pero logueado
+            console.warn(`[NOTIFY_SILENT_FAIL] SK: ${sk}`);
+        }
+
         return goldenRecord;
 
     } catch (error) {
         console.error(`\n❌ [PIPELINE_ERROR]: Fallo en el procesamiento de ${sk}`);
-        throw error;
+        
+        // --- NOTIFICACIÓN DE ERROR (Fundamental) ---
+        try {
+            await notifyInvoiceUpdate(sk, "FAILED", `Error: ${error.message}`);
+        } catch (notifyErr) {
+            console.error("No se pudo notificar el fallo a AppSync");
+        }
+
+        throw error; // Re-lanzamos para que SQS sepa que falló
     }
 };

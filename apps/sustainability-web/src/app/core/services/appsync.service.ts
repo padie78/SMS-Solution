@@ -3,6 +3,12 @@ import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { generateClient } from 'aws-amplify/api';
 import { firstValueFrom, Observable } from 'rxjs';
 
+export interface PresignedResponse {
+  uploadURL: string;
+  key: string;
+  invoiceId: string; // Este es el que usamos como invoiceId
+}
+
 @Injectable({
   providedIn: 'root'
 })
@@ -10,56 +16,51 @@ export class AppSyncService {
   private http = inject(HttpClient);
   private client = generateClient();
 
+  
+
   /**
    * 1. Obtiene la URL firmada para subir el archivo a S3 (Sin cambios)
    */
-  async getPresignedUrl(fileName: string, fileType: string): Promise<string> {
-    const cleanFileName = fileName.split('\\').pop()?.split('/').pop() || fileName;
-    const mutation = `
-      mutation GetUrl($name: String!, $type: String!) {
-        getPresignedUrl(fileName: $name, fileType: $type) {
-          uploadURL
-        }
+async getPresignedUrl(fileName: string, fileType: string): Promise<PresignedResponse> {
+  const cleanFileName = fileName.split('\\').pop()?.split('/').pop() || fileName;
+  
+  // Agregamos los campos key y userId a la mutación
+  const mutation = `
+    mutation GetUrl($name: String!, $type: String!) {
+      getPresignedUrl(fileName: $name, fileType: $type) {
+        uploadURL: String!
+        key: String!
+        invoiceId: String!
       }
-    `;
-    try {
-      const response: any = await this.client.graphql({
-        query: mutation,
-        variables: { name: cleanFileName, type: fileType }
-      });
-      return response?.data?.getPresignedUrl?.uploadURL;
-    } catch (error) {
-      console.error("❌ Error en getPresignedUrl:", error);
-      throw error;
     }
+  `;
+
+  try {
+    const response: any = await this.client.graphql({
+      query: mutation,
+      variables: { name: cleanFileName, type: fileType }
+    });
+
+    const data = response?.data?.getPresignedUrl;
+    
+    if (!data) throw new Error("No se recibió respuesta de AppSync");
+
+    return data; // Ahora devolvemos { uploadURL, key, userId }
+  } catch (error) {
+    console.error("❌ Error en getPresignedUrl:", error);
+    throw error;
   }
+}
 
   /**
    * 2. Sube el binario a S3 (Sin cambios)
    */
-  async uploadFileToS3(
-    uploadUrl: string,
-    file: File,
-    metadata: any = {} // Agregamos el parámetro de metadata
-  ): Promise<{ success: boolean, key: string }> {
-
-    // 1. Construimos los headers base
-    let headers = new HttpHeaders({ 'Content-Type': file.type });
-
-    // 2. Mapeamos el objeto metadata a headers x-amz-meta-*
-    // Importante: S3 espera strings y prefiere minúsculas
-    Object.keys(metadata).forEach(key => {
-      if (metadata[key]) {
-        const headerKey = `x-amz-meta-${key.toLowerCase()}`;
-        headers = headers.set(headerKey, String(metadata[key]));
-      }
-    });
-
+  async uploadFileToS3(uploadUrl: string, file: File): Promise<{ success: boolean, key: string }> {
+    const headers = new HttpHeaders({ 'Content-Type': file.type });
     const urlPath = new URL(uploadUrl).pathname;
     const finalKey = decodeURIComponent(urlPath.startsWith('/') ? urlPath.substring(1) : urlPath);
 
     try {
-      console.log('🚀 Subiendo a S3 con metadatos:', metadata);
       await firstValueFrom(this.http.put(uploadUrl, file, { headers }));
       return { success: true, key: finalKey };
     } catch (error) {

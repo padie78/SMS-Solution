@@ -1,6 +1,6 @@
-import { Component, OnInit, inject, OnDestroy } from '@angular/core';
+import { Component, OnInit, inject, OnDestroy, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms'; // Necesario para [(ngModel)]
+import { FormsModule } from '@angular/forms';
 import { Subscription } from 'rxjs';
 
 // PrimeNG
@@ -12,7 +12,7 @@ import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { InputTextModule } from 'primeng/inputtext';
 
-// Core
+// Core Services
 import { InvoiceStateService } from '../../../../core/services/invoice-state.service';
 import { AppSyncService } from '../../../../core/services/appsync.service';
 
@@ -38,71 +38,129 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
   private appsyncService = inject(AppSyncService);
   private messageService = inject(MessageService);
 
-  // --- PROPIEDADES QUE EL HTML NECESITA ---
+  @Output() onConfirm = new EventEmitter<void>();
+  @Output() onCancel = new EventEmitter<void>();
+
+  // --- UI State ---
   isLoading = true;
-  invoice: any = null;
-  errorMessage: string | null = null; // Fix para TS2339
+  errorMessage: string | null = null;
+  invoice: any = null; // El Golden Record que el usuario validará
+  
   private statusSubscription?: Subscription;
 
   ngOnInit() {
-    const { invoiceId, extractedData } = this.stateService.getSnapshot();
+    const snapshot = this.stateService.getSnapshot();
 
-    if (extractedData) {
-      this.invoice = extractedData;
+    // 1. Si ya tenemos la data (por navegación entre steps o refresh)
+    if (snapshot.extractedData) {
+      this.invoice = snapshot.extractedData;
       this.isLoading = false;
       return;
     }
 
-    if (invoiceId) {
-      this.subscribeToUpdates(invoiceId);
+    // 2. Si no hay data pero hay ID, esperamos la notificación real-time
+    if (snapshot.invoiceId) {
+      this.isLoading = true;
+      this.subscribeToUpdates(snapshot.invoiceId);
     } else {
-      this.errorMessage = 'No se encontró una factura para validar.';
+      this.errorMessage = 'No se encontró una referencia válida para procesar.';
       this.isLoading = false;
     }
   }
 
   private subscribeToUpdates(id: string) {
+    console.log(`📡 Escuchando actualizaciones para la factura: ${id}`);
+    
     this.statusSubscription = this.appsyncService.onInvoiceUpdated(id).subscribe({
       next: ({ data }: any) => {
-        const updatedInvoice = data.onInvoiceUpdated;
-        if (updatedInvoice.status === 'READY') {
-          this.invoice = typeof updatedInvoice.extractedData === 'string' 
-            ? JSON.parse(updatedInvoice.extractedData) 
-            : updatedInvoice.extractedData;
+        const updated = data.onInvoiceUpdated;
+
+        // Éxito: La IA terminó el Golden Record
+        if (updated.status === 'READY_FOR_REVIEW') {
+          this.invoice = typeof updated.extractedData === 'string' 
+            ? JSON.parse(updated.extractedData) 
+            : updated.extractedData;
+
+          // Sincronizamos con el State para persistencia
           this.stateService.setAiData(this.invoice);
+          
           this.isLoading = false;
           this.statusSubscription?.unsubscribe();
+          
+          this.messageService.add({ 
+            severity: 'success', 
+            summary: 'Análisis Completo', 
+            detail: 'Datos extraídos correctamente.' 
+          });
         } 
-        else if (updatedInvoice.status === 'FAILED') {
+        // Fallo: Error en el pipeline (Textract/Bedrock/Climatiq)
+        else if (updated.status === 'FAILED') {
           this.isLoading = false;
-          this.errorMessage = 'La IA no pudo procesar el documento.';
+          this.errorMessage = updated.message || 'Error en el procesamiento de la IA.';
+          this.statusSubscription?.unsubscribe();
         }
       },
       error: (err) => {
-        this.errorMessage = 'Error en la conexión con AppSync.';
+        console.error('❌ Subscription Error:', err);
+        this.errorMessage = 'Conexión perdida con el servicio de notificaciones.';
         this.isLoading = false;
       }
     });
   }
 
-  // --- MÉTODOS QUE EL HTML NECESITA ---
-  
-  goBack() { // Fix para TS2339 en (click)="goBack()"
-    // Aquí podrías inyectar el Router y volver al step anterior
-    console.log('Navegando hacia atrás...');
-    window.history.back(); 
+  /**
+   * Acción final: Envía los datos manuales + los datos de la IA confirmados
+   */
+  async confirm() {
+    this.isLoading = true;
+    try {
+      const snapshot = this.stateService.getSnapshot();
+      
+      if (!snapshot.invoiceId) throw new Error("Falta el ID de la factura.");
+
+      // Mapeamos el input según el esquema esperado por la mutación ConfirmInvoice
+      const confirmInput = {
+        status: 'CONFIRMED',
+        extracted_data: JSON.stringify(this.invoice), // Datos validados/editados
+        buildingId: snapshot.building,
+        meterId: snapshot.meterId,
+        costCenter: snapshot.costCenter,
+        notes: snapshot.internalNote
+      };
+
+      // Llamamos al servicio con la firma (id, input)
+      const result = await this.appsyncService.confirmInvoice(snapshot.invoiceId, confirmInput);
+
+      if (result.success) {
+        this.messageService.add({ 
+          severity: 'success', 
+          summary: 'Confirmado', 
+          detail: 'Factura sincronizada exitosamente.' 
+        });
+        this.onConfirm.emit(); // Avanzar al último paso del stepper
+      } else {
+        throw new Error(result.message || "Error desconocido al confirmar.");
+      }
+
+    } catch (err: any) {
+      console.error('❌ Confirm Error:', err);
+      this.messageService.add({ 
+        severity: 'error', 
+        summary: 'Error al confirmar', 
+        detail: err.message 
+      });
+    } finally {
+      this.isLoading = false;
+    }
   }
 
-  confirm() { // Fix para el botón de confirmar
-    this.handleConfirm();
-  }
-
-  async handleConfirm() {
-    console.log('Sincronizando factura...', this.invoice);
-    // Tu lógica de llamada a appsyncService.confirmInvoice(...)
+  goBack() {
+    this.onCancel.emit();
   }
 
   ngOnDestroy() {
-    this.statusSubscription?.unsubscribe();
+    if (this.statusSubscription) {
+      this.statusSubscription.unsubscribe();
+    }
   }
 }

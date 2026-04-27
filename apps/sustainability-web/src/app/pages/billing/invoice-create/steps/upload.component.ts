@@ -137,43 +137,51 @@ export class InvoiceUploadComponent implements OnInit {
   /**
    * Proceso de subida estandar: S3 (archivo) -> AppSync (datos)
    */
- async processAndContinue() {
+  async processAndContinue() {
     if (this.uploadForm.valid && this.selectedFile) {
       this.isLoading = true;
 
       try {
-        // 1. Subida a S3 (Esto dispara tu Lambda de Background)
-        const uploadUrl = await this.appsyncService.getPresignedUrl(
+        // 1. Obtener Presigned URL e Invoice ID (SK)
+        // Desestructuramos para obtener el 'invoiceId' generado en el backend
+        const { uploadURL, key, invoiceId } = await this.appsyncService.getPresignedUrl(
           this.selectedFile.name,
           this.selectedFile.type
         );
 
-        const uploadResult = await this.appsyncService.uploadFileToS3(uploadUrl, this.selectedFile);
+        // 2. Ahora podés usar 'invoiceId' sin que TS chille
+        this.stateService.setInvoiceId(invoiceId);
+        this.stateService.setStorageKey(key);
 
-        if (!uploadResult.success || !uploadResult.key) {
+        // 2. Subida del binario a S3
+        const uploadResult = await this.appsyncService.uploadFileToS3(uploadURL, this.selectedFile);
+
+        if (!uploadResult.success) {
           throw new Error("La subida a S3 falló.");
         }
 
-        // 2. Persistencia en el Estado Local
-        // IMPORTANTE: Guardamos los datos del formulario en el State Service
-        // para usarlos en el Step 2 (Validation)
-        this.stateService.setStorageKey(uploadResult.key);
+        // 3. Persistencia en el Estado Local (Signals)
+        // Guardamos el invoiceId (SK) para que el Step 2 se suscriba al WebSocket correcto
+        this.stateService.setInvoiceId(invoiceId);
+        this.stateService.setStorageKey(key);
         this.stateService.setStep1Data(this.uploadForm.value, this.selectedFile);
 
         this.messageService.add({
           severity: 'success',
           summary: 'Archivo recibido',
-          detail: 'Procesando metadatos...'
+          detail: 'Iniciando análisis asincrónico...'
         });
 
-        // 3. Continuar al Step 2
-        // En el Step 2, cuando el usuario vea los datos de la IA y de "Confirmar",
-        // ahí mandamos TODO el paquete (IA + Formulario del Step 1) en un solo Update.
+        // 4. Continuar al Step 2 (Validation)
         this.onComplete.emit();
 
       } catch (error: any) {
-        console.error('❌ Error:', error);
-        this.messageService.add({ severity: 'error', summary: 'Error', detail: error.message });
+        console.error('❌ Error en el Pipeline:', error);
+        this.messageService.add({
+          severity: 'error',
+          summary: 'Error de proceso',
+          detail: error.message
+        });
       } finally {
         this.isLoading = false;
       }

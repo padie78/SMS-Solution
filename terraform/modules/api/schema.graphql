@@ -7,13 +7,13 @@ schema {
 # --- 0. ENUMS ---
 
 enum InvoiceStatus {
+  UPLOADED
   PROCESSING
-  READY
+  READY_FOR_REVIEW
   FAILED
-  VALIDATED
-  COMPLETED
+  CONFIRMED
+  POSTED
 }
-
 # --- 1. RESPUESTAS Y CONTROL ---
 
 type MutationResponse {
