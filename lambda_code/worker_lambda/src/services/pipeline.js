@@ -4,6 +4,7 @@ import { analyzeInvoice } from "./ia/bedrock.js";
 import { calculateFootprint } from "./apis/climatiq.js";
 import { buildGoldenRecord } from "../utils/mapper.js";
 import { persistTransaction } from "./data/db.js"; // CAMBIO: de persist a update
+import { notifyInvoiceUpdate } from "./notifications/appsyncService.js";
 
 /**
  * Orquestador: S3 -> Textract -> IA -> Climatiq -> DB (Update)

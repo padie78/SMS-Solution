@@ -4,18 +4,17 @@ import https from 'https';
  * Envía una notificación de estado a AppSync para que el Front la reciba vía WebSocket.
  */
 export const notifyInvoiceUpdate = async (id, status, message, payload = null) => {
-    const appsyncUrl = new URL(process.env.APPSYNC_URL);
-    
-    // El nombre de la mutación debe coincidir con tu schema.graphql
-    const mutation = `
-        mutation NotifyUpdate($id: ID!, $status: InvoiceStatus!, $msg: String, $data: AWSJSON) {
-            updateInvoiceStatus(id: $id, status: $status, message: $msg, extractedData: $data) {
-                id
-                status
-            }
-        }
-    `;
+    const appsyncUrl = new URL(process.env.APPSYNC_URL || "https://75nymxzbp5dddnsnehigmroili.appsync-api.eu-central-1.amazonaws.com/graphql");
 
+    const mutation = `
+  mutation UpdateStatus($id: ID!, $status: InvoiceStatus!, $data: AWSJSON) {
+    updateInvoiceStatus(id: $id, status: $status, extractedData: $data) {
+      id
+      status
+      extractedData
+    }
+  }
+`;
     const body = JSON.stringify({
         query: mutation,
         variables: {
