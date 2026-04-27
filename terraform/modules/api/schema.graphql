@@ -126,7 +126,7 @@ type RegulatoryCompliance {
 
 # --- 3. ENTIDADES ---
 
-type Invoice {
+type Invoice @aws_api_key @aws_cognito_user_pools {
   id: ID!
   vendor: String
   invoiceDate: String
@@ -206,7 +206,7 @@ type Mutation {
     status: InvoiceStatus!, 
     extractedData: AWSJSON,
     message: String
-  ): Invoice
+  ): Invoice : @aws_api_key
 
   # Pipeline de Facturación e IA
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
