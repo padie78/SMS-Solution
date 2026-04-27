@@ -3,7 +3,7 @@
 # ==============================================================================
 resource "aws_appsync_graphql_api" "api" {
   name                = "${var.project_name}-hub-${var.environment}"
-  authentication_type = "AMAZON_COGNITO_USER_POOLS" 
+  authentication_type = "AMAZON_COGNITO_USER_POOLS"
   schema              = file("${path.module}/schema.graphql")
   xray_enabled        = true
 
@@ -25,7 +25,7 @@ resource "aws_appsync_graphql_api" "api" {
 
 resource "aws_appsync_api_key" "hub_key" {
   api_id  = aws_appsync_graphql_api.api.id
-  expires = timeadd(timestamp(), "8760h") 
+  expires = timeadd(timestamp(), "8760h")
 }
 
 # ==============================================================================
@@ -36,8 +36,8 @@ resource "aws_iam_role" "appsync_runtime_role" {
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Action = "sts:AssumeRole"
-      Effect = "Allow"
+      Action    = "sts:AssumeRole"
+      Effect    = "Allow"
       Principal = { Service = "appsync.amazonaws.com" }
     }]
   })
@@ -94,7 +94,7 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
   type        = "Mutation"
   field       = each.key
   data_source = aws_appsync_datasource.api_lambda_ds.name
-  
+
   # Forzamos a que el Schema se haya cargado antes de intentar crear los resolvers
   depends_on = [
     aws_appsync_graphql_api.api,
@@ -112,7 +112,7 @@ resource "aws_appsync_resolver" "kpi_resolvers" {
   api_id      = aws_appsync_graphql_api.api.id
   type        = "Query"
   field       = each.key
-  data_source = aws_appsync_datasource.analytics_lambda_ds.name 
+  data_source = aws_appsync_datasource.analytics_lambda_ds.name
 
   depends_on = [aws_appsync_datasource.analytics_lambda_ds, aws_iam_role_policy.appsync_access_policy]
 }
@@ -120,9 +120,9 @@ resource "aws_appsync_resolver" "kpi_resolvers" {
 resource "aws_appsync_resolver" "get_url_resolver" {
   api_id      = aws_appsync_graphql_api.api.id
   type        = "Mutation"
-  field       = "getPresignedUrl" 
+  field       = "getPresignedUrl"
   data_source = aws_appsync_datasource.signer_lambda_ds.name
-  
+
   depends_on = [aws_appsync_datasource.signer_lambda_ds, aws_iam_role_policy.appsync_access_policy]
 }
 
@@ -137,9 +137,9 @@ resource "aws_iam_role_policy" "appsync_access_policy" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "AllowLambdaInvocation"
-        Action   = ["lambda:InvokeFunction"]
-        Effect   = "Allow"
+        Sid    = "AllowLambdaInvocation"
+        Action = ["lambda:InvokeFunction"]
+        Effect = "Allow"
         Resource = [
           var.api_lambda_arn, "${var.api_lambda_arn}:*",
           var.signer_lambda_arn, "${var.signer_lambda_arn}:*",
@@ -166,12 +166,12 @@ resource "aws_iam_role_policy" "appsync_access_policy" {
 
 resource "aws_iam_role_policy" "api_lambda_extended_policy" {
   name = "${var.project_name}-api-extended-policy-${var.environment}"
-  
+
   # Si el rol está definido en este mismo módulo:
   # role = aws_iam_role.api_lambda_role.id 
-  
+
   # Si el ID viene de una variable que SI existe, o si prefieres usar el nombre directo:
-role = var.api_lambda_role_id # <--- Usamos la variable directa  # O mejor aún, asegúrate de pasarle el ID correcto desde el módulo donde resides.
+  role = var.api_lambda_role_id # <--- Usamos la variable directa  # O mejor aún, asegúrate de pasarle el ID correcto desde el módulo donde resides.
   # Por ahora, usemos el ID que terraform espera recibir para la Lambda API:
   # role = var.api_lambda_role_name 
 
@@ -179,18 +179,18 @@ role = var.api_lambda_role_id # <--- Usamos la variable directa  # O mejor aún,
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "AllowS3ReadSpecificBucket"
-        Effect   = "Allow"
-        Action   = ["s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation"]
+        Sid    = "AllowS3ReadSpecificBucket"
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation"]
         Resource = [
           "arn:aws:s3:::sms-platform-dev-uploads",
           "arn:aws:s3:::sms-platform-dev-uploads/*"
         ]
       },
       {
-        Sid      = "AllowAIProcessing"
-        Effect   = "Allow"
-        Action   = [
+        Sid    = "AllowAIProcessing"
+        Effect = "Allow"
+        Action = [
           "textract:AnalyzeDocument",
           "textract:DetectDocumentText",
           "bedrock:InvokeModel"
@@ -199,4 +199,35 @@ role = var.api_lambda_role_id # <--- Usamos la variable directa  # O mejor aún,
       }
     ]
   })
+}
+
+resource "aws_appsync_datasource" "passthrough_ds" {
+  api_id = aws_appsync_graphql_api.api.id
+  name   = "PassthroughDataSource"
+  type   = "NONE"
+}
+
+resource "aws_appsync_resolver" "update_status_passthrough" {
+  api_id      = aws_appsync_graphql_api.api.id
+  type        = "Mutation"
+  field       = "updateInvoiceStatus"
+  data_source = aws_appsync_datasource.passthrough_ds.name
+
+  # Request Mapping Template: Envía los argumentos directo al payload
+  request_template = <<EOF
+{
+    "version": "2018-05-29",
+    "payload": {
+        "id": "$context.arguments.id",
+        "status": "$context.arguments.status",
+        "extractedData": "$context.arguments.extractedData",
+        "message": "$context.arguments.message"
+    }
+}
+EOF
+
+  # Response Mapping Template: Devuelve el payload como resultado
+  response_template = <<EOF
+$util.toJson($context.result)
+EOF
 }
