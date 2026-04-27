@@ -41,7 +41,7 @@ export class AppSyncService {
         variables: {
           name: cleanFileName,
           type: fileType,
-          id: invoiceId // Enviamos el "INV#faca19f-..."
+          id: invoiceId
         }
       });
 
