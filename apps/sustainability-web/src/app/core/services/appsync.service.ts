@@ -16,41 +16,41 @@ export class AppSyncService {
   private http = inject(HttpClient);
   private client = generateClient();
 
-  
+
 
   /**
    * 1. Obtiene la URL firmada para subir el archivo a S3 (Sin cambios)
    */
-async getPresignedUrl(fileName: string, fileType: string): Promise<PresignedResponse> {
-  const cleanFileName = fileName.split('\\').pop()?.split('/').pop() || fileName;
-  
-  // Agregamos los campos key y userId a la mutación
-  const mutation = `
+  async getPresignedUrl(fileName: string, fileType: string): Promise<PresignedResponse> {
+    const cleanFileName = fileName.split('\\').pop()?.split('/').pop() || fileName;
+
+    // Agregamos los campos key y userId a la mutación
+    const mutation = `
     mutation GetUrl($name: String!, $type: String!) {
       getPresignedUrl(fileName: $name, fileType: $type) {
-        uploadURL: String
-        key: String
-        invoiceId: String
+        uploadURL
+        key
+        invoiceId
       }
     }
   `;
 
-  try {
-    const response: any = await this.client.graphql({
-      query: mutation,
-      variables: { name: cleanFileName, type: fileType }
-    });
+    try {
+      const response: any = await this.client.graphql({
+        query: mutation,
+        variables: { name: cleanFileName, type: fileType }
+      });
 
-    const data = response?.data?.getPresignedUrl;
-    
-    if (!data) throw new Error("No se recibió respuesta de AppSync");
+      const data = response?.data?.getPresignedUrl;
 
-    return data; // Ahora devolvemos { uploadURL, key, userId }
-  } catch (error) {
-    console.error("❌ Error en getPresignedUrl:", error);
-    throw error;
+      if (!data) throw new Error("No se recibió respuesta de AppSync");
+
+      return data; // Ahora devolvemos { uploadURL, key, userId }
+    } catch (error) {
+      console.error("❌ Error en getPresignedUrl:", error);
+      throw error;
+    }
   }
-}
 
   /**
    * 2. Sube el binario a S3 (Sin cambios)
