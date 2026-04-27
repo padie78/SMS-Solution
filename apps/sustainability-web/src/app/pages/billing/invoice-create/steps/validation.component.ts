@@ -111,7 +111,7 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
   /**
    * Acción final: Envía los datos manuales + los datos de la IA confirmados
    */
-  async confirm() {
+  async handleConfirm() {
     this.isLoading = true;
     try {
       const snapshot = this.stateService.getSnapshot();
