@@ -203,7 +203,7 @@ type Mutation {
     message: String
   ): Invoice @aws_api_key @aws_cognito_user_pools
 
-  getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse @aws_cognito_user_pools
+  getPresignedUrl(fileName: String!, fileType: String!, invoiceId: String!): PresignedUrlResponse @aws_cognito_user_pools
   confirmInvoice(id: ID!, input: ConfirmInvoiceInput!): ActionResponse! @aws_cognito_user_pools
   approveInvoice(invoiceId: ID!): Invoice @aws_cognito_user_pools
 }
