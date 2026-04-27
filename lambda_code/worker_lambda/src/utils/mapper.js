@@ -71,7 +71,7 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
             }
         },
         total_days_prorated: days,
-        status: "DONE",
+        status: status,
         processed_at: now,
         metadata: {
             ...cleanMetadata, 
