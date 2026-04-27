@@ -206,7 +206,7 @@ type Mutation {
     status: InvoiceStatus!, 
     extractedData: AWSJSON,
     message: String
-  ): Invoice : @aws_api_key
+  ): Invoice : @aws_api_key @aws_cognito_user_pools
 
   # Pipeline de Facturación e IA
   getPresignedUrl(fileName: String!, fileType: String!): PresignedUrlResponse
