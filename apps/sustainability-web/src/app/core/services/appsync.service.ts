@@ -121,24 +121,36 @@ export class AppSyncService {
    * 5. Confirmación Final (Clic del Usuario)
    * Se mantiene para persistir los cambios manuales del Step 2.
    */
-  async confirmInvoice(storageKey: string, input: any): Promise<any> {
+  // Cambiamos el primer argumento para que acepte el posible null y lo manejamos dentro
+  async confirmInvoice(invoiceId: string | null, input: any): Promise<any> {
+
+    // 1. Validación de seguridad: Si no hay ID, no tiene sentido llamar a AWS
+    if (!invoiceId) {
+      console.error("❌ [AppSyncService] No se puede confirmar: invoiceId es null o vacío.");
+      return { success: false, message: "ID de factura no válido." };
+    }
+
     const mutation = `
-      mutation ConfirmInvoice($sk: String!, $input: ConfirmInvoiceInput!) {
-        confirmInvoice(sk: $sk, input: $input) {
-          success
-          message
-          id
-        }
+    mutation ConfirmInvoice($id: ID!, $input: ConfirmInvoiceInput!) {
+      confirmInvoice(id: $id, input: $input) {
+        success
+        message
+        id
       }
-    `;
+    }
+  `;
+
     try {
       const response: any = await this.client.graphql({
         query: mutation,
-        variables: { sk: storageKey, input: input }
+        variables: {
+          id: invoiceId, // Aquí TS ya sabe que invoiceId es string por el check de arriba
+          input: input
+        }
       });
       return response?.data?.confirmInvoice;
     } catch (error: any) {
-      console.error("❌ Error en confirmInvoice:", error);
+      console.error("❌ [AppSyncService] Error en confirmInvoice:", error);
       throw error;
     }
   }
