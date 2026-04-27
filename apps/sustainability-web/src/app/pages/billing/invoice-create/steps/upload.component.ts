@@ -148,11 +148,7 @@ export class InvoiceUploadComponent implements OnInit {
           this.selectedFile.name,
           this.selectedFile.type
         );
-
-        // 2. Ahora podés usar 'invoiceId' sin que TS chille
-        this.stateService.setInvoiceId(invoiceId);
-        this.stateService.setStorageKey(key);
-
+        
         // 2. Subida del binario a S3
         const uploadResult = await this.appsyncService.uploadFileToS3(uploadURL, this.selectedFile);
 

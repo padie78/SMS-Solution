@@ -5,15 +5,16 @@ export const notifyInvoiceUpdate = async (id, status, message, payload = null) =
 
     // Corregimos la definición para que incluya $message
     const mutation = `
-      mutation UpdateStatus($id: ID!, $status: InvoiceStatus!, $data: AWSJSON, $msg: String) {
-        updateInvoiceStatus(id: $id, status: $status, extractedData: $data, message: $msg) {
-          id
-          status
-          extractedData
-          lastUpdated # Agregado para asegurar que el objeto cambie
-        }
-      }
-    `;
+  mutation UpdateStatus($id: ID!, $status: InvoiceStatus!, $data: AWSJSON, $msg: String) {
+    updateInvoiceStatus(id: $id, status: $status, extractedData: $data, message: $msg) {
+      id
+      status
+      extractedData
+      vendor
+      totalAmount
+    }
+  }
+`;
 
     const body = JSON.stringify({
         query: mutation,
