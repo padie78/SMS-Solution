@@ -1,26 +1,26 @@
 import https from 'https';
 
-/**
- * Envía una notificación de estado a AppSync para que el Front la reciba vía WebSocket.
- */
 export const notifyInvoiceUpdate = async (id, status, message, payload = null) => {
     const appsyncUrl = new URL(process.env.APPSYNC_URL || "https://75nymxzbp5dddnsnehigmroili.appsync-api.eu-central-1.amazonaws.com/graphql");
 
+    // Corregimos la definición para que incluya $message
     const mutation = `
-  mutation UpdateStatus($id: ID!, $status: InvoiceStatus!, $data: AWSJSON) {
-    updateInvoiceStatus(id: $id, status: $status, extractedData: $data) {
-      id
-      status
-      extractedData
-    }
-  }
-`;
+      mutation UpdateStatus($id: ID!, $status: InvoiceStatus!, $data: AWSJSON, $msg: String) {
+        updateInvoiceStatus(id: $id, status: $status, extractedData: $data, message: $msg) {
+          id
+          status
+          extractedData
+          lastUpdated # Agregado para asegurar que el objeto cambie
+        }
+      }
+    `;
+
     const body = JSON.stringify({
         query: mutation,
         variables: {
-            id,
-            status,
-            msg: message,
+            id: id,
+            status: status,
+            msg: message, // Ahora sí coincide con $msg arriba
             data: payload ? (typeof payload === 'string' ? payload : JSON.stringify(payload)) : null
         }
     });
@@ -31,7 +31,7 @@ export const notifyInvoiceUpdate = async (id, status, message, payload = null) =
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'x-api-key': process.env.APPSYNC_API_KEY
+            'x-api-key': process.env.APPSYNC_API_KEY // Asegúrate que esta Env Var esté en la Lambda
         }
     };
 
@@ -39,11 +39,15 @@ export const notifyInvoiceUpdate = async (id, status, message, payload = null) =
         const req = https.request(options, (res) => {
             let data = '';
             res.on('data', (chunk) => data += chunk);
-            res.on('end', () => resolve(JSON.parse(data)));
+            res.on('end', () => {
+                const response = JSON.parse(data);
+                console.log("🚀 AppSync Notification Sent:", JSON.stringify(response));
+                resolve(response);
+            });
         });
 
         req.on('error', (err) => {
-            console.error("Error calling AppSync:", err);
+            console.error("❌ AppSync Notification Error:", err);
             reject(err);
         });
 
