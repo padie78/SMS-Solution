@@ -60,8 +60,8 @@ export class AppSyncService {
   /**
    * 2. Sube el binario a S3 (Sin cambios)
    */
-  async uploadFileToS3(uploadUrl: string, file: File): Promise<{ success: boolean, key: string }> {
-    const headers = new HttpHeaders({ 'Content-Type': file.type });
+  async uploadFileToS3(uploadUrl: string, file: File, invoiceId: string): Promise<{ success: boolean, key: string }> {
+    const headers = new HttpHeaders({ 'Content-Type': file.type, 'x-amz-meta-invoiceid': invoiceId });
     const urlPath = new URL(uploadUrl).pathname;
     const finalKey = decodeURIComponent(urlPath.startsWith('/') ? urlPath.substring(1) : urlPath);
 

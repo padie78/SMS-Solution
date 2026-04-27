@@ -160,7 +160,7 @@ export class InvoiceUploadComponent implements OnInit {
         console.log("📤 [ACTION] Presigned URL obtenido. ID confirmado por Backend:", invoiceId);
 
         // 3. Subida del binario a S3
-        const uploadResult = await this.appsyncService.uploadFileToS3(uploadURL, this.selectedFile);
+        const uploadResult = await this.appsyncService.uploadFileToS3(uploadURL, this.selectedFile, finalId);
 
         if (!uploadResult.success) {
           throw new Error("La subida a S3 falló.");

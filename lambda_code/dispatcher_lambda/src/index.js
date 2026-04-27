@@ -8,10 +8,9 @@ export const handler = async (event, context) => {
     const bucket = record.s3.bucket.name;
     const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
 
-    const sk = event.arguments?.invoiceId || 
-               event.invoiceId || 
-               event.id || 
-               (event.detail && event.detail.invoiceId);
+    const head = await s3.send(new HeadObjectCommand({ Bucket: bucket, Key: key }));
+
+    const sk = head.Metadata['invoiceid'];
 
     if (!sk) {
         console.error("❌ ERROR: No se encontró invoiceId en el evento.");
