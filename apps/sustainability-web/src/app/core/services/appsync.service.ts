@@ -28,9 +28,9 @@ async getPresignedUrl(fileName: string, fileType: string): Promise<PresignedResp
   const mutation = `
     mutation GetUrl($name: String!, $type: String!) {
       getPresignedUrl(fileName: $name, fileType: $type) {
-        uploadURL: String!
-        key: String!
-        invoiceId: String!
+        uploadURL: String
+        key: String
+        invoiceId: String
       }
     }
   `;
