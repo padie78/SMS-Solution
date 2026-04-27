@@ -5,32 +5,46 @@ export const handler = async (event, context) => {
 
     for (const record of event.Records) {
         try {
-            // 1. Parsear el mensaje que viene de SQS (enviado por el Dispatcher)
+            // 1. Parsear el mensaje que viene de SQS
             const body = JSON.parse(record.body);
-            const { bucket, key, orgId, sk } = body;
+            
+            // Si el Dispatcher/S3-Trigger no te mandó el 'sk' explícito,
+            // lo extraemos directamente de la 'key' de S3.
+            let { bucket, key, orgId, sk } = body;
 
-            if (!sk || !orgId) {
-                console.warn("⚠️ [SKIP] Mensaje malformado: faltan coordenadas (sk/orgId)");
+            if (!sk && key) {
+                // Extraemos el nombre del archivo (ej: "INV#123__factura.pdf")
+                const fileName = key.split('/').pop();
+                // Tomamos la parte antes del doble guion bajo
+                sk = fileName.split('__')[0];
+                
+                console.log(`🔍 [WORKER] SK extraído de la Key: ${sk}`);
+            }
+
+            // Validación de seguridad
+            if (!sk) {
+                console.warn("⚠️ [SKIP] No se pudo determinar el SK (invoiceId) para la key:", key);
                 continue;
             }
 
-            console.log(`🆔 [WORKER_EVENT] | Org: ${orgId} | SK: ${sk} | Key: ${key}`);
+            // Hardcodeamos orgId si no viene, o lo sacamos del path si es necesario
+            const finalOrgId = orgId || "DEFAULT_ORG"; 
+
+            console.log(`🆔 [WORKER_EVENT] | Org: ${finalOrgId} | SK: ${sk} | Key: ${key}`);
 
             /**
              * 2. Delegar al pipeline. 
-             * El pipeline debería:
-             * - Bajar el archivo de S3.
-             * - Ejecutar IA (Textract/Bedrock).
-             * - Calcular Climatiq.
-             * - Ejecutar el UpdateItem en DynamoDB usando el PK (orgId) y SK (sk).
+             * Ahora el objeto 'body' tiene el 'sk' correcto para que el pipeline 
+             * pueda actualizar DynamoDB y notificar a AppSync con el ID que espera el Front.
              */
-            await pipeline(body, orgId);
+            const pipelineData = { ...body, sk: sk }; 
+            await pipeline(pipelineData, finalOrgId);
 
             console.log(`✅ [WORKER_SUCCESS] | Procesado con éxito: ${sk}`);
 
         } catch (error) {
-            // Si tiramos el error, el mensaje vuelve a SQS para reintentar (según el redrive policy)
             console.error(`❌ [WORKER_ERROR] | ${error.message}`);
+            // Al lanzar el error, SQS hará el reintento automático
             throw error; 
         }
     }
