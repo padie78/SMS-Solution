@@ -10,18 +10,17 @@ export const notifyInvoiceUpdate = async (id, status, message, payload = null) =
       id
       status
       extractedData
-      vendor
-      totalAmount
     }
   }
 `;
 
+    // Limpiamos el body para asegurar que el ID viaje correctamente
     const body = JSON.stringify({
         query: mutation,
         variables: {
-            id: id,
+            id: id, // Asegurate que este 'id' incluya el prefijo si tu DB lo usa (ej: "INV#123")
             status: status,
-            msg: message, // Ahora sí coincide con $msg arriba
+            msg: message || "Update from AI Pipeline",
             data: payload ? (typeof payload === 'string' ? payload : JSON.stringify(payload)) : null
         }
     });
@@ -32,7 +31,7 @@ export const notifyInvoiceUpdate = async (id, status, message, payload = null) =
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'x-api-key': process.env.APPSYNC_API_KEY || "da2-uwvkviowwrfthglgmhirgrib74" // Asegúrate que esta Env Var esté en la Lambda
+            'x-api-key': process.env.APPSYNC_API_KEY || "da2-uwvkviowwrfthglgmhirgrib74"
         }
     };
 
