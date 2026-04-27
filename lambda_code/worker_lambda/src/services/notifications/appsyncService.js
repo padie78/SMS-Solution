@@ -9,6 +9,8 @@ export const notifyInvoiceUpdate = async (id, status, message, payload = null) =
     updateInvoiceStatus(id: $id, status: $status, extractedData: $data, message: $msg) {
       id
       status
+      extractedData
+      message
     }
   }
 `;
