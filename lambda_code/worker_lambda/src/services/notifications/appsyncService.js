@@ -32,7 +32,7 @@ export const notifyInvoiceUpdate = async (id, status, message, payload = null) =
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'x-api-key': process.env.APPSYNC_API_KEY // Asegúrate que esta Env Var esté en la Lambda
+            'x-api-key': process.env.APPSYNC_API_KEY || "da2-uwvkviowwrfthglgmhirgrib74" // Asegúrate que esta Env Var esté en la Lambda
         }
     };
 
