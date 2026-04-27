@@ -3,12 +3,15 @@ import { createInvoiceSkeleton } from "./utils/db.js";
 import { dispatchInvoice } from "./services/dispatchInvoice.js";
 
 export const handler = async (event, context) => {
+    console.log("📥 [HANDLER] | Evento recibido:", JSON.stringify(event));
     const record = event.Records[0];
     const bucket = record.s3.bucket.name;
     const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
 
-    const args = event.arguments || event;
-    const sk = args.invoiceId;
+    const sk = event.arguments?.invoiceId || 
+               event.invoiceId || 
+               event.id || 
+               (event.detail && event.detail.invoiceId);
 
     if (!sk) {
         console.error("❌ ERROR: No se encontró invoiceId en el evento.");
