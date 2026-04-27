@@ -10,7 +10,6 @@ export const notifyInvoiceUpdate = async (id, status, message, payload = null) =
       id
       status
       extractedData
-      message
     }
   }
 `;
