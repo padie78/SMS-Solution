@@ -21,13 +21,13 @@ export class AppSyncService {
   /**
    * 1. Obtiene la URL firmada para subir el archivo a S3 (Sin cambios)
    */
-  async getPresignedUrl(fileName: string, fileType: string): Promise<PresignedResponse> {
+  async getPresignedUrl(fileName: string, fileType: string, invoiceId: string): Promise<PresignedResponse> {
     const cleanFileName = fileName.split('\\').pop()?.split('/').pop() || fileName;
 
-    // Agregamos los campos key y userId a la mutación
+    // Actualizamos la mutación para que acepte el ID como parámetro
     const mutation = `
-    mutation GetUrl($name: String!, $type: String!) {
-      getPresignedUrl(fileName: $name, fileType: $type) {
+    mutation GetUrl($name: String!, $type: String!, $id: String!) {
+      getPresignedUrl(fileName: $name, fileType: $type, invoiceId: $id) {
         uploadURL
         key
         invoiceId
@@ -38,14 +38,19 @@ export class AppSyncService {
     try {
       const response: any = await this.client.graphql({
         query: mutation,
-        variables: { name: cleanFileName, type: fileType }
+        variables: {
+          name: cleanFileName,
+          type: fileType,
+          id: invoiceId // Enviamos el "INV#faca19f-..."
+        }
       });
 
       const data = response?.data?.getPresignedUrl;
 
       if (!data) throw new Error("No se recibió respuesta de AppSync");
 
-      return data; // Ahora devolvemos { uploadURL, key, userId }
+      console.log("🔗 URL y ID obtenidos:", data.invoiceId);
+      return data;
     } catch (error) {
       console.error("❌ Error en getPresignedUrl:", error);
       throw error;

@@ -7,8 +7,10 @@ export const handler = async (event, context) => {
     const bucket = record.s3.bucket.name;
     const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
     
-    // Generamos el SK aquí para pasárselo a ambos métodos
-    const sk = `INV#${Date.now()}#${Math.random().toString(36).substring(5)}`;
+    const clientInvoiceId = event.arguments.invoiceId;
+
+    // 2. Usamos el ID del cliente para el Skeleton y para la respuesta
+    const sk = clientInvoiceId;
 
     console.log(`🚀 [HANDLER] | Procesando archivo: ${key}`);
 

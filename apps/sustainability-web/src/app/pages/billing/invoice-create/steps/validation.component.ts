@@ -42,6 +42,7 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
   @Output() onConfirm = new EventEmitter<void>();
   @Output() onCancel = new EventEmitter<void>();
 
+  // --- UI State ---
   isLoading = true;
   errorMessage: string | null = null;
   invoice: any = null;
@@ -50,76 +51,79 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     const snapshot = this.stateService.getSnapshot();
-    // Extraemos el ID a una constante para validarlo
     const currentId = snapshot.invoiceId;
 
-    // 1. Si ya tenemos la data, no esperamos más
+    console.log("🛠️ [VALIDATION] Snapshot inicial:", snapshot);
+
+    // 1. Si ya tenemos la data (por navegación previa)
     if (snapshot.extractedData) {
+      console.log("📦 [VALIDATION] Datos detectados en State. Saltando espera.");
       this.invoice = snapshot.extractedData;
       this.isLoading = false;
       return;
     }
 
-    // 2. Validamos que el ID exista antes de pasarlo a la suscripción
+    // 2. Si no hay data, iniciamos la escucha en tiempo real
     if (currentId) {
-      // Aquí adentro TypeScript ya sabe que currentId es STRING (no null)
+      console.log(`🎯 [VALIDATION] Iniciando flujo para ID: ${currentId}`);
       this.isLoading = true;
       this.subscribeToUpdates(currentId);
     } else {
-      console.error("⚠️ [VALIDATION] Error: invoiceId es null.");
+      console.error("⚠️ [VALIDATION] Error: No existe invoiceId en el State.");
       this.errorMessage = 'No se encontró una referencia válida para procesar.';
       this.isLoading = false;
     }
   }
 
   private subscribeToUpdates(id: string) {
-    // LOG CRÍTICO: Comparar este ID con el que sale en la Lambda de AWS
-    console.log(`📡 [SUBSCRIPTION] Escuchando en AppSync para ID: "${id}"`);
+    // Verificamos que el ID tenga el formato esperado (Client-Side UUID)
+    console.log(`📡 [SUBSCRIPTION] Suscribiéndose al canal AppSync: "${id}"`);
 
     this.statusSubscription = this.appsyncService.onInvoiceUpdated(id).subscribe({
       next: (response: any) => {
-        console.log("📥 [SUBSCRIPTION] Mensaje recibido de AppSync:", JSON.stringify(response));
+        console.log("📥 [SUBSCRIPTION] Mensaje entrante:", JSON.stringify(response));
 
-        // AppSync Amplify vs AppSync puro pueden variar la estructura
         const updated = response?.value?.data?.onInvoiceUpdated || response?.data?.onInvoiceUpdated;
 
         if (!updated) {
-          console.warn("❓ [SUBSCRIPTION] El mensaje llegó pero 'onInvoiceUpdated' está vacío.");
+          console.warn("❓ [SUBSCRIPTION] Payload vacío.");
           return;
         }
 
-        console.log(`📊 [SUBSCRIPTION] Cambio de estado detectado: ${updated.status}`);
+        console.log(`📊 [SUBSCRIPTION] Nuevo estado: ${updated.status}`);
 
+        // Éxito: La IA terminó el procesamiento
         if (updated.status === 'READY_FOR_REVIEW') {
-          console.log("✅ [SUCCESS] ¡Golden Record listo! Rompiendo loop...");
+          console.log("✅ [MATCH] ¡ID Correcto! Rompiendo loop de carga...");
 
           try {
             this.invoice = typeof updated.extractedData === 'string'
               ? JSON.parse(updated.extractedData)
               : updated.extractedData;
 
-            console.log("📄 [DATA] Datos extraídos:", this.invoice);
+            // Persistimos en el servicio de estado
+            this.stateService.setAiData(this.invoice);
+            
+            this.isLoading = false;
+            this.cdr.detectChanges(); // Forzamos actualización de la UI
+            
+            this.statusSubscription?.unsubscribe();
+
+            this.messageService.add({
+              severity: 'success',
+              summary: 'Análisis Completo',
+              detail: 'Los datos han sido extraídos por la IA.'
+            });
           } catch (e) {
-            console.error("❌ [DATA] Error parseando extractedData:", e);
+            console.error("❌ [DATA] Error al procesar extractedData:", e);
+            this.errorMessage = "Error al procesar los datos de la IA.";
+            this.isLoading = false;
+            this.cdr.detectChanges();
           }
-
-          this.stateService.setAiData(this.invoice);
-          this.isLoading = false;
-
-          // Forzamos el renderizado
-          this.cdr.detectChanges();
-          console.log("🔄 [UI] Spinner oculto, formulario visible.");
-
-          this.statusSubscription?.unsubscribe();
-
-          this.messageService.add({
-            severity: 'success',
-            summary: 'Análisis Completo',
-            detail: 'Datos extraídos correctamente.'
-          });
         }
+        // Error en el pipeline de AWS (Bedrock/Textract)
         else if (updated.status === 'FAILED') {
-          console.error("❌ [PIPELINE] La IA falló en el procesamiento.");
+          console.error("❌ [PIPELINE] El procesamiento falló en el backend.");
           this.isLoading = false;
           this.errorMessage = updated.message || 'Error en el procesamiento de la IA.';
           this.cdr.detectChanges();
@@ -127,8 +131,8 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
         }
       },
       error: (err) => {
-        console.error('❌ [SUBSCRIPTION] Error fatal en el socket:', err);
-        this.errorMessage = 'Conexión perdida con el servicio de notificaciones.';
+        console.error('❌ [SUBSCRIPTION] Error en el WebSocket:', err);
+        this.errorMessage = 'Conexión interrumpida con el servicio de notificaciones.';
         this.isLoading = false;
         this.cdr.detectChanges();
       }
@@ -136,10 +140,14 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
   }
 
   async handleConfirm() {
-    console.log("💾 [ACTION] Iniciando confirmación manual...");
+    console.log("💾 [ACTION] Confirmando factura...");
     this.isLoading = true;
+    
     try {
       const snapshot = this.stateService.getSnapshot();
+      
+      // Usamos el operador ! porque ya validamos la existencia del ID en ngOnInit
+      const invoiceId = snapshot.invoiceId!;
 
       const confirmInput = {
         status: 'CONFIRMED',
@@ -150,19 +158,26 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
         notes: snapshot.internalNote
       };
 
-      console.log("📤 [ACTION] Enviando confirmInvoice:", confirmInput);
-      const result = await this.appsyncService.confirmInvoice(snapshot.invoiceId, confirmInput);
+      const result = await this.appsyncService.confirmInvoice(invoiceId, confirmInput);
 
       if (result.success) {
-        console.log("✅ [ACTION] Sincronización exitosa.");
+        this.messageService.add({ 
+          severity: 'success', 
+          summary: 'Confirmado', 
+          detail: 'Factura validada exitosamente.' 
+        });
         this.onConfirm.emit();
       } else {
-        throw new Error(result.message || "Error desconocido.");
+        throw new Error(result.message || "Error al confirmar.");
       }
 
     } catch (err: any) {
-      console.error('❌ [ACTION] Error al confirmar:', err);
-      this.messageService.add({ severity: 'error', summary: 'Error', detail: err.message });
+      console.error('❌ [ACTION] Error:', err);
+      this.messageService.add({ 
+        severity: 'error', 
+        summary: 'Error', 
+        detail: err.message 
+      });
     } finally {
       this.isLoading = false;
       this.cdr.detectChanges();
@@ -170,13 +185,12 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
   }
 
   goBack() {
-    console.log("🔙 [UI] El usuario canceló la validación.");
     this.onCancel.emit();
   }
 
   ngOnDestroy() {
     if (this.statusSubscription) {
-      console.log("🔌 [SUBSCRIPTION] Limpiando suscripción al destruir componente.");
+      console.log("🔌 [SUBSCRIPTION] Cerrando canal de escucha.");
       this.statusSubscription.unsubscribe();
     }
   }

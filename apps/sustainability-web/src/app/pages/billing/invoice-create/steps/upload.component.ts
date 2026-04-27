@@ -142,33 +142,46 @@ export class InvoiceUploadComponent implements OnInit {
       this.isLoading = true;
 
       try {
-        // 1. Obtener Presigned URL e Invoice ID (SK)
-        // Desestructuramos para obtener el 'invoiceId' generado en el backend
+        // 1. Generamos el Client-Side ID (UUID)
+        // Usamos el formato INV#UUID que decidimos para DynamoDB
+        const myUuid = crypto.randomUUID();
+        const finalId = `INV#${myUuid}`;
+        
+        console.log(`🆔 [PRE-UPLOAD] Generando identidad: ${finalId}`);
+
+        // 2. Obtener Presigned URL enviando nuestro ID
+        // Ahora le pasamos el tercer argumento que agregamos al service
         const { uploadURL, key, invoiceId } = await this.appsyncService.getPresignedUrl(
           this.selectedFile.name,
-          this.selectedFile.type
+          this.selectedFile.type,
+          finalId
         );
         
-        // 2. Subida del binario a S3
+        console.log("📤 [ACTION] Presigned URL obtenido. ID confirmado por Backend:", invoiceId);
+
+        // 3. Subida del binario a S3
         const uploadResult = await this.appsyncService.uploadFileToS3(uploadURL, this.selectedFile);
 
         if (!uploadResult.success) {
           throw new Error("La subida a S3 falló.");
         }
 
-        // 3. Persistencia en el Estado Local (Signals)
-        // Guardamos el invoiceId (SK) para que el Step 2 se suscriba al WebSocket correcto
-        this.stateService.setInvoiceId(invoiceId);
+        // 4. Persistencia en el Estado Local (Signals)
+        // CRÍTICO: Guardamos el 'invoiceId' que devolvió la API (que debería ser nuestro finalId)
+        this.stateService.setInvoiceId(invoiceId); 
         this.stateService.setStorageKey(key);
-        this.stateService.setStep1Data(this.uploadForm.value, this.selectedFile);
+        
+        // Guardamos el resto de los datos del formulario
+        this.stateService.setStep1Data(this.uploadForm.getRawValue(), this.selectedFile);
 
         this.messageService.add({
           severity: 'success',
-          summary: 'Archivo recibido',
-          detail: 'Iniciando análisis asincrónico...'
+          summary: 'Subida exitosa',
+          detail: 'Esperando procesamiento de IA...'
         });
 
-        // 4. Continuar al Step 2 (Validation)
+        // 5. Continuar al Step 2 (Validation)
+        // Ahora el Step 2 leerá "INV#faca19f..." y se suscribirá al canal correcto.
         this.onComplete.emit();
 
       } catch (error: any) {
