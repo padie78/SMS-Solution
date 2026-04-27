@@ -12,6 +12,8 @@ export const handler = async (event, context) => {
     // 2. Usamos el ID del cliente para el Skeleton y para la respuesta
     const sk = clientInvoiceId;
 
+    console.log(`📥 [HANDLER] | Evento recibido: Bucket=${bucket}, Key=${key}, InvoiceID=${clientInvoiceId}`);
+
     console.log(`🚀 [HANDLER] | Procesando archivo: ${key}`);
 
     try {
