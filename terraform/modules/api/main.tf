@@ -85,7 +85,6 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
     # "saveEmissionFactor", "saveUser", "saveAlertRule","processInvoice",
     # "approveInvoice", "confirmInvoice"
     "createInvoice",
-    "updateInvoiceStatus",
     "confirmInvoice",
     "approveInvoice"
   ])
