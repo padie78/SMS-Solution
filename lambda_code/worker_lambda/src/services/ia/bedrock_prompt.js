@@ -42,6 +42,7 @@ export const buildSystemPrompt = (category) => {
             financial_extraction_map: "Step-by-step logic to identify Net Amount (Base Imponible) and Tax (IVA)",
             atomic_line_inventory: "Confirmation of every line item found (P1, P2, P3, Taxes, Fees)"
         },
+        confidence_score: "float (0.0-1.0 reporting your overall certainty of the extraction)", // 👈 AGREGAR ESTO
         source_data: {
             vendor: { 
                 name: "string", 

@@ -1,6 +1,7 @@
 /**
  * Transforms AI results into the final Golden Record.
- * Adaptado para incluir Referencia de Contrato, Potencias P1/P2 e Identificadores de Factura.
+ * Versión simplificada para STEP 2: Validación de usuario.
+ * Se eliminan KPIs de promedios e intensidad hasta el STEP 3.
  */
 export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, category, originalMetadata = {}) => {
     const now = new Date().toISOString();
@@ -8,45 +9,29 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
     // 0. NORMALIZACIÓN DE PK
     const cleanPK = orgId.replace("ORG#", "");
     
-    console.log(`[MAPPER] [${sk}] Mapping Golden Record. Target Org: ${cleanPK}`);
+    console.log(`[MAPPER] [${sk}] Mapping Golden Record for Validation. Target Org: ${cleanPK}`);
 
-    // 1. METADATA & ANALYTICS PREP
+    // 1. DATA PREP
     const cleanMetadata = originalMetadata?.M || originalMetadata || {};
-    const facilityM2 = Number(cleanMetadata.facility_m2?.N || cleanMetadata.facility_m2 || 0);
-
     const source = aiAnalysis.source_data || {};
     const billing = source.billing_period || {};
     const technical = aiAnalysis.technical_ids || {}; 
 
-    // Gestión de fechas y días para prorrateo
-    const startDate = billing.start ? new Date(billing.start) : new Date();
-    const endDate = billing.end ? new Date(billing.end) : new Date();
-    const diffTime = Math.abs(endDate - startDate);
-    let days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
-    if (isNaN(days) || days <= 0) days = 1;
-
-    // 2. METRIC EXTRACTION
-    const amountData = source.total_amount || {};
-    const totalAmount = Number(amountData.total_with_tax || 0);
-    const finalCo2 = Number(emissions?.total_kg || emissions?.co2e || 0);
+    // 2. BASIC METRIC EXTRACTION (Para soporte de validación)
+    const totalAmount = Number(source.total_amount?.total_with_tax || 0);
     
-    // Solo sumamos energía (kWh) para el KPI de consumo principal
     const totalConsumption = (aiAnalysis.emission_lines || [])
         .filter(line => line.unit?.toLowerCase().includes('kwh'))
         .reduce((sum, line) => sum + (Number(line.value) || 0), 0);
 
     const mainUnit = aiAnalysis.emission_lines?.find(l => l.unit?.toLowerCase().includes('kwh'))?.unit || "kWh";
 
-    // 3. ANALYTICS KPI GENERATION
+    // 3. ANALYTICS MÍNIMO PARA PASO 2
     const unitPrice = totalConsumption > 0 ? (totalAmount / totalConsumption) : 0;
+    
     const analytics = {
-        daily_avg_consumption: Number((totalConsumption / days).toFixed(2)),
-        daily_avg_cost: Number((totalAmount / days).toFixed(2)),
-        energy_intensity_m2: facilityM2 > 0 ? Number((totalConsumption / facilityM2).toFixed(2)) : null,
-        carbon_intensity: totalConsumption > 0 ? Number((finalCo2 / totalConsumption).toFixed(4)) : 0,
-        unit_price_index: Number(unitPrice.toFixed(4)),
         confidence_score: aiAnalysis.confidence_score || 0.85,
-        anomaly_detected: unitPrice > 0.18 
+        anomaly_detected: unitPrice > 0.25 // Alerta si el precio/kWh es inusualmente alto
     };
 
     // 4. FINAL OBJECT CONSTRUCTION
@@ -60,21 +45,19 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
             unit: mainUnit,
             status_triage: "DONE"
         },
+        // Mantenemos la estructura pero vacía si no hay emisiones en este paso
         climatiq_result: emissions && Object.keys(emissions).length > 0 ? {
-            co2e: finalCo2,
+            co2e: Number(emissions.total_kg || 0),
             co2e_unit: "kg",
             activity_id: emissions.activity_id || "unknown",
             timestamp: now
         } : {},
         extracted_data: {
-            // --- NUEVOS IDENTIFICADORES DE FACTURA ---
             invoice_number: source.invoice_number || null,
             invoice_date: source.invoice_date || null,
-            
             vendor: source.vendor?.name || "Unknown",
             customer: source.customer || {},
             
-            // --- DATOS TÉCNICOS ---
             cups: technical.cups || null,
             contract_reference: technical.contract_reference || null,
             contracted_power: {
@@ -84,8 +67,8 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
             tariff: technical.tariff || null,
 
             total_amount: totalAmount,
-            tax_amount: Number(amountData.tax_amount || 0),
-            net_amount: Number(amountData.net_amount || amountData.net || 0),
+            tax_amount: Number(source.total_amount?.tax_amount || 0),
+            net_amount: Number(source.total_amount?.net_amount || 0),
             currency: source.currency || "EUR",
             billing_period: { 
                 start: billing.start || null, 
@@ -93,7 +76,6 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
             },
             lines: aiAnalysis.emission_lines || [] 
         },
-        total_days_prorated: days,
         status: status || "READY_FOR_REVIEW",
         processed_at: now,
         updated_at: now,
