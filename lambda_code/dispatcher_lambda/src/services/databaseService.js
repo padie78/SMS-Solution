@@ -1,6 +1,6 @@
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, TABLE_NAME } from "./data/client.js";
-import { buildInvoiceSkeleton } from "./dbSchema.js";
+import { buildInvoiceSkeleton } from "../utils/dbSchema.js";
 
 /**
  * Persists the initial invoice skeleton to DynamoDB.

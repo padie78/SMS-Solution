@@ -4,7 +4,7 @@ import { ddb, TABLE_NAME } from "../services/data/client.js";
 /**
  * Crea el registro inicial (esqueleto) de la factura en DynamoDB
  */
-export const createInvoiceSkeleton = async (orgId, sk, s3Key, bucket) => {
+export const buildInvoiceSkeleton = async (orgId, sk, s3Key, bucket) => {
     const invoiceSkeleton = {
         PK: orgId,
         SK: sk,
