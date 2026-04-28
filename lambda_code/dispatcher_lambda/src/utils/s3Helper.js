@@ -1,49 +1,65 @@
 import { S3Client, HeadObjectCommand } from "@aws-sdk/client-s3";
 
-// Instanciamos el cliente fuera del handler para reutilizar conexiones (Best Practice)
+// Standard client instantiation for connection reuse
 const s3 = new S3Client({});
 
 /**
- * Obtiene el ID de la organización basado en la ubicación del archivo
- * o sus metadatos en S3.
+ * Attempts to extract the Organization ID from the S3 Object Key Path.
+ * Pattern: uploads/{orgId}/filename.pdf
  */
-export const getOrganizationId = async (bucket, key) => {
-    console.log(`🔍 [s3Helper]: Identificando organización para ${key}...`);
+const getOrgIdFromPath = (key) => {
+    const pathParts = key.split('/');
+    // Looking for the segment after 'uploads/'
+    const orgIdCandidate = pathParts.length > 1 ? pathParts[1] : null;
 
+    if (orgIdCandidate && orgIdCandidate !== 'uploads' && orgIdCandidate !== '') {
+        return orgIdCandidate;
+    }
+    return null;
+};
+
+/**
+ * Attempts to retrieve Organization ID from S3 Object Metadata.
+ * Fallback when path-based identification fails.
+ */
+const getOrgIdFromMetadata = async (bucket, key) => {
     try {
-        // 1. INTENTO POR PATH (Estructura: uploads/{orgId}/factura.pdf)
-        const pathParts = key.split('/');
-        
-        // Asumimos que si hay carpetas, la primera después de 'uploads' es el ID
-        const orgIdFromPath = pathParts.length > 1 ? pathParts[1] : null;
-
-        if (orgIdFromPath && orgIdFromPath !== 'uploads' && orgIdFromPath !== '') {
-            console.log(`✅ [s3Helper]: OrgId encontrado en Path -> ${orgIdFromPath}`);
-            return orgIdFromPath;
-        }
-
-        // 2. INTENTO POR METADATA (Fallback)
-        // Si el archivo está en la raíz o el path no es confiable, consultamos S3
         const head = await s3.send(new HeadObjectCommand({ 
             Bucket: bucket, 
             Key: key 
         }));
 
-        // Buscamos 'organization-id' o 'organizationid' (S3 los pone en minúsculas)
-        const orgIdFromMeta = head.Metadata?.['organization-id'] || head.Metadata?.['organizationid'];
-
-        if (orgIdFromMeta) {
-            console.log(`✅ [s3Helper]: OrgId encontrado en Metadata -> ${orgIdFromMeta}`);
-            return orgIdFromMeta;
-        }
-
-        // 3. FALLBACK FINAL
-        console.warn(`⚠️ [s3Helper]: No se pudo determinar OrgId. Usando UNKNOWN_ORG.`);
-        return 'UNKNOWN_ORG';
-
+        // S3 metadata keys are always stored in lowercase
+        return head.Metadata?.['organization-id'] || head.Metadata?.['organizationid'];
     } catch (error) {
-        // Si hay un error de permisos o el archivo no existe
-        console.error(`❌ [s3Helper_ERROR]: Error al acceder a S3 Metadata: ${error.message}`);
-        return 'UNKNOWN_ORG';
+        console.error(`[S3_METADATA_ERROR] Failed to fetch HeadObject for ${key}: ${error.message}`);
+        return null;
     }
+};
+
+/**
+ * Orchestrates the identification of the Organization ID for the given file.
+ */
+export const getOrganizationId = async (bucket, key) => {
+    console.log(`[CONTEXT] Identifying organization context for S3 object: ${key}`);
+
+    // Strategy 1: Path Analysis
+    const orgIdFromPath = getOrgIdFromPath(key);
+    if (orgIdFromPath) {
+        console.log(`[CONTEXT_MATCH] OrgId found via path: ${orgIdFromPath}`);
+        return orgIdFromPath;
+    }
+
+    // Strategy 2: Metadata Inspection (Fallback)
+    console.log(`[CONTEXT_FALLBACK] Path analysis inconclusive. Checking S3 metadata...`);
+    const orgIdFromMeta = await getOrgIdFromMetadata(bucket, key);
+    
+    if (orgIdFromMeta) {
+        console.log(`[CONTEXT_MATCH] OrgId found via metadata: ${orgIdFromMeta}`);
+        return orgIdFromMeta;
+    }
+
+    // Strategy 3: Default Fallback
+    console.warn(`[CONTEXT_WARNING] Unable to determine Organization ID. Defaulting to UNKNOWN_ORG.`);
+    return 'UNKNOWN_ORG';
 };

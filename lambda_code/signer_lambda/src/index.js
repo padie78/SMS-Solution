@@ -1,41 +1,50 @@
-const { S3Client, PutObjectCommand } = require("@aws-sdk/client-s3");
-const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
-
-const s3Client = new S3Client({ region: process.env.AWS_REGION || "eu-central-1" });
+const { generatePresignedUploadUrl } = require("./s3Service");
+const { formatObjectKey } = require("./utils");
 
 exports.handler = async (event) => {
+    const requestId = event.requestContext?.requestId || "internal";
+    
     try {
+        console.log(`[INFRA] [${requestId}] Starting presigned URL generation flow.`);
+
+        // Identity & Args extraction
         const userId = event.identity?.claims?.sub || "public";
-        const { fileName, fileType, invoiceId } = event.arguments;
+        const { fileName, fileType, invoiceId } = event.arguments || {};
 
-        if (!invoiceId) throw new Error("Falta el invoiceId del frontend");
+        // Validation
+        if (!invoiceId) {
+            console.error(`[VALIDATION_ERROR] [${requestId}] Missing invoiceId for userId: ${userId}`);
+            throw new Error("Missing required invoiceId parameter.");
+        }
 
-        // Limpiamos el nombre original
-        const cleanFileName = fileName.replace(/\s+/g, '_').toLowerCase();
+        if (!process.env.UPLOAD_BUCKET) {
+            console.error(`[CONFIG_ERROR] [${requestId}] UPLOAD_BUCKET environment variable is not defined.`);
+            throw new Error("Internal server configuration error.");
+        }
 
-        // ESTRATEGIA: El nombre del objeto en S3 contendrá el ID
-        // Formato: uploads/USER_ID/INV#UUID__nombre_archivo.pdf
-        const key = `uploads/${userId}/${invoiceId}__${cleanFileName}`;
+        // 1. Logic: Format the S3 Key
+        const key = formatObjectKey(userId, invoiceId, fileName);
+        console.log(`[LOGIC] [${requestId}] Generated S3 Key: ${key}`);
 
-        const command = new PutObjectCommand({
-            Bucket: process.env.UPLOAD_BUCKET,
-            Key: key,
-            ContentType: fileType || 'application/pdf'
-            // Quitamos el bloque Metadata para evitar errores de firma (403)
-        });
+        // 2. Logic: Get the Presigned URL
+        const uploadURL = await generatePresignedUploadUrl(
+            process.env.UPLOAD_BUCKET, 
+            key, 
+            fileType || 'application/pdf'
+        );
 
-        const uploadURL = await getSignedUrl(s3Client, command, { expiresIn: 300 });
+        console.log(`[SUCCESS] [${requestId}] Presigned URL generated successfully for invoiceId: ${invoiceId}`);
 
         return {
             uploadURL,
             key,
             userId,
             invoiceId,
-            message: "URL generada con ID en el nombre del objeto."
+            message: "Presigned URL generated successfully."
         };
 
     } catch (error) {
-        console.error("❌ Error en Signer:", error.message);
-        throw new Error(error.message);
+        console.error(`[FATAL_ERROR] [${requestId}] Exception: ${error.message}`);
+        throw new Error(error.message.includes("Missing") ? error.message : "Internal Signer Error");
     }
 };

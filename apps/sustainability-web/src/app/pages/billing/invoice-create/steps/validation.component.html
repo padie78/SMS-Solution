@@ -6,52 +6,38 @@
     <p-progressSpinner strokeWidth="3" fill="transparent" animationDuration=".5s"></p-progressSpinner>
     <div class="mt-6 text-center">
       <h3 class="text-white font-bold text-xl mb-2">Analizando Documento</h3>
-      <p class="text-slate-400 text-sm animate-pulse">Procesando en AWS (SQS & Bedrock)...</p>
+      <p class="text-slate-400 text-sm animate-pulse">Extrayendo datos con IA...</p>
     </div>
   </div>
 
   <div class="w-1/2 flex flex-col bg-slate-950/50 p-8">
     <div class="flex justify-between items-center mb-6">
       <div class="flex items-center gap-2">
-        <div class="w-2 h-2 rounded-full" 
-             [ngClass]="isLoading ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'"></div>
-        <span class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">IA Interactive Visualizer</span>
+        <div class="w-2 h-2 rounded-full" [ngClass]="isLoading ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'"></div>
+        <span class="text-[10px] font-black text-slate-500 uppercase tracking-[0.2em]">Documento Original</span>
       </div>
       <div class="flex gap-4 text-slate-600">
-        <i class="pi pi-search-plus cursor-pointer hover:text-white transition-colors"></i>
-        <i class="pi pi-external-link cursor-pointer hover:text-white transition-colors"></i>
+        <a *ngIf="pdfUrl" [href]="pdfUrl" target="_blank" class="hover:text-white transition-colors">
+            <i class="pi pi-external-link"></i>
+        </a>
       </div>
     </div>
 
-    <div class="invoice-paper flex-1 bg-white rounded-xl relative shadow-2xl overflow-hidden p-12">
-      <div class="flex justify-between items-start mb-12">
-        <div class="flex items-center gap-3">
-          <div class="w-12 h-12 bg-slate-900 rounded-lg flex items-center justify-center">
-            <i class="pi pi-bolt text-emerald-400 text-xl"></i>
-          </div>
-          <span class="font-black text-slate-900 tracking-tighter uppercase leading-none">Energía<br>Sostenible</span>
+    <div class="invoice-paper flex-1 bg-slate-800 rounded-xl relative shadow-2xl overflow-hidden border border-slate-700">
+      
+      <object *ngIf="pdfUrl" 
+              [data]="pdfUrl" 
+              type="application/pdf" 
+              class="w-full h-full rounded-xl">
+        <div class="flex flex-col items-center justify-center h-full text-slate-400 p-10 text-center">
+          <i class="pi pi-file-pdf text-4xl mb-4 text-red-500"></i>
+          <p class="text-sm">El visor no pudo cargar. Usa el botón externo para ver el archivo.</p>
         </div>
-        <div class="text-right">
-          <p class="text-[9px] font-bold text-slate-400 uppercase mb-1">Billing Date</p>
-          <div class="ai-highlight-blue border-2 border-sky-400 bg-sky-50 text-sky-600 px-3 py-1 font-mono text-[11px] font-black rounded"
-               [pTooltip]="'Confidence Score: ' + (invoice?.confidence || 0) + '%'">
-            {{ invoice?.date || 'YYYY-MM-DD' }}
-          </div>
-        </div>
-      </div>
+      </object>
 
-      <div class="space-y-4 mt-20">
-        <div class="h-3 w-full bg-slate-100 rounded"></div>
-        <div class="h-3 w-5/6 bg-slate-100 rounded"></div>
-        <div class="h-3 w-4/6 bg-slate-100 rounded"></div>
-        <div class="h-10 w-full bg-slate-50 rounded mt-8 border-dashed border-2 border-slate-200"></div>
-      </div>
-
-      <div class="absolute bottom-20 right-12">
-        <p class="text-[9px] font-bold text-slate-400 uppercase mb-1 text-right">Extracted Total</p>
-        <div class="ai-highlight-green border-2 border-emerald-500 bg-emerald-50 text-emerald-600 px-6 py-3 font-black text-3xl rounded-lg shadow-lg">
-          {{ (invoice?.total || 0) | currency: (invoice?.currency || 'USD') }}
-        </div>
+      <div *ngIf="!pdfUrl" class="flex flex-col items-center justify-center h-full space-y-4">
+        <i class="pi pi-spin pi-spinner text-slate-600 text-2xl"></i>
+        <p class="text-slate-600 text-[10px] font-bold uppercase tracking-widest">Preparando previsualización...</p>
       </div>
     </div>
   </div>
@@ -62,64 +48,35 @@
              [severity]="isLoading ? 'warning' : 'success'" 
              [rounded]="true" class="mb-4"></p-tag>
       <h2 class="text-white text-2xl font-bold tracking-tight">Confirmar Datos</h2>
-      <p class="text-slate-500 text-sm mt-1">Verifica la información extraída antes de sincronizar con el SMS.</p>
-    </div>
-
-    <div *ngIf="errorMessage" class="bg-red-500/10 border border-red-500/20 p-4 rounded-xl mb-6 flex items-center gap-3">
-      <i class="pi pi-exclamation-triangle text-red-500"></i>
-      <p class="text-red-200 text-xs">{{ errorMessage }}</p>
+      <p class="text-slate-500 text-sm mt-1">Verifica la información extraída por el SMS antes de confirmar.</p>
     </div>
 
     <div class="form-content flex-1 space-y-10" *ngIf="invoice">
-      
-      <div class="field">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Vendor / Service Provider</label>
-        <div class="ai-input-group bg-slate-950 p-1.5 rounded-xl border border-slate-800 flex items-center group focus-within:border-emerald-500 transition-all">
-          <i class="pi pi-building px-4 text-slate-500 group-focus-within:text-emerald-500"></i>
-          <input pInputText [(ngModel)]="invoice.vendor" placeholder="Nombre de la empresa"
-                 class="flex-1 bg-transparent border-none text-white font-bold focus:ring-0 outline-none">
+        <div class="field">
+            <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Proveedor del Servicio</label>
+            <div class="ai-input-group bg-slate-950 p-1.5 rounded-xl border border-slate-800 flex items-center group focus-within:border-emerald-500 transition-all">
+              <i class="pi pi-building px-4 text-slate-500 group-focus-within:text-emerald-500"></i>
+              <input pInputText [(ngModel)]="invoice.vendor" placeholder="Nombre de la empresa"
+                     class="flex-1 bg-transparent border-none text-white font-bold focus:ring-0 outline-none">
+            </div>
         </div>
-      </div>
 
-      <div class="field">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Monto Total (Corregible)</label>
-        <div class="ai-input-group bg-slate-950 p-1.5 rounded-xl border border-emerald-500/30 flex items-center group focus-within:border-emerald-500 transition-all">
-          <span class="px-4 text-emerald-500 font-black text-lg">$</span>
-          <input pInputText type="number" [(ngModel)]="invoice.total" 
-                 class="flex-1 bg-transparent border-none text-emerald-400 font-mono font-bold text-xl focus:ring-0 outline-none">
-          <div class="flex items-center gap-2 pr-3">
-             <p-tag severity="success" value="VALIDATED"></p-tag>
-          </div>
+        <div class="field">
+            <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Monto Total</label>
+            <div class="ai-input-group bg-slate-950 p-1.5 rounded-xl border border-emerald-500/30 flex items-center group focus-within:border-emerald-500 transition-all">
+              <span class="px-4 text-emerald-500 font-black text-lg">{{ invoice.currency === 'EUR' ? '€' : '$' }}</span>
+              <input pInputText type="number" [(ngModel)]="invoice.total" 
+                     class="flex-1 bg-transparent border-none text-emerald-400 font-mono font-bold text-xl focus:ring-0 outline-none">
+            </div>
         </div>
-      </div>
-
-      <div class="field">
-        <label class="text-[10px] font-black text-slate-500 uppercase tracking-widest block mb-3">Fecha de Emisión</label>
-        <div class="ai-input-group bg-slate-950 p-1.5 rounded-xl border border-sky-500/30 flex items-center group focus-within:border-sky-500 transition-all">
-          <i class="pi pi-calendar px-4 text-sky-500"></i>
-          <input pInputText [(ngModel)]="invoice.date" placeholder="YYYY-MM-DD"
-                 class="flex-1 bg-transparent border-none text-sky-400 font-mono font-bold focus:ring-0 outline-none">
-          <i class="pi pi-info-circle text-sky-400 p-2 cursor-help" [pTooltip]="'Confianza IA: ' + (invoice?.confidence || 0) + '%'"></i>
+        
         </div>
-      </div>
-
-      <div class="ai-suggestion-card bg-emerald-500/5 border border-emerald-500/20 p-5 rounded-2xl mt-10">
-        <div class="flex items-center gap-3 text-emerald-400 mb-2">
-          <i class="pi pi-sparkles text-lg"></i>
-          <span class="text-xs font-black uppercase tracking-wider">Carbon Footprint Analysis</span>
-        </div>
-        <p class="text-[12px] text-slate-400 leading-relaxed">
-          Basado en el consumo de <span class="text-white font-bold">{{invoice?.consumption || 0}} kWh</span>, 
-          estimamos una huella de <span class="text-emerald-400 font-bold">{{invoice?.co2e || 0}} kg CO2e</span> para este período.
-        </p>
-      </div>
-    </div>
 
     <div class="footer-actions flex justify-between items-center mt-12 pt-6 border-t border-slate-800">
-      <p-button label="Volver" icon="pi pi-arrow-left" (click)="goBack()" 
+      <p-button label="Cancelar" icon="pi pi-arrow-left" (click)="goBack()" 
                 styleClass="p-button-text p-button-secondary font-bold"></p-button>
       
-      <p-button label="Confirmar y Sincronizar" icon="pi pi-sync" 
+      <p-button label="Confirmar y Guardar" icon="pi pi-check-circle" 
                 [loading]="isLoading" 
                 [disabled]="isLoading || !invoice"
                 (click)="handleConfirm()" 

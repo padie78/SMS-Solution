@@ -1,50 +1,48 @@
-import { S3Client } from "@aws-sdk/client-s3"; // Importación necesaria
+import { extractInvoiceMetadata } from "./utils/parser.js";
 import { getOrganizationId } from "./utils/s3Helper.js";
-import { createInvoiceSkeleton } from "./utils/db.js";
+import { createInvoiceSkeleton } from "./services/databaseService.js";
 import { dispatchInvoice } from "./services/dispatchInvoice.js";
 
-// Instanciamos el cliente fuera del handler para reutilizarlo
-const s3Client = new S3Client({}); 
+// NOTA: No instanciamos clientes aquí porque cada servicio (DB, S3, SQS) 
+// ya trae su propio cliente configurado desde su respectivo archivo.
 
 export const handler = async (event, context) => {
-    console.log("📥 [HANDLER] | Evento recibido:", JSON.stringify(event));
-    
-    const record = event.Records[0];
-    const bucket = record.s3.bucket.name;
-    const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, " "));
-
-    // --- NUEVA LÓGICA: EXTRAER SK DEL NOMBRE DEL ARCHIVO ---
-    // La key es algo como: uploads/userId/INV#123__factura.pdf
-    const fileName = key.split('/').pop(); 
-    const sk = fileName.split('__')[0]; 
-
-    if (!sk || !sk.startsWith('INV#')) {
-        console.error("❌ ERROR: No se pudo extraer un InvoiceID válido de la Key:", key);
-        return { statusCode: 400, body: "Invalid Key Format" };
-    }
-
-    console.log(`🆔 [HANDLER] | SK Extraído: ${sk} | Bucket: ${bucket}`);
+    const requestId = context.awsRequestId;
+    console.log(`[TRIGGER] [${requestId}] S3 PutObject event received.`);
 
     try {
+        const record = event.Records[0];
+        const bucket = record.s3.bucket.name;
+        const rawKey = record.s3.object.key;
+
+        // 1. Metadata Extraction (Lógica pura)
+        const { sk, key } = extractInvoiceMetadata(rawKey);
+
+        // 2. Organizational Context (Usa su propio cliente S3 internamente)
         const orgId = await getOrganizationId(bucket, key);
 
-        // 1. Persistencia: Creamos el registro esqueleto en Dynamo
+        // 3. Database Persistence (Usa el cliente de services/data/client.js)
         await createInvoiceSkeleton(orgId, sk, key, bucket);
 
-        // 2. Mensajería: Despachamos a la cola SQS
-        // Le pasamos el 'sk' que extrajimos del nombre
+        // 4. Message Dispatch (Debería usar su propio cliente SQS)
         await dispatchInvoice(bucket, key, orgId, sk);
 
         return {
             statusCode: 200,
-            body: JSON.stringify({ status: "ENQUEUED", sk, orgId })
+            body: JSON.stringify({ status: "ENQUEUED", invoiceId: sk, requestId })
         };
-
     } catch (error) {
-        console.error(`❌ [HANDLER_ERROR] | ${error.message}`);
+        console.error(`[FATAL_ERROR] [${requestId}] Dispatcher workflow failed: ${error.message}`);
+
+        const isClientError = error.message.includes("Protocol") || error.message.includes("Format");
+
         return {
-            statusCode: 500,
-            body: JSON.stringify({ error: error.message })
+            statusCode: isClientError ? 400 : 500,
+            body: JSON.stringify({
+                error: isClientError ? "Invalid Key Metadata" : "Internal Dispatcher Error",
+                details: error.message,
+                requestId
+            })
         };
     }
 };

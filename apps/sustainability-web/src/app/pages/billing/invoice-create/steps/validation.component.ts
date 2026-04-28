@@ -11,6 +11,7 @@ import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { InputTextModule } from 'primeng/inputtext';
+import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 
 // Core Services
 import { InvoiceStateService } from '../../../../core/services/invoice-state.service';
@@ -37,6 +38,7 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
   private stateService = inject(InvoiceStateService);
   private appsyncService = inject(AppSyncService);
   private messageService = inject(MessageService);
+  private sanitizer = inject(DomSanitizer);
   private cdr = inject(ChangeDetectorRef);
 
   @Output() onConfirm = new EventEmitter<void>();
@@ -48,14 +50,20 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
   invoice: any = null;
 
   private statusSubscription?: Subscription;
+  pdfUrl?: SafeResourceUrl;
 
   ngOnInit() {
     const snapshot = this.stateService.getSnapshot();
+
+    // Supongamos que guardaste la URL firmada en el state al subir el archivo
+    if (snapshot.file) {
+      const localUrl = URL.createObjectURL(snapshot.file);
+      this.pdfUrl = this.sanitizer.bypassSecurityTrustResourceUrl(localUrl);
+    }
     const currentId = snapshot.invoiceId;
 
     console.log("🛠️ [VALIDATION] Snapshot inicial:", snapshot);
 
-    // 1. Si ya tenemos la data (por navegación previa)
     if (snapshot.extractedData) {
       console.log("📦 [VALIDATION] Datos detectados en State. Saltando espera.");
       this.invoice = snapshot.extractedData;
@@ -63,7 +71,6 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
       return;
     }
 
-    // 2. Si no hay data, iniciamos la escucha en tiempo real
     if (currentId) {
       console.log(`🎯 [VALIDATION] Iniciando flujo para ID: ${currentId}`);
       this.isLoading = true;
@@ -76,77 +83,64 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
   }
 
   private subscribeToUpdates(id: string) {
-    // Verificamos que el ID tenga el formato esperado (Client-Side UUID)
-    console.log(`📡 [SUBSCRIPTION] Suscribiéndose al canal AppSync: "${id}"`);
-
     this.statusSubscription = this.appsyncService.onInvoiceUpdated(id).subscribe({
       next: (response: any) => {
-        console.log("📥 [SUBSCRIPTION] Mensaje entrante:", JSON.stringify(response));
-
         const updated = response?.value?.data?.onInvoiceUpdated || response?.data?.onInvoiceUpdated;
 
-        if (!updated) {
-          console.warn("❓ [SUBSCRIPTION] Payload vacío.");
-          return;
-        }
-
-        console.log(`📊 [SUBSCRIPTION] Nuevo estado: ${updated.status}`);
-
-        // Éxito: La IA terminó el procesamiento
-        if (updated.status === 'READY_FOR_REVIEW') {
-          console.log("✅ [MATCH] ¡ID Correcto! Rompiendo loop de carga...");
-
+        if (updated?.status === 'READY_FOR_REVIEW') {
           try {
-            this.invoice = typeof updated.extractedData === 'string'
-              ? JSON.parse(updated.extractedData)
-              : updated.extractedData;
+            const rawData = updated.extractedData;
+            console.log("🔍 [DATA] Raw string recibido:", rawData);
 
-            // Persistimos en el servicio de estado
+            // Función de extracción mejorada para manejar espacios y formatos sucios
+            const extractValue = (key: string): string => {
+              // Busca la clave, salta el '=' y captura todo hasta la coma o el cierre de llave
+              // Soporta espacios en el valor (como 'ELECTRA NOVA')
+              const regex = new RegExp(`${key}=([^,}]+)`);
+              const match = rawData.match(regex);
+              return match ? match[1].trim() : '';
+            };
+
+            // Extraemos los datos basándonos en las claves que vimos en tu log anterior
+            const vendorName = extractValue('vendor');
+            const amount = extractValue('total_amount');
+            const curr = extractValue('currency');
+            const kwh = extractValue('value'); // Consumo
+            const co2 = extractValue('co2e');  // Huella
+            const dateEnd = extractValue('end'); // Fecha fin periodo
+
+            this.invoice = {
+              vendor: vendorName || 'No detectado',
+              total: parseFloat(amount) || 0,
+              currency: curr || 'EUR',
+              date: dateEnd || '',
+              consumption: parseFloat(kwh) || 0,
+              co2e: parseFloat(co2) || 0,
+              confidence: 90 // Valor por defecto para la visualización
+            };
+
+            console.log("💎 [SUCCESS] Objeto mapeado:", this.invoice);
+
             this.stateService.setAiData(this.invoice);
-            
             this.isLoading = false;
-            this.cdr.detectChanges(); // Forzamos actualización de la UI
-            
+            this.cdr.detectChanges();
             this.statusSubscription?.unsubscribe();
 
-            this.messageService.add({
-              severity: 'success',
-              summary: 'Análisis Completo',
-              detail: 'Los datos han sido extraídos por la IA.'
-            });
           } catch (e) {
-            console.error("❌ [DATA] Error al procesar extractedData:", e);
-            this.errorMessage = "Error al procesar los datos de la IA.";
+            console.error("❌ Error en extracción manual:", e);
+            this.errorMessage = "Error al interpretar los datos de la factura.";
             this.isLoading = false;
             this.cdr.detectChanges();
           }
         }
-        // Error en el pipeline de AWS (Bedrock/Textract)
-        else if (updated.status === 'FAILED') {
-          console.error("❌ [PIPELINE] El procesamiento falló en el backend.");
-          this.isLoading = false;
-          this.errorMessage = updated.message || 'Error en el procesamiento de la IA.';
-          this.cdr.detectChanges();
-          this.statusSubscription?.unsubscribe();
-        }
-      },
-      error: (err) => {
-        console.error('❌ [SUBSCRIPTION] Error en el WebSocket:', err);
-        this.errorMessage = 'Conexión interrumpida con el servicio de notificaciones.';
-        this.isLoading = false;
-        this.cdr.detectChanges();
       }
     });
   }
 
   async handleConfirm() {
-    console.log("💾 [ACTION] Confirmando factura...");
     this.isLoading = true;
-    
     try {
       const snapshot = this.stateService.getSnapshot();
-      
-      // Usamos el operador ! porque ya validamos la existencia del ID en ngOnInit
       const invoiceId = snapshot.invoiceId!;
 
       const confirmInput = {
@@ -161,23 +155,13 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
       const result = await this.appsyncService.confirmInvoice(invoiceId, confirmInput);
 
       if (result.success) {
-        this.messageService.add({ 
-          severity: 'success', 
-          summary: 'Confirmado', 
-          detail: 'Factura validada exitosamente.' 
-        });
+        this.messageService.add({ severity: 'success', summary: 'Confirmado', detail: 'Factura validada.' });
         this.onConfirm.emit();
       } else {
-        throw new Error(result.message || "Error al confirmar.");
+        throw new Error(result.message);
       }
-
     } catch (err: any) {
-      console.error('❌ [ACTION] Error:', err);
-      this.messageService.add({ 
-        severity: 'error', 
-        summary: 'Error', 
-        detail: err.message 
-      });
+      this.messageService.add({ severity: 'error', summary: 'Error', detail: err.message });
     } finally {
       this.isLoading = false;
       this.cdr.detectChanges();
@@ -189,9 +173,6 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy() {
-    if (this.statusSubscription) {
-      console.log("🔌 [SUBSCRIPTION] Cerrando canal de escucha.");
-      this.statusSubscription.unsubscribe();
-    }
+    this.statusSubscription?.unsubscribe();
   }
 }
