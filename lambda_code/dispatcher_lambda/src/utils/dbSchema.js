@@ -1,11 +1,12 @@
-import { PutCommand } from "@aws-sdk/lib-dynamodb";
-import { ddb, TABLE_NAME } from "../services/data/client.js";
-
 /**
- * Crea el registro inicial (esqueleto) de la factura en DynamoDB
+ * Solo construye el objeto (Factory Pattern)
  */
-export const buildInvoiceSkeleton = async (orgId, sk, s3Key, bucket) => {
-    const invoiceSkeleton = {
+export const buildInvoiceSkeleton = (orgId, sk, s3Key, bucket) => {
+    // Validación de seguridad
+    if (!orgId) throw new Error("Missing orgId (PK)");
+    if (!sk) throw new Error("Missing sk (SK)");
+
+    return {
         PK: orgId,
         SK: sk,
         status: "PROCESSING",
@@ -30,17 +31,4 @@ export const buildInvoiceSkeleton = async (orgId, sk, s3Key, bucket) => {
             is_draft: true
         }
     };
-
-    const params = {
-        TableName: TABLE_NAME,
-        Item: invoiceSkeleton
-    };
-
-    try {
-        await ddb.send(new PutCommand(params));
-        return invoiceSkeleton;
-    } catch (error) {
-        console.error(`❌ [DB_ERROR] | Falló createInvoiceSkeleton: ${error.message}`);
-        throw error;
-    }
 };
