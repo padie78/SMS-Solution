@@ -1,6 +1,7 @@
 /**
  * Bedrock Prompt Builder - Senior ESG Data Auditor
- * Optimizado para desgloses atómicos y captura de datos financieros (IVA/Base).
+ * Optimizado para desgloses atómicos, captura de datos financieros (IVA/Base)
+ * y metadatos de suministro (CUPS, CIF, Tarifa).
  */
 
 import { CATEGORY_RULES } from './bedrock_rules.js';
@@ -26,8 +27,8 @@ const getAnalyticsMetadataSchema = (category, rule) => {
         is_estimated: "boolean",
         confidence_level: "string (HIGH|MEDIUM|LOW)",
         anomaly_flag: "boolean",
-        service_id: "string (Meter/Contract ID/CUPS)",
-        contract_type: "string (FIXED|INDEXED)",
+        service_id: "string (Meter/Contract ID/CUPS/Reference)",
+        contract_type: "string (FIXED|INDEXED|Tarifa e.g. 2.0TD)",
         is_recurring: "boolean",
         reading_type: "string (ACTUAL|ESTIMATED|CORRECTION)",
         verification_status: "string (PENDING_AUTOMATED)"
@@ -35,7 +36,7 @@ const getAnalyticsMetadataSchema = (category, rule) => {
 };
 
 /**
- * Construye el System Prompt con blindaje anti-alucinación y desglose atómico.
+ * Construye el System Prompt con blindaje anti-alucinación y escaneo de cabecera.
  */
 export const buildSystemPrompt = (category) => {
     const rule = CATEGORY_RULES[category] || CATEGORY_RULES.OTHERS;
@@ -43,19 +44,29 @@ export const buildSystemPrompt = (category) => {
 
     const fullSchema = {
         audit_thought_process: {
+            header_scan_results: "Brief summary of found CUPS, Tax IDs (CIF/NIF), and Customer info",
             detected_raw_values: ["List of all numeric blocks found (e.g., 'Energía P1: 120.5 kWh', 'IVA: 13.90€')"],
             financial_extraction_map: "Step-by-step logic to identify Net Amount (Base Imponible) and Tax (IVA)",
-            atomic_line_inventory: "Confirmation of every line item found in the consumption tables"
+            atomic_line_inventory: "Confirmation of every line item found in the consumption tables (P1, P2, P3, etc.)"
         },
         source_data: {
-            vendor: { name: "string", tax_id: "string", address: "string" },
+            vendor: { 
+                name: "string", 
+                tax_id: "string (CIF of the utility company)", 
+                address: "string" 
+            },
+            customer: {
+                name: "string (Titular)",
+                tax_id: "string (CIF/NIF of the customer)",
+                address: "string (Suministro/Fiscal address)"
+            },
             invoice_number: "string",
             invoice_date: "YYYY-MM-DD",
             billing_period: { start: "YYYY-MM-DD", end: "YYYY-MM-DD" },
             currency: "string (ISO_4217)",
             total_amount: { 
                 total_with_tax: "float", 
-                net_amount: "float (Sum of concepts/Base Imponible)", 
+                net_amount: "float (Base Imponible)", 
                 tax_amount: "float (Total IVA/Tax amount)" 
             }
         },
@@ -63,57 +74,47 @@ export const buildSystemPrompt = (category) => {
         emission_lines: [
             {
                 strategy: rule.strategy,
-                description: "Original line text (e.g., 'Energía Activa P1 (Punta)')",
-                value: "float (Physical quantity. DO NOT PUT MONEY HERE)",
-                unit: allowedUnits,
-                monetary_cost: "float (The cost in currency for THIS specific line)",
+                description: "Original line text (e.g., 'Energía Activa P1')",
+                value: "float (Physical quantity. MANDATORY: DO NOT PUT MONEY HERE)",
+                unit: "string (kWh, kW, kW/día, m3, etc.)",
+                monetary_cost: "float (The cost associated with THIS specific line)",
                 confidence_score: "float (0.0-1.0)",
-                reasoning: "Detailed proof: why this is a physical consumption line",
-                period: { start: "YYYY-MM-DD", end: "YYYY-MM-DD" },
-                metadata: rule.metadata || {}
+                reasoning: "Detailed proof: why this is a physical line and its role",
+                period: { start: "YYYY-MM-DD", end: "YYYY-MM-DD" }
             }
         ],
         technical_ids: {
-            cups: "string (For ELEC/GAS ES)",
+            cups: "string (MANDATORY for ELEC/GAS ES: starts with ES...)",
             meter_id: "string",
-            tax_id: "string"
+            contract_reference: "string",
+            tariff: "string (e.g., 2.0TD)"
         }
     };
 
-    return `You are a Senior ESG Data Auditor specializing in high-precision digitization.
+    return `You are a Senior ESG Data Auditor. Your mission is high-precision digitization of utility invoices.
+
+### THE "MASTER DATA & HEADER" PROTOCOL:
+1. **HEADER SCAN**: Before looking at costs, locate Supply Details:
+   - **CUPS**: Look for a string starting with 'ES' followed by 20-22 characters. This MUST be in 'technical_ids.cups'.
+   - **CIF/NIF**: Identify the Customer/Titular Tax ID (e.g., B-87654321).
+   - **TARIFA**: Identify the tariff type (e.g., 2.0TD, 3.0TD) and place it in 'technical_ids.tariff'.
 
 ### THE "ATOMIC EXTRACTION" PROTOCOL:
-1. **NO CONSOLIDATION**: Do NOT sum period consumption (e.g., P1, P2, P3). Every individual row in the invoice detail must be its own object in the 'emission_lines' array.
-2. **FINANCIAL INTEGRITY**: Locate "Base Imponible" (Net) and "I.V.A." (Tax). These are mandatory fields in 'source_data.total_amount'.
-3. **CURRENCY VS PHYSICS**: 
-   - Identify every number followed by symbols like €, EUR, or labels like "Importe".
-   - Place costs in 'monetary_cost' and physical units (${allowedUnits}) in 'value'.
-4. **POWER VS ENERGY**: For ELEC, "Potencia" (kW) is a capacity charge. "Energía" (kWh) is consumption. Map BOTH if they appear in the detail, but ensure 'value' uses the correct unit.
+1. **FULL TABLE REPLICATION**: You must extract EVERY row from the invoice detail table. If the invoice shows P1, P2, and P3, return 3 lines, even if a value is 0.
+2. **ZERO-VALUE INCLUSION**: Do not skip lines with 0.0 value or 0.0 cost. 
+3. **POWER VS ENERGY**: For ELEC, distinguish "Potencia" (kW or kW/día) from "Energía" (kWh). Both are required if present in the detail.
+4. **FINANCIAL INTEGRITY**: Locate "Base Imponible" (Net) and "I.V.A." (Tax). These are mandatory for 'source_data.total_amount'.
 
 ### CATEGORY GUIDANCE (${category}):
-${category === 'ELEC' ? '- Mandatory: Extract P1, P2, and P3 separately. If a value is 0 but present in the table, extract it anyway.' : ''}
-${category === 'ELEC' ? '- Look for "CUPS" (20-22 chars starting with ES) and map to technical_ids.cups.' : ''}
+${category === 'ELEC' ? '- Mandatory: Extract P1, P2, and P3 separately for both Power (Potencia) and Energy (Energía) if they appear.' : ''}
+${category === 'ELEC' ? '- CUPS is the unique identifier for Spanish electricity. Ensure it is extracted accurately.' : ''}
 
 ### NEGATIVE CONSTRAINTS:
-- NEVER map currency to the "value" field.
-- NEVER skip lines that are part of the main consumption or power tables.
-- Return ONLY valid JSON. No conversational filler.
+- NEVER map currency/money to the "value" field. Use "monetary_cost" for that.
+- NO CONSOLIDATION: P1+P2+P3 must NOT be summed.
+- Return ONLY valid JSON.
 
-### OUTPUT EXAMPLE:
-{
-  "audit_thought_process": { 
-      "atomic_line_inventory": "Found 3 consumption lines (P1, P2, P3) and 2 power lines." 
-  },
-  "source_data": { 
-      "total_amount": { "total_with_tax": 80.07, "net_amount": 66.17, "tax_amount": 13.90 } 
-  },
-  "emission_lines": [
-      { "description": "Energía Activa P1", "value": 120.5, "unit": "kWh", "monetary_cost": 22.10 },
-      { "description": "Energía Activa P3", "value": 250.0, "unit": "kWh", "monetary_cost": 15.05 }
-  ]
-}
-
-### REQUIRED JSON SCHEMA:
+### REQUIRED SCHEMA:
 ${JSON.stringify(fullSchema, null, 2)}`;
 };
 

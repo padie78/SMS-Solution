@@ -1,21 +1,15 @@
-/**
- * Transforms AI results into the final Golden Record.
- * Updated: Captures detailed financial data (Tax/Net) and ensures Clean PK.
- */
 export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, category, originalMetadata = {}) => {
     const now = new Date().toISOString();
     
-    // 🎯 NORMALIZACIÓN DE PK: 
-    // Forzamos el UUID limpio (sin ORG#) para coincidir con tu DB actual.
+    // NORMALIZACIÓN DE PK: Aseguramos el UUID limpio (sin prefijo ORG#)
     const cleanPK = orgId.replace("ORG#", "");
     
     console.log(`[MAPPER] [${sk}] Mapping Golden Record. Target Org: ${cleanPK}`);
 
-    // 1. METADATA SANITIZATION
+    // 1. METADATA & ANALYTICS PREP
     const cleanMetadata = originalMetadata?.M || originalMetadata || {};
     const facilityM2 = Number(cleanMetadata.facility_m2?.N || cleanMetadata.facility_m2 || 0);
 
-    // 2. DATE & PRORATION MANAGEMENT
     const source = aiAnalysis.source_data || {};
     const billing = source.billing_period || {};
     const startDate = billing.start ? new Date(billing.start) : new Date();
@@ -25,23 +19,28 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
     let days = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
     if (isNaN(days) || days <= 0) days = 1;
 
-    // 3. METRIC EXTRACTION
+    // 2. METRIC EXTRACTION (FILTERING ENERGY FROM POWER)
     const amountData = source.total_amount || {};
     const totalAmount = Number(amountData.total_with_tax || 0);
-    const taxAmount = Number(amountData.tax_amount || 0); // ✅ Nuevo campo del prompt
-    const netAmount = Number(amountData.net_amount || amountData.net || 0); // ✅ Nuevo campo del prompt
+    const taxAmount = Number(amountData.tax_amount || 0);
+    const netAmount = Number(amountData.net_amount || amountData.net || 0);
     
     const finalCo2 = Number(emissions?.total_kg || emissions?.co2e || 0);
     
+    // Solo sumamos los valores cuya unidad sea kWh (energía) para el KPI principal de consumo
     const totalConsumption = (aiAnalysis.emission_lines || [])
+        .filter(line => line.unit?.toLowerCase().includes('kwh'))
         .reduce((sum, line) => sum + (Number(line.value) || 0), 0);
 
-    // 4. ANOMALY DETECTION LOGIC
+    // Unidad principal para el header (kWh)
+    const mainUnit = aiAnalysis.emission_lines?.find(l => l.unit?.toLowerCase().includes('kwh'))?.unit || "kWh";
+
+    // 3. ANOMALY DETECTION (Unit Price based on Energy only)
     const unitPrice = totalConsumption > 0 ? (totalAmount / totalConsumption) : 0;
     const REFERENCE_PRICE = 0.15; 
     const isAnomaly = unitPrice > (REFERENCE_PRICE * 1.2); 
 
-    // 5. ANALYTICS KPI GENERATION
+    // 4. ANALYTICS KPI GENERATION
     const analytics = {
         daily_avg_consumption: Number((totalConsumption / days).toFixed(2)),
         daily_avg_cost: Number((totalAmount / days).toFixed(2)),
@@ -52,15 +51,18 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
         anomaly_detected: isAnomaly
     };
 
+    // 5. TECHNICAL IDS (CUPS, TARIFA)
+    const technical = aiAnalysis.technical_ids || {};
+
     // 6. FINAL OBJECT CONSTRUCTION
     return {
-        PK: cleanPK, // UUID limpio
+        PK: cleanPK,
         SK: sk,
         analytics, 
         ai_analysis: {
             service_type: category || "ELECTRICITY",
             value: totalConsumption,
-            unit: aiAnalysis.emission_lines?.[0]?.unit || "kWh",
+            unit: mainUnit,
             status_triage: "DONE"
         },
         climatiq_result: emissions && Object.keys(emissions).length > 0 ? {
@@ -71,9 +73,12 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
         } : {},
         extracted_data: {
             vendor: source.vendor?.name || "Unknown",
+            customer: source.customer || {},
+            cups: technical.cups || null,
+            tariff: technical.tariff || null,
             total_amount: totalAmount,
-            tax_amount: taxAmount,    // ✅ Persistido en DB
-            net_amount: netAmount,    // ✅ Persistido en DB
+            tax_amount: taxAmount,
+            net_amount: netAmount,
             currency: source.currency || "EUR",
             billing_period: { 
                 start: billing.start || null, 
