@@ -1,5 +1,5 @@
-const { generatePresignedUploadUrl } = require("./s3Service");
-const { formatObjectKey } = require("./utils");
+const { generatePresignedUploadUrl } = require("./services/s3Service.js");
+const { formatObjectKey } = require("./utils/s3Parser.js");
 
 exports.handler = async (event) => {
     const requestId = event.requestContext?.requestId || "internal";
@@ -45,6 +45,7 @@ exports.handler = async (event) => {
 
     } catch (error) {
         console.error(`[FATAL_ERROR] [${requestId}] Exception: ${error.message}`);
+        // No exponemos detalles internos al cliente, pero lanzamos el error para AppSync
         throw new Error(error.message.includes("Missing") ? error.message : "Internal Signer Error");
     }
 };
