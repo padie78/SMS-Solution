@@ -1,20 +1,17 @@
 import { TransactWriteCommand } from "@aws-sdk/lib-dynamodb";
 import { ddb, TABLE_NAME } from "./client.js";
 
-/**
- * Updates the existing Skeleton record.
- */
 export const persistTransaction = async (goldenRecord) => {
     const { PK, SK, extracted_data, climatiq_result, ai_analysis, metadata, status } = goldenRecord;
     const isoNow = new Date().toISOString();
 
-    // 1. PK NORMALIZATION: Ensuring match with Dispatcher's "ORG#<UUID>"
-    const finalPK = PK.startsWith("ORG#") ? PK : `ORG#${PK}`;
-
     /**
-     * 🔍 DEBUG LOG: Copy-paste these values into DynamoDB "Explore Items" 
-     * to verify if the record actually exists.
+     * 🎯 NORMALIZACIÓN: 
+     * Si en la BD no tiene "ORG#", debemos removerlo aquí.
+     * Esto limpia tanto "ORG#f3d4..." como "f3d4..." dejándolos solo como el UUID.
      */
+    const finalPK = PK.replace("ORG#", "");
+
     console.log(`[DB_ATTEMPT] Target -> PK: [${finalPK}] | SK: [${SK}]`);
 
     const masterUpdate = {
@@ -32,10 +29,6 @@ export const persistTransaction = async (goldenRecord) => {
                 processed_at = :now,
                 updated_at = :now,
                 metadata = :meta`,
-            /**
-             * ⚠️ This condition is failing. If you want to force the update 
-             * even if the skeleton is missing, remove this line.
-             */
             ConditionExpression: "attribute_exists(PK)", 
             ExpressionAttributeNames: { "#st": "status" },
             ExpressionAttributeValues: {
@@ -59,16 +52,16 @@ export const persistTransaction = async (goldenRecord) => {
             TransactItems: [masterUpdate] 
         }));
 
-        console.log(`[DB_SUCCESS] [${SK}] Record promoted to ${status}`);
+        console.log(`[DB_SUCCESS] [${SK}] Item updated successfully using Clean PK.`);
         return { success: true };
 
     } catch (e) {
-        // More descriptive error handling for the Conditional Check
         if (e.name === "TransactionCanceledException") {
             const reason = e.CancellationReasons?.[0]?.Code;
             if (reason === "ConditionalCheckFailed") {
-                console.error(`[DB_ERROR] [${SK}] ConditionalCheckFailed: The Skeleton record does not exist in DynamoDB.`);
-                console.error(`[CHECK_REQUIRED] Does PK "${finalPK}" and SK "${SK}" exist in Table "${TABLE_NAME}"?`);
+                console.error(`[DB_ERROR] [${SK}] ConditionalCheckFailed. Target PK: "${finalPK}"`);
+                // Este log te dirá si el problema ahora es que al SK le sobra algo
+                console.error(`[DEBUG] Check if SK "${SK}" exists under PK "${finalPK}"`);
             }
         }
         throw e;
