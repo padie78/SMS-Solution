@@ -1,17 +1,23 @@
 /**
  * Transforms AI results into the final Golden Record.
- * Adapted to handle skipped emissions (Climatiq) and provide clean data for the UI.
+ * Updated: Captures detailed financial data (Tax/Net) and ensures Clean PK.
  */
 export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, category, originalMetadata = {}) => {
     const now = new Date().toISOString();
-    console.log(`[MAPPER] [${sk}] Mapping Golden Record. Target Org: ${orgId}`);
+    
+    // 🎯 NORMALIZACIÓN DE PK: 
+    // Forzamos el UUID limpio (sin ORG#) para coincidir con tu DB actual.
+    const cleanPK = orgId.replace("ORG#", "");
+    
+    console.log(`[MAPPER] [${sk}] Mapping Golden Record. Target Org: ${cleanPK}`);
 
     // 1. METADATA SANITIZATION
     const cleanMetadata = originalMetadata?.M || originalMetadata || {};
     const facilityM2 = Number(cleanMetadata.facility_m2?.N || cleanMetadata.facility_m2 || 0);
 
     // 2. DATE & PRORATION MANAGEMENT
-    const billing = aiAnalysis.source_data?.billing_period || {};
+    const source = aiAnalysis.source_data || {};
+    const billing = source.billing_period || {};
     const startDate = billing.start ? new Date(billing.start) : new Date();
     const endDate = billing.end ? new Date(billing.end) : new Date();
     
@@ -20,9 +26,11 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
     if (isNaN(days) || days <= 0) days = 1;
 
     // 3. METRIC EXTRACTION
-    const totalAmount = Number(aiAnalysis.source_data?.total_amount?.total_with_tax || 0);
+    const amountData = source.total_amount || {};
+    const totalAmount = Number(amountData.total_with_tax || 0);
+    const taxAmount = Number(amountData.tax_amount || 0); // ✅ Nuevo campo del prompt
+    const netAmount = Number(amountData.net_amount || amountData.net || 0); // ✅ Nuevo campo del prompt
     
-    // SAFE CHECK: If emissions are skipped, we default to 0
     const finalCo2 = Number(emissions?.total_kg || emissions?.co2e || 0);
     
     const totalConsumption = (aiAnalysis.emission_lines || [])
@@ -38,7 +46,6 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
         daily_avg_consumption: Number((totalConsumption / days).toFixed(2)),
         daily_avg_cost: Number((totalAmount / days).toFixed(2)),
         energy_intensity_m2: facilityM2 > 0 ? Number((totalConsumption / facilityM2).toFixed(2)) : null,
-        // If finalCo2 is 0, carbon_intensity will be 0 safely
         carbon_intensity: totalConsumption > 0 ? Number((finalCo2 / totalConsumption).toFixed(4)) : 0,
         unit_price_index: Number(unitPrice.toFixed(4)),
         confidence_score: aiAnalysis.confidence_score || 0.85,
@@ -47,7 +54,7 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
 
     // 6. FINAL OBJECT CONSTRUCTION
     return {
-        PK: orgId,
+        PK: cleanPK, // UUID limpio
         SK: sk,
         analytics, 
         ai_analysis: {
@@ -56,10 +63,6 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
             unit: aiAnalysis.emission_lines?.[0]?.unit || "kWh",
             status_triage: "DONE"
         },
-        /**
-         * ✅ ADAPTED: Returns an empty object if no emissions data is present.
-         * This prevents the UI from showing "Unknown" or outdated calculation fields.
-         */
         climatiq_result: emissions && Object.keys(emissions).length > 0 ? {
             co2e: finalCo2,
             co2e_unit: "kg",
@@ -67,14 +70,15 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
             timestamp: now
         } : {},
         extracted_data: {
-            vendor: aiAnalysis.source_data?.vendor?.name || "Unknown",
+            vendor: source.vendor?.name || "Unknown",
             total_amount: totalAmount,
-            currency: aiAnalysis.source_data?.currency || "EUR",
+            tax_amount: taxAmount,    // ✅ Persistido en DB
+            net_amount: netAmount,    // ✅ Persistido en DB
+            currency: source.currency || "EUR",
             billing_period: { 
                 start: billing.start || null, 
                 end: billing.end || null 
             },
-            // ✅ CRITICAL: Added for UI Table rendering
             lines: aiAnalysis.emission_lines || [] 
         },
         total_days_prorated: days,

@@ -1,7 +1,6 @@
 /**
  * Bedrock Prompt Builder - Senior ESG Data Auditor
- * * Este módulo construye un System Prompt dinámico basado en reglas de negocio
- * para forzar la distinción entre importes monetarios y consumos físicos.
+ * Optimizado para desgloses atómicos y captura de datos financieros (IVA/Base).
  */
 
 import { CATEGORY_RULES } from './bedrock_rules.js';
@@ -36,18 +35,17 @@ const getAnalyticsMetadataSchema = (category, rule) => {
 };
 
 /**
- * Construye el System Prompt con blindaje anti-alucinación.
+ * Construye el System Prompt con blindaje anti-alucinación y desglose atómico.
  */
 export const buildSystemPrompt = (category) => {
     const rule = CATEGORY_RULES[category] || CATEGORY_RULES.OTHERS;
     const allowedUnits = rule.allowed_units || "kWh|m3|L|kg|km|GJ";
 
     const fullSchema = {
-        // Fase de pensamiento interna: Obliga a la IA a "razonar" antes de completar el JSON
         audit_thought_process: {
-            detected_raw_values: ["list of all numbers associated with units found"],
-            monetary_vs_physical_check: "Detailed explanation of how I separated EUR/Currency from physical consumption",
-            missing_data_strategy: "Final decision taken if the specific unit was not found"
+            detected_raw_values: ["List of all numeric blocks found (e.g., 'Energía P1: 120.5 kWh', 'IVA: 13.90€')"],
+            financial_extraction_map: "Step-by-step logic to identify Net Amount (Base Imponible) and Tax (IVA)",
+            atomic_line_inventory: "Confirmation of every line item found in the consumption tables"
         },
         source_data: {
             vendor: { name: "string", tax_id: "string", address: "string" },
@@ -55,60 +53,67 @@ export const buildSystemPrompt = (category) => {
             invoice_date: "YYYY-MM-DD",
             billing_period: { start: "YYYY-MM-DD", end: "YYYY-MM-DD" },
             currency: "string (ISO_4217)",
-            total_amount: { total_with_tax: "float", net: "float" }
+            total_amount: { 
+                total_with_tax: "float", 
+                net_amount: "float (Sum of concepts/Base Imponible)", 
+                tax_amount: "float (Total IVA/Tax amount)" 
+            }
         },
         analytics_metadata: getAnalyticsMetadataSchema(category, rule),
         emission_lines: [
             {
                 strategy: rule.strategy,
-                description: "Exact line text from invoice detailing the consumption",
-                value: "float (MANDATORY: Physical quantity. DO NOT PUT MONEY HERE)",
+                description: "Original line text (e.g., 'Energía Activa P1 (Punta)')",
+                value: "float (Physical quantity. DO NOT PUT MONEY HERE)",
                 unit: allowedUnits,
+                monetary_cost: "float (The cost in currency for THIS specific line)",
                 confidence_score: "float (0.0-1.0)",
-                reasoning: "Strict proof: why this value is physical consumption and not a cost or tax",
+                reasoning: "Detailed proof: why this is a physical consumption line",
                 period: { start: "YYYY-MM-DD", end: "YYYY-MM-DD" },
                 metadata: rule.metadata || {}
             }
         ],
         technical_ids: {
-            cups: "string (Only for ELEC/GAS ES)",
+            cups: "string (For ELEC/GAS ES)",
             meter_id: "string",
-            tax_id: "string (Secondary tax ID if found)"
+            tax_id: "string"
         }
     };
 
-    return `You are a Senior ESG Data Auditor. Your professional reputation depends on NEVER confusing currency with physical consumption. 
+    return `You are a Senior ESG Data Auditor specializing in high-precision digitization.
 
-### AUDIT CONTEXT:
-- **Target Category**: ${category}
-- **Required Physical Units**: [${allowedUnits}]
-- **Focus**: ${rule.focus}
+### THE "ATOMIC EXTRACTION" PROTOCOL:
+1. **NO CONSOLIDATION**: Do NOT sum period consumption (e.g., P1, P2, P3). Every individual row in the invoice detail must be its own object in the 'emission_lines' array.
+2. **FINANCIAL INTEGRITY**: Locate "Base Imponible" (Net) and "I.V.A." (Tax). These are mandatory fields in 'source_data.total_amount'.
+3. **CURRENCY VS PHYSICS**: 
+   - Identify every number followed by symbols like €, EUR, or labels like "Importe".
+   - Place costs in 'monetary_cost' and physical units (${allowedUnits}) in 'value'.
+4. **POWER VS ENERGY**: For ELEC, "Potencia" (kW) is a capacity charge. "Energía" (kWh) is consumption. Map BOTH if they appear in the detail, but ensure 'value' uses the correct unit.
 
-### THE "ZERO-HALLUCINATION" PROTOCOL:
-1. **IDENTIFY ALL NUMBERS**: Locate every number in the text followed by ${allowedUnits} or symbols like €, EUR, USD, $.
-2. **THE MONETARY FILTER**: If a number is adjacent to a currency symbol or labeled as "Total", "Tax", "IVA", "Importe", or "Base", it MUST be excluded from "emission_lines".
-3. **ENERGY SPECIFICS**: For ELEC, "Término de potencia" (kW) is a capacity charge. "Energía Activa" (kWh) is the actual consumption. Extract ONLY the latter.
-4. **DATE VALIDATION**: Verify that 'invoice_date' is logical. 'billing_period' should usually be 28-31 days long for monthly invoices.
+### CATEGORY GUIDANCE (${category}):
+${category === 'ELEC' ? '- Mandatory: Extract P1, P2, and P3 separately. If a value is 0 but present in the table, extract it anyway.' : ''}
+${category === 'ELEC' ? '- Look for "CUPS" (20-22 chars starting with ES) and map to technical_ids.cups.' : ''}
 
-### CATEGORY GUIDANCE:
-${category === 'ELEC' ? '- Mandatory: Sum P1, P2, P3 consumption ONLY if they are explicitly in kWh. If a line says "P1 ... 22.32€", ignore the 22.32 for the value field.' : ''}
-${category === 'GAS' ? '- If you see "m3" and "kWh", prioritize "kWh" as it represents the energy content used for emissions.' : ''}
+### NEGATIVE CONSTRAINTS:
+- NEVER map currency to the "value" field.
+- NEVER skip lines that are part of the main consumption or power tables.
+- Return ONLY valid JSON. No conversational filler.
 
-### NEGATIVE CONSTRAINTS (STRICT COMPLIANCE):
-- NEVER map a value in EUR/Currency to the "emission_lines.value" field.
-- NEVER invent or estimate consumption if not present. If missing, return "value": 0 and set "confidence_score": 0.
-- NO PROSE, NO CONVERSATION. Return ONLY the JSON object.
-
-### OUTPUT EXAMPLE (STRICT FORMAT):
+### OUTPUT EXAMPLE:
 {
   "audit_thought_process": { 
-      "monetary_vs_physical_check": "Identified 80.07 EUR as total amount. Found 145.0 kWh under 'Energía Activa' section. Corrected P1/P2/P3 EUR lines to focus only on kWh totals."
+      "atomic_line_inventory": "Found 3 consumption lines (P1, P2, P3) and 2 power lines." 
   },
-  "source_data": { ... },
-  "emission_lines": [{ "value": 145.0, "unit": "kWh", "reasoning": "Value clearly labeled as Active Energy in kWh, distinct from the monetary charges." }]
+  "source_data": { 
+      "total_amount": { "total_with_tax": 80.07, "net_amount": 66.17, "tax_amount": 13.90 } 
+  },
+  "emission_lines": [
+      { "description": "Energía Activa P1", "value": 120.5, "unit": "kWh", "monetary_cost": 22.10 },
+      { "description": "Energía Activa P3", "value": 250.0, "unit": "kWh", "monetary_cost": 15.05 }
+  ]
 }
 
-### REQUIRED SCHEMA:
+### REQUIRED JSON SCHEMA:
 ${JSON.stringify(fullSchema, null, 2)}`;
 };
 

@@ -4,12 +4,6 @@ import { ddb, TABLE_NAME } from "./client.js";
 export const persistTransaction = async (goldenRecord) => {
     const { PK, SK, extracted_data, climatiq_result, ai_analysis, metadata, status } = goldenRecord;
     const isoNow = new Date().toISOString();
-
-    /**
-     * 🎯 NORMALIZACIÓN: 
-     * Si en la BD no tiene "ORG#", debemos removerlo aquí.
-     * Esto limpia tanto "ORG#f3d4..." como "f3d4..." dejándolos solo como el UUID.
-     */
     const finalPK = PK.replace("ORG#", "");
 
     console.log(`[DB_ATTEMPT] Target -> PK: [${finalPK}] | SK: [${SK}]`);
@@ -35,10 +29,10 @@ export const persistTransaction = async (goldenRecord) => {
                 ":status": status || "READY_FOR_REVIEW", 
                 ":ai": ai_analysis || {},
                 ":cr": climatiq_result || {},
-                ":ed": extracted_data || {},
+                ":ed": extracted_data || {}, // <--- Esto ya trae el IVA y las líneas del Mapper
                 ":now": isoNow,
                 ":meta": {
-                    ...(metadata || {}),
+                    ...(metadata || {}), // Mantiene lo que venía del Skeleton (bucket, s3_key)
                     processed_at: isoNow,
                     status: status || "READY_FOR_REVIEW",
                     is_draft: false
