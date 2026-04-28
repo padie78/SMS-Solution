@@ -4,7 +4,7 @@ const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
 const s3Client = new S3Client({ region: process.env.AWS_REGION || "eu-central-1" });
 
-async function generatePresignedUploadUrl(bucket, key, contentType) {
+export const generatePresignedUploadUrl = async (bucket, key, contentType) => {
     const command = new PutObjectCommand({
         Bucket: bucket,
         Key: key,
@@ -12,5 +12,3 @@ async function generatePresignedUploadUrl(bucket, key, contentType) {
     });
     return await getSignedUrl(s3Client, command, { expiresIn: 300 });
 }
-
-module.exports = { generatePresignedUploadUrl };
