@@ -42,7 +42,6 @@ export const persistTransaction = async (goldenRecord) => {
                 ":meta": {
                     ...(metadata || {}),
                     processed_at: isoNow,
-                    status: status || "READY_FOR_REVIEW",
                     is_draft: false
                 }
             }
