@@ -1,5 +1,6 @@
-const { generatePresignedUploadUrl } = require("./services/s3Service.js");
-const { formatObjectKey } = require("./utils/s3Parser.js");
+import { generatePresignedUploadUrl } from "./services/s3Service.js";
+import { formatObjectKey } from "./utils/s3Parser.js";
+
 
 exports.handler = async (event) => {
     const requestId = event.requestContext?.requestId || "internal";
