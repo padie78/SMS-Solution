@@ -2,7 +2,7 @@ import { generatePresignedUploadUrl } from "./services/s3Service.js";
 import { formatObjectKey } from "./utils/s3Parser.js";
 
 
-exports.handler = async (event) => {
+export const handler = async (event, context) => {
     const requestId = event.requestContext?.requestId || "internal";
     
     try {
