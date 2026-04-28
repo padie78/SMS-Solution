@@ -82,7 +82,6 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
         metadata: {
             ...cleanMetadata, 
             s3_key: cleanMetadata.s3_key || null,
-            status: status || "READY_FOR_REVIEW",
             is_draft: false
         }
     };
