@@ -1,6 +1,6 @@
 /**
  * Transforms AI results into the final Golden Record.
- * Adaptado para incluir Referencia de Contrato y Potencias P1/P2.
+ * Adaptado para incluir Referencia de Contrato, Potencias P1/P2 e Identificadores de Factura.
  */
 export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, category, originalMetadata = {}) => {
     const now = new Date().toISOString();
@@ -16,7 +16,7 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
 
     const source = aiAnalysis.source_data || {};
     const billing = source.billing_period || {};
-    const technical = aiAnalysis.technical_ids || {}; // Datos técnicos de Bedrock
+    const technical = aiAnalysis.technical_ids || {}; 
 
     // Gestión de fechas y días para prorrateo
     const startDate = billing.start ? new Date(billing.start) : new Date();
@@ -46,7 +46,7 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
         carbon_intensity: totalConsumption > 0 ? Number((finalCo2 / totalConsumption).toFixed(4)) : 0,
         unit_price_index: Number(unitPrice.toFixed(4)),
         confidence_score: aiAnalysis.confidence_score || 0.85,
-        anomaly_detected: unitPrice > 0.18 // Ejemplo de umbral de anomalía
+        anomaly_detected: unitPrice > 0.18 
     };
 
     // 4. FINAL OBJECT CONSTRUCTION
@@ -67,10 +67,14 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
             timestamp: now
         } : {},
         extracted_data: {
+            // --- NUEVOS IDENTIFICADORES DE FACTURA ---
+            invoice_number: source.invoice_number || null,
+            invoice_date: source.invoice_date || null,
+            
             vendor: source.vendor?.name || "Unknown",
             customer: source.customer || {},
             
-            // --- NUEVOS CAMPOS TÉCNICOS ---
+            // --- DATOS TÉCNICOS ---
             cups: technical.cups || null,
             contract_reference: technical.contract_reference || null,
             contracted_power: {
@@ -78,7 +82,6 @@ export const buildGoldenRecord = (orgId, sk, aiAnalysis, emissions, status, cate
                 p2: technical.contracted_power_p2 || null
             },
             tariff: technical.tariff || null,
-            // ------------------------------
 
             total_amount: totalAmount,
             tax_amount: Number(amountData.tax_amount || 0),
