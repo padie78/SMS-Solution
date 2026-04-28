@@ -1,69 +1,58 @@
 import { STRATEGIES } from "../../constants/climatiq_catalog.js";
-import { MOCK_EMISSION_FACTORS } from "../../mocks/factors.js"; // <--- Importación limpia
+import { MOCK_EMISSION_FACTORS } from "../../mocks/factors.js";
 
-// 1. Define tu objeto Mock al principio del archivo
-const CLIMATIQ_MOCK_RESPONSE = {
-    co2e: 23.897,
+const CLIMATIQ_MOCK_BASE = {
     co2e_unit: "kg",
     activity_id: "electricity-supply_grid-source_supplier_mix",
     audit_trail: "enabled",
-    constituent_gases: {
-        co2e_total: 23.897,
-        co2: 23.897, // <--- Importante: Copiamos el total aquí para el Mapper
-        ch4: 0,
-        n2o: 0
-    }
 };
 
+/**
+ * Calculates carbon footprint using Climatiq API (with Mock fallback).
+ * @param {Array} lines - Extracted emission lines from AI.
+ * @param {string} country - ISO Country code.
+ */
 export const calculateFootprint = async (lines, country = "ES") => {
+    const startTime = Date.now();
+    const CLIMATIQ_TOKEN = process.env.CLIMATIQ_TOKEN || "2E44QNZJMX5X5B6EM43E88KRZ8";
+    const USE_MOCK = process.env.USE_CLIMATIQ_MOCK === 'true' || true; 
+
     let totalKg = 0;
     let totalCo2 = 0;
-    let totalCh4 = 0;
-    let totalN2o = 0;
-    
     const items = [];
-    const CLIMATIQ_TOKEN = process.env.CLIMATIQ_TOKEN || "2E44QNZJMX5X5B6EM43E88KRZ8"; 
-    // Variable para controlar el Mock (puedes usar process.env.USE_MOCK === 'true')
-    const USE_MOCK = true; 
+
+    console.log(`[CLIMATIQ_START] Processing ${lines.length} lines. Mode: ${USE_MOCK ? 'MOCK' : 'LIVE'}`);
 
     for (const line of lines) {
         try {
-            const strategy = STRATEGIES[line.category?.toUpperCase()] || STRATEGIES.ELEC;
+            const category = line.category?.toUpperCase() || "ELEC";
+            const strategy = STRATEGIES[category] || STRATEGIES.ELEC;
             const value = parseFloat(line.value);
             const rawUnit = (line.unit || '').toLowerCase();
 
+            // Validation: Skip monetary units or invalid numbers
             const forbiddenUnits = ['eur', 'usd', 'money', '€', '$'];
             if (forbiddenUnits.includes(rawUnit) || isNaN(value)) {
+                console.log(`[CLIMATIQ_SKIP] Invalid unit/value for: ${line.description}`);
                 continue; 
             }
 
-            let unit = rawUnit === 'kwh' ? 'kWh' : 'kg';
-
-            // --- INICIO INTERCEPCIÓN MOCK ---
+            const unit = rawUnit === 'kwh' ? 'kWh' : 'kg';
             let data;
+
             if (USE_MOCK) {
-                console.log(`   🛠️ [MOCK_ACTIVE]: Simulando estimación para "${line.description}"`);
-                // 1. Identificamos la categoría (ELEC, GAS, etc.)
-                const category = line.category?.toUpperCase() || "ELEC";
-                
-                // 2. Buscamos su factor específico en nuestro mapa
+                // --- MOCK LOGIC ---
                 const factor = MOCK_EMISSION_FACTORS[category] || MOCK_EMISSION_FACTORS.DEFAULT;
-                
-                // 3. Calculamos
-                const co2Calculado = value * factor;
-                
+                const calculatedCo2 = value * factor;
                 
                 data = {
-                    ...CLIMATIQ_MOCK_RESPONSE, // Traemos la estructura (activity_id, etc.)
-                    co2e: co2Calculado,        // Sobrescribimos con el valor proporcional
-                    constituent_gases: {
-                        co2: co2Calculado,
-                        ch4: 0,
-                        n2o: 0
-                    }
-    };
+                    ...CLIMATIQ_MOCK_BASE,
+                    co2e: calculatedCo2,
+                    constituent_gases: { co2: calculatedCo2, ch4: 0, n2o: 0 }
+                };
+                console.log(`[CLIMATIQ_MOCK] [${category}] Calculated ${calculatedCo2}kg CO2e for "${line.description}"`);
             } else {
-                // Llamada real a la API
+                // --- LIVE API CALL ---
                 const body = {
                     emission_factor: {
                         activity_id: strategy.activity_id,
@@ -87,44 +76,34 @@ export const calculateFootprint = async (lines, country = "ES") => {
                 });
 
                 data = await res.json();
-
-                if (!res.ok) throw new Error(data.message || "Error API");
+                if (!res.ok) throw new Error(`API Error: ${data.message || res.statusText}`);
             }
 
-            // 🚀 LOG PARA TU MOCK
-            console.log("--- COPIAR DESDE AQUÍ ---");
-            console.log(JSON.stringify(data, null, 2));
-            console.log("--- HASTA AQUÍ ---");
-
-            // --- FIN INTERCEPCIÓN MOCK ---
-
-            // El resto del código sigue igual, usando 'data' (ya sea del Mock o de la API)
+            // Aggregate totals
             totalKg += data.co2e;
-            const gases = data.constituent_gases || {};
-            
-            totalCo2 += (gases.co2 || 0);
-            totalCh4 += (gases.ch4 || 0);
-            totalN2o += (gases.n2o || 0);
+            totalCo2 += (data.constituent_gases?.co2 || 0);
 
             items.push({
                 description: line.description,
                 original_value: value,
                 original_unit: unit,
                 co2e_kg: data.co2e,
-                constituent_gases: gases,
-                activity_id: strategy.activity_id,
+                activity_id: data.activity_id,
                 audit_trail: data.audit_trail 
             });
 
         } catch (err) {
-            console.error(`   ⚠️ [LINE_ERROR] en "${line.description}": ${err.message}`);
+            console.error(`[CLIMATIQ_LINE_ERROR] Failed line "${line.description}": ${err.message}`);
         }
     }
+
+    const duration = (Date.now() - startTime) / 1000;
+    console.log(`[CLIMATIQ_SUCCESS] Total footprint: ${totalKg.toFixed(2)}kg CO2e. Time: ${duration}s`);
 
     return { 
         total_kg: totalKg, 
         activity_id: items[0]?.activity_id || "electricity-supply_grid_es",
-        constituent_gases: { co2: totalCo2, ch4: totalCh4, n2o: totalN2o },
+        constituent_gases: { co2: totalCo2, ch4: 0, n2o: 0 },
         items 
     };
 };

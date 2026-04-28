@@ -1,53 +1,71 @@
 import { pipeline } from "./services/pipeline.js";
 
+/**
+ * SQS Worker Handler - Carbon Emissions AI Pipeline
+ * Orchestrates the processing of messages from the SQS queue.
+ */
 export const handler = async (event, context) => {
-    console.log(`\n🚀 [WORKER_START] | Mensajes a procesar: ${event.Records.length}`);
+    const totalRecords = event.Records.length;
+    console.log(`[WORKER_START] Batch received. Records to process: ${totalRecords}`);
 
     for (const record of event.Records) {
+        // We use the SQS MessageId for traceability within the loop
+        const messageId = record.messageId;
+        
         try {
-            // 1. Parsear el mensaje que viene de SQS
+            // 1. Message Parsing
             const body = JSON.parse(record.body);
-            
-            // Si el Dispatcher/S3-Trigger no te mandó el 'sk' explícito,
-            // lo extraemos directamente de la 'key' de S3.
             let { bucket, key, orgId, sk } = body;
 
+            console.log(`[WORKER_PROCESS] [${messageId}] Parsing message for S3 Key: ${key}`);
+
+            // 2. SK Recovery Strategy (Fail-safe)
+            // If the Dispatcher didn't send the SK, we extract it from the S3 Key format
             if (!sk && key) {
-                // Extraemos el nombre del archivo (ej: "INV#123__factura.pdf")
                 const fileName = key.split('/').pop();
-                // Tomamos la parte antes del doble guion bajo
                 sk = fileName.split('__')[0];
-                
-                console.log(`🔍 [WORKER] SK extraído de la Key: ${sk}`);
+                console.log(`[WORKER_DEBUG] [${messageId}] SK extracted from S3 Key: ${sk}`);
             }
 
-            // Validación de seguridad
-            if (!sk) {
-                console.warn("⚠️ [SKIP] No se pudo determinar el SK (invoiceId) para la key:", key);
-                continue;
+            // 3. Integrity Validation
+            if (!sk || !sk.startsWith('INV#')) {
+                console.warn(`[WORKER_SKIP] [${messageId}] Invalid or missing SK. Skipping record. Key: ${key}`);
+                continue; 
             }
 
-            // Hardcodeamos orgId si no viene, o lo sacamos del path si es necesario
-            const finalOrgId = orgId || "DEFAULT_ORG"; 
+            // Organization ID Context
+            const finalOrgId = orgId || "DEFAULT_ORG";
 
-            console.log(`🆔 [WORKER_EVENT] | Org: ${finalOrgId} | SK: ${sk} | Key: ${key}`);
+            console.log(`[WORKER_EVENT] [${sk}] Starting Pipeline | Org: ${finalOrgId} | Bucket: ${bucket}`);
 
             /**
-             * 2. Delegar al pipeline. 
-             * Ahora el objeto 'body' tiene el 'sk' correcto para que el pipeline 
-             * pueda actualizar DynamoDB y notificar a AppSync con el ID que espera el Front.
+             * 4. Pipeline Execution
+             * We ensure 'sk' and 'orgId' are explicitly passed to maintain 
+             * consistency across DynamoDB updates and AppSync notifications.
              */
-            const pipelineData = { ...body, sk: sk }; 
-            await pipeline(pipelineData, finalOrgId);
+            const pipelineParams = { 
+                ...body, 
+                sk, 
+                orgId: finalOrgId 
+            };
 
-            console.log(`✅ [WORKER_SUCCESS] | Procesado con éxito: ${sk}`);
+            await pipeline(pipelineParams);
+
+            console.log(`[WORKER_SUCCESS] [${sk}] Workflow completed successfully.`);
 
         } catch (error) {
-            console.error(`❌ [WORKER_ERROR] | ${error.message}`);
-            // Al lanzar el error, SQS hará el reintento automático
-            throw error; 
+            // Structured error logging for CloudWatch Metrics
+            console.error(`[WORKER_FATAL_ERROR] [${messageId}] processing failed.`);
+            console.error(`[ERROR_DETAILS]: ${error.message}`);
+            
+            /**
+             * Re-throwing the error ensures SQS visibility timeout logic 
+             * triggers a retry or moves the message to the DLQ.
+             */
+            throw error;
         }
     }
 
-    return { status: "PROCESSED" };
+    console.log(`[WORKER_FINISHED] All ${totalRecords} messages handled.`);
+    return { status: "BATCH_PROCESSED" };
 };

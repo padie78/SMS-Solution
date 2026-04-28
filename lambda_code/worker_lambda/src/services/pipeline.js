@@ -1,36 +1,39 @@
-import { getTextFromS3 } from "./apis/textract.js"; // Necesitás crear este helper
+import { getTextFromS3 } from "./apis/textract.js";
 import { identifyCategory } from "./ia/classifier.js";
 import { analyzeInvoice } from "./ia/bedrock.js";
 import { calculateFootprint } from "./apis/climatiq.js";
 import { buildGoldenRecord } from "../utils/mapper.js";
-import { persistTransaction } from "./data/db.js"; // CAMBIO: de persist a update
+import { persistTransaction } from "./data/db.js"; 
 import { notifyInvoiceUpdate } from "./notifications/appsyncService.js";
 
 /**
- * Orquestador: S3 -> Textract -> IA -> Climatiq -> DB (Update)
+ * AI Pipeline Orchestrator: S3 -> Textract -> Bedrock -> Climatiq -> DynamoDB
+ * @param {Object} params - Object containing { bucket, key, sk, orgId }
  */
-export const pipeline = async (sqsMessage, orgId) => {
-    // sqsMessage ahora trae: { bucket, key, sk, orgId }
-    const { bucket, key, sk } = sqsMessage;
+export const pipeline = async (params) => {
+    const { bucket, key, sk, orgId } = params;
+    const startTime = Date.now();
 
-    console.log(`\n--- ⚙️ STARTING PIPELINE [SK: ${sk}] ---`);
+    console.log(`[PIPELINE_START] [${sk}] Processing invoice for Org: ${orgId}`);
 
     try {
-        // --- FASE 0: EXTRACCIÓN DE TEXTO (S3 -> Textract) ---
-        // Como el Dispatcher solo nos dio la ruta, el Worker debe leer el archivo
-        console.log(`[PIPELINE] 0. Extrayendo texto de s3://${bucket}/${key}`);
+        // --- PHASE 0: TEXT EXTRACTION (S3 -> Textract) ---
+        console.log(`[PIPELINE_STEP] [${sk}] 0. Extracting raw text via Textract...`);
         const rawText = await getTextFromS3(bucket, key); 
 
-        if (!rawText) throw new Error("No se pudo extraer texto del documento");
+        if (!rawText) throw new Error("Textract returned empty content");
 
-        // --- FASE 1: CLASIFICACIÓN ---
+        // --- PHASE 1: CLASSIFICATION ---
+        console.log(`[PIPELINE_STEP] [${sk}] 1. Identifying emission category...`);
         const detectedCategory = await identifyCategory(rawText);
-        console.log(`[PIPELINE] 1. Contexto: Cat detectada "${detectedCategory}"`);
+        console.log(`[PIPELINE_INFO] [${sk}] Context identified: ${detectedCategory}`);
 
-        // --- FASE 2: IA (Bedrock) ---
+        // --- PHASE 2: AI ANALYSIS (Bedrock) ---
+        console.log(`[PIPELINE_STEP] [${sk}] 2. Running Bedrock LLM analysis...`);
         const aiAnalysis = await analyzeInvoice(rawText, detectedCategory);
 
-        // --- FASE 3: MOTOR DE EMISIONES (Climatiq) ---
+        // --- PHASE 3: EMISSIONS ENGINE (Climatiq) ---
+        console.log(`[PIPELINE_STEP] [${sk}] 3. Calculating carbon footprint...`);
         const emissionLines = (aiAnalysis.emission_lines || []).map(line => ({
             ...line,
             category: line.category || aiAnalysis.category || "ELEC"
@@ -39,43 +42,47 @@ export const pipeline = async (sqsMessage, orgId) => {
         const country = aiAnalysis.extracted_data?.location?.country || "ES";
         const emissionCalculations = await calculateFootprint(emissionLines, country);
 
-        // --- FASE 4: MAPEO (Golden Record) ---
-        // Importante: Usamos el 'sk' que vino de SQS para mantener la referencia al Skeleton
+        // --- PHASE 4: MAPPING (Golden Record) ---
+        console.log(`[PIPELINE_STEP] [${sk}] 4. Building Golden Record.`);
         const goldenRecord = buildGoldenRecord(
-            `ORG#${orgId}`,
+            orgId.startsWith('ORG#') ? orgId : `ORG#${orgId}`,
             sk, 
             aiAnalysis,
             emissionCalculations,
-            "READY_FOR_REVIEW", // Status final
+            "READY_FOR_REVIEW", 
             detectedCategory,
-            { s3_key: key, bucket: bucket } // metadata básica
+            { s3_key: key, bucket: bucket }
         );
 
-        // --- FASE 5: PERSISTENCIA (UpdateItem) ---
-        // Cambiamos 'persistTransaction' por una función que haga UPDATE
+        // --- PHASE 5: PERSISTENCE (DynamoDB Update) ---
+        console.log(`[PIPELINE_STEP] [${sk}] 5. Updating DynamoDB record...`);
         await persistTransaction(goldenRecord);
-        console.log(`[PIPELINE] 5. Éxito: Skeleton actualizado a Golden Record.`);
 
-        // --- FASE 6: NOTIFICACIÓN (AppSync) ---
+        // --- PHASE 6: NOTIFICATION (AppSync) ---
         try {
-            await notifyInvoiceUpdate(sk, "READY_FOR_REVIEW", "IA terminó: Datos listos para revision", goldenRecord);
-        } catch (err) {
-            // Silencioso para el flujo, pero logueado
-            console.warn(`[NOTIFY_SILENT_FAIL] SK: ${sk}`);
+            console.log(`[PIPELINE_STEP] [${sk}] 6. Sending AppSync notification...`);
+            await notifyInvoiceUpdate(sk, "READY_FOR_REVIEW", "AI Analysis completed: Ready for review.", goldenRecord);
+        } catch (notifyErr) {
+            console.warn(`[PIPELINE_WARN] [${sk}] Notification failed but record was saved: ${notifyErr.message}`);
         }
+
+        const duration = (Date.now() - startTime) / 1000;
+        console.log(`[PIPELINE_SUCCESS] [${sk}] Total processing time: ${duration}s`);
 
         return goldenRecord;
 
     } catch (error) {
-        console.error(`\n❌ [PIPELINE_ERROR]: Fallo en el procesamiento de ${sk}`);
+        console.error(`[PIPELINE_FATAL_ERROR] [${sk}] Pipeline crashed.`);
+        console.error(`[ERROR_DETAILS]: ${error.message}`);
         
-        // --- NOTIFICACIÓN DE ERROR (Fundamental) ---
+        // CRITICAL: Notify failure to UI
         try {
-            await notifyInvoiceUpdate(sk, "FAILED", `Error: ${error.message}`);
+            await notifyInvoiceUpdate(sk, "FAILED", `AI Processing Error: ${error.message}`);
         } catch (notifyErr) {
-            console.error("No se pudo notificar el fallo a AppSync");
+            console.error(`[PIPELINE_CRITICAL] [${sk}] Could not notify failure to AppSync.`);
         }
 
-        throw error; // Re-lanzamos para que SQS sepa que falló
+        // Re-throw to SQS for DLQ/Retry handling
+        throw error; 
     }
 };

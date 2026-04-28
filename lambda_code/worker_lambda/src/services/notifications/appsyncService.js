@@ -1,39 +1,37 @@
 import https from 'https';
 
+/**
+ * Notifies AppSync (via GraphQL Mutation) about invoice processing updates.
+ * This triggers real-time updates in the frontend via Subscriptions.
+ */
 export const notifyInvoiceUpdate = async (id, status, message, payload = null) => {
     const appsyncUrl = new URL(process.env.APPSYNC_URL || "https://75nymxzbp5dddnsnehigmroili.appsync-api.eu-central-1.amazonaws.com/graphql");
+    const apiKey = process.env.APPSYNC_API_KEY || "da2-uwvkviowwrfthglgmhirgrib74";
 
-    // Simplificamos los campos de retorno para asegurar que el ID no venga null
     const mutation = `
-  mutation UpdateStatus($id: ID!, $status: InvoiceStatus!, $data: AWSJSON, $msg: String) {
-    updateInvoiceStatus(id: $id, status: $status, extractedData: $data, message: $msg) {
-      id
-      status
-      extractedData
-    }
-  }
-`;
+        mutation UpdateStatus($id: ID!, $status: InvoiceStatus!, $data: AWSJSON, $msg: String) {
+            updateInvoiceStatus(id: $id, status: $status, extractedData: $data, message: $msg) {
+                id
+                status
+                message
+            }
+        }
+    `;
 
     const variables = {
-        id: id,
-        status: status,
+        id,
+        status,
         msg: message || "Update from AI Pipeline",
         data: payload ? (typeof payload === 'string' ? payload : JSON.stringify(payload)) : null
     };
 
-    const body = JSON.stringify({
+    const postData = JSON.stringify({
         query: mutation,
-        variables: variables
+        variables
     });
 
-    // --- LOGS DE SALIDA ---
-    console.log("--------------------------------------------------");
-    console.log("📤 [NOTIFIER] Preparando envío a AppSync");
-    console.log("🆔 ID Enviado:", variables.id);
-    console.log("📊 Status:", variables.status);
-    console.log("📦 Payload (ExtractedData) length:", variables.data ? variables.data.length : 0);
-    console.log("📝 Message:", variables.msg);
-    console.log("--------------------------------------------------");
+    console.log(`[NOTIFIER_START] [${id}] Dispatching status update: ${status}`);
+    console.log(`[NOTIFIER_META] Payload size: ${variables.data ? variables.data.length : 0} characters`);
 
     const options = {
         hostname: appsyncUrl.hostname,
@@ -41,38 +39,40 @@ export const notifyInvoiceUpdate = async (id, status, message, payload = null) =
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
-            'x-api-key': process.env.APPSYNC_API_KEY || "da2-uwvkviowwrfthglgmhirgrib74"
+            'x-api-key': apiKey
         }
     };
 
     return new Promise((resolve, reject) => {
         const req = https.request(options, (res) => {
-            let responseData = '';
-            res.on('data', (chunk) => responseData += chunk);
+            let responseBody = '';
+            res.on('data', (chunk) => { responseBody += chunk; });
+            
             res.on('end', () => {
                 try {
-                    const response = JSON.parse(responseData);
+                    const result = JSON.parse(responseBody);
                     
-                    if (response.errors) {
-                        console.error("❌ [NOTIFIER] Error en la respuesta de AppSync:", JSON.stringify(response.errors, null, 2));
-                    } else {
-                        console.log("✅ [NOTIFIER] Notificación procesada con éxito:", JSON.stringify(response.data));
+                    if (result.errors) {
+                        console.error(`[NOTIFIER_GRAPHQL_ERROR] [${id}] AppSync rejected the mutation.`);
+                        console.error(`[DETAILS]: ${JSON.stringify(result.errors)}`);
+                        return resolve(result); // Resolve to allow pipeline to continue even if UI fails
                     }
-                    
-                    resolve(response);
-                } catch (e) {
-                    console.error("❌ [NOTIFIER] Error parseando respuesta:", responseData);
-                    reject(e);
+
+                    console.log(`[NOTIFIER_SUCCESS] [${id}] Real-time update pushed to AppSync.`);
+                    resolve(result);
+                } catch (parseError) {
+                    console.error(`[NOTIFIER_PARSE_ERROR] [${id}] Failed to parse AppSync response: ${responseBody}`);
+                    reject(parseError);
                 }
             });
         });
 
-        req.on('error', (err) => {
-            console.error("❌ [NOTIFIER] Error de red en HTTPS request:", err);
-            reject(err);
+        req.on('error', (networkError) => {
+            console.error(`[NOTIFIER_NETWORK_ERROR] [${id}] HTTPS Request failed: ${networkError.message}`);
+            reject(networkError);
         });
 
-        req.write(body);
+        req.write(postData);
         req.end();
     });
 };
