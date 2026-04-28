@@ -1,49 +1,34 @@
 import { getTextFromS3 } from "./apis/textract.js";
 import { identifyCategory } from "./ia/classifier.js";
 import { analyzeInvoice } from "./ia/bedrock.js";
-import { calculateFootprint } from "./apis/climatiq.js";
+// import { calculateFootprint } from "./apis/climatiq.js"; // 🚫 Desactivado
 import { buildGoldenRecord } from "../utils/mapper.js";
 import { persistTransaction } from "./data/db.js"; 
 import { notifyInvoiceUpdate } from "./notifications/appsyncService.js";
 
-/**
- * AI Pipeline Orchestrator: S3 -> Textract -> Bedrock -> Climatiq -> DynamoDB
- * @param {Object} params - Object containing { bucket, key, sk, orgId }
- */
 export const pipeline = async (params) => {
     const { bucket, key, sk, orgId } = params;
     const startTime = Date.now();
 
-    console.log(`[PIPELINE_START] [${sk}] Processing invoice for Org: ${orgId}`);
+    console.log(`[PIPELINE_START] [${sk}] Mode: Extraction Only (No Footprint)`);
 
     try {
-        // --- PHASE 0: TEXT EXTRACTION (S3 -> Textract) ---
-        console.log(`[PIPELINE_STEP] [${sk}] 0. Extracting raw text via Textract...`);
+        // --- PHASE 0: OCR ---
         const rawText = await getTextFromS3(bucket, key); 
-
         if (!rawText) throw new Error("Textract returned empty content");
-
-        // --- PHASE 1: CLASSIFICATION ---
-        console.log(`[PIPELINE_STEP] [${sk}] 1. Identifying emission category...`);
+        
+        // --- PHASE 1: CATEGORY ---
         const detectedCategory = await identifyCategory(rawText);
-        console.log(`[PIPELINE_INFO] [${sk}] Context identified: ${detectedCategory}`);
 
-        // --- PHASE 2: AI ANALYSIS (Bedrock) ---
-        console.log(`[PIPELINE_STEP] [${sk}] 2. Running Bedrock LLM analysis...`);
+        // --- PHASE 2: LLM ANALYSIS ---
+        console.log(`[PIPELINE_STEP] [${sk}] Extracting invoice data via Bedrock...`);
         const aiAnalysis = await analyzeInvoice(rawText, detectedCategory);
+        
+        // --- PHASE 3: FOOTPRINT CALCULATION (SKIPPED) ---
+        const emissionCalculations = { total_kg: 0, items: [] };
 
-        // --- PHASE 3: EMISSIONS ENGINE (Climatiq) ---
-        console.log(`[PIPELINE_STEP] [${sk}] 3. Calculating carbon footprint...`);
-        const emissionLines = (aiAnalysis.emission_lines || []).map(line => ({
-            ...line,
-            category: line.category || aiAnalysis.category || "ELEC"
-        }));
-
-        const country = aiAnalysis.extracted_data?.location?.country || "ES";
-        const emissionCalculations = await calculateFootprint(emissionLines, country);
-
-        // --- PHASE 4: MAPPING (Golden Record) ---
-        console.log(`[PIPELINE_STEP] [${sk}] 4. Building Golden Record.`);
+        // --- PHASE 4: MAPPING ---
+        // El mapper ya está preparado para recibir valores en 0 o vacíos
         const goldenRecord = buildGoldenRecord(
             orgId.startsWith('ORG#') ? orgId : `ORG#${orgId}`,
             sk, 
@@ -54,35 +39,35 @@ export const pipeline = async (params) => {
             { s3_key: key, bucket: bucket }
         );
 
-        // --- PHASE 5: PERSISTENCE (DynamoDB Update) ---
-        console.log(`[PIPELINE_STEP] [${sk}] 5. Updating DynamoDB record...`);
+        // --- PHASE 5: PERSISTENCE ---
         await persistTransaction(goldenRecord);
 
-        // --- PHASE 6: NOTIFICATION (AppSync) ---
+        // --- PHASE 6: UI NOTIFICATION ---
         try {
-            console.log(`[PIPELINE_STEP] [${sk}] 6. Sending AppSync notification...`);
-            await notifyInvoiceUpdate(sk, "READY_FOR_REVIEW", "AI Analysis completed: Ready for review.", goldenRecord);
+            console.log(`[PIPELINE_STEP] [${sk}] Notifying Frontend...`);
+            
+            // Enviamos solo la data pura de la factura
+            const uiPayload = {
+                vendor: aiAnalysis.source_data?.vendor?.name || "Unknown",
+                total_amount: aiAnalysis.source_data?.total_amount?.total_with_tax || 0,
+                currency: aiAnalysis.source_data?.currency || "EUR",
+                billing_period: aiAnalysis.source_data?.billing_period || {},
+                invoice_lines: aiAnalysis.emission_lines || [] 
+            };
+
+            await notifyInvoiceUpdate(sk, "READY_FOR_REVIEW", "Digitization complete", uiPayload);
         } catch (notifyErr) {
-            console.warn(`[PIPELINE_WARN] [${sk}] Notification failed but record was saved: ${notifyErr.message}`);
+            console.warn(`[PIPELINE_WARN] [${sk}] Notification failed: ${notifyErr.message}`);
         }
 
         const duration = (Date.now() - startTime) / 1000;
-        console.log(`[PIPELINE_SUCCESS] [${sk}] Total processing time: ${duration}s`);
+        console.log(`[PIPELINE_SUCCESS] [${sk}] Finished in ${duration}s (Footprint skipped)`);
 
         return goldenRecord;
 
     } catch (error) {
-        console.error(`[PIPELINE_FATAL_ERROR] [${sk}] Pipeline crashed.`);
-        console.error(`[ERROR_DETAILS]: ${error.message}`);
-        
-        // CRITICAL: Notify failure to UI
-        try {
-            await notifyInvoiceUpdate(sk, "FAILED", `AI Processing Error: ${error.message}`);
-        } catch (notifyErr) {
-            console.error(`[PIPELINE_CRITICAL] [${sk}] Could not notify failure to AppSync.`);
-        }
-
-        // Re-throw to SQS for DLQ/Retry handling
+        console.error(`[PIPELINE_FATAL_ERROR] [${sk}] ${error.message}`);
+        await notifyInvoiceUpdate(sk, "FAILED", `Error: ${error.message}`);
         throw error; 
     }
 };
