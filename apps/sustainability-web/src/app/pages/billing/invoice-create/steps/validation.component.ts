@@ -92,34 +92,34 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
             const rawData = updated.extractedData;
             console.log("🔍 [DATA] Raw string recibido:", rawData);
 
-            // Función de extracción mejorada para manejar espacios y formatos sucios
-            const extractValue = (key: string): string => {
-              // Busca la clave, salta el '=' y captura todo hasta la coma o el cierre de llave
-              // Soporta espacios en el valor (como 'ELECTRA NOVA')
-              const regex = new RegExp(`${key}=([^,}]+)`);
-              const match = rawData.match(regex);
-              return match ? match[1].trim() : '';
-            };
+            // 1. Convertimos el string "key=value" a JSON válido
+            // Explicación: Pone comillas a las llaves y valores, cambia '=' por ':'
+            const jsonValidString = rawData
+              .replace(/([a-zA-Z0-9_]+)=/g, '"$1":') // Llaves
+              .replace(/:([^"{[,\s][^,}]*)/g, ':"$1"') // Valores (si no son objetos/arrays)
+              .replace(/"true"/g, 'true')
+              .replace(/"false"/g, 'false')
+              .replace(/"([0-9.]+)"/g, (match: string, p1: string) => !isNaN(Number(p1)) ? p1 : match);
 
-            // Extraemos los datos basándonos en las claves que vimos en tu log anterior
-            const vendorName = extractValue('vendor');
-            const amount = extractValue('total_amount');
-            const curr = extractValue('currency');
-            const kwh = extractValue('value'); // Consumo
-            const co2 = extractValue('co2e');  // Huella
-            const dateEnd = extractValue('end'); // Fecha fin periodo
+            const parsedData = JSON.parse(jsonValidString);
+            console.log("📦 [PARSED] Objeto real:", parsedData);
 
+            // 2. Mapeamos a tu interfaz de la UI
             this.invoice = {
-              vendor: vendorName || 'No detectado',
-              total: parseFloat(amount) || 0,
-              currency: curr || 'EUR',
-              date: dateEnd || '',
-              consumption: parseFloat(kwh) || 0,
-              co2e: parseFloat(co2) || 0,
-              confidence: 90 // Valor por defecto para la visualización
+              vendor: parsedData.vendor || 'No detectado',
+              total: parseFloat(parsedData.total_amount) || 0,
+              currency: parsedData.currency || 'EUR',
+              // Buscamos la fecha en el objeto anidado billing_period
+              date: parsedData.billing_period?.end || '',
+              // Buscamos el consumo total sumando las líneas que sean kWh
+              consumption: parsedData.invoice_lines
+                ? parsedData.invoice_lines
+                  .filter((l: any) => l.unit === 'kWh')
+                  .reduce((acc: number, curr: any) => acc + parseFloat(curr.value), 0)
+                : 0,
+              lines: parsedData.invoice_lines || [],
+              confidence: 90
             };
-
-            console.log("💎 [SUCCESS] Objeto mapeado:", this.invoice);
 
             this.stateService.setAiData(this.invoice);
             this.isLoading = false;
@@ -127,8 +127,8 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
             this.statusSubscription?.unsubscribe();
 
           } catch (e) {
-            console.error("❌ Error en extracción manual:", e);
-            this.errorMessage = "Error al interpretar los datos de la factura.";
+            console.error("❌ Error parseando objeto malformado:", e);
+            this.errorMessage = "Error al interpretar los datos.";
             this.isLoading = false;
             this.cdr.detectChanges();
           }

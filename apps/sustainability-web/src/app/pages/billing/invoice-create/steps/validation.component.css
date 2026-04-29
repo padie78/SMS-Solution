@@ -1,33 +1,59 @@
-/* Forzar visibilidad de bordes y fondos en todos los controles */
-:host ::ng-deep .p-inputtext,
-:host ::ng-deep .p-dropdown,
-:host ::ng-deep .p-inputtextarea {
-    background-color: #ffffff !important;
-    border: 1px solid #cbd5e1 !important; /* Borde slate-300 */
-    border-radius: 8px !important;
-    padding: 0.75rem 1rem !important;
+/* Custom Scrollbar for the form side */
+.custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+    background: #1e293b;
+    border-radius: 10px;
+}
+
+/* Input Group Styles */
+.ai-input-group {
+    /* IMPORTANTE: Sin la palabra 'group' aquí dentro */
+    @apply bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center transition-all duration-300;
+}
+
+.ai-input-group:focus-within {
+    @apply border-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.1)];
+}
+
+/* Reemplazamos los estilos de PrimeNG para que sean Dark */
+:host ::ng-deep .p-inputtext {
+    background: transparent !important;
+    border: none !important;
+    color: white !important;
+    font-weight: 600;
+    padding: 0.75rem !important;
     width: 100%;
 }
 
-:host ::ng-deep .p-inputtext:focus,
-:host ::ng-deep .p-dropdown:not(.p-disabled).p-focus,
-:host ::ng-deep .p-inputtextarea:focus {
-    border-color: #10b981 !important; /* Emerald */
-    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
-    outline: none;
+:host ::ng-deep .p-inputtext:focus {
+    box-shadow: none !important;
 }
 
-.drop-zone {
-    min-height: 250px;
-}
-
+/* Button Emerald Styles */
 ::ng-deep .p-button-emerald {
-    background-color: #10b981 !important;
+    background: #10b981 !important;
     border: none !important;
+    transition: all 0.3s ease;
+}
+
+::ng-deep .p-button-emerald:hover {
+    background: #059669 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 10px 20px -10px rgba(16, 185, 129, 0.5) !important;
 }
 
 ::ng-deep .p-button-emerald:disabled {
-    background-color: #e2e8f0 !important;
-    color: #94a3b8 !important;
-    opacity: 1;
+    background: #1e293b !important;
+    color: #475569 !important;
+    opacity: 0.7;
+}
+
+/* Field labels transitions */
+.field label {
+    transition: color 0.3s ease;
 }
