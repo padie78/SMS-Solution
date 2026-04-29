@@ -142,8 +142,8 @@ module "frontend_storage" {
   environment    = var.environment
 
   # CONEXIÓN AUTOMÁTICA: Usamos los outputs de los otros módulos
-  appsync_url    = module.backend.appsync_url
-  appsync_region = var.aws_region # O module.backend.region
+  appsync_url    = module.api.appsync_url 
+  appsync_region = var.aws_region
   user_pool_id   = module.auth.user_pool_id
   client_id      = module.auth.client_id
   
