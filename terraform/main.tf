@@ -166,3 +166,23 @@ module "frontend_cdn" {
     Environment = var.environment
   }
 }
+
+# main.tf (RAÍZ)
+
+# Mover el bucket de S3
+moved {
+  from = aws_s3_bucket.webapp_bucket
+  to   = module.frontend_storage.aws_s3_bucket.webapp_bucket
+}
+
+# Mover el Control de Acceso (OAC) de CloudFront
+moved {
+  from = aws_cloudfront_origin_access_control.default
+  to   = module.frontend_cdn.aws_cloudfront_origin_access_control.default
+}
+
+# Mover la política del bucket (si también te da error 409)
+moved {
+  from = aws_s3_bucket_policy.allow_cloudfront
+  to   = module.frontend_storage.aws_s3_bucket_policy.allow_cloudfront
+}
