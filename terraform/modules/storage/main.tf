@@ -14,11 +14,13 @@ module "s3_bucket" {
     enabled = var.versioning_enabled
   }
 
+  # --- CONFIGURACIÓN DE CORS ADAPTADA PARA EL VISOR PDF ---
   cors_rule = [
     {
+      # Usamos las variables que ya tienes, pero asegúrate de que incluyan GET y HEAD
       allowed_headers = var.cors_allowed_headers
-      allowed_methods = var.cors_allowed_methods
-      allowed_origins = var.cors_allowed_origins
+      allowed_methods = ["GET", "HEAD", "PUT", "POST"] # Forzamos GET/HEAD para el Canvas
+      allowed_origins = concat(var.cors_allowed_origins, ["http://localhost:4200"]) # Aseguramos local dev
       expose_headers  = ["ETag"]
       max_age_seconds = 3000
     }
@@ -41,7 +43,7 @@ resource "aws_s3_bucket" "frontend" {
   }
 }
 
-# Configuración de sitio web (Refactorizado para evitar bloques obsoletos)
+# Configuración de sitio web (Hosting Estático)
 resource "aws_s3_bucket_website_configuration" "frontend_config" {
   bucket = aws_s3_bucket.frontend.id
 
@@ -69,9 +71,8 @@ resource "aws_s3_bucket_notification" "dispatcher_trigger" {
   lambda_function {
     lambda_function_arn = var.dispatcher_lambda_arn
     events              = ["s3:ObjectCreated:Put", "s3:ObjectCreated:Post"] 
-    
-    # Si el ID del cliente va al principio, dejamos el prefijo vacío 
-    # o lo cambiamos para que busque en cualquier carpeta pero solo PDFs
+    # Solo PDFs para evitar disparos innecesarios con otros archivos
+    filter_suffix       = ".pdf" 
   }
   depends_on = [aws_lambda_permission.s3_invoke_dispatcher]
 }

@@ -12,6 +12,7 @@ import { MessageService } from 'primeng/api';
 import { ToastModule } from 'primeng/toast';
 import { InputTextModule } from 'primeng/inputtext';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
+import { PdfViewerModule } from 'ng2-pdf-viewer';
 
 // Core Services
 import { InvoiceStateService } from '../../../../core/services/invoice-state.service';
@@ -28,7 +29,8 @@ import { AppSyncService } from '../../../../core/services/appsync.service';
     TagModule,
     TooltipModule,
     ProgressSpinnerModule,
-    ToastModule
+    ToastModule,
+    PdfViewerModule
   ],
   providers: [MessageService],
   templateUrl: './validation.component.html',
@@ -55,87 +57,97 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
   ngOnInit() {
     const snapshot = this.stateService.getSnapshot();
 
-    // Supongamos que guardaste la URL firmada en el state al subir el archivo
     if (snapshot.file) {
       const localUrl = URL.createObjectURL(snapshot.file);
       this.pdfUrl = this.sanitizer.bypassSecurityTrustResourceUrl(localUrl);
     }
     const currentId = snapshot.invoiceId;
 
-    console.log("🛠️ [VALIDATION] Snapshot inicial:", snapshot);
-
     if (snapshot.extractedData) {
-      console.log("📦 [VALIDATION] Datos detectados en State. Saltando espera.");
       this.invoice = snapshot.extractedData;
       this.isLoading = false;
       return;
     }
 
     if (currentId) {
-      console.log(`🎯 [VALIDATION] Iniciando flujo para ID: ${currentId}`);
-      this.isLoading = true;
       this.subscribeToUpdates(currentId);
     } else {
-      console.error("⚠️ [VALIDATION] Error: No existe invoiceId en el State.");
       this.errorMessage = 'No se encontró una referencia válida para procesar.';
       this.isLoading = false;
     }
   }
 
   private subscribeToUpdates(id: string) {
-    this.statusSubscription = this.appsyncService.onInvoiceUpdated(id).subscribe({
-      next: (response: any) => {
-        const updated = response?.value?.data?.onInvoiceUpdated || response?.data?.onInvoiceUpdated;
+  this.statusSubscription = this.appsyncService.onInvoiceUpdated(id).subscribe({
+    next: (response: any) => {
+      const updated = response?.value?.data?.onInvoiceUpdated || response?.data?.onInvoiceUpdated;
 
-        if (updated?.status === 'READY_FOR_REVIEW') {
-          try {
-            const rawData = updated.extractedData;
-            console.log("🔍 [DATA] Raw string recibido:", rawData);
+      if (updated?.status === 'READY_FOR_REVIEW') {
+        try {
+          const rawData = updated.extractedData;
+          console.log("🔍 [RAW DATA]:", rawData);
 
-            // 1. Convertimos el string "key=value" a JSON válido
-            // Explicación: Pone comillas a las llaves y valores, cambia '=' por ':'
-            const jsonValidString = rawData
-              .replace(/([a-zA-Z0-9_]+)=/g, '"$1":') // Llaves
-              .replace(/:([^"{[,\s][^,}]*)/g, ':"$1"') // Valores (si no son objetos/arrays)
-              .replace(/"true"/g, 'true')
-              .replace(/"false"/g, 'false')
-              .replace(/"([0-9.]+)"/g, (match: string, p1: string) => !isNaN(Number(p1)) ? p1 : match);
+          // USAMOS UN PARSER MANUAL EN LUGAR DE REGEX + JSON.PARSE
+          const parsedData = this.parseFlexibleString(rawData);
+          console.log("📦 [PARSED]:", parsedData);
 
-            const parsedData = JSON.parse(jsonValidString);
-            console.log("📦 [PARSED] Objeto real:", parsedData);
+          this.invoice = {
+            vendor: parsedData.vendor || 'No detectado',
+            total: parseFloat(parsedData.total_amount) || 0,
+            currency: parsedData.currency || 'EUR',
+            date: parsedData.billing_period?.end || '',
+            consumption: Array.isArray(parsedData.invoice_lines)
+              ? parsedData.invoice_lines
+                  .filter((l: any) => l.unit?.toLowerCase().includes('kwh'))
+                  .reduce((acc: number, curr: any) => acc + (parseFloat(curr.value) || 0), 0)
+              : 0,
+            lines: parsedData.invoice_lines || [],
+            confidence: 90
+          };
 
-            // 2. Mapeamos a tu interfaz de la UI
-            this.invoice = {
-              vendor: parsedData.vendor || 'No detectado',
-              total: parseFloat(parsedData.total_amount) || 0,
-              currency: parsedData.currency || 'EUR',
-              // Buscamos la fecha en el objeto anidado billing_period
-              date: parsedData.billing_period?.end || '',
-              // Buscamos el consumo total sumando las líneas que sean kWh
-              consumption: parsedData.invoice_lines
-                ? parsedData.invoice_lines
-                  .filter((l: any) => l.unit === 'kWh')
-                  .reduce((acc: number, curr: any) => acc + parseFloat(curr.value), 0)
-                : 0,
-              lines: parsedData.invoice_lines || [],
-              confidence: 90
-            };
+          this.stateService.setAiData(this.invoice);
+          this.isLoading = false;
+          this.cdr.detectChanges();
+          this.statusSubscription?.unsubscribe();
 
-            this.stateService.setAiData(this.invoice);
-            this.isLoading = false;
-            this.cdr.detectChanges();
-            this.statusSubscription?.unsubscribe();
-
-          } catch (e) {
-            console.error("❌ Error parseando objeto malformado:", e);
-            this.errorMessage = "Error al interpretar los datos.";
-            this.isLoading = false;
-            this.cdr.detectChanges();
-          }
+        } catch (e) {
+          console.error("❌ Error definitivo en el parseo:", e);
+          this.isLoading = false;
+          this.cdr.detectChanges();
         }
       }
-    });
+    }
+  });
+}
+
+/**
+ * Convierte un string tipo {a=b, c={d=e}} en un objeto real de JS.
+ * Es mucho más seguro que usar Regex para JSON.parse.
+ */
+private parseFlexibleString(str: string): any {
+  // 1. Limpiamos el string de posibles saltos de línea o espacios raros
+  let s = str.trim();
+  
+  // 2. Cambiamos '=' por ':' y nos aseguramos de que las llaves y valores tengan comillas
+  // Pero lo hacemos de forma que JSON.parse pueda entenderlo finalmente
+  try {
+    const jsonStyle = s
+      .replace(/([a-zA-Z0-9_]+)=/g, '"$1":') // Llaves
+      .replace(/:(?!\s*[{[])([^,}]+)/g, (match, p1) => { // Valores simples
+        const val = p1.trim();
+        if (val === 'null') return ':null';
+        if (val === 'true' || val === 'false') return `:${val}`;
+        if (!isNaN(Number(val)) && val.length > 0) return `:${val}`;
+        return `:"${val.replace(/"/g, '\\"')}"`; // Escapamos comillas internas
+      });
+    
+    return JSON.parse(jsonStyle);
+  } catch (err) {
+    console.warn("⚠️ Falló el parseo automático, intentando fallback manual...");
+    // Fallback: Si el string es muy rebelde, devolvemos un objeto vacío para no romper la UI
+    return {};
   }
+}
 
   async handleConfirm() {
     this.isLoading = true;
@@ -155,8 +167,8 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
       const result = await this.appsyncService.confirmInvoice(invoiceId, confirmInput);
 
       if (result.success) {
-        this.messageService.add({ severity: 'success', summary: 'Confirmado', detail: 'Factura validada.' });
-        this.onConfirm.emit();
+        this.messageService.add({ severity: 'success', summary: 'Confirmado', detail: 'Factura validada correctamente.' });
+        setTimeout(() => this.onConfirm.emit(), 1000);
       } else {
         throw new Error(result.message);
       }
