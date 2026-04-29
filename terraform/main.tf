@@ -201,3 +201,17 @@ module "invoice_process_queue" {
   dlq_arn = module.invoice_process_dlq.arn 
   tags    = { Environment = var.environment, Service = "billing" }
 }
+
+module "frontend_cdn" {
+  source = "./modules/cloudfront"
+
+  project_name                = var.project_name
+  environment                 = var.environment
+  bucket_name                 = aws_s3_bucket.frontend.id
+  bucket_regional_domain_name = aws_s3_bucket.frontend.bucket_regional_domain_name
+
+  tags = {
+    Project     = "SMS"
+    Environment = var.environment
+  }
+}

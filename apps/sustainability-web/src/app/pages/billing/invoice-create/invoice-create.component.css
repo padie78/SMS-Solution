@@ -25,3 +25,16 @@
 .loading-overlay {
     animation: fadeIn 0.3s ease-in-out;
 }
+
+.invoice-paper {
+    display: flex;
+    flex-direction: column;
+    min-height: 600px; /* Asegura un tamaño mínimo */
+    height: 100%;
+}
+
+::ng-deep .pdf-viewer canvas {
+    width: 100% !important;
+    height: auto !important;
+    display: block !important;
+}

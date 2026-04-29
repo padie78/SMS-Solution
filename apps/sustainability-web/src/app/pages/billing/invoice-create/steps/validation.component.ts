@@ -59,10 +59,17 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
 
   ngOnInit() {
     const snapshot = this.stateService.getSnapshot();
+    console.log("📄 Snapshot File:", snapshot.file); // Debe mostrar un objeto File o Blob
 
-    // Seteamos el archivo para el visor (ng2-pdf-viewer acepta el Blob/File directamente)
     if (snapshot.file) {
       this.pdfSrc = snapshot.file;
+      console.log("✅ pdfSrc asignado:", this.pdfSrc);
+
+      setTimeout(() => {
+        this.cdr.detectChanges();
+      }, 100);
+    } else {
+      console.warn("⚠️ No se encontró archivo en el snapshot");
     }
 
     const currentId = snapshot.invoiceId;
@@ -103,8 +110,8 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
               date: parsedData.billing_period?.end || '',
               consumption: Array.isArray(parsedData.invoice_lines)
                 ? parsedData.invoice_lines
-                    .filter((l: any) => l.unit?.toLowerCase().includes('kwh'))
-                    .reduce((acc: number, curr: any) => acc + (parseFloat(curr.value) || 0), 0)
+                  .filter((l: any) => l.unit?.toLowerCase().includes('kwh'))
+                  .reduce((acc: number, curr: any) => acc + (parseFloat(curr.value) || 0), 0)
                 : 0,
               lines: parsedData.invoice_lines || [],
               confidence: 90
@@ -136,7 +143,7 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
   private parseFlexibleString(str: string): any {
     if (!str) return {};
     let s = str.trim();
-    
+
     try {
       // Reemplaza clave= por "clave":
       const jsonStyle = s
@@ -148,7 +155,7 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
           if (!isNaN(Number(val)) && val.length > 0) return `:${val}`;
           return `:"${val.replace(/"/g, '\\"')}"`;
         });
-      
+
       return JSON.parse(jsonStyle);
     } catch (err) {
       console.warn("⚠️ Falló el parseo automático, intentando fallback...");
@@ -174,20 +181,20 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
       const result = await this.appsyncService.confirmInvoice(invoiceId, confirmInput);
 
       if (result.success) {
-        this.messageService.add({ 
-          severity: 'success', 
-          summary: 'Confirmado', 
-          detail: 'Factura validada correctamente.' 
+        this.messageService.add({
+          severity: 'success',
+          summary: 'Confirmado',
+          detail: 'Factura validada correctamente.'
         });
         setTimeout(() => this.onConfirm.emit(), 1000);
       } else {
         throw new Error(result.message);
       }
     } catch (err: any) {
-      this.messageService.add({ 
-        severity: 'error', 
-        summary: 'Error', 
-        detail: err.message 
+      this.messageService.add({
+        severity: 'error',
+        summary: 'Error',
+        detail: err.message
       });
     } finally {
       this.isLoading = false;
