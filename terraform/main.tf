@@ -207,8 +207,9 @@ module "frontend_cdn" {
 
   project_name                = var.project_name
   environment                 = var.environment
-  bucket_name                 = aws_s3_bucket.frontend.id
-  bucket_regional_domain_name = aws_s3_bucket.frontend.bucket_regional_domain_name
+  # AQUÍ ESTABA EL ERROR: Usamos webapp_bucket que es el nombre real de tu recurso
+  bucket_name                 = aws_s3_bucket.webapp_bucket.id
+  bucket_regional_domain_name = aws_s3_bucket.webapp_bucket.bucket_regional_domain_name
 
   tags = {
     Project     = "SMS"
