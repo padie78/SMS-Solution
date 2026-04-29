@@ -138,18 +138,32 @@ module "invoice_process_queue" {
 
 
 # 1. Primero llamamos al almacenamiento (Frontend)
+# 1. Módulo de Autenticación (Cognito)
+module "auth" {
+  source = "./modules/cognito"
+  # ... variables ...
+}
+
+# 2. Módulo de Backend (AppSync)
+module "backend" {
+  source = "./modules/appsync"
+  # ... variables ...
+}
+
+# 3. Módulo de Frontend (Aquí es donde ocurre la magia)
 module "frontend_storage" {
   source = "./modules/frontend"
   
-  project_name    = var.project_name
-  environment     = var.environment
-  appsync_url     = var.appsync_url
-  appsync_region  = var.appsync_region
-  user_pool_id    = var.user_pool_id
-  client_id       = var.client_id
+  project_name   = var.project_name
+  environment    = var.environment
+
+  # CONEXIÓN AUTOMÁTICA: Usamos los outputs de los otros módulos
+  appsync_url    = module.backend.appsync_url
+  appsync_region = var.aws_region # O module.backend.region
+  user_pool_id   = module.auth.user_pool_id
+  client_id      = module.auth.client_id
   
-  # Pasamos el ARN que sale del módulo de CloudFront (abajo)
-  cloudfront_arn  = module.frontend_cdn.cloudfront_arn
+  cloudfront_arn = module.frontend_cdn.cloudfront_arn
 }
 
 # 2. Luego llamamos a la red (CloudFront)
