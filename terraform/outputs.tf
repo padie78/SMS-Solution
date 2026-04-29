@@ -16,8 +16,7 @@ output "api_endpoint" {
 }
 
 # 4. El bucket que hace el hosting de la App Angular
-output "frontend_s3_bucket" {
-  # Cambiamos 'module.frontend' por el nombre real de tu módulo de storage
+output "s3_bucket_name" {
   value = module.frontend_storage.bucket_id 
 }
 
