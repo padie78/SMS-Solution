@@ -173,3 +173,25 @@ variable "key_name" {
   type        = string
   description = "Nombre de la Key Pair para acceso SSH a la EC2"
 }
+
+# /variables.tf (RAÍZ)
+
+variable "appsync_url" {
+  type        = string
+  description = "URL de la API de AppSync"
+}
+
+variable "appsync_region" {
+  type        = string
+  description = "Región de AWS para AppSync"
+}
+
+variable "user_pool_id" {
+  type        = string
+  description = "ID del User Pool de Cognito"
+}
+
+variable "client_id" {
+  type        = string
+  description = "ID del Cliente de Cognito"
+}

@@ -137,14 +137,31 @@ module "invoice_process_queue" {
 
 
 
+# 1. Primero llamamos al almacenamiento (Frontend)
+module "frontend_storage" {
+  source = "./modules/frontend"
+  
+  project_name    = var.project_name
+  environment     = var.environment
+  appsync_url     = var.appsync_url
+  appsync_region  = var.appsync_region
+  user_pool_id    = var.user_pool_id
+  client_id       = var.client_id
+  
+  # Pasamos el ARN que sale del módulo de CloudFront (abajo)
+  cloudfront_arn  = module.frontend_cdn.cloudfront_arn
+}
+
+# 2. Luego llamamos a la red (CloudFront)
 module "frontend_cdn" {
   source = "./modules/cloudfront"
 
   project_name                = var.project_name
   environment                 = var.environment
-  # AQUÍ ESTABA EL ERROR: Usamos webapp_bucket que es el nombre real de tu recurso
-  bucket_name                 = aws_s3_bucket.webapp_bucket.id
-  bucket_regional_domain_name = aws_s3_bucket.webapp_bucket.bucket_regional_domain_name
+  
+  # CORRECCIÓN: Usamos el output del módulo anterior, no el recurso directo
+  bucket_name                 = module.frontend_storage.bucket_id
+  bucket_regional_domain_name = module.frontend_storage.bucket_regional_domain_name
 
   tags = {
     Project     = "SMS"

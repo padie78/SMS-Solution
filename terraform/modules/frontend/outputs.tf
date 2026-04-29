@@ -1,15 +1,5 @@
-output "cloudfront_domain" {
-  description = "URL para acceder a la aplicación de sustentabilidad"
-  value       = aws_cloudfront_distribution.cdn.domain_name
-}
-
-output "s3_bucket_name" {
-  value = aws_s3_bucket.webapp_bucket.id
-}
-
-output "cloudfront_distribution_id" {
-  value = aws_cloudfront_distribution.cdn.id
-}
+# ELIMINAR los que hacían referencia a cloudfront.cdn
+# MANTENER solo los del bucket:
 
 output "bucket_id" {
   value = aws_s3_bucket.webapp_bucket.id
