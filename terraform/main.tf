@@ -138,16 +138,10 @@ module "invoice_process_queue" {
 
 
 # 1. Primero llamamos al almacenamiento (Frontend)
-# 1. Módulo de Autenticación (Cognito)
 module "auth" {
-  source = "./modules/cognito"
-  # ... variables ...
-}
-
-# 2. Módulo de Backend (AppSync)
-module "backend" {
-  source = "./modules/appsync"
-  # ... variables ...
+  source       = "./modules/auth"
+  project_name = var.project_name
+  environment  = var.environment
 }
 
 # 3. Módulo de Frontend (Aquí es donde ocurre la magia)
