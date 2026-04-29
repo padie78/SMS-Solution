@@ -134,16 +134,6 @@ module "invoice_process_queue" {
   tags    = { Environment = var.environment, Service = "billing" }
 }
 
-
-
-
-# 1. Primero llamamos al almacenamiento (Frontend)
-module "auth" {
-  source       = "./modules/auth"
-  project_name = var.project_name
-  environment  = var.environment
-}
-
 # 3. Módulo de Frontend (Aquí es donde ocurre la magia)
 module "frontend_storage" {
   source = "./modules/frontend"
