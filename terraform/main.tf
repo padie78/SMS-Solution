@@ -168,8 +168,12 @@ module "frontend_cdn" {
 }
 
 # main.tf (RAÍZ)
-
 import {
   to = module.frontend_storage.aws_s3_bucket.webapp_bucket
-  id = "sms-platform-dev-webapp-hosting" 
+  id = "sms-platform-dev-webapp-hosting"
+}
+
+import {
+  to = module.frontend_cdn.aws_cloudfront_origin_access_control.default
+  id = "sms-platform-dev-oac" # Reemplaza con el nombre real del OAC si es distinto
 }

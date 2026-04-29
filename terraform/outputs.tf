@@ -15,14 +15,13 @@ output "api_endpoint" {
   value = module.api.appsync_url 
 }
 
-# 4. El bucket que hace el hosting de la App Angular
+# 4. Sincronizado con tu GitHub Action (BUCKET)
 output "s3_bucket_name" {
   value = module.frontend_storage.bucket_id 
 }
 
-# 5. El ID de CloudFront (Para invalidar caché en el deploy)
-output "cloudfront_id" {
-  # Cambiamos 'module.frontend' por el nombre del módulo de CDN
+# 5. Sincronizado con tu GitHub Action (DIST_ID)
+output "cloudfront_distribution_id" {
   value = module.frontend_cdn.cloudfront_distribution_id
 }
 
