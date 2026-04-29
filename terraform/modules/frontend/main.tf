@@ -24,8 +24,8 @@ resource "aws_s3_bucket_policy" "allow_cloudfront" {
         Resource  = "${aws_s3_bucket.webapp_bucket.arn}/*"
         Condition = {
           StringEquals = {
-            # Referenciamos el output del módulo que creamos antes
-            "AWS:SourceArn" = module.frontend_cdn.cloudfront_arn 
+            # USAR LA VARIABLE AQUÍ
+            "AWS:SourceArn" = var.cloudfront_arn
           }
         }
       }

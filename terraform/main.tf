@@ -108,73 +108,6 @@ module "api" {
 }
 
 # ==============================================================================
-# 5. RESOLVERS ADICIONALES (Lógica JS Directa)
-# ==============================================================================
-# resource "aws_appsync_resolver" "get_yearly_kpi" {
-#   api_id      = module.api.appsync_id 
-#   data_source = module.api.dynamodb_datasource_name
-
-#   type        = "Query"
-#   field       = "getYearlyKPI"
-#   kind        = "UNIT"
-#   code        = file("${path.module}/resolvers/getYearlyKPI.js")
-
-#   runtime {
-#     name            = "APPSYNC_JS"
-#     runtime_version = "1.0.0"
-#   }
-# }
-
-# resource "aws_appsync_resolver" "get_quarterly_kpi" {
-#   api_id      = module.api.appsync_id           # El ID de tu API AppSync
-#   data_source = module.api.dynamodb_datasource_name # El nombre de tu DataSource de DynamoDB
-  
-#   type  = "Query"            # El tipo en el schema
-#   field = "getQuarterlyKPI"  # El nombre exacto del query en el schema
-#   kind = "UNIT"
-
-#   # Aquí es donde se hace el "Attach" automático al archivo
-#   code = file("${path.module}/resolvers/getQuarterlyKPI.js")
-
-#   runtime {
-#     name            = "APPSYNC_JS"
-#     runtime_version = "1.0.0"
-#   }
-# }
-
-# resource "aws_appsync_resolver" "get_monthly_kpi" {
-#   api_id      = module.api.appsync_id
-#   data_source = module.api.dynamodb_datasource_name
-  
-#   type  = "Query"
-#   field = "getMonthlyKPI" # Debe coincidir con tu schema.graphql
-#   kind = "UNIT"
-
-#   # Ruta al archivo que creamos anteriormente con la lógica del Quarter automático
-#   code = file("${path.module}/resolvers/getMonthlyKPI.js")
-
-#   runtime {
-#     name            = "APPSYNC_JS"
-#     runtime_version = "1.0.0"
-#   }
-# }
-
-# Ejemplo para activos de sucursal
-# resource "aws_appsync_resolver" "get_branch_assets" {
-#   api_id      = module.api.appsync_id
-#   data_source = module.api.dynamodb_datasource_name
-#   type        = "Query"
-#   field       = "getBranchAssets"
-#   kind        = "UNIT"
-#   code        = file("${path.module}/resolvers/getBranchAssets.js")
-
-#   runtime {
-#     name            = "APPSYNC_JS"
-#     runtime_version = "1.0.0"
-#   }
-# }
-
-# ==============================================================================
 # 6. FRONTEND HOSTING (Angular + PrimeNG + Tailwind)
 # ==============================================================================
 module "frontend" {
@@ -185,7 +118,6 @@ module "frontend" {
   appsync_url    = module.api.appsync_url
   appsync_region = var.aws_region
   user_pool_id   = module.auth.user_pool_id
-  # ANTES: user_pool_client_id -> AHORA: client_id (porque así se llama en tu output de auth)
   client_id      = module.auth.client_id 
 }
 
@@ -201,6 +133,9 @@ module "invoice_process_queue" {
   dlq_arn = module.invoice_process_dlq.arn 
   tags    = { Environment = var.environment, Service = "billing" }
 }
+
+
+
 
 module "frontend_cdn" {
   source = "./modules/cloudfront"
