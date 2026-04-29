@@ -186,3 +186,9 @@ moved {
   from = aws_s3_bucket_policy.allow_cloudfront
   to   = module.frontend_storage.aws_s3_bucket_policy.allow_cloudfront
 }
+
+# Al final de tu main.tf raíz
+moved {
+  from = module.frontend.aws_s3_bucket.webapp_bucket
+  to   = module.frontend_storage.aws_s3_bucket.webapp_bucket
+}
