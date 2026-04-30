@@ -1,11 +1,11 @@
-import { pipeline } from "../../services/pipeline.js";
+import { invoicePipeline } from "../../application/usecases/invoicePipeline.js";
 
 export class ServicesPipelineRunner {
   /**
-   * @param {{ pipelineFn?: typeof pipeline }} deps
+   * @param {{ pipelineFn?: typeof invoicePipeline }} deps
    */
   constructor(deps = {}) {
-    this.pipeline = deps.pipelineFn || pipeline;
+    this.pipeline = deps.pipelineFn || invoicePipeline;
   }
 
   /**
