@@ -1,1 +1,0 @@
-export { invoicePipeline as pipeline } from "../application/usecases/invoicePipeline.js";

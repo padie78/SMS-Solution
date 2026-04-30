@@ -1,1 +1,0 @@
-export { calculateFootprint } from "../../infrastructure/apis/climatiq.js";

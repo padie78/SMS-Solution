@@ -1,1 +1,0 @@
-export { getTextFromS3 } from "../../infrastructure/apis/textract.js";

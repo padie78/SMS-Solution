@@ -1,1 +1,0 @@
-export { notifyInvoiceUpdate } from "../../infrastructure/notifications/appsyncService.js";
