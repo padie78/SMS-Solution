@@ -91,7 +91,7 @@ resource "aws_lambda_function" "worker_lambda" {
 resource "aws_lambda_function" "signer" {
   function_name = "${var.project_name}-signer-${var.environment}"
   filename      = data.archive_file.signer_zip.output_path
-  handler       = "src/index.handler"
+  handler       = "dist/index.handler"
   runtime       = "nodejs20.x"
   role          = var.lambda_role_arn
   architectures = [var.lambda_architecture]
