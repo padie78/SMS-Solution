@@ -1,29 +1,27 @@
 import { formatObjectKey } from "../../domain/formatObjectKey.js";
 import { ConfigError, ValidationError } from "../../domain/errors.js";
-import type { S3Presigner } from "../ports/S3Presigner.js";
-import type {
-  GeneratePresignedUploadUrlRequest,
-  GeneratePresignedUploadUrlResponse
-} from "../../app/core/models/signer.js";
 
 export class GeneratePresignedUploadUrl {
-  constructor(
-    private readonly deps: {
-      presigner: S3Presigner;
-      uploadBucket: string | undefined;
-      defaultContentType: string;
-      expiresInSeconds: number;
-    }
-  ) {}
+  /**
+   * @param {{
+   *  presigner: import("../ports/S3Presigner.js").S3Presigner,
+   *  uploadBucket: string | undefined,
+   *  defaultContentType: string,
+   *  expiresInSeconds: number
+   * }} deps
+   */
+  constructor(deps) {
+    this.deps = deps;
+  }
 
-  async execute(params: {
-    requestId: string;
-    userId: string;
-    input: GeneratePresignedUploadUrlRequest;
-  }): Promise<GeneratePresignedUploadUrlResponse> {
+  /**
+   * @param {{ requestId: string, userId: string, input: import("../../app/core/models/signer.js").GeneratePresignedUploadUrlRequest }} params
+   * @returns {Promise<import("../../app/core/models/signer.js").GeneratePresignedUploadUrlResponse>}
+   */
+  async execute(params) {
     const { requestId, userId, input } = params;
 
-    if (!input.invoiceId) {
+    if (!input?.invoiceId) {
       throw new ValidationError(`Missing required invoiceId parameter. requestId=${requestId}`);
     }
 

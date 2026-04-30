@@ -1,8 +1,12 @@
 /**
  * Generates a consistent S3 Key for invoice uploads.
  * Pattern: uploads/{userId}/{invoiceId}__{fileName}
+ * @param {string} userId
+ * @param {string} invoiceId
+ * @param {string=} fileName
+ * @returns {string}
  */
-export function formatObjectKey(userId: string, invoiceId: string, fileName?: string | null): string {
+export function formatObjectKey(userId, invoiceId, fileName) {
   if (!fileName) {
     return `uploads/${userId}/${invoiceId}__unnamed_file_${Date.now()}`;
   }

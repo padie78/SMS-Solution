@@ -1,20 +1,17 @@
-import type { AppSyncResolverEvent } from "aws-lambda";
-import { GeneratePresignedUploadUrl } from "../application/usecases/GeneratePresignedUploadUrl.js";
 import { ConfigError, ValidationError } from "../domain/errors.js";
-import type { GeneratePresignedUploadUrlRequest, GeneratePresignedUploadUrlResponse } from "../app/core/models/signer.js";
 
-export function buildAppSyncHandler(deps: {
-  useCase: GeneratePresignedUploadUrl;
-}): (event: AppSyncResolverEvent<GeneratePresignedUploadUrlRequest>) => Promise<GeneratePresignedUploadUrlResponse> {
+/**
+ * @param {{ useCase: { execute: Function } }} deps
+ */
+export function buildAppSyncHandler(deps) {
   return async (event) => {
-    // AppSyncResolverEvent typing doesn't expose requestContext, but it's present in some runtimes.
-    const requestId = (event as any)?.requestContext?.requestId || "internal";
+    const requestId = event?.requestContext?.requestId || "internal";
 
     try {
       console.log(`[INFRA] [${requestId}] Starting presigned URL generation flow.`);
 
-      const userId = (event.identity as any)?.claims?.sub || "public";
-      const input = (event.arguments || {}) as GeneratePresignedUploadUrlRequest;
+      const userId = event?.identity?.claims?.sub || "public";
+      const input = event?.arguments || {};
 
       const result = await deps.useCase.execute({
         requestId,
@@ -24,7 +21,7 @@ export function buildAppSyncHandler(deps: {
 
       console.log(`[SUCCESS] [${requestId}] Presigned URL generated successfully for invoiceId: ${result.invoiceId}`);
       return result;
-    } catch (error: any) {
+    } catch (error) {
       const msg = error?.message ? String(error.message) : "Unknown error";
       console.error(`[FATAL_ERROR] [${requestId}] Exception: ${msg}`);
 
