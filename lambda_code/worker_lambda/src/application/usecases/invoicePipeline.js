@@ -37,12 +37,28 @@ export const invoicePipeline = async (params) => {
     try {
       console.log(`[PIPELINE_STEP] [${sk}] Notifying Frontend...`);
 
+      const src = aiAnalysis?.source_data || {};
+      const tech = aiAnalysis?.technical_ids || {};
+
+      // Align with DynamoDB `extracted_data` shape for the UI.
       const uiPayload = {
-        vendor: aiAnalysis.source_data?.vendor?.name || "Unknown",
-        total_amount: aiAnalysis.source_data?.total_amount?.total_with_tax || 0,
-        currency: aiAnalysis.source_data?.currency || "EUR",
-        billing_period: aiAnalysis.source_data?.billing_period || {},
-        invoice_lines: aiAnalysis.emission_lines || []
+        vendor: src?.vendor?.name || "Unknown",
+        invoice_date: src?.invoice_date || src?.date || null,
+        invoice_number: src?.invoice_number || null,
+        billing_period: src?.billing_period || {},
+        currency: src?.currency || "EUR",
+        total_amount: src?.total_amount?.total_with_tax ?? src?.total_amount ?? 0,
+        net_amount: src?.total_amount?.net_amount ?? src?.net_amount ?? null,
+        tax_amount: src?.total_amount?.tax_amount ?? src?.tax_amount ?? null,
+        tariff: tech?.tariff || null,
+        cups: tech?.cups || null,
+        contract_reference: tech?.contract_reference || null,
+        contracted_power: {
+          p1: tech?.contracted_power_p1 ?? null,
+          p2: tech?.contracted_power_p2 ?? null
+        },
+        customer: src?.customer || null,
+        lines: aiAnalysis.emission_lines || []
       };
 
       await notifyInvoiceUpdate(sk, "READY_FOR_REVIEW", "Digitization complete", uiPayload);
