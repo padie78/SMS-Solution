@@ -14,13 +14,12 @@ module "s3_bucket" {
     enabled = var.versioning_enabled
   }
 
-  # --- CONFIGURACIÓN DE CORS ADAPTADA PARA EL VISOR PDF ---
+  # CORS: necesario para PUT presigned desde el browser (Angular en cualquier localhost:puerto).
   cors_rule = [
     {
-      # Usamos las variables que ya tienes, pero asegúrate de que incluyan GET y HEAD
       allowed_headers = var.cors_allowed_headers
-      allowed_methods = ["GET", "HEAD", "PUT", "POST"] # Forzamos GET/HEAD para el Canvas
-      allowed_origins = concat(var.cors_allowed_origins, ["http://localhost:4200"]) # Aseguramos local dev
+      allowed_methods = ["GET", "HEAD", "PUT", "POST"]
+      allowed_origins = var.cors_allowed_origins
       expose_headers  = ["ETag"]
       max_age_seconds = 3000
     }
