@@ -20,11 +20,28 @@ export const notifyInvoiceUpdate = async (id, status, message, payload = null) =
         }
     `;
 
+  // IMPORTANT:
+  // `AWSJSON` supports sending JSON *objects* as GraphQL variables.
+  // Sending a pre-stringified JSON often ends up double-escaped on the client.
+  // We normalize here so the frontend receives a well-formed object.
+  let normalizedPayload = payload;
+  if (typeof normalizedPayload === "string") {
+    const s = normalizedPayload.trim();
+    // If it's JSON-in-a-string, parse it once so it becomes an object.
+    if ((s.startsWith("{") && s.endsWith("}")) || (s.startsWith("[") && s.endsWith("]"))) {
+      try {
+        normalizedPayload = JSON.parse(s);
+      } catch {
+        // keep as-is (may be a plain message); client should treat as string
+      }
+    }
+  }
+
   const variables = {
     id,
     status,
     msg: message || "Update from AI Pipeline",
-    data: payload ? (typeof payload === "string" ? payload : JSON.stringify(payload)) : null
+    data: normalizedPayload ?? null
   };
 
   const postBody = JSON.stringify({
@@ -34,7 +51,13 @@ export const notifyInvoiceUpdate = async (id, status, message, payload = null) =
 
   console.log("[NOTIFIER_START] Preparing AppSync dispatch...");
   console.log(`[NOTIFIER_META] ID: ${variables.id} | Status: ${variables.status}`);
-  console.log(`[NOTIFIER_META] Payload length: ${variables.data ? variables.data.length : 0} characters`);
+  const payloadLen =
+    typeof variables.data === "string"
+      ? variables.data.length
+      : variables.data
+        ? JSON.stringify(variables.data).length
+        : 0;
+  console.log(`[NOTIFIER_META] Payload length: ${payloadLen} characters`);
   console.log(`[NOTIFIER_META] Message: ${variables.msg}`);
 
   const options = {
