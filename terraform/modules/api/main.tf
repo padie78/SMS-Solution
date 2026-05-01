@@ -219,8 +219,8 @@ resource "aws_appsync_resolver" "update_status_passthrough" {
     "payload": {
         "id": "$context.arguments.id",
         "status": "$context.arguments.status",
-        "extractedData": "$context.arguments.extractedData",
-        "message": "$context.arguments.message"
+        "extractedData": $util.toJson($context.arguments.extractedData),
+        "message": $util.toJson($context.arguments.message)
     }
 }
 EOF
