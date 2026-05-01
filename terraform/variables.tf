@@ -21,8 +21,12 @@ variable "environment" {
 # --- Configuración de Red y Seguridad (CORS) ---
 variable "cors_origins" {
   type        = list(string)
-  description = "Lista de dominios permitidos para acceder a la API (Angular)"
-  default     = ["http://localhost:4200"] # Para desarrollo local
+  description = <<-EOT
+    Orígenes permitidos en CORS del bucket de uploads (presigned PUT desde el navegador).
+    En dev, "*" evita bloqueos cuando ng serve usa puertos distintos (p. ej. 39307).
+    En prod, restringí a tus dominios HTTPS explícitos vía terraform.tfvars.
+  EOT
+  default     = ["*"]
 }
 
 # --- Seguridad S3 (Public Access Block) ---
