@@ -1,8 +1,8 @@
-import { identifyCategory } from "./ia/classifier.js";
-import { analyzeInvoice } from "./ia/bedrock.js";
-import { calculateFootprint } from "./apis/climatiq.js";
-import { buildGoldenRecord } from "../utils/mapper.js";
-import { persistTransaction } from "./data/db.js";
+import { identifyCategory } from "../../infrastructure/ai/classifier.js";
+import { analyzeInvoice } from "../../infrastructure/ai/bedrock.js";
+import { calculateFootprint } from "../../infrastructure/apis/climatiq.js";
+import { buildGoldenRecord } from "../../utils/mapper.js";
+import { persistTransaction } from "../../infrastructure/dynamodb/db.js";
 
 /**
  * Orquestador: IA (Bedrock) -> Emisiones (Climatiq) -> DB

@@ -6,12 +6,12 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, PutCommand, UpdateCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
 
-import { identifyCategory } from "./ia/classifier.js";
-import { analyzeInvoice } from "./ia/bedrock.js";
-import { callExtractionAgent } from "./ia/agent.js";
-import { calculateFootprint } from "./apis/climatiq.js";
-import { buildGoldenRecord } from "../utils/mapper.js";
-import { persistTransaction } from "./data/db.js";
+import { identifyCategory } from "../ai/classifier.js";
+import { analyzeInvoice } from "../ai/bedrock.js";
+import { callExtractionAgent } from "../ai/agent.js";
+import { calculateFootprint } from "../apis/climatiq.js";
+import { buildGoldenRecord } from "../../utils/mapper.js";
+import { persistTransaction } from "../dynamodb/db.js";
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
