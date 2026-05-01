@@ -20,28 +20,33 @@ export const notifyInvoiceUpdate = async (id, status, message, payload = null) =
         }
     `;
 
-  // IMPORTANT:
-  // `AWSJSON` supports sending JSON *objects* as GraphQL variables.
-  // Sending a pre-stringified JSON often ends up double-escaped on the client.
-  // We normalize here so the frontend receives a well-formed object.
+  /**
+   * AppSync scalar `AWSJSON` en variables GraphQL debe enviarse como **string JSON**
+   * (un único `JSON.stringify`), no como objeto JS embebido en `variables`.
+   * Normalizamos el payload a valor JSON (objeto/array/string/número) y luego serializamos una vez.
+   */
   let normalizedPayload = payload;
   if (typeof normalizedPayload === "string") {
     const s = normalizedPayload.trim();
-    // If it's JSON-in-a-string, parse it once so it becomes an object.
     if ((s.startsWith("{") && s.endsWith("}")) || (s.startsWith("[") && s.endsWith("]"))) {
       try {
         normalizedPayload = JSON.parse(s);
       } catch {
-        // keep as-is (may be a plain message); client should treat as string
+        /* texto plano; se serializa como string JSON válido */
       }
     }
   }
+
+  const awsJsonVariable =
+    normalizedPayload === null || normalizedPayload === undefined
+      ? null
+      : JSON.stringify(normalizedPayload);
 
   const variables = {
     id,
     status,
     msg: message || "Update from AI Pipeline",
-    data: normalizedPayload ?? null
+    data: awsJsonVariable
   };
 
   const postBody = JSON.stringify({
@@ -51,12 +56,7 @@ export const notifyInvoiceUpdate = async (id, status, message, payload = null) =
 
   console.log("[NOTIFIER_START] Preparing AppSync dispatch...");
   console.log(`[NOTIFIER_META] ID: ${variables.id} | Status: ${variables.status}`);
-  const payloadLen =
-    typeof variables.data === "string"
-      ? variables.data.length
-      : variables.data
-        ? JSON.stringify(variables.data).length
-        : 0;
+  const payloadLen = variables.data ? variables.data.length : 0;
   console.log(`[NOTIFIER_META] Payload length: ${payloadLen} characters`);
   console.log(`[NOTIFIER_META] Message: ${variables.msg}`);
 
