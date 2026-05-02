@@ -38,8 +38,8 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-central-1
 
-      # 2. Build de Lambdas (requerido para TypeScript / dist)
-      - name: Build signer_lambda (TypeScript)
+      # 2. Build signer_lambda: genera dist/ desde src/ (JS); Terraform usa handler src/index.handler
+      - name: Build signer_lambda
         run: |
           npm ci --no-audit --no-fund
           npm run build
