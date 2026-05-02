@@ -12,7 +12,13 @@ export interface InvoiceReviewView {
   invoiceNumber?: string;
   invoiceDate?: string;
   cups?: string;
+  /** Physical meter serial when OEM sticker differs from logical Meter ID */
+  meterSerialNumber?: string;
   contractReference?: string;
+  /** Fiscal ID of invoice holder for fallback matching */
+  holderTaxId?: string;
+  /** Supply point address normalized / raw from OCR */
+  supplyAddress?: string;
   tariff?: string;
   total: number;
   netAmount?: number;

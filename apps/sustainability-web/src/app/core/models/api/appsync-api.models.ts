@@ -46,6 +46,37 @@ export interface ConfirmInvoiceInput {
   meterId: string | null;
   costCenterId: string;
   notes: string;
+  regionId?: string;
+  branchId?: string;
+  assetId?: string;
+  serviceType?: string;
+}
+
+export interface ResolveInvoiceAssignmentInput {
+  cups?: string;
+  meterSerialNumber?: string;
+  contractReference?: string;
+  holderTaxId?: string;
+  supplyAddress?: string;
+}
+
+export interface InvoiceAssignmentResolution {
+  matched: boolean;
+  matchTier: string;
+  regionId?: string | null;
+  branchId?: string | null;
+  buildingId?: string | null;
+  assetId?: string | null;
+  meterId?: string | null;
+  costCenterId?: string | null;
+}
+
+export interface LinkAssetExternalIdentifierInput {
+  cups?: string;
+  meterSerialNumber?: string;
+  contractReference?: string;
+  holderTaxId?: string;
+  supplyAddress?: string;
 }
 
 export interface ConfirmInvoiceResult {

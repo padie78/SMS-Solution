@@ -75,6 +75,10 @@
 
     <div class="header mb-10 flex items-start justify-between gap-6">
       <div>
+      <p *ngIf="invoice" class="text-[11px] font-black text-emerald-700 uppercase tracking-[0.2em] mb-2">
+        <ng-container *ngIf="auditPanel === 'allocation'">Paso 2 de 4 — Ubicación del gasto</ng-container>
+        <ng-container *ngIf="auditPanel === 'invoice'">Paso 3 de 4 — Datos de la factura</ng-container>
+      </p>
       <p-tag [value]="isLoading ? 'EXTRAYENDO...' : 'DATOS DETECTADOS'" 
              [severity]="isLoading ? 'warning' : 'success'" 
              [rounded]="true" class="mb-4"></p-tag>
@@ -87,6 +91,122 @@
       </div>
     </div>
 
+    <!-- Jerarquía operativa / contable (matching IA + excepción manual) — panel Ubicación del gasto -->
+    <section *ngIf="invoice && auditPanel === 'allocation'" class="val-form mb-10 rounded-2xl border border-slate-200 bg-slate-50/80 p-6">
+      <div class="val-form__header flex flex-wrap items-start justify-between gap-4 mb-6">
+        <div>
+          <h3 class="val-form__title text-sm font-black text-slate-800 uppercase tracking-wider">
+            Ubicación del gasto
+          </h3>
+          <p class="val-form__subtitle text-[11px] text-slate-500 mt-1 max-w-xl leading-snug">
+            Prioridad de matching: CUPS → número de serie → contrato → titular + dirección.
+            Si la IA encuentra coincidencia en Dynamo o catálogo, los campos quedan resaltados y bloqueados hasta que pulses «Corregir».
+          </p>
+          <div class="val-form__badges flex flex-wrap gap-2 mt-3">
+            <p-tag *ngIf="assignmentMeta.source === 'ai_resolved'" severity="success" value="Detectado automáticamente" [rounded]="true"></p-tag>
+            <p-tag *ngIf="assignmentMeta.source === 'none'" severity="warning" value="Excepción — completar jerarquía" [rounded]="true"></p-tag>
+            <p-tag *ngIf="workflow.currentIdentificationMode() === 'user_correcting'" severity="info" value="Corrigiendo asignación" [rounded]="true"></p-tag>
+            <span class="text-[10px] font-mono text-slate-400 uppercase tracking-widest">Tier: {{ tierLabel() }}</span>
+          </div>
+        </div>
+        <div class="flex gap-2 shrink-0">
+          <p-button
+            *ngIf="assignmentMeta.hierarchyLocked && assignmentMeta.source === 'ai_resolved'"
+            label="Corregir"
+            icon="pi pi-pencil"
+            styleClass="p-button-outlined p-button-secondary text-xs font-bold"
+            (click)="enableCorrection()"
+          ></p-button>
+        </div>
+      </div>
+
+      <div *ngIf="hierarchyResolving" class="val-form__loading text-xs text-slate-500 mb-4 flex items-center gap-2">
+        <p-progressSpinner strokeWidth="6" styleClass="w-6 h-6"></p-progressSpinner>
+        Resolviendo activo en backend / catálogo…
+      </div>
+
+      <form [formGroup]="hierarchyForm" class="val-form__grid grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+        <div class="val-form__field" [class.val-form__field--ai-detected]="isAiHighlighted('regionId')">
+          <label class="val-form__label">Region</label>
+          <p-dropdown
+            formControlName="regionId"
+            [options]="regions"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Seleccionar región"
+            appendTo="body"
+            styleClass="val-form__dropdown w-full shadow-none"
+            [style]="{ width: '100%', borderRadius: '12px' }"
+          ></p-dropdown>
+        </div>
+        <div class="val-form__field" [class.val-form__field--ai-detected]="isAiHighlighted('branchId')">
+          <label class="val-form__label">Branch</label>
+          <p-dropdown
+            formControlName="branchId"
+            [options]="filteredBranches"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Seleccionar sucursal"
+            appendTo="body"
+            styleClass="val-form__dropdown w-full shadow-none"
+            [style]="{ width: '100%', borderRadius: '12px' }"
+          ></p-dropdown>
+        </div>
+        <div class="val-form__field" [class.val-form__field--ai-detected]="isAiHighlighted('buildingId')">
+          <label class="val-form__label">Building / Location</label>
+          <p-dropdown
+            formControlName="buildingId"
+            [options]="filteredBuildings"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Seleccionar edificio"
+            appendTo="body"
+            styleClass="val-form__dropdown w-full shadow-none"
+            [style]="{ width: '100%', borderRadius: '12px' }"
+          ></p-dropdown>
+        </div>
+        <div class="val-form__field" [class.val-form__field--ai-detected]="isAiHighlighted('assetId')">
+          <label class="val-form__label">Asset</label>
+          <p-dropdown
+            formControlName="assetId"
+            [options]="filteredAssets"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Seleccionar activo"
+            appendTo="body"
+            styleClass="val-form__dropdown w-full shadow-none"
+            [style]="{ width: '100%', borderRadius: '12px' }"
+          ></p-dropdown>
+        </div>
+        <div class="val-form__field" [class.val-form__field--ai-detected]="isAiHighlighted('meterId')">
+          <label class="val-form__label">Meter / Asset ID</label>
+          <p-dropdown
+            formControlName="meterId"
+            [options]="filteredMeters"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Seleccionar medidor"
+            appendTo="body"
+            styleClass="val-form__dropdown w-full shadow-none"
+            [style]="{ width: '100%', borderRadius: '12px' }"
+          ></p-dropdown>
+        </div>
+        <div class="val-form__field" [class.val-form__field--ai-detected]="isAiHighlighted('costCenterId')">
+          <label class="val-form__label">Cost center</label>
+          <p-dropdown
+            formControlName="costCenterId"
+            [options]="filteredCostCenters"
+            optionLabel="label"
+            optionValue="value"
+            placeholder="Seleccionar centro de costo"
+            appendTo="body"
+            styleClass="val-form__dropdown w-full shadow-none"
+            [style]="{ width: '100%', borderRadius: '12px' }"
+          ></p-dropdown>
+        </div>
+      </form>
+    </section>
+
     <div *ngIf="isLoading && !invoice" class="form-content flex-1 space-y-6" aria-hidden="true">
       <ui-skeleton-line [height]="12" width="200px"></ui-skeleton-line>
       <ui-skeleton-line [height]="40" width="100%"></ui-skeleton-line>
@@ -97,122 +217,155 @@
       <ui-skeleton-line [height]="88" width="100%"></ui-skeleton-line>
     </div>
 
-    <div class="form-content flex-1 space-y-6" *ngIf="invoice">
-        <div class="field">
-            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Proveedor del Servicio</label>
-            <input pInputText [(ngModel)]="invoice.vendor" placeholder="Ej: Endesa, Naturgy..." class="w-full">
+    <!-- Datos documentales — mismo contenedor BEM que Ubicación del gasto -->
+    <section *ngIf="invoice && auditPanel === 'invoice'" class="val-form mb-10 rounded-2xl border border-slate-200 bg-slate-50/80 p-6">
+      <div class="val-form__header flex flex-wrap items-start justify-between gap-4 mb-6">
+        <div>
+          <h3 class="val-form__title text-sm font-black text-slate-800 uppercase tracking-wider">
+            Datos de la factura
+          </h3>
+          <p class="val-form__subtitle text-[11px] text-slate-500 mt-1 max-w-xl leading-snug">
+            Ajusta proveedor, importe y consumo si la extracción lo requiere. El resto de campos son de solo lectura (OCR / pipeline).
+          </p>
+        </div>
+      </div>
+
+      <div class="val-form__grid grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5">
+        <div class="val-form__field sm:col-span-2">
+          <label class="val-form__label">Proveedor del servicio</label>
+          <input
+            pInputText
+            [(ngModel)]="invoice.vendor"
+            placeholder="Ej: Endesa, Naturgy..."
+            class="val-form__input w-full"
+          />
         </div>
 
-        <div class="grid grid-cols-2 gap-6">
-            <div class="field">
-                <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Monto Total ({{invoice.currency}})</label>
-                <div class="p-inputgroup">
-                    <span class="p-inputgroup-addon">
-                      {{ invoice.currency === 'EUR' ? '€' : '$' }}
-                    </span>
-                    <input pInputText type="number" [(ngModel)]="invoice.total">
-                </div>
-            </div>
-            <div class="field">
-                <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Consumo (kWh)</label>
-                <div class="p-inputgroup">
-                    <span class="p-inputgroup-addon">
-                        <i class="pi pi-bolt"></i>
-                    </span>
-                    <input pInputText type="number" [(ngModel)]="invoice.consumption">
-                </div>
-            </div>
-        </div>
-
-        <div class="grid grid-cols-2 gap-6" *ngIf="invoice.billingPeriodStart || invoice.billingPeriodEnd">
-          <div class="field">
-            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Periodo inicio</label>
-            <input pInputText [ngModel]="invoice.billingPeriodStart" readonly class="w-full">
-          </div>
-          <div class="field">
-            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Periodo fin</label>
-            <input pInputText [ngModel]="invoice.billingPeriodEnd" readonly class="w-full">
+        <div class="val-form__field">
+          <label class="val-form__label">Monto total ({{ invoice.currency }})</label>
+          <div class="val-form__inputgroup p-inputgroup">
+            <span class="p-inputgroup-addon val-form__addon">
+              {{ invoice.currency === 'EUR' ? '€' : '$' }}
+            </span>
+            <input pInputText type="number" [(ngModel)]="invoice.total" class="val-form__input w-full" />
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-6" *ngIf="invoice.invoiceNumber || invoice.invoiceDate">
-          <div class="field">
-            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Nº factura</label>
-            <input pInputText [ngModel]="invoice.invoiceNumber" readonly class="w-full">
-          </div>
-          <div class="field">
-            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Fecha factura</label>
-            <input pInputText [ngModel]="invoice.invoiceDate" readonly class="w-full">
+        <div class="val-form__field">
+          <label class="val-form__label">Consumo (kWh)</label>
+          <div class="val-form__inputgroup p-inputgroup">
+            <span class="p-inputgroup-addon val-form__addon"><i class="pi pi-bolt text-xs"></i></span>
+            <input pInputText type="number" [(ngModel)]="invoice.consumption" class="val-form__input w-full" />
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-6" *ngIf="invoice.cups || invoice.contractReference">
-          <div class="field">
-            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">CUPS</label>
-            <input pInputText [ngModel]="invoice.cups" readonly class="w-full">
+        <ng-container *ngIf="invoice.billingPeriodStart || invoice.billingPeriodEnd">
+          <div class="val-form__field val-form__field--readonly">
+            <label class="val-form__label">Periodo inicio</label>
+            <input pInputText [ngModel]="invoice.billingPeriodStart" [readOnly]="true" class="val-form__input w-full" />
           </div>
-          <div class="field">
-            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Contract ref</label>
-            <input pInputText [ngModel]="invoice.contractReference" readonly class="w-full">
+          <div class="val-form__field val-form__field--readonly">
+            <label class="val-form__label">Periodo fin</label>
+            <input pInputText [ngModel]="invoice.billingPeriodEnd" [readOnly]="true" class="val-form__input w-full" />
           </div>
-        </div>
+        </ng-container>
 
-        <div class="grid grid-cols-2 gap-6" *ngIf="invoice.netAmount != null || invoice.taxAmount != null">
-          <div class="field">
-            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Neto</label>
-            <input pInputText [ngModel]="invoice.netAmount" readonly class="w-full">
+        <ng-container *ngIf="invoice.invoiceNumber || invoice.invoiceDate">
+          <div class="val-form__field val-form__field--readonly">
+            <label class="val-form__label">Nº factura</label>
+            <input pInputText [ngModel]="invoice.invoiceNumber" [readOnly]="true" class="val-form__input w-full" />
           </div>
-          <div class="field">
-            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Impuestos (total)</label>
-            <input pInputText [ngModel]="invoice.taxAmount" readonly class="w-full">
+          <div class="val-form__field val-form__field--readonly">
+            <label class="val-form__label">Fecha factura</label>
+            <input pInputText [ngModel]="invoice.invoiceDate" [readOnly]="true" class="val-form__input w-full" />
           </div>
-        </div>
+        </ng-container>
 
-        <div class="field mt-8">
-            <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-4">Líneas de factura</label>
-            <div class="rounded-xl border border-slate-100 overflow-hidden shadow-sm">
-                <div *ngFor="let line of usageLines" 
-                     class="flex justify-between items-center bg-white p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors">
-                    <div class="flex flex-col">
-                        <span class="text-slate-800 text-xs font-bold">{{ line.description }}</span>
-                        <span class="text-slate-400 text-[10px]">{{ line.value }} {{ line.unit }}</span>
-                    </div>
-                    <div class="text-emerald-600 font-mono text-sm font-bold">
-                        {{ line.monetary_cost | currency: invoice.currency }}
-                    </div>
-                </div>
-            </div>
-        </div>
+        <ng-container *ngIf="invoice.cups || invoice.contractReference">
+          <div class="val-form__field val-form__field--readonly">
+            <label class="val-form__label">CUPS</label>
+            <input pInputText [ngModel]="invoice.cups" [readOnly]="true" class="val-form__input w-full" />
+          </div>
+          <div class="val-form__field val-form__field--readonly">
+            <label class="val-form__label">Contract ref</label>
+            <input pInputText [ngModel]="invoice.contractReference" [readOnly]="true" class="val-form__input w-full" />
+          </div>
+        </ng-container>
 
-        <div class="field mt-8" *ngIf="taxLines.length > 0">
-          <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-4">Impuestos y fees</label>
-          <div class="rounded-xl border border-slate-100 overflow-hidden shadow-sm">
+        <ng-container *ngIf="invoice.netAmount != null || invoice.taxAmount != null">
+          <div class="val-form__field val-form__field--readonly">
+            <label class="val-form__label">Neto</label>
+            <input pInputText [ngModel]="invoice.netAmount" [readOnly]="true" class="val-form__input w-full" />
+          </div>
+          <div class="val-form__field val-form__field--readonly">
+            <label class="val-form__label">Impuestos (total)</label>
+            <input pInputText [ngModel]="invoice.taxAmount" [readOnly]="true" class="val-form__input w-full" />
+          </div>
+        </ng-container>
+
+        <div class="val-form__field sm:col-span-2 mt-2">
+          <label class="val-form__label val-form__label--section">Líneas de factura</label>
+          <div class="val-form__lines rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
             <div
-              *ngFor="let line of taxLines"
-              class="flex justify-between items-center bg-white p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors"
+              *ngFor="let line of usageLines"
+              class="val-form__line flex justify-between items-center p-4 border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors"
             >
-              <div class="flex flex-col">
-                <span class="text-slate-800 text-xs font-bold">{{ line.description }}</span>
-                <span class="text-slate-400 text-[10px]">{{ line.value }} {{ line.unit }}</span>
+              <div class="flex flex-col min-w-0 pr-3">
+                <span class="text-slate-800 text-xs font-bold leading-tight">{{ line.description }}</span>
+                <span class="text-slate-400 text-[10px] mt-0.5">{{ line.value }} {{ line.unit }}</span>
               </div>
-              <div class="text-amber-600 font-mono text-sm font-bold">
+              <div class="text-emerald-600 font-mono text-sm font-bold shrink-0">
                 {{ line.monetary_cost | currency: invoice.currency }}
               </div>
             </div>
           </div>
         </div>
-    </div>
+
+        <div class="val-form__field sm:col-span-2" *ngIf="taxLines.length > 0">
+          <label class="val-form__label val-form__label--section">Impuestos y fees</label>
+          <div class="val-form__lines rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm">
+            <div
+              *ngFor="let line of taxLines"
+              class="val-form__line flex justify-between items-center p-4 border-b border-slate-100 last:border-0 hover:bg-slate-50/60 transition-colors"
+            >
+              <div class="flex flex-col min-w-0 pr-3">
+                <span class="text-slate-800 text-xs font-bold leading-tight">{{ line.description }}</span>
+                <span class="text-slate-400 text-[10px] mt-0.5">{{ line.value }} {{ line.unit }}</span>
+              </div>
+              <div class="text-amber-600 font-mono text-sm font-bold shrink-0">
+                {{ line.monetary_cost | currency: invoice.currency }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
     <div class="footer-actions flex justify-between items-center mt-10 pt-6 border-t border-slate-100">
-      <p-button label="Cancelar" (click)="goBack()" 
-                styleClass="p-button-text p-button-secondary font-bold text-xs"></p-button>
-      
-      <p-button label="Confirmar y Guardar" icon="pi pi-check-circle" 
-                [loading]="isLoading" 
-                [disabled]="isLoading || !invoice"
-                (click)="handleConfirm()" 
-                styleClass="p-button-emerald px-10 h-12 rounded-xl">
+      <p-button
+        [label]="auditPanel === 'allocation' ? 'Cancelar' : 'Volver a ubicación'"
+        (click)="goBack()"
+        styleClass="p-button-text p-button-secondary font-bold text-xs">
       </p-button>
+
+      <p-button
+        *ngIf="auditPanel === 'allocation'"
+        label="Continuar a datos de factura"
+        icon="pi pi-arrow-right"
+        iconPos="right"
+        [disabled]="!invoice || hierarchyResolving || !hierarchyReady"
+        (click)="emitContinue()"
+        styleClass="p-button-emerald px-10 h-12 rounded-xl font-bold">
+      </p-button>
+
+      <div *ngIf="auditPanel === 'invoice'" class="flex items-center gap-3">
+        <p-button label="Confirmar y Guardar" icon="pi pi-check-circle"
+                  [loading]="isLoading"
+                  [disabled]="isLoading || !invoice || hierarchyResolving || !hierarchyReady"
+                  (click)="handleConfirm()"
+                  styleClass="p-button-emerald px-10 h-12 rounded-xl">
+        </p-button>
+      </div>
     </div>
   </div>
 </div>

@@ -38,6 +38,12 @@ export class ConfigServiceAdapter {
   async confirmInvoice(orgId, sk, input) {
     return await this.impl.confirmInvoice(orgId, sk, input);
   }
+  async resolveInvoiceAssignment(orgId, input) {
+    return await this.impl.resolveInvoiceAssignment(orgId, input);
+  }
+  async linkAssetExternalIdentifier(orgId, assetId, input) {
+    return await this.impl.linkAssetExternalIdentifier(orgId, assetId, input);
+  }
   async processInvoiceIA(orgId, fileName, bucket) {
     return await this.impl.processInvoiceIA(orgId, fileName, bucket);
   }

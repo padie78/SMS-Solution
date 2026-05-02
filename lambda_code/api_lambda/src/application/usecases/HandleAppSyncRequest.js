@@ -35,6 +35,12 @@ export class HandleAppSyncRequest {
       case "confirmInvoice":
         return await this.deps.configService.confirmInvoice(orgId, args.sk, args.input);
 
+      case "resolveInvoiceAssignment":
+        return await this.deps.configService.resolveInvoiceAssignment(orgId, args.input || {});
+
+      case "linkAssetExternalIdentifier":
+        return await this.deps.configService.linkAssetExternalIdentifier(orgId, args.assetId, args.input || {});
+
       case "saveOrgConfig":
         return await this.deps.configService.saveOrgConfig(orgId, args.input);
 

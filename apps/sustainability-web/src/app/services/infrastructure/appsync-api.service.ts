@@ -7,8 +7,11 @@ import type {
   CreateInvoiceInput,
   CreateInvoiceResult,
   GetPrecalculatedKpiData,
+  InvoiceAssignmentResolution,
   InvoiceUpdatedGraphqlEvent,
-  PresignedUrlResponse
+  LinkAssetExternalIdentifierInput,
+  PresignedUrlResponse,
+  ResolveInvoiceAssignmentInput
 } from '../../core/models/api/appsync-api.models';
 import { LoggerService } from '../utils/logger.service';
 
@@ -102,6 +105,52 @@ export class AppSyncApiService {
       variables: { id: invoiceId },
       authMode: 'userPool'
     }) as Observable<InvoiceUpdatedGraphqlEvent>;
+  }
+
+  async resolveInvoiceAssignment(input: ResolveInvoiceAssignmentInput): Promise<InvoiceAssignmentResolution> {
+    const query = `
+      query ResolveInvoiceAssignment($input: ResolveInvoiceAssignmentInput!) {
+        resolveInvoiceAssignment(input: $input) {
+          matched
+          matchTier
+          regionId
+          branchId
+          buildingId
+          assetId
+          meterId
+          costCenterId
+        }
+      }
+    `;
+    const data = await this.executeGraphql<{ resolveInvoiceAssignment: InvoiceAssignmentResolution }>(query, {
+      input
+    });
+    if (!data.resolveInvoiceAssignment) {
+      throw new Error('resolveInvoiceAssignment returned empty');
+    }
+    return data.resolveInvoiceAssignment;
+  }
+
+  async linkAssetExternalIdentifier(
+    assetId: string,
+    input: LinkAssetExternalIdentifierInput
+  ): Promise<{ success: boolean; message?: string | null; id?: string | null }> {
+    const mutation = `
+      mutation LinkAssetExternalIdentifier($assetId: ID!, $input: LinkAssetExternalIdentifierInput!) {
+        linkAssetExternalIdentifier(assetId: $assetId, input: $input) {
+          success
+          message
+          id
+        }
+      }
+    `;
+    const data = await this.executeGraphql<{
+      linkAssetExternalIdentifier: { success: boolean; message?: string | null; id?: string | null };
+    }>(mutation, { assetId, input });
+    if (!data.linkAssetExternalIdentifier) {
+      throw new Error('linkAssetExternalIdentifier returned empty');
+    }
+    return data.linkAssetExternalIdentifier;
   }
 
   async confirmInvoice(invoiceId: string, input: ConfirmInvoiceInput): Promise<ConfirmInvoiceResult> {

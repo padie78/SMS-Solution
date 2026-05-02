@@ -3,7 +3,14 @@
  * Maneja la persistencia en DynamoDB siguiendo Single Table Design.
  */
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, PutCommand, UpdateCommand, DeleteCommand } from "@aws-sdk/lib-dynamodb";
+import {
+    DynamoDBDocumentClient,
+    PutCommand,
+    UpdateCommand,
+    DeleteCommand,
+    GetCommand,
+    QueryCommand
+} from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
 
 import { identifyCategory } from "../ai/classifier.js";
@@ -1287,6 +1294,242 @@ export const configService = {
         }
     },
 
+    /**
+     * Resolves hierarchy using persisted meter external_identifiers (priority: cups → serial → contract → holder+address).
+     * Falls back gracefully when identifiers are absent on meter rows (matched=false).
+     */
+    resolveInvoiceAssignment: async (orgId, input = {}) => {
+        const pk = `ORG#${orgId}`;
+        const normToken = (v) => {
+            if (v == null || v === "") return "";
+            return String(v).trim().replace(/\s+/g, "").toUpperCase();
+        };
+        const normAddr = (v) => {
+            if (v == null || v === "") return "";
+            return String(v).trim().toLowerCase().replace(/\s+/g, " ");
+        };
+
+        const cupsQ = normToken(input.cups);
+        const serialQ = normToken(input.meterSerialNumber);
+        const contractQ = normToken(input.contractReference);
+        const taxQ = normToken(input.holderTaxId);
+        const addrQ = normAddr(input.supplyAddress);
+
+        let meters = [];
+        try {
+            let eks = undefined;
+            do {
+                const res = await docClient.send(new QueryCommand({
+                    TableName: TABLE_NAME,
+                    KeyConditionExpression: "PK = :pk AND begins_with(SK, :pref)",
+                    ExpressionAttributeValues: {
+                        ":pk": pk,
+                        ":pref": "METER#"
+                    },
+                    ExclusiveStartKey: eks
+                }));
+                meters = meters.concat(res.Items || []);
+                eks = res.LastEvaluatedKey;
+            } while (eks);
+        } catch (error) {
+            console.error("[resolveInvoiceAssignment] Query meters failed:", error);
+            return {
+                matched: false,
+                matchTier: "none",
+                regionId: null,
+                branchId: null,
+                buildingId: null,
+                assetId: null,
+                meterId: null,
+                costCenterId: null
+            };
+        }
+
+        const emptyResolution = () => ({
+            matched: false,
+            matchTier: "none",
+            regionId: null,
+            branchId: null,
+            buildingId: null,
+            assetId: null,
+            meterId: null,
+            costCenterId: null
+        });
+
+        const matchesCups = (item) => {
+            const ext = item.external_identifiers || {};
+            const c = normToken(ext.cups_code || ext.cups);
+            return cupsQ && c && c === cupsQ;
+        };
+        const matchesSerial = (item) => {
+            const serial = normToken(item.meter_info?.serial_number);
+            return serialQ && serial && serial === serialQ;
+        };
+        const matchesContract = (item) => {
+            const ext = item.external_identifiers || {};
+            const ref = normToken(ext.contract_reference);
+            return contractQ && ref && ref === contractQ;
+        };
+        const matchesHolderAddr = (item) => {
+            const ext = item.external_identifiers || {};
+            const t = normToken(ext.holder_tax_id);
+            const a = normAddr(ext.supply_address);
+            return taxQ && addrQ && t === taxQ && a && addrQ.includes(a);
+        };
+
+        let chosen = null;
+        let tier = "none";
+        if (cupsQ) {
+            chosen = meters.find(matchesCups);
+            if (chosen) tier = "cups";
+        }
+        if (!chosen && serialQ) {
+            chosen = meters.find(matchesSerial);
+            if (chosen) tier = "meter_serial";
+        }
+        if (!chosen && contractQ) {
+            chosen = meters.find(matchesContract);
+            if (chosen) tier = "contract_reference";
+        }
+        if (!chosen && taxQ && addrQ) {
+            chosen = meters.find(matchesHolderAddr);
+            if (chosen) tier = "holder_address";
+        }
+
+        if (!chosen) {
+            return emptyResolution();
+        }
+
+        const meterSk = chosen.SK || "";
+        const meterShortId = meterSk.replace(/^METER#/, "");
+        const topology = chosen.topology || {};
+        const assignment = chosen.assignment || {};
+        const branchId = assignment.branch_id || "";
+        const buildingId = topology.building_id || "";
+        const costCenterId = topology.cost_center_id || "";
+
+        let regionId = null;
+        if (branchId) {
+            try {
+                const br = await docClient.send(new GetCommand({
+                    TableName: TABLE_NAME,
+                    Key: { PK: pk, SK: `BRANCH#${branchId}` }
+                }));
+                regionId = br.Item?.tags?.region || null;
+            } catch (e) {
+                console.warn("[resolveInvoiceAssignment] Branch lookup skipped:", e?.message || e);
+            }
+        }
+
+        let assetId = null;
+        try {
+            let eks2 = undefined;
+            const candidates = [];
+            do {
+                const res = await docClient.send(new QueryCommand({
+                    TableName: TABLE_NAME,
+                    KeyConditionExpression: "PK = :pk AND begins_with(SK, :pref)",
+                    ExpressionAttributeValues: {
+                        ":pk": pk,
+                        ":pref": "ASSET#"
+                    },
+                    ExclusiveStartKey: eks2
+                }));
+                candidates.push(...(res.Items || []));
+                eks2 = res.LastEvaluatedKey;
+            } while (eks2);
+
+            const pmNorm = (v) => {
+                if (!v) return "";
+                const s = String(v).trim().toUpperCase();
+                return s.startsWith("METER#") ? s.replace(/^METER#/, "") : s;
+            };
+            const linked = candidates.find((a) => {
+                const pm = pmNorm(a.connectivity?.primary_meter_id);
+                return pm && pm === meterShortId.toUpperCase();
+            });
+            if (linked?.SK) {
+                assetId = String(linked.SK).replace(/^ASSET#/, "");
+            }
+        } catch (e) {
+            console.warn("[resolveInvoiceAssignment] Asset lookup skipped:", e?.message || e);
+        }
+
+        return {
+            matched: true,
+            matchTier: tier,
+            regionId,
+            branchId: branchId || null,
+            buildingId: buildingId || null,
+            assetId,
+            meterId: meterShortId || null,
+            costCenterId: costCenterId || null
+        };
+    },
+
+    linkAssetExternalIdentifier: async (orgId, assetId, input = {}) => {
+        const timestamp = new Date().toISOString();
+        const aId = String(assetId || "").trim().toUpperCase();
+        if (!aId) {
+            return { success: false, message: "assetId is required", id: null };
+        }
+
+        let assetRow;
+        try {
+            assetRow = await docClient.send(new GetCommand({
+                TableName: TABLE_NAME,
+                Key: { PK: `ORG#${orgId}`, SK: `ASSET#${aId}` }
+            }));
+        } catch (error) {
+            console.error("[linkAssetExternalIdentifier] Get asset failed:", error);
+            return { success: false, message: error.message || "GET_FAILED", id: null };
+        }
+
+        if (!assetRow.Item) {
+            return { success: false, message: "ASSET_NOT_FOUND", id: null };
+        }
+
+        let mid = assetRow.Item.connectivity?.primary_meter_id;
+        if (!mid || mid === "UNLINKED") {
+            return { success: false, message: "Asset has no linked meter (primary_meter_id).", id: null };
+        }
+
+        let meterSk = String(mid).trim().toUpperCase();
+        if (!meterSk.startsWith("METER#")) {
+            meterSk = `METER#${meterSk}`;
+        }
+
+        const ext = {
+            cups_code: input.cups || null,
+            meter_serial_number: input.meterSerialNumber || null,
+            contract_reference: input.contractReference || null,
+            holder_tax_id: input.holderTaxId || null,
+            supply_address: input.supplyAddress || null,
+            updated_at: timestamp,
+            source: "invoice_feedback"
+        };
+
+        try {
+            await docClient.send(new UpdateCommand({
+                TableName: TABLE_NAME,
+                Key: { PK: `ORG#${orgId}`, SK: meterSk },
+                ConditionExpression: "attribute_exists(PK)",
+                UpdateExpression: "SET external_identifiers = :ext, last_updated = :t",
+                ExpressionAttributeValues: {
+                    ":ext": ext,
+                    ":t": timestamp
+                }
+            }));
+        } catch (error) {
+            if (error.name === "ConditionalCheckFailedException") {
+                return { success: false, message: "METER_NOT_FOUND", id: null };
+            }
+            console.error("[linkAssetExternalIdentifier] Update meter failed:", error);
+            return { success: false, message: error.message || "UPDATE_FAILED", id: null };
+        }
+
+        return { success: true, message: "External identifiers persisted on linked meter.", id: meterSk };
+    },
 
     confirmInvoice: async (orgId, sk, input) => {
         // 1. Cálculo de días del periodo

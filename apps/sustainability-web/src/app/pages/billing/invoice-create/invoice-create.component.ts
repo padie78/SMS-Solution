@@ -1,4 +1,4 @@
-import { Component, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { StepperModule } from 'primeng/stepper'; 
 import { ButtonModule } from 'primeng/button';
@@ -6,6 +6,7 @@ import { ButtonModule } from 'primeng/button';
 import { InvoiceUploadComponent } from './steps/upload.component';
 import { InvoiceValidationComponent } from './steps/validation.component';
 import { InvoiceStateService } from '../../../services/state/invoice-state.service';
+import { WorkflowStateService } from '../../../services/state/workflow-state.service';
 
 @Component({
   selector: 'app-invoice-create',
@@ -21,45 +22,42 @@ import { InvoiceStateService } from '../../../services/state/invoice-state.servi
   styleUrls: ['./invoice-create.component.css']
 })
 export class InvoiceCreateComponent {
-  private stateService = inject(InvoiceStateService);
+  private readonly stateService = inject(InvoiceStateService);
+  private readonly workflow = inject(WorkflowStateService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
-  stepper = {
-    currentStepIndex: 0 
-  };
+  /** Índice activo: 0 Carga, 1 Ubicación del gasto, 2 Datos de factura, 3 Sincronizar. */
+  activeStepIndex = 0;
+
+  private readonly maxStepIndex = 3;
 
   isLoadingIA: boolean = false;
 
   /**
-   * FIX para Línea 14 del HTML: (onComplete)="handleStep1Complete(nextCallback)"
+   * Tras subir la factura: intenta el callback del Stepper de PrimeNG y, si el índice no sube
+   * (p. ej. handler interno sin efecto), fuerza el paso siguiente para no quedar bloqueados en Carga.
    */
-  handleStep1Complete(nextCallback: any) {
+  handleStep1Complete(nextCallback: unknown): void {
+    const before = this.activeStepIndex;
     this.executePrimeNGCallback(nextCallback);
-  }
-
-  /**
-   * FIX para Línea 24 del HTML: (onConfirm)="nextStep($event)"
-   * Agregamos este método porque el compilador lo busca específicamente.
-   */
-  nextStep(data?: any) {
-    if (data) {
-      this.stateService.setAiData(data);
+    if (this.activeStepIndex <= before) {
+      this.activeStepIndex = Math.min(before + 1, this.maxStepIndex);
+      this.cdr.detectChanges();
     }
-    // Si no hay callback (porque viene del HTML plano), avanzamos el índice
-    this.stepper.currentStepIndex++;
   }
 
-  /**
-   * Maneja la confirmación final de la IA con callback de PrimeNG
-   */
-  async handleFinalConfirm(confirmedData: any, nextCallback: any) {
-    this.isLoadingIA = true;
-    try {
-      this.stateService.setAiData(confirmedData);
-      this.executePrimeNGCallback(nextCallback);
-    } catch (error) {
-      console.error("Sync Error:", error);
-    } finally {
-      this.isLoadingIA = false;
+  /** Tras confirmar factura en el panel «Datos de factura», avanza al paso final. */
+  nextStep(): void {
+    this.activeStepIndex = Math.min(this.activeStepIndex + 1, this.maxStepIndex);
+  }
+
+  /** Ubicación del gasto → datos de factura (callback PrimeNG + fallback). */
+  advanceFromAllocation(nextCallback: unknown): void {
+    const before = this.activeStepIndex;
+    this.executePrimeNGCallback(nextCallback);
+    if (this.activeStepIndex <= before) {
+      this.activeStepIndex = Math.min(before + 1, this.maxStepIndex);
+      this.cdr.detectChanges();
     }
   }
 
@@ -69,23 +67,35 @@ export class InvoiceCreateComponent {
   prevStep(prevCallback?: any) {
     if (prevCallback) {
       this.executePrimeNGCallback(prevCallback);
-    } else if (this.stepper.currentStepIndex > 0) {
-      this.stepper.currentStepIndex--;
+    } else if (this.activeStepIndex > 0) {
+      this.activeStepIndex--;
     }
   }
 
-  private executePrimeNGCallback(callback: any) {
-    if (callback && typeof callback.emit === 'function') {
+  private executePrimeNGCallback(callback: unknown): void {
+    if (this.isEmitLike(callback)) {
       callback.emit();
-    } else if (typeof callback === 'function') {
-      callback();
-    } else {
-      this.stepper.currentStepIndex++;
+      return;
     }
+    if (typeof callback === 'function') {
+      (callback as () => void)();
+      return;
+    }
+    this.activeStepIndex = Math.min(this.activeStepIndex + 1, this.maxStepIndex);
+  }
+
+  private isEmitLike(callback: unknown): callback is { emit: () => void } {
+    return (
+      typeof callback === 'object' &&
+      callback !== null &&
+      'emit' in callback &&
+      typeof (callback as { emit: unknown }).emit === 'function'
+    );
   }
 
   resetProcess() {
     this.stateService.clear();
-    this.stepper.currentStepIndex = 0;
+    this.workflow.reset();
+    this.activeStepIndex = 0;
   }
 }

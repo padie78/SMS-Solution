@@ -1,42 +1,29 @@
 import { Injectable, signal, computed } from '@angular/core';
 import type { InvoiceReviewView } from '../../core/models/invoice-review.model';
-
-export interface InvoiceUploadFormSnapshot {
-  regionId: string;
-  branchId: string;
-  serviceType: string;
-  building: string;
-  meterId: string;
-  costCenter: string;
-  internalNote: string;
-}
+import type {
+  InvoiceAssignmentMeta,
+  InvoiceHierarchySelection
+} from '../../core/models/invoice-assignment.model';
+import { emptyAssignmentMeta, emptyHierarchy } from '../../core/models/invoice-assignment.model';
 
 export interface InvoiceState {
   invoiceId: string | null;
-  regionId: string | null;
-  branchId: string | null;
-  buildingId: string | null;
-  serviceType: string | null;
-  meterId: string | null;
-  costCenterId: string | null;
-  internalNote: string;
-  file: File | null;
   storageKey: string | null;
+  file: File | null;
   extractedData: InvoiceReviewView | null;
+  hierarchy: InvoiceHierarchySelection;
+  assignmentMeta: InvoiceAssignmentMeta;
+  internalNote: string;
 }
 
 const emptyState = (): InvoiceState => ({
   invoiceId: null,
-  regionId: null,
-  branchId: null,
-  buildingId: null,
-  serviceType: null,
-  meterId: null,
-  costCenterId: null,
-  internalNote: '',
-  file: null,
   storageKey: null,
-  extractedData: null
+  file: null,
+  extractedData: null,
+  hierarchy: emptyHierarchy(),
+  assignmentMeta: emptyAssignmentMeta(),
+  internalNote: ''
 });
 
 @Injectable({ providedIn: 'root' })
@@ -57,17 +44,14 @@ export class InvoiceStateService {
     this.state.update((current) => ({ ...current, storageKey: key }));
   }
 
-  setStep1Data(form: InvoiceUploadFormSnapshot, file: File | null): void {
+  /** Step 1 — ingest only (PDF); clears prior hierarchy assignment */
+  setIngestPayload(file: File | null): void {
     this.state.update((current) => ({
       ...current,
-      regionId: form.regionId,
-      branchId: form.branchId,
-      buildingId: form.building,
-      serviceType: form.serviceType,
-      meterId: form.meterId,
-      costCenterId: form.costCenter,
-      internalNote: form.internalNote ?? '',
-      file
+      file,
+      hierarchy: emptyHierarchy(),
+      assignmentMeta: emptyAssignmentMeta(),
+      extractedData: null
     }));
   }
 
@@ -75,9 +59,30 @@ export class InvoiceStateService {
     this.state.update((current) => ({ ...current, extractedData: data }));
   }
 
-  /** Optimistic: mark review payload before server ack */
   patchExtractedOptimistic(data: InvoiceReviewView): void {
     this.setAiData(data);
+  }
+
+  patchHierarchy(partial: Partial<InvoiceHierarchySelection>): void {
+    this.state.update((current) => ({
+      ...current,
+      hierarchy: { ...current.hierarchy, ...partial }
+    }));
+  }
+
+  replaceHierarchy(full: InvoiceHierarchySelection): void {
+    this.state.update((current) => ({ ...current, hierarchy: { ...full } }));
+  }
+
+  patchAssignmentMeta(partial: Partial<InvoiceAssignmentMeta>): void {
+    this.state.update((current) => ({
+      ...current,
+      assignmentMeta: { ...current.assignmentMeta, ...partial }
+    }));
+  }
+
+  setInternalNote(note: string): void {
+    this.state.update((current) => ({ ...current, internalNote: note }));
   }
 
   clear(): void {

@@ -1,1 +1,96 @@
-/* Migrated to src/styles.css */
+/* BEM: validation hierarchy (invoice assignment) */
+.val-form__title {
+  letter-spacing: 0.06em;
+}
+
+.val-form__label {
+  display: block;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgb(71 85 105);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-bottom: 0.35rem;
+}
+
+.val-form__field--ai-detected .val-form__label {
+  color: rgb(5 150 105);
+}
+
+:host ::ng-deep .val-form__field--ai-detected .val-form__dropdown.p-dropdown {
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.35);
+  border-radius: 12px;
+}
+
+:host ::ng-deep .val-form__field--ai-detected .val-form__dropdown.p-dropdown:not(.p-disabled) {
+  background: linear-gradient(180deg, rgba(236, 253, 245, 0.95), rgba(255, 255, 255, 0.98));
+}
+
+/* Invoice detail panel — inputs alineados con p-dropdown (12px, borde slate) */
+.val-form__label--section {
+  margin-bottom: 0.65rem;
+  color: rgb(100 116 139);
+  letter-spacing: 0.12em;
+}
+
+.val-form__field--readonly .val-form__label {
+  color: rgb(100 116 139);
+}
+
+:host ::ng-deep .val-form .val-form__field .p-inputtext.val-form__input {
+  width: 100%;
+  border-radius: 12px;
+  font-size: 0.875rem;
+  padding: 0.65rem 0.85rem;
+  border-color: rgb(226 232 240);
+  background: rgb(255 255 255);
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+:host ::ng-deep .val-form .val-form__field .p-inputtext.val-form__input:enabled:hover {
+  border-color: rgb(203 213 225);
+}
+
+:host ::ng-deep .val-form .val-form__field .p-inputtext.val-form__input:enabled:focus {
+  outline: none;
+  border-color: rgb(16 185 129);
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+:host ::ng-deep .val-form .val-form__field--readonly .p-inputtext.val-form__input {
+  background: rgb(248 250 252);
+  color: rgb(71 85 105);
+  cursor: default;
+}
+
+:host ::ng-deep .val-form .val-form__inputgroup.p-inputgroup {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgb(226 232 240);
+  box-shadow: none;
+}
+
+:host ::ng-deep .val-form .val-form__inputgroup.p-inputgroup .p-inputgroup-addon {
+  background: rgb(241 245 249);
+  border: none;
+  color: rgb(71 85 105);
+  font-weight: 700;
+  font-size: 0.75rem;
+  padding: 0 0.85rem;
+}
+
+:host ::ng-deep .val-form .val-form__inputgroup.p-inputgroup .p-inputtext {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+:host ::ng-deep .val-form .val-form__inputgroup.p-inputgroup .p-inputtext:enabled:focus {
+  box-shadow: none;
+}
+
+.val-form__lines {
+  margin-top: 0.25rem;
+}

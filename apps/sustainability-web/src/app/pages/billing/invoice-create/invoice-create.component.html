@@ -4,7 +4,7 @@
     <p class="text-slate-500 text-lg">Gestión de activos y auditoría inteligente</p>
   </div>
 
-  <p-stepper [(activeStep)]="stepper.currentStepIndex">
+  <p-stepper [(activeStep)]="activeStepIndex">
     
     <p-stepperPanel header="Carga">
       <ng-template pTemplate="content" let-nextCallback="nextCallback">
@@ -17,11 +17,24 @@
       </ng-template>
     </p-stepperPanel>
 
-    <p-stepperPanel header="Confirmar">
+    <p-stepperPanel header="Ubicación del gasto">
       <ng-template pTemplate="content" let-prevCallback="prevCallback" let-nextCallback="nextCallback">
         <div class="step-viewport mt-4">
           <app-invoice-validation
-            (onConfirm)="nextStep($event)"
+            auditPanel="allocation"
+            (onContinue)="advanceFromAllocation(nextCallback)"
+            (onCancel)="prevStep(prevCallback)"
+          ></app-invoice-validation>
+        </div>
+      </ng-template>
+    </p-stepperPanel>
+
+    <p-stepperPanel header="Datos de factura">
+      <ng-template pTemplate="content" let-prevCallback="prevCallback">
+        <div class="step-viewport mt-4">
+          <app-invoice-validation
+            auditPanel="invoice"
+            (onConfirm)="nextStep()"
             (onCancel)="prevStep(prevCallback)"
           ></app-invoice-validation>
         </div>

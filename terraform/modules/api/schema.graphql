@@ -171,11 +171,41 @@ input BillingPeriodInput {
 input ConfirmInvoiceInput {
   status: InvoiceStatus!
   extracted_data: AWSJSON!
+  regionId: ID
+  branchId: ID
   buildingId: ID
+  assetId: ID
   meterId: ID
   costCenterId: ID
   serviceType: String
   notes: String
+}
+
+input ResolveInvoiceAssignmentInput {
+  cups: String
+  meterSerialNumber: String
+  contractReference: String
+  holderTaxId: String
+  supplyAddress: String
+}
+
+type InvoiceAssignmentResolution {
+  matched: Boolean!
+  matchTier: String!
+  regionId: ID
+  branchId: ID
+  buildingId: ID
+  assetId: ID
+  meterId: ID
+  costCenterId: ID
+}
+
+input LinkAssetExternalIdentifierInput {
+  cups: String
+  meterSerialNumber: String
+  contractReference: String
+  holderTaxId: String
+  supplyAddress: String
 }
 
 # --- 5. CONSULTAS (QUERIES) ---
@@ -188,6 +218,7 @@ type Query {
   getCostCenters: [AWSJSON] @aws_cognito_user_pools
   getTariffsByBranch(branchId: ID!): [AWSJSON] @aws_cognito_user_pools
   getIntensityReport(year: String!): NormalizationKPIs @aws_cognito_user_pools
+  resolveInvoiceAssignment(input: ResolveInvoiceAssignmentInput!): InvoiceAssignmentResolution @aws_cognito_user_pools
 }
 
 # --- 6. ACCIONES (MUTATIONS) ---
@@ -206,6 +237,7 @@ type Mutation {
   getPresignedUrl(fileName: String!, fileType: String!, invoiceId: String!): PresignedUrlResponse @aws_cognito_user_pools
   confirmInvoice(id: ID!, input: ConfirmInvoiceInput!): ActionResponse! @aws_cognito_user_pools
   approveInvoice(invoiceId: ID!): Invoice @aws_cognito_user_pools
+  linkAssetExternalIdentifier(assetId: ID!, input: LinkAssetExternalIdentifierInput!): ActionResponse! @aws_cognito_user_pools
 }
 
 # --- 7. TIEMPO REAL (SUBSCRIPTIONS) ---

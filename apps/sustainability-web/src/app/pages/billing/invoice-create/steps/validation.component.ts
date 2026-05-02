@@ -1,5 +1,6 @@
 import {
   Component,
+  Input,
   OnInit,
   inject,
   OnDestroy,
@@ -9,7 +10,14 @@ import {
   ChangeDetectionStrategy
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { FormsModule } from '@angular/forms';
+import {
+  FormsModule,
+  ReactiveFormsModule,
+  FormBuilder,
+  FormControl,
+  FormGroup,
+  Validators
+} from '@angular/forms';
 import { Subscription } from 'rxjs';
 
 import { ButtonModule } from 'primeng/button';
@@ -18,6 +26,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { ProgressSpinnerModule } from 'primeng/progressspinner';
 import { ToastModule } from 'primeng/toast';
 import { InputTextModule } from 'primeng/inputtext';
+import { DropdownModule } from 'primeng/dropdown';
 
 import { PdfViewerModule } from 'ng2-pdf-viewer';
 
@@ -27,11 +36,36 @@ import type {
 } from '../../../../core/models/api/appsync-api.models';
 import type { ConfirmInvoiceInput } from '../../../../core/models/api/appsync-api.models';
 import type { InvoiceReviewLine, InvoiceReviewView } from '../../../../core/models/invoice-review.model';
+import type {
+  HierarchyFieldKey,
+  InvoiceAssignmentMeta,
+  InvoiceHierarchySelection
+} from '../../../../core/models/invoice-assignment.model';
+import { emptyAssignmentMeta, emptyHierarchy } from '../../../../core/models/invoice-assignment.model';
 import { InvoiceStateService } from '../../../../services/state/invoice-state.service';
 import { AppSyncApiService } from '../../../../services/infrastructure/appsync-api.service';
 import { NotificationService } from '../../../../services/ui/notification.service';
 import { WorkflowStateService } from '../../../../services/state/workflow-state.service';
+import { InvoiceAssetMatchingService } from '../../../../services/business/invoice-asset-matching.service';
+import {
+  INVOICE_COST_CENTER_OPTIONS,
+  INVOICE_HIERARCHY_BRANCHES,
+  INVOICE_HIERARCHY_BUILDINGS,
+  INVOICE_HIERARCHY_REGIONS,
+  assetOptionsForBuilding,
+  meterOptionsForAsset,
+  type HierarchyDropdownOption
+} from '../../../../services/business/invoice-hierarchy-catalog';
 import { UiSkeletonLineComponent } from '../../../../ui/atoms/ui-skeleton-line/ui-skeleton-line.component';
+
+type InvoiceHierarchyFormGroup = FormGroup<{
+  regionId: FormControl<string>;
+  branchId: FormControl<string>;
+  buildingId: FormControl<string>;
+  assetId: FormControl<string>;
+  meterId: FormControl<string>;
+  costCenterId: FormControl<string>;
+}>;
 
 @Component({
   selector: 'app-invoice-validation',
@@ -39,7 +73,9 @@ import { UiSkeletonLineComponent } from '../../../../ui/atoms/ui-skeleton-line/u
   imports: [
     CommonModule,
     FormsModule,
+    ReactiveFormsModule,
     InputTextModule,
+    DropdownModule,
     ButtonModule,
     TagModule,
     TooltipModule,
@@ -56,21 +92,55 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
   private readonly stateService = inject(InvoiceStateService);
   private readonly appsyncApi = inject(AppSyncApiService);
   private readonly notifications = inject(NotificationService);
-  private readonly workflow = inject(WorkflowStateService);
+  readonly workflow = inject(WorkflowStateService);
+  private readonly matching = inject(InvoiceAssetMatchingService);
+  private readonly fb = inject(FormBuilder);
   private readonly cdr = inject(ChangeDetectorRef);
+
+  /** Panel del stepper padre: extracción + matching vs solo revisión documental. */
+  @Input() auditPanel: 'allocation' | 'invoice' = 'allocation';
 
   @Output() readonly onConfirm = new EventEmitter<void>();
   @Output() readonly onCancel = new EventEmitter<void>();
+  /** Solo panel allocation: jerarquía completa → siguiente paso del stepper padre. */
+  @Output() readonly onContinue = new EventEmitter<void>();
 
   isLoading = true;
+  /** Resolver de jerarquía (Dynamo + catálogo local) */
+  hierarchyResolving = false;
   errorMessage: string | null = null;
   invoice: InvoiceReviewView | null = null;
 
   pdfSrc: string | Uint8Array | null = null;
   zoom = 1.0;
 
+  /** Desbloquea combos tras match automático */
+  correctionMode = false;
+
+  readonly regions: HierarchyDropdownOption[] = INVOICE_HIERARCHY_REGIONS;
+  filteredBranches: Array<HierarchyDropdownOption & { regionId: string }> = [];
+  filteredBuildings: Array<HierarchyDropdownOption & { branchId: string }> = [];
+  filteredAssets: HierarchyDropdownOption[] = [];
+  filteredMeters: HierarchyDropdownOption[] = [];
+  filteredCostCenters: Array<HierarchyDropdownOption & { buildingIds: readonly string[] }> = [];
+
+  hierarchyForm: InvoiceHierarchyFormGroup = this.fb.group({
+    regionId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    branchId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    buildingId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    assetId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    meterId: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
+    costCenterId: new FormControl('', { nonNullable: true, validators: [Validators.required] })
+  });
+
   private pdfObjectUrl: string | null = null;
   private statusSubscription?: Subscription;
+  private readonly hierarchySubs = new Subscription();
+  private patchingFromResolver = false;
+
+  get assignmentMeta(): InvoiceAssignmentMeta {
+    return this.stateService.getSnapshot().assignmentMeta;
+  }
 
   get invoiceLines(): InvoiceReviewLine[] {
     return this.invoice?.lines ?? [];
@@ -93,6 +163,7 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    this.wireHierarchyForm();
     const snapshot = this.stateService.getSnapshot();
 
     if (snapshot.file) {
@@ -107,12 +178,27 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
     if (snapshot.extractedData) {
       this.invoice = snapshot.extractedData;
       this.isLoading = false;
-      this.workflow.setPhase('ready_for_review');
+      if (this.auditPanel === 'allocation') {
+        void this.runHierarchyResolution(snapshot.extractedData);
+      } else {
+        this.patchHierarchyForm(snapshot.hierarchy);
+        this.syncHierarchyLocks();
+        this.workflow.setPhase('ready_for_review');
+      }
+      this.cdr.markForCheck();
       return;
     }
 
     const currentId = snapshot.invoiceId;
     if (currentId) {
+      if (this.auditPanel === 'invoice') {
+        this.errorMessage =
+          'Los datos de la factura no están disponibles. Vuelve al paso anterior o espera la extracción.';
+        this.isLoading = false;
+        this.workflow.setPhase('error');
+        this.cdr.markForCheck();
+        return;
+      }
       this.workflow.setPhase('awaiting_ai');
       this.subscribeToUpdates(currentId);
     } else {
@@ -163,7 +249,7 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
           this.invoice = this.buildInvoiceReview(parsedData);
           this.stateService.setAiData(this.invoice);
           this.isLoading = false;
-          this.workflow.setPhase('ready_for_review');
+          void this.runHierarchyResolution(this.invoice);
           this.cdr.markForCheck();
           this.statusSubscription?.unsubscribe();
         } catch (e) {
@@ -197,6 +283,227 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
       response.data?.onInvoiceUpdated ??
       response.value?.data?.onInvoiceUpdated
     );
+  }
+
+  isAiHighlighted(field: HierarchyFieldKey): boolean {
+    return !!this.assignmentMeta.aiDetectedFieldMask[field];
+  }
+
+  enableCorrection(): void {
+    this.correctionMode = true;
+    this.stateService.patchAssignmentMeta({
+      hierarchyLocked: false,
+      requiresExternalIdentifierPersist: true
+    });
+    this.workflow.setIdentificationMode('user_correcting');
+    this.syncHierarchyLocks();
+    this.cdr.markForCheck();
+  }
+
+  get hierarchyReady(): boolean {
+    const raw = this.hierarchyForm.getRawValue() as InvoiceHierarchySelection;
+    return !!(
+      raw.regionId.trim() &&
+      raw.branchId.trim() &&
+      raw.buildingId.trim() &&
+      raw.assetId.trim() &&
+      raw.meterId.trim() &&
+      raw.costCenterId.trim()
+    );
+  }
+
+  emitContinue(): void {
+    if (!this.invoice || this.hierarchyResolving || !this.hierarchyReady) {
+      return;
+    }
+    this.onContinue.emit();
+  }
+
+  tierLabel(): string {
+    const t = this.assignmentMeta.matchTier;
+    switch (t) {
+      case 'cups':
+        return 'CUPS';
+      case 'meter_serial':
+        return 'Meter serial';
+      case 'contract_reference':
+        return 'Contract / account ref.';
+      case 'holder_address':
+        return 'Holder + address';
+      default:
+        return '—';
+    }
+  }
+
+  private wireHierarchyForm(): void {
+    this.hierarchySubs.add(
+      this.hierarchyForm.valueChanges.subscribe(() => {
+        if (this.patchingFromResolver) return;
+        const v = this.hierarchyForm.getRawValue() as InvoiceHierarchySelection;
+        this.stateService.patchHierarchy(v);
+        const meta = this.stateService.getSnapshot().assignmentMeta;
+        if (meta.source === 'ai_resolved' && !this.correctionMode) return;
+        this.stateService.patchAssignmentMeta({
+          source: 'user_manual',
+          requiresExternalIdentifierPersist: true
+        });
+      })
+    );
+
+    this.hierarchySubs.add(
+      this.hierarchyForm.controls.regionId.valueChanges.subscribe((rid) => {
+        if (this.patchingFromResolver) return;
+        this.hierarchyForm.patchValue(
+          { branchId: '', buildingId: '', assetId: '', meterId: '', costCenterId: '' },
+          { emitEvent: false }
+        );
+        this.filteredBranches = rid ? INVOICE_HIERARCHY_BRANCHES.filter((b) => b.regionId === rid) : [];
+        this.filteredBuildings = [];
+        this.filteredAssets = [];
+        this.filteredMeters = [];
+        this.filteredCostCenters = [];
+        this.cdr.markForCheck();
+      })
+    );
+
+    this.hierarchySubs.add(
+      this.hierarchyForm.controls.branchId.valueChanges.subscribe((bid) => {
+        if (this.patchingFromResolver) return;
+        this.hierarchyForm.patchValue(
+          { buildingId: '', assetId: '', meterId: '', costCenterId: '' },
+          { emitEvent: false }
+        );
+        this.filteredBuildings = bid ? INVOICE_HIERARCHY_BUILDINGS.filter((b) => b.branchId === bid) : [];
+        this.filteredAssets = [];
+        this.filteredMeters = [];
+        this.filteredCostCenters = [];
+        this.cdr.markForCheck();
+      })
+    );
+
+    this.hierarchySubs.add(
+      this.hierarchyForm.controls.buildingId.valueChanges.subscribe((bld) => {
+        if (this.patchingFromResolver) return;
+        this.hierarchyForm.patchValue({ assetId: '', meterId: '', costCenterId: '' }, { emitEvent: false });
+        this.filteredAssets = bld ? assetOptionsForBuilding(bld) : [];
+        this.filteredMeters = [];
+        this.filteredCostCenters = this.costCentersForBuilding(bld);
+        this.cdr.markForCheck();
+      })
+    );
+
+    this.hierarchySubs.add(
+      this.hierarchyForm.controls.assetId.valueChanges.subscribe((aid) => {
+        if (this.patchingFromResolver) return;
+        this.hierarchyForm.patchValue({ meterId: '', costCenterId: '' }, { emitEvent: false });
+        const bld = this.hierarchyForm.controls.buildingId.value;
+        this.filteredMeters = aid ? meterOptionsForAsset(aid) : [];
+        this.filteredCostCenters = this.costCentersForBuilding(bld);
+        this.cdr.markForCheck();
+      })
+    );
+
+    this.hierarchySubs.add(
+      this.hierarchyForm.controls.meterId.valueChanges.subscribe(() => {
+        if (this.patchingFromResolver) return;
+        const bld = this.hierarchyForm.controls.buildingId.value;
+        this.filteredCostCenters = this.costCentersForBuilding(bld);
+        this.cdr.markForCheck();
+      })
+    );
+  }
+
+  private costCentersForBuilding(
+    buildingId: string
+  ): Array<HierarchyDropdownOption & { buildingIds: readonly string[] }> {
+    if (!buildingId) return [];
+    return INVOICE_COST_CENTER_OPTIONS.filter(
+      (cc) => cc.buildingIds.length === 0 || cc.buildingIds.includes(buildingId)
+    );
+  }
+
+  private patchHierarchyForm(h: InvoiceHierarchySelection): void {
+    this.patchingFromResolver = true;
+    this.hierarchyForm.patchValue({ ...h }, { emitEvent: false });
+    this.filteredBranches = h.regionId
+      ? INVOICE_HIERARCHY_BRANCHES.filter((b) => b.regionId === h.regionId)
+      : [];
+    this.filteredBuildings = h.branchId
+      ? INVOICE_HIERARCHY_BUILDINGS.filter((b) => b.branchId === h.branchId)
+      : [];
+    this.filteredAssets = h.buildingId ? assetOptionsForBuilding(h.buildingId) : [];
+    this.filteredMeters = h.assetId ? meterOptionsForAsset(h.assetId) : [];
+    this.filteredCostCenters = this.costCentersForBuilding(h.buildingId);
+    this.patchingFromResolver = false;
+    this.cdr.markForCheck();
+  }
+
+  private buildAiMask(h: InvoiceHierarchySelection): Partial<Record<HierarchyFieldKey, boolean>> {
+    const keys: HierarchyFieldKey[] = [
+      'regionId',
+      'branchId',
+      'buildingId',
+      'assetId',
+      'meterId',
+      'costCenterId'
+    ];
+    const mask: Partial<Record<HierarchyFieldKey, boolean>> = {};
+    for (const k of keys) {
+      const val = h[k];
+      if (typeof val === 'string' && val.trim()) mask[k] = true;
+    }
+    return mask;
+  }
+
+  private syncHierarchyLocks(): void {
+    const locked = this.stateService.getSnapshot().assignmentMeta.hierarchyLocked && !this.correctionMode;
+    if (locked) {
+      this.hierarchyForm.disable({ emitEvent: false });
+    } else {
+      this.hierarchyForm.enable({ emitEvent: false });
+    }
+    this.cdr.markForCheck();
+  }
+
+  private async runHierarchyResolution(inv: InvoiceReviewView): Promise<void> {
+    this.hierarchyResolving = true;
+    this.workflow.setPhase('identifying_asset');
+    this.correctionMode = false;
+    this.cdr.markForCheck();
+
+    try {
+      const result = await this.matching.resolve(inv);
+      const merged: InvoiceHierarchySelection = { ...emptyHierarchy(), ...(result.hierarchy ?? {}) };
+      const hasAny = Object.values(merged).some((v) => !!String(v ?? '').trim());
+
+      if (hasAny && result.matchTier !== 'none') {
+        this.stateService.replaceHierarchy(merged);
+        this.stateService.patchAssignmentMeta({
+          source: 'ai_resolved',
+          matchTier: result.matchTier,
+          aiDetectedFieldMask: this.buildAiMask(merged),
+          hierarchyLocked: true,
+          requiresExternalIdentifierPersist: false
+        });
+        this.workflow.setIdentificationMode('auto_matched');
+        this.patchHierarchyForm(merged);
+      } else {
+        this.stateService.replaceHierarchy(emptyHierarchy());
+        this.stateService.patchAssignmentMeta({
+          ...emptyAssignmentMeta(),
+          source: 'none',
+          hierarchyLocked: false,
+          requiresExternalIdentifierPersist: true
+        });
+        this.workflow.setIdentificationMode('exception');
+        this.patchHierarchyForm(emptyHierarchy());
+      }
+    } finally {
+      this.hierarchyResolving = false;
+      this.workflow.setPhase('ready_for_review');
+      this.syncHierarchyLocks();
+      this.cdr.markForCheck();
+    }
   }
 
   /** Normaliza AWSJSON devuelto por AppSync (objeto, string JSON o string doblemente codificado). */
@@ -506,7 +813,12 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
     const invoiceNumberRaw = parsed['invoice_number'];
     const invoiceDateRaw = parsed['invoice_date'];
     const cupsRaw = parsed['cups'];
+    const meterSerialRaw =
+      parsed['meter_serial_number'] ?? parsed['meterSerialNumber'] ?? parsed['meter_serial'];
     const contractRefRaw = parsed['contract_reference'];
+    const holderTaxRaw = parsed['holder_tax_id'] ?? parsed['holderTaxId'] ?? parsed['cif'];
+    const supplyAddressRaw =
+      parsed['supply_address'] ?? parsed['supplyAddress'] ?? parsed['service_address'];
     const tariffRaw = parsed['tariff'];
 
     const vendor =
@@ -576,7 +888,10 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
       invoiceNumber: typeof invoiceNumberRaw === 'string' ? invoiceNumberRaw : undefined,
       invoiceDate: typeof invoiceDateRaw === 'string' ? invoiceDateRaw : undefined,
       cups: typeof cupsRaw === 'string' ? cupsRaw : undefined,
+      meterSerialNumber: typeof meterSerialRaw === 'string' ? meterSerialRaw : undefined,
       contractReference: typeof contractRefRaw === 'string' ? contractRefRaw : undefined,
+      holderTaxId: typeof holderTaxRaw === 'string' ? holderTaxRaw : undefined,
+      supplyAddress: typeof supplyAddressRaw === 'string' ? supplyAddressRaw : undefined,
       tariff: typeof tariffRaw === 'string' ? tariffRaw : undefined,
       total,
       netAmount: Number.isFinite(netAmount as number) ? (netAmount as number) : undefined,
@@ -596,24 +911,57 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
       return;
     }
 
+    const raw = this.hierarchyForm.getRawValue() as InvoiceHierarchySelection;
+    const hierarchyOk =
+      raw.regionId.trim() &&
+      raw.branchId.trim() &&
+      raw.buildingId.trim() &&
+      raw.assetId.trim() &&
+      raw.meterId.trim() &&
+      raw.costCenterId.trim();
+
+    if (!hierarchyOk) {
+      this.notifications.error('Jerarquía incompleta', 'Selecciona región, sucursal, edificio, activo, medidor y centro de costo.');
+      return;
+    }
+
     const backup: InvoiceReviewView = { ...this.invoice, lines: [...this.invoice.lines] };
     this.isLoading = true;
     this.workflow.setPhase('confirming');
 
     try {
+      this.stateService.replaceHierarchy(raw);
+
       const snapshot = this.stateService.getSnapshot();
       const invoiceId = snapshot.invoiceId;
       if (!invoiceId) {
         throw new Error('ID de factura no válido.');
       }
 
+      if (snapshot.assignmentMeta.requiresExternalIdentifierPersist && snapshot.hierarchy.assetId) {
+        const linkResult = await this.appsyncApi.linkAssetExternalIdentifier(snapshot.hierarchy.assetId, {
+          cups: this.invoice.cups,
+          meterSerialNumber: this.invoice.meterSerialNumber,
+          contractReference: this.invoice.contractReference,
+          holderTaxId: this.invoice.holderTaxId,
+          supplyAddress: this.invoice.supplyAddress
+        });
+        if (!linkResult.success) {
+          throw new Error(linkResult.message ?? 'No se pudieron persistir los identificadores externos.');
+        }
+        this.stateService.patchAssignmentMeta({ requiresExternalIdentifierPersist: false });
+      }
+
       const confirmInput: ConfirmInvoiceInput = {
         status: 'CONFIRMED',
         extracted_data: JSON.stringify(this.invoice),
-        buildingId: snapshot.buildingId ?? '',
-        meterId: snapshot.meterId,
-        costCenterId: snapshot.costCenterId ?? '',
-        notes: snapshot.internalNote
+        buildingId: snapshot.hierarchy.buildingId,
+        meterId: snapshot.hierarchy.meterId,
+        costCenterId: snapshot.hierarchy.costCenterId,
+        notes: snapshot.internalNote,
+        regionId: snapshot.hierarchy.regionId,
+        branchId: snapshot.hierarchy.branchId,
+        assetId: snapshot.hierarchy.assetId
       };
 
       const result = await this.appsyncApi.confirmInvoice(invoiceId, confirmInput);
@@ -642,6 +990,7 @@ export class InvoiceValidationComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.statusSubscription?.unsubscribe();
+    this.hierarchySubs.unsubscribe();
     if (this.pdfObjectUrl) {
       URL.revokeObjectURL(this.pdfObjectUrl);
       this.pdfObjectUrl = null;

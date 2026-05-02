@@ -86,7 +86,8 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
     # "approveInvoice", "confirmInvoice"
     "createInvoice",
     "confirmInvoice",
-    "approveInvoice"
+    "approveInvoice",
+    "linkAssetExternalIdentifier"
   ])
 
   api_id      = aws_appsync_graphql_api.api.id
@@ -123,6 +124,21 @@ resource "aws_appsync_resolver" "get_url_resolver" {
   data_source = aws_appsync_datasource.signer_lambda_ds.name
 
   depends_on = [aws_appsync_datasource.signer_lambda_ds, aws_iam_role_policy.appsync_access_policy]
+}
+
+resource "aws_appsync_resolver" "api_lambda_queries" {
+  for_each = toset(["resolveInvoiceAssignment"])
+
+  api_id      = aws_appsync_graphql_api.api.id
+  type        = "Query"
+  field       = each.key
+  data_source = aws_appsync_datasource.api_lambda_ds.name
+
+  depends_on = [
+    aws_appsync_graphql_api.api,
+    aws_appsync_datasource.api_lambda_ds,
+    aws_iam_role_policy.appsync_access_policy
+  ]
 }
 
 # ==============================================================================
