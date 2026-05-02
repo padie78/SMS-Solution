@@ -1,31 +1,26 @@
-import { Injectable, signal, computed } from '@angular/core';
-import { generateClient } from 'aws-amplify/api';
+import { Injectable, signal, computed, inject } from '@angular/core';
+import { AppSyncApiService } from '../../../services/infrastructure/appsync-api.service';
+import type { YearlyKpiRow } from '../../../core/models/api/appsync-api.models';
 
 @Injectable({ providedIn: 'root' })
 export class MetricsStore {
-  private client = generateClient();
+  private readonly api = inject(AppSyncApiService);
 
-  // State (Signals)
-  private _emissions = signal<any[]>([]);
-  private _loading = signal<boolean>(false);
+  private readonly _emissions = signal<YearlyKpiRow[]>([]);
+  private readonly _loading = signal<boolean>(false);
 
-  // Selectors
   readonly emissions = computed(() => this._emissions());
   readonly isLoading = computed(() => this._loading());
-  readonly totalEmissions = computed(() => 
-    this._emissions().reduce((acc, curr) => acc + curr.value, 0)
-  );
+  readonly totalEmissions = computed(() => this._emissions().reduce((acc, curr) => acc + curr.value, 0));
 
-  async loadMetrics() {
+  async loadMetrics(): Promise<void> {
     this._loading.set(true);
     try {
-      // Sustituye 'getYearlyKPI' por tu query real de AppSync
-      const result: any = await this.client.graphql({ 
-        query: `query GetKPI { getYearlyKPI { id source value unit } }` 
-      });
-      this._emissions.set(result.data.getYearlyKPI);
+      const year = String(new Date().getFullYear());
+      const rows = await this.api.getYearlyKpi(year);
+      this._emissions.set(rows);
     } catch (error) {
-      console.error("Error cargando métricas:", error);
+      console.error('Error cargando métricas:', error);
     } finally {
       this._loading.set(false);
     }

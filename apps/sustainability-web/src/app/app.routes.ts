@@ -1,13 +1,22 @@
 import { Routes } from '@angular/router';
+import { authGuard } from './core/guards/auth.guard';
 
 export const routes: Routes = [
-  // {
-  //   path: 'dashboard',
-  //   // Verifica que la carpeta sea 'pages' y no 'Pages'
-  //   loadComponent: () => import('./pages/dashboard/dashboard.component').then(m => m.DashboardComponent)
-  // },
+  {
+    path: 'login',
+    loadComponent: () => import('./pages/auth/login/login.component').then((m) => m.LoginComponent),
+    title: 'SMS - Login'
+  },
+  {
+    path: 'dashboard',
+    loadComponent: () =>
+      import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
+    title: 'SMS - Dashboard',
+    canActivate: [authGuard]
+  },
   {
     path: 'billing',
+    canActivate: [authGuard],
     children: [
       {
         path: 'invoices',

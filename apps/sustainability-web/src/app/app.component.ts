@@ -1,16 +1,10 @@
-import { Component, ViewChild } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
-import { HeaderComponent } from './components/layout/header/header.component';
-import { SidebarComponent } from './components/layout/sidebar/sidebar.component';
-import { FooterComponent } from './components/layout/footer/footer.component';
+import { Component } from '@angular/core';
+import { MainAppLayoutComponent } from './ui/templates/main-app-layout/main-app-layout.component';
 
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, HeaderComponent, SidebarComponent, FooterComponent],
-  templateUrl: './app.component.html'
+  imports: [MainAppLayoutComponent],
+  template: `<app-main-app-layout />`
 })
-export class AppComponent {
-  // Obtenemos referencia al componente sidebar para llamar a su método toggle()
-  @ViewChild('sidebar') sidebar!: SidebarComponent;
-}
+export class AppComponent {}

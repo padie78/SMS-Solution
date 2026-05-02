@@ -5,7 +5,7 @@ import { ButtonModule } from 'primeng/button';
 
 import { InvoiceUploadComponent } from './steps/upload.component';
 import { InvoiceValidationComponent } from './steps/validation.component';
-import { InvoiceStateService } from '../../../core/services/invoice-state.service';
+import { InvoiceStateService } from '../../../services/state/invoice-state.service';
 
 @Component({
   selector: 'app-invoice-create',

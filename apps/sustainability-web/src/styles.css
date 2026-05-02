@@ -13,3 +13,765 @@ body {
   @apply bg-slate-50 font-sans text-slate-900;
   margin: 0;
 }
+
+/* Global sizing tokens (keeps UI proportional) */
+:root {
+  --sms-font-size: 14px;
+  --sms-line-height: 1.4;
+  --sms-control-height: 40px;
+  --sms-control-radius: 12px;
+}
+
+html {
+  font-size: var(--sms-font-size);
+  line-height: var(--sms-line-height);
+}
+
+/* PrimeNG Lara themes ship "Inter var" @font-face.
+   If the browser can't decode the provided WOFF2 (OTS warnings),
+   we override to system fonts to avoid broken font downloads. */
+:root {
+  --font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans", "Liberation Sans", sans-serif;
+  font-family: var(--font-family);
+  font-feature-settings: normal;
+}
+
+/* =========================
+   UI Atoms (BEM)
+   ========================= */
+
+.ui-button {
+  min-height: var(--sms-control-height);
+  border-radius: var(--sms-control-radius);
+  @apply inline-flex items-center justify-center gap-2 px-4 text-sm font-semibold transition
+    focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2
+    disabled:opacity-50 disabled:pointer-events-none;
+}
+
+/* PrimeNG buttons: match control height */
+.p-button {
+  min-height: var(--sms-control-height);
+  height: var(--sms-control-height);
+  padding-top: 0;
+  padding-bottom: 0;
+  border-radius: var(--sms-control-radius);
+  display: inline-flex;
+  align-items: center;
+}
+
+.p-button .p-button-label {
+  line-height: 1;
+}
+
+.ui-button--primary {
+  @apply bg-emerald-600 text-white shadow-sm shadow-emerald-600/20 hover:bg-emerald-700 border border-emerald-700/30;
+}
+
+.ui-button--secondary {
+  @apply bg-white text-slate-800 border border-slate-200 shadow-sm hover:bg-slate-50;
+}
+
+.ui-button--ghost {
+  @apply bg-transparent text-slate-700 hover:bg-slate-100 border border-transparent;
+}
+
+.ui-text-input {
+  min-height: var(--sms-control-height);
+  border-radius: var(--sms-control-radius);
+  /* Vertical centering: single-line input */
+  height: var(--sms-control-height);
+  line-height: var(--sms-control-height);
+  padding-top: 0;
+  padding-bottom: 0;
+  @apply w-full border border-slate-200 bg-white px-3 text-sm text-slate-800 shadow-sm
+    placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition;
+}
+
+.ui-text-input--invalid {
+  @apply border-red-400 focus:border-red-500 focus-visible:ring-red-500/20;
+}
+
+/* PrimeNG single-line text inputs (avoid affecting textareas) */
+input.p-inputtext {
+  height: var(--sms-control-height);
+  padding: 0 0.75rem; /* match px-3 */
+  line-height: 1.2;
+  border-radius: var(--sms-control-radius);
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #1e293b !important;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+input.p-inputtext:focus {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15) !important;
+  outline: none;
+}
+
+textarea.p-inputtextarea {
+  border-radius: var(--sms-control-radius);
+  background-color: #ffffff !important;
+  border: 1px solid #cbd5e1 !important;
+  color: #1e293b !important;
+  font-weight: 500;
+}
+
+textarea.p-inputtextarea:focus {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15) !important;
+  outline: none;
+}
+
+/* PrimeNG dropdown vertical centering */
+.p-dropdown {
+  height: var(--sms-control-height);
+  border-radius: 8px !important;
+  display: inline-flex;
+  align-items: center;
+  box-sizing: border-box;
+  overflow: hidden; /* avoid inner borders showing */
+  border: 1px solid #d1d5db; /* single border */
+}
+
+/* Remove Lara theme focus ring/box-shadow that looks like a second border */
+.p-dropdown.p-focus,
+.p-dropdown:focus,
+.p-dropdown:focus-within {
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+.p-dropdown.p-focus {
+  border-color: #10b981; /* emerald-500 */
+}
+
+.p-dropdown .p-dropdown-label {
+  /* Keep Lara's default styles; only ensure centering + truncation */
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.p-dropdown .p-dropdown-trigger {
+  height: 100%;
+  width: 2.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-top-right-radius: 8px !important;
+  border-bottom-right-radius: 8px !important;
+  background: transparent;
+  border-left: 0 !important; /* remove inner divider/double border */
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.p-dropdown .p-dropdown-trigger-icon {
+  font-size: 0.875rem; /* ~text-sm */
+  line-height: 1;
+  height: 100%;
+  display: inline-flex;
+  align-items: center;
+}
+
+.ui-badge {
+  @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1 ring-inset;
+}
+
+.ui-badge--neutral {
+  @apply bg-slate-50 text-slate-600 ring-slate-200/80;
+}
+
+.ui-badge--success {
+  @apply bg-emerald-50 text-emerald-700 ring-emerald-200/80;
+}
+
+.ui-badge--warning {
+  @apply bg-amber-50 text-amber-800 ring-amber-200/80;
+}
+
+.ui-badge--danger {
+  @apply bg-red-50 text-red-700 ring-red-200/80;
+}
+
+.ui-heading {
+  @apply tracking-tight;
+}
+
+.ui-heading--h1 {
+  @apply text-2xl font-bold text-slate-900;
+}
+
+.ui-heading--h2 {
+  @apply text-xl font-bold text-slate-900;
+}
+
+.ui-heading--h3 {
+  @apply text-lg font-semibold text-slate-800;
+}
+
+.ui-heading--h4 {
+  @apply text-base font-semibold text-slate-800;
+}
+
+.ui-body-text {
+  @apply text-sm leading-relaxed text-slate-700;
+}
+
+.ui-body-text--muted {
+  @apply text-slate-500;
+}
+
+.ui-skeleton-line {
+  @apply animate-pulse rounded-xl bg-gradient-to-r from-slate-100 via-slate-200 to-slate-100 bg-[length:200%_100%];
+}
+
+/* =========================
+   App layout / PrimeNG global overrides
+   (migrated from component CSS to avoid specificity conflicts)
+   ========================= */
+
+app-root {
+  display: block;
+  height: 100%;
+}
+
+/* Sidebar should not overlap header */
+.p-sidebar {
+  top: 64px;
+  height: calc(100% - 64px) !important;
+}
+
+.p-sidebar-header {
+  display: none;
+}
+
+/* Common emerald button helper (used across pages) */
+.p-button-emerald {
+  background-color: #10b981 !important;
+  border: none !important;
+  font-weight: 700 !important;
+  color: #ffffff !important;
+  box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.25) !important;
+}
+
+.p-button-emerald:not(:disabled):hover {
+  background-color: #059669 !important;
+  transform: translateY(-1px);
+}
+
+.p-button-emerald:disabled {
+  background-color: #cbd5e1 !important;
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =========================
+   Billing / Invoice Create (Stepper + PDF)
+   ========================= */
+
+.sms-loading {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+}
+
+.sms-loading__backdrop {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgba(2, 6, 23, 0.92), rgba(2, 6, 23, 0.975)),
+    radial-gradient(900px circle at 18% 18%, rgba(16, 185, 129, 0.34), transparent 58%),
+    radial-gradient(850px circle at 85% 28%, rgba(5, 150, 105, 0.26), transparent 60%),
+    radial-gradient(700px circle at 55% 85%, rgba(16, 185, 129, 0.18), transparent 62%),
+    /* grid */
+    linear-gradient(rgba(148, 163, 184, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.06) 1px, transparent 1px);
+  background-size: auto, auto, auto, auto, 48px 48px, 48px 48px;
+  background-position: center, center, center, center, center;
+  filter: saturate(1.55) contrast(1.1);
+}
+
+.sms-loading__panel {
+  position: relative;
+  width: min(680px, 100%);
+  border-radius: 20px;
+  border: 1px solid rgba(16, 185, 129, 0.32);
+  background:
+    radial-gradient(700px circle at 30% 15%, rgba(16, 185, 129, 0.18), transparent 55%),
+    rgba(15, 23, 42, 0.70);
+  backdrop-filter: blur(14px);
+  box-shadow:
+    0 35px 70px rgba(0, 0, 0, 0.50),
+    0 0 0 1px rgba(16, 185, 129, 0.16),
+    0 0 46px rgba(16, 185, 129, 0.14);
+  padding: 28px 28px 24px;
+}
+
+.sms-loading__kicker {
+  font-size: 11px;
+  letter-spacing: 0.28em;
+  font-weight: 800;
+  color: rgba(167, 243, 208, 0.92);
+}
+
+.sms-loading__title {
+  margin-top: 10px;
+  font-size: 22px;
+  line-height: 1.15;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.sms-loading__subtitle {
+  margin-top: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(226, 232, 240, 0.85);
+  max-width: 52ch;
+}
+
+.sms-loading__dots::before {
+  content: "• • •";
+  letter-spacing: 0.35em;
+  margin-left: 0.4rem;
+  color: rgba(52, 211, 153, 0.98);
+  animation: smsDots 1.2s steps(4, end) infinite;
+}
+
+.sms-loading__status {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(16, 185, 129, 0.16);
+  display: grid;
+  gap: 10px;
+}
+
+.sms-loading__step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: rgba(226, 232, 240, 0.78);
+  font-size: 12px;
+}
+
+.sms-loading__bullet {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.18);
+  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.26);
+}
+
+.sms-loading__bullet--active {
+  background: rgba(16, 185, 129, 0.46);
+  box-shadow:
+    inset 0 0 0 1px rgba(52, 211, 153, 0.55),
+    0 0 0 4px rgba(16, 185, 129, 0.24),
+    0 0 22px rgba(16, 185, 129, 0.28);
+  animation: smsPulse 1.2s ease-in-out infinite;
+}
+
+.sms-loading__meter {
+  margin-top: 18px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.16);
+  overflow: hidden;
+}
+
+.sms-loading__meter-bar {
+  height: 100%;
+  width: 45%;
+  border-radius: 999px;
+  /* Serious, coherent palette: emerald + slate (no rainbow) */
+  background: linear-gradient(90deg, #6ee7b7, #34d399, #10b981, #059669, #34d399);
+  background-size: 180% 100%;
+  animation: smsLoadingBar 1.3s ease-in-out infinite;
+}
+
+/* Invoice create: full-screen spinner (emerald) */
+.spinner-container {
+  position: relative;
+  width: 110px;
+  height: 110px;
+  display: grid;
+  place-items: center;
+}
+
+.spinner-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: 7px solid rgba(16, 185, 129, 0.22);
+  border-top-color: rgba(52, 211, 153, 0.98);
+  border-right-color: rgba(16, 185, 129, 0.48);
+  filter: drop-shadow(0 0 18px rgba(16, 185, 129, 0.35));
+  animation: smsSpinner 0.9s linear infinite;
+}
+
+@keyframes smsSpinner {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sms-loading__rows {
+  margin-top: 18px;
+  display: grid;
+  gap: 10px;
+}
+
+.sms-loading__row {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    rgba(148, 163, 184, 0.10),
+    rgba(16, 185, 129, 0.22),
+    rgba(148, 163, 184, 0.10)
+  );
+  background-size: 240% 100%;
+  animation: smsShimmer 1.6s linear infinite;
+}
+
+.sms-loading__row--wide {
+  height: 14px;
+}
+
+@keyframes smsLoadingBar {
+  0% {
+    transform: translateX(-30%);
+    background-position: 0% 50%;
+  }
+  50% {
+    transform: translateX(70%);
+    background-position: 100% 50%;
+  }
+  100% {
+    transform: translateX(-30%);
+    background-position: 0% 50%;
+  }
+}
+
+@keyframes smsShimmer {
+  0% {
+    background-position: 0% 50%;
+  }
+  100% {
+    background-position: 220% 50%;
+  }
+}
+
+@keyframes smsDots {
+  0% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.4;
+  }
+}
+
+@keyframes smsPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.95;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+.p-stepper {
+  background: transparent;
+}
+
+.p-stepper-nav {
+  @apply bg-white border border-slate-200 rounded-2xl p-2 shadow-sm mb-6;
+}
+
+.p-stepper-panels {
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+.p-stepper-header.p-highlight .p-stepper-number {
+  @apply bg-emerald-500 text-white shadow-lg shadow-emerald-200;
+}
+
+.p-stepper-header .p-stepper-number {
+  @apply font-black;
+}
+
+.p-stepper-header .p-stepper-title {
+  @apply font-bold text-slate-400 uppercase tracking-widest text-xs;
+}
+
+.p-stepper-header.p-highlight .p-stepper-title {
+  @apply text-slate-900;
+}
+
+/* Stepper separator line: use emerald (not theme blue) */
+.p-stepper .p-stepper-separator {
+  background-color: #e2e8f0; /* slate-200 */
+}
+
+.p-stepper .p-stepper-header:has(~ .p-highlight) .p-stepper-separator {
+  background-color: #10b981; /* emerald-500 */
+}
+
+.loading-overlay {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.invoice-paper {
+  display: flex;
+  flex-direction: column;
+  min-height: 600px;
+  height: 100%;
+}
+
+.pdf-canvas-container {
+  display: block;
+  width: 100%;
+  min-height: 560px;
+}
+
+.pdf-viewer canvas {
+  margin: 15px auto !important;
+  display: block !important;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  border-radius: 4px;
+}
+
+.textLayer {
+  opacity: 0.1;
+}
+
+/* Scrollbars */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #e2e8f0;
+  border-radius: 10px;
+}
+
+.invoice-paper.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #475569;
+}
+
+/* Invoice upload drop zone */
+.drop-zone {
+  min-height: 200px;
+  transition: all 0.2s ease-in-out;
+}
+
+/* PrimeNG inputgroup addons */
+.p-inputgroup-addon {
+  border: 1px solid #cbd5e1 !important;
+  border-right: none !important;
+  border-radius: 8px 0 0 8px !important;
+  background-color: #f8fafc !important;
+  color: #64748b !important;
+}
+
+.p-inputgroup > .p-inputtext {
+  border-radius: 0 8px 8px 0 !important;
+}
+
+/* =========================
+   Billing / Invoice Manager (Table)
+   ========================= */
+
+.manager-container .p-datatable {
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1);
+}
+
+.manager-container .p-datatable .p-datatable-thead > tr > th {
+  background-color: #f1f5f9;
+  color: #475569;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1rem;
+  border: none;
+}
+
+.manager-container .p-datatable .p-datatable-tbody > tr > td {
+  padding: 1rem;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+  font-size: 0.875rem;
+}
+
+.p-button-text.p-button-sm {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+}
+
+.p-button-text.p-button-danger:hover {
+  background-color: #fef2f2 !important;
+}
+
+/* =========================
+   Shell Header (PrimeNG menu)
+   ========================= */
+
+app-shell-header {
+  display: block;
+  z-index: 50;
+}
+
+.p-menu.p-component {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  padding: 0.5rem;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  min-width: 16rem;
+}
+
+.p-menu .p-menuitem-link {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  transition: all 0.2s ease-in-out;
+}
+
+.p-menu .p-menuitem-link:hover {
+  background-color: #f1f5f9;
+}
+
+.p-menu .p-menuitem-icon {
+  color: #64748b;
+  margin-right: 0.75rem;
+  font-size: 1rem;
+}
+
+.p-menu .p-menuitem-text {
+  color: #1e293b;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.p-menu .p-submenu-header {
+  background: transparent;
+  color: #94a3b8;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 1rem 1rem 0.5rem;
+}
+
+.p-menu .p-menuitem-badge {
+  background: #ecfdf5;
+  color: #059669;
+  font-size: 0.65rem;
+  font-weight: 800;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+  border: 1px solid #d1fae5;
+}
+
+.subscriber-id-box {
+  background-color: #f8fafc;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+button#user-trigger:focus {
+  outline: 2px solid #10b981;
+  outline-offset: 2px;
+}
+
+/* =========================
+   Shell Sidebar
+   ========================= */
+
+app-shell-sidebar .p-sidebar {
+  background-color: #0f172a !important;
+  border-right: 1px solid #1e293b !important;
+  padding: 0 !important;
+  box-shadow: 20px 0 25px -5px rgba(0, 0, 0, 0.1), 10px 0 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+app-shell-sidebar .p-sidebar-header {
+  background-color: #0f172a !important;
+  padding: 1rem 1rem 0.5rem 1rem !important;
+  z-index: 100;
+}
+
+app-shell-sidebar .p-sidebar-close {
+  color: #64748b !important;
+  width: 2rem !important;
+  height: 2rem !important;
+  transition: all 0.2s ease;
+}
+
+app-shell-sidebar .p-sidebar-close:hover {
+  color: #ffffff !important;
+  background-color: #1e293b !important;
+}
+
+app-shell-sidebar nav a {
+  text-decoration: none;
+  margin: 0 0.5rem;
+  padding-top: 0.65rem !important;
+  padding-bottom: 0.65rem !important;
+  border-left: 3px solid transparent;
+}
+
+app-shell-sidebar nav a i {
+  font-size: 1.1rem;
+}
+
+app-shell-sidebar .active-link {
+  background-color: rgba(16, 185, 129, 0.08) !important;
+  color: #10b981 !important;
+  border-left: 3px solid #10b981 !important;
+  border-radius: 0 8px 8px 0 !important;
+}
+
+app-shell-sidebar .active-link i {
+  color: #10b981 !important;
+}
+
+app-shell-sidebar nav a:hover:not(.active-link) {
+  background-color: rgba(30, 41, 59, 0.5);
+  color: #f8fafc;
+}
+
+app-shell-sidebar nav a:hover i {
+  transform: translateX(2px);
+  transition: transform 0.2s ease;
+}

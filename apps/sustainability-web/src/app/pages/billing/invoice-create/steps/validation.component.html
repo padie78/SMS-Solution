@@ -1,16 +1,36 @@
-<p-toast></p-toast>
+<!-- Full-screen loading overlay (no spinner) -->
+<div *ngIf="isLoading" class="sms-loading" aria-busy="true" aria-live="polite">
+  <div class="sms-loading__backdrop"></div>
+  <div class="sms-loading__panel" role="status" aria-label="Analizando documento">
+    <div class="sms-loading__kicker">SMS ENGINE</div>
+    <div class="sms-loading__title">
+      Analizando documento <span class="sms-loading__dots" aria-hidden="true"></span>
+    </div>
+    <div class="sms-loading__subtitle">
+      Extrayendo datos, normalizando líneas y preparando auditoría visual.
+    </div>
 
-<div class="validation-wrapper flex bg-slate-50 rounded-3xl overflow-hidden shadow-2xl border border-slate-200 h-[800px] relative">
-  
-  <div *ngIf="isLoading" class="absolute inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex flex-col items-center justify-center">
-    <p-progressSpinner strokeWidth="3" animationDuration=".5s"></p-progressSpinner>
-    <div class="mt-6 text-center">
-      <h3 class="text-white font-bold text-xl mb-2">Analizando Documento</h3>
-      <p class="text-slate-200 text-sm animate-pulse">Sincronizando con SMS Engine...</p>
+    <div class="sms-loading__status" aria-hidden="true">
+      <div class="sms-loading__step">
+        <span class="sms-loading__bullet"></span>
+        <span>OCR & layout detection</span>
+      </div>
+      <div class="sms-loading__step">
+        <span class="sms-loading__bullet sms-loading__bullet--active"></span>
+        <span>Line items & taxes normalization</span>
+      </div>
+      <div class="sms-loading__step">
+        <span class="sms-loading__bullet"></span>
+        <span>Audit view preparation</span>
+      </div>
     </div>
   </div>
+</div>
 
-  <div class="w-1/2 flex flex-col bg-slate-900 p-6">
+<div class="validation-wrapper flex bg-gradient-to-br from-slate-50 via-slate-50 to-emerald-50/30 rounded-3xl overflow-hidden shadow-2xl border border-slate-200 min-h-[800px] h-[800px] relative">
+  
+  <!-- PDF (1/4) -->
+  <div class="w-1/4 flex flex-col bg-slate-950 p-4 min-h-0">
     <div class="flex justify-between items-center mb-4">
       <div class="flex items-center gap-2">
         <div class="w-2 h-2 rounded-full" [ngClass]="isLoading ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'"></div>
@@ -28,7 +48,7 @@
       </div>
     </div>
 
-    <div class="invoice-paper flex-1 bg-slate-800 rounded-xl relative shadow-inner overflow-auto border border-slate-700 custom-scrollbar">
+    <div class="invoice-paper flex-1 min-h-0 bg-slate-900/60 rounded-2xl relative shadow-inner overflow-auto border border-slate-800 custom-scrollbar">
       <pdf-viewer
         *ngIf="pdfSrc"
         [src]="pdfSrc"
@@ -37,7 +57,7 @@
         [zoom]="zoom"
         [autoresize]="true"
         [show-all]="true"
-        class="pdf-canvas-container"
+        class="pdf-canvas-container block w-full min-h-[560px]"
       ></pdf-viewer>
       
       <div *ngIf="!pdfSrc" class="flex flex-col items-center justify-center h-full text-slate-500 p-10 text-center">
@@ -47,13 +67,34 @@
     </div>
   </div>
 
-  <div class="w-1/2 flex flex-col p-10 bg-white border-l border-slate-200 overflow-y-auto custom-scrollbar">
-    <div class="header mb-10">
+  <!-- Form (3/4) -->
+  <div class="w-3/4 flex flex-col p-10 bg-white/90 border-l border-slate-200 overflow-y-auto custom-scrollbar relative min-h-0">
+    <div *ngIf="errorMessage" class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+      {{ errorMessage }}
+    </div>
+
+    <div class="header mb-10 flex items-start justify-between gap-6">
+      <div>
       <p-tag [value]="isLoading ? 'EXTRAYENDO...' : 'DATOS DETECTADOS'" 
              [severity]="isLoading ? 'warning' : 'success'" 
              [rounded]="true" class="mb-4"></p-tag>
       <h2 class="text-slate-900 text-2xl font-bold tracking-tight">Confirmar Auditoría</h2>
       <p class="text-slate-500 text-sm mt-1">Verifica la información antes de calcular la huella de carbono.</p>
+      </div>
+      <div class="hidden md:flex flex-col items-end text-xs text-slate-500">
+        <span class="font-mono">Invoice: {{ invoice?.invoiceNumber || '—' }}</span>
+        <span class="font-mono">CUPS: {{ invoice?.cups || '—' }}</span>
+      </div>
+    </div>
+
+    <div *ngIf="isLoading && !invoice" class="form-content flex-1 space-y-6" aria-hidden="true">
+      <ui-skeleton-line [height]="12" width="200px"></ui-skeleton-line>
+      <ui-skeleton-line [height]="40" width="100%"></ui-skeleton-line>
+      <div class="grid grid-cols-2 gap-6">
+        <ui-skeleton-line [height]="40" width="100%"></ui-skeleton-line>
+        <ui-skeleton-line [height]="40" width="100%"></ui-skeleton-line>
+      </div>
+      <ui-skeleton-line [height]="88" width="100%"></ui-skeleton-line>
     </div>
 
     <div class="form-content flex-1 space-y-6" *ngIf="invoice">
@@ -83,10 +124,54 @@
             </div>
         </div>
 
+        <div class="grid grid-cols-2 gap-6" *ngIf="invoice.billingPeriodStart || invoice.billingPeriodEnd">
+          <div class="field">
+            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Periodo inicio</label>
+            <input pInputText [ngModel]="invoice.billingPeriodStart" readonly class="w-full">
+          </div>
+          <div class="field">
+            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Periodo fin</label>
+            <input pInputText [ngModel]="invoice.billingPeriodEnd" readonly class="w-full">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6" *ngIf="invoice.invoiceNumber || invoice.invoiceDate">
+          <div class="field">
+            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Nº factura</label>
+            <input pInputText [ngModel]="invoice.invoiceNumber" readonly class="w-full">
+          </div>
+          <div class="field">
+            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Fecha factura</label>
+            <input pInputText [ngModel]="invoice.invoiceDate" readonly class="w-full">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6" *ngIf="invoice.cups || invoice.contractReference">
+          <div class="field">
+            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">CUPS</label>
+            <input pInputText [ngModel]="invoice.cups" readonly class="w-full">
+          </div>
+          <div class="field">
+            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Contract ref</label>
+            <input pInputText [ngModel]="invoice.contractReference" readonly class="w-full">
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-6" *ngIf="invoice.netAmount != null || invoice.taxAmount != null">
+          <div class="field">
+            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Neto</label>
+            <input pInputText [ngModel]="invoice.netAmount" readonly class="w-full">
+          </div>
+          <div class="field">
+            <label class="text-[11px] font-bold text-slate-600 uppercase tracking-wider block mb-2">Impuestos (total)</label>
+            <input pInputText [ngModel]="invoice.taxAmount" readonly class="w-full">
+          </div>
+        </div>
+
         <div class="field mt-8">
-            <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-4">Desglose de la IA</label>
+            <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-4">Líneas de factura</label>
             <div class="rounded-xl border border-slate-100 overflow-hidden shadow-sm">
-                <div *ngFor="let line of invoice.lines" 
+                <div *ngFor="let line of usageLines" 
                      class="flex justify-between items-center bg-white p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors">
                     <div class="flex flex-col">
                         <span class="text-slate-800 text-xs font-bold">{{ line.description }}</span>
@@ -97,6 +182,24 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div class="field mt-8" *ngIf="taxLines.length > 0">
+          <label class="text-[11px] font-bold text-slate-400 uppercase tracking-widest block mb-4">Impuestos y fees</label>
+          <div class="rounded-xl border border-slate-100 overflow-hidden shadow-sm">
+            <div
+              *ngFor="let line of taxLines"
+              class="flex justify-between items-center bg-white p-4 border-b border-slate-50 last:border-0 hover:bg-slate-50/50 transition-colors"
+            >
+              <div class="flex flex-col">
+                <span class="text-slate-800 text-xs font-bold">{{ line.description }}</span>
+                <span class="text-slate-400 text-[10px]">{{ line.value }} {{ line.unit }}</span>
+              </div>
+              <div class="text-amber-600 font-mono text-sm font-bold">
+                {{ line.monetary_cost | currency: invoice.currency }}
+              </div>
+            </div>
+          </div>
         </div>
     </div>
 

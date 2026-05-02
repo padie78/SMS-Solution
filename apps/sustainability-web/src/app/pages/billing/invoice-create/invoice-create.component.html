@@ -20,10 +20,10 @@
     <p-stepperPanel header="Confirmar">
       <ng-template pTemplate="content" let-prevCallback="prevCallback" let-nextCallback="nextCallback">
         <div class="step-viewport mt-4">
-  <app-invoice-validation 
-  (onConfirm)="nextStep($event)" 
-  (onBack)="prevStep()">
-</app-invoice-validation>
+          <app-invoice-validation
+            (onConfirm)="nextStep($event)"
+            (onCancel)="prevStep(prevCallback)"
+          ></app-invoice-validation>
         </div>
       </ng-template>
     </p-stepperPanel>

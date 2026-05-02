@@ -4,66 +4,114 @@
     <div class="flex flex-col gap-5">
       <div class="flex items-center gap-3 border-b border-slate-100 pb-3">
         <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-          <i class="pi pi-map-marker text-sm"></i>
+          <i class="pi pi-sitemap text-sm"></i>
         </div>
-        <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Asignación del Gasto</h3>
+        <div>
+          <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Asignación del gasto</h3>
+          <p class="text-[11px] text-slate-500 mt-0.5 leading-snug">
+            Jerarquía geográfica y contable antes del OCR: región → sucursal → sitio → medidor → centro de costo.
+          </p>
+        </div>
       </div>
       
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="flex flex-col gap-2">
-          <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Building / Location</label>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5 items-start">
+        <div class="flex flex-col gap-2 min-w-0">
+          <div class="min-h-[3.75rem] flex flex-col gap-1 justify-start">
+            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1 leading-tight">Region</label>
+            <span class="text-[11px] text-slate-400 ml-1 leading-snug line-clamp-2">Nivel macro (ej. LatAm, EMEA, provincias / estados).</span>
+          </div>
           <p-dropdown 
-            [options]="buildings" 
-            formControlName="building" 
-            placeholder="Select Building"
+            [options]="regions" 
+            formControlName="regionId" 
+            placeholder="Seleccionar región"
             appendTo="body"
-            styleClass="w-full shadow-none"
-            [style]="{'border-radius': '12px'}">
+            styleClass="upload-step-dropdown w-full shadow-none"
+            [style]="{'border-radius': '12px', 'width': '100%'}">
           </p-dropdown>
         </div>
 
-        <div class="flex flex-col gap-2">
-          <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Meter / Asset ID</label>
+        <div class="flex flex-col gap-2 min-w-0">
+          <div class="min-h-[3.75rem] flex flex-col gap-1 justify-start">
+            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1 leading-tight">Branch</label>
+            <span class="text-[11px] text-slate-400 ml-1 leading-snug line-clamp-2">Unidad operativa o sucursal dentro de la región.</span>
+          </div>
+          <p-dropdown 
+            [options]="filteredBranches" 
+            formControlName="branchId" 
+            placeholder="Seleccionar sucursal"
+            appendTo="body"
+            styleClass="upload-step-dropdown w-full shadow-none"
+            [style]="{'border-radius': '12px', 'width': '100%'}">
+          </p-dropdown>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5 items-start">
+        <div class="flex flex-col gap-2 min-w-0">
+          <div class="min-h-[3.75rem] flex flex-col gap-1 justify-start">
+            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1 leading-tight">Building / Location</label>
+            <span class="text-[11px] text-slate-400 ml-1 leading-snug line-clamp-2">Sitio físico. Una sucursal puede tener varios edificios.</span>
+          </div>
+          <p-dropdown 
+            [options]="filteredBuildings" 
+            formControlName="building" 
+            placeholder="Seleccionar edificio"
+            appendTo="body"
+            styleClass="upload-step-dropdown w-full shadow-none"
+            [style]="{'border-radius': '12px', 'width': '100%'}">
+          </p-dropdown>
+        </div>
+
+        <div class="flex flex-col gap-2 min-w-0">
+          <div class="min-h-[3.75rem] flex flex-col gap-1 justify-start">
+            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1 leading-tight">Meter / Asset ID</label>
+            <span class="text-[11px] text-slate-400 ml-1 leading-snug line-clamp-2">Punto de consumo (medidor luz/gas u otro activo).</span>
+          </div>
           <p-dropdown 
             [options]="filteredMeters" 
             formControlName="meterId" 
-            placeholder="Select Meter"
-            [disabled]="!uploadForm.get('building')?.value"
+            placeholder="Seleccionar medidor"
             appendTo="body"
-            styleClass="w-full shadow-none"
-            [style]="{'border-radius': '12px'}">
+            styleClass="upload-step-dropdown w-full shadow-none"
+            [style]="{'border-radius': '12px', 'width': '100%'}">
           </p-dropdown>
         </div>
       </div>
 
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="flex flex-col gap-2">
-          <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Service Category</label>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-5 items-start">
+        <div class="flex flex-col gap-2 min-w-0">
+          <div class="min-h-[3.75rem] flex flex-col gap-1 justify-start">
+            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1 leading-tight">Service category</label>
+            <span class="text-[11px] text-slate-400 ml-1 leading-snug line-clamp-2">Tipo de suministro asociado a la factura.</span>
+          </div>
           <p-dropdown 
             [options]="serviceTypes" 
             formControlName="serviceType" 
-            placeholder="Select Type"
+            placeholder="Seleccionar tipo"
             appendTo="body"
-            styleClass="w-full shadow-none"
-            [style]="{'border-radius': '12px'}">
+            styleClass="upload-step-dropdown w-full shadow-none"
+            [style]="{'border-radius': '12px', 'width': '100%'}">
           </p-dropdown>
         </div>
 
-        <div class="flex flex-col gap-2">
-          <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Cost Center / Branch</label>
+        <div class="flex flex-col gap-2 min-w-0">
+          <div class="min-h-[3.75rem] flex flex-col gap-1 justify-start">
+            <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1 leading-tight">Cost center</label>
+            <span class="text-[11px] text-slate-400 ml-1 leading-snug line-clamp-2">Entidad que imputa el gasto (puede no ser 1:1 con el edificio).</span>
+          </div>
           <p-dropdown 
-            [options]="costCenters" 
+            [options]="filteredCostCenters" 
             formControlName="costCenter" 
-            placeholder="Select Center"
+            placeholder="Seleccionar centro de costo"
             appendTo="body"
-            styleClass="w-full shadow-none"
-            [style]="{'border-radius': '12px'}">
+            styleClass="upload-step-dropdown w-full shadow-none"
+            [style]="{'border-radius': '12px', 'width': '100%'}">
           </p-dropdown>
         </div>
       </div>
 
       <div class="flex flex-col gap-2">
-        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Internal Note</label>
+        <label class="text-[10px] font-bold text-slate-500 uppercase tracking-widest ml-1">Internal note</label>
         <textarea 
           pInputTextarea 
           formControlName="internalNote" 
@@ -91,7 +139,7 @@
           mode="basic" 
           name="invoiceFile"
           (onSelect)="onFileSelect($event)" 
-          chooseLabel="Subir Factura" 
+          chooseLabel="Subir factura" 
           styleClass="p-button-rounded p-button-secondary p-button-text text-sm">
         </p-fileUpload>
         

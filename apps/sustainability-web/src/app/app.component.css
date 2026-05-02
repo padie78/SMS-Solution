@@ -1,16 +1,1 @@
-/* Limpia el archivo de cualquier código JavaScript accidental */
-
-:host {
-    display: block;
-    height: 100%;
-}
-
-/* Ajuste opcional para asegurar que el Sidebar de PrimeNG no oculte el header */
-::ng-deep .p-sidebar {
-    top: 64px; /* Altura de tu header (h-16) */
-    height: calc(100% - 64px) !important;
-}
-
-::ng-deep .p-sidebar-header {
-    display: none; /* Opcional: oculta el botón 'X' de PrimeNG si prefieres manejarlo tú */
-}
+/* Migrated to src/styles.css */

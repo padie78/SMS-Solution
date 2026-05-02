@@ -1,19 +1,26 @@
-<div class="manager-container p-8">
-  <div class="flex justify-between items-center mb-8">
+<div class="manager-container p-8 max-w-7xl mx-auto">
+  <div class="flex justify-between items-center mb-8 gap-4 flex-wrap">
     <div>
-      <h1 class="text-2xl font-bold text-slate-900">Utility Management</h1>
-      <p class="text-slate-500 text-sm">Review and audit your enterprise utility consumption.</p>
+      <h1 class="text-2xl font-bold text-slate-900 tracking-tight">Utility Management</h1>
+      <p class="text-slate-500 text-sm mt-1">Review and audit your enterprise utility consumption.</p>
     </div>
-    <p-button 
-  label="New Invoice" 
-  icon="pi pi-plus" 
-  (click)="navToCreate()" 
-  styleClass="p-button-emerald p-button-sm custom-btn-width">
-</p-button>
+    <p-button
+      label="New Invoice"
+      icon="pi pi-plus"
+      (click)="navToCreate()"
+      styleClass="p-button-emerald p-button-sm custom-btn-width rounded-xl shadow-sm"
+    ></p-button>
   </div>
 
-  <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-    <p-table [value]="invoices" styleClass="p-datatable-sm">
+  <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm" *ngIf="initialLoad()" aria-busy="true">
+    <div class="p-6 space-y-3">
+      <ui-skeleton-line [height]="14" width="120px"></ui-skeleton-line>
+      <ui-skeleton-line *ngFor="let _ of [1,2,3,4,5]" [height]="40" width="100%"></ui-skeleton-line>
+    </div>
+  </div>
+
+  <div class="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm" *ngIf="!initialLoad()">
+    <p-table [value]="invoices()" styleClass="p-datatable-sm">
       <ng-template pTemplate="header">
         <tr>
           <th>ID</th>
@@ -26,13 +33,15 @@
       </ng-template>
       <ng-template pTemplate="body" let-inv>
         <tr class="hover:bg-slate-50">
-          <td class="font-mono text-xs font-bold text-slate-500">{{inv.id}}</td>
-          <td class="font-semibold text-slate-700">{{inv.provider}}</td>
-          <td>{{inv.date}}</td>
-          <td class="font-bold text-slate-800">{{inv.amount | currency}}</td>
+          <td class="font-mono text-xs font-bold text-slate-500">{{ inv.id }}</td>
+          <td class="font-semibold text-slate-700">{{ inv.provider }}</td>
+          <td>{{ inv.date }}</td>
+          <td class="font-bold text-slate-800">{{ inv.amount | currency }}</td>
           <td>
-            <span class="status-badge px-2 py-1 bg-emerald-100 text-emerald-700 rounded text-[10px] font-black tracking-wider">
-              {{inv.status}}
+            <span
+              class="status-badge px-2 py-1 bg-emerald-100 text-emerald-700 rounded-lg text-[10px] font-black tracking-wider"
+            >
+              {{ inv.status }}
             </span>
           </td>
           <td class="text-center">

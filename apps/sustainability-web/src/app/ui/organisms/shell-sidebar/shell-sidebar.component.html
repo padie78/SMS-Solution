@@ -1,10 +1,15 @@
-<p-sidebar [(visible)]="visible" [baseZIndex]="10000" styleClass="w-80 border-r-0 shadow-2xl">
+<p-sidebar
+  [(visible)]="visible"
+  [baseZIndex]="10000"
+  styleClass="w-80 border-r-0 shadow-2xl"
+  [attr.aria-label]="'Primary navigation'"
+>
   <div class="flex flex-col h-full bg-slate-900 -m-5 overflow-hidden">
-
     <div class="p-6 border-b border-slate-800/50 flex items-center gap-4">
       <div
-        class="flex-shrink-0 bg-emerald-500 w-10 h-10 rounded-lg shadow-lg shadow-emerald-500/20 flex items-center justify-center">
-        <i class="pi pi-bolt text-white text-xl"></i>
+        class="flex-shrink-0 bg-emerald-500 w-10 h-10 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center"
+      >
+        <i class="pi pi-bolt text-white text-xl" aria-hidden="true"></i>
       </div>
       <div class="flex flex-col">
         <span class="text-white font-black text-xl leading-none tracking-tight">SMS</span>
@@ -20,11 +25,15 @@
           {{ group.label }}
         </h3>
 
-        <nav class="flex flex-col gap-1.5">
-          <a *ngFor="let item of group.items" [routerLink]="item.route" routerLinkActive="active-link"
+        <nav class="flex flex-col gap-1.5" [attr.aria-label]="group.label">
+          <a
+            *ngFor="let item of group.items"
+            [routerLink]="item.route"
+            routerLinkActive="active-link"
             (click)="visible = false"
-            class="flex items-center gap-3 p-3 text-slate-400 hover:bg-slate-800/50 hover:text-emerald-400 rounded-lg transition-all group">
-            <i [class]="item.icon + ' text-base group-hover:scale-110 transition-transform'"></i>
+            class="flex items-center gap-3 p-3 text-slate-400 hover:bg-slate-800/50 hover:text-emerald-400 rounded-xl transition-all group"
+          >
+            <i [class]="item.icon + ' text-base group-hover:scale-110 transition-transform'" aria-hidden="true"></i>
             <span class="text-sm font-medium">{{ item.label }}</span>
           </a>
         </nav>
@@ -32,9 +41,11 @@
     </div>
 
     <div class="p-4 bg-slate-950 border-t border-slate-800">
-      <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800">
+      <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800 shadow-sm">
         <div
-          class="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-emerald-500 shadow-inner">
+          class="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-emerald-500 shadow-inner"
+          aria-hidden="true"
+        >
           DH
         </div>
         <div class="flex flex-col min-w-0 text-left">
