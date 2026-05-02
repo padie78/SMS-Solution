@@ -10,15 +10,14 @@ Globals:
     Environment:
       Variables:
         DYNAMO_TABLE: CarbonoStats
-        CLIMATIQ_API_KEY: !Ref ClimatiqKey
 
 Resources:
   # --- LA LAMBDA QUE PROCESA EL S3 ---
-  ProcessorFunction:
+  DispatcherFunction:
     Type: AWS::Serverless::Function
     Properties:
       # Ruta relativa desde la raíz del proyecto
-      CodeUri: lambda_code/processor_lambda/src/
+      CodeUri: lambda_code/dispatcher_lambda/src/
       Handler: index.handler
       Policies:
         - AmazonS3ReadOnlyAccess
@@ -29,7 +28,7 @@ Resources:
   SignerFunction:
     Type: AWS::Serverless::Function
     Properties:
-      CodeUri: lambda_code/signer_lambda/src/
+      CodeUri: lambda_code/signer_lambda/dist/
       Handler: index.handler
       Events:
         ApiEvent:
