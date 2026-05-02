@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
+import { setupRoutes } from './pages/setup/setup.routes';
 
 export const routes: Routes = [
   {
@@ -31,6 +32,11 @@ export const routes: Routes = [
         title: 'SMS - New Invoice'
       }
     ]
+  },
+  {
+    path: 'setup',
+    canActivate: [authGuard],
+    children: setupRoutes
   },
   { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
   { path: '**', redirectTo: 'dashboard' }

@@ -1,0 +1,424 @@
+<div class="hierarchy-admin max-w-[1600px] mx-auto space-y-6 pb-12">
+  <header class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <div>
+      <a routerLink="/setup/locations" class="text-xs font-bold text-emerald-700 hover:underline">← Ubicaciones</a>
+      <h1 class="text-3xl font-black text-slate-900 tracking-tight mt-1">Árbol operativo &amp; grillas</h1>
+      <p class="text-slate-500 text-sm max-w-3xl leading-relaxed">
+        Filtros en cascada (región → sucursal → edificio → centro de costo). Cada pestaña tiene alta, edición vía AppSync y
+        baja solo en catálogo local hasta existan mutaciones delete en el schema.
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2 justify-end">
+      <p-button
+        label="Sync centros de costo"
+        icon="pi pi-cloud-download"
+        [loading]="syncingCc()"
+        (onClick)="pullCostCenters()"
+        styleClass="p-button-outlined rounded-xl text-xs"
+      ></p-button>
+      <p-button
+        label="Sync tarifas (sucursal)"
+        icon="pi pi-download"
+        [loading]="syncingTariffs()"
+        (onClick)="pullTariffs()"
+        styleClass="p-button-outlined rounded-xl text-xs"
+      ></p-button>
+    </div>
+  </header>
+
+  <section class="rounded-2xl border border-slate-200 bg-slate-50/80 p-4 grid grid-cols-1 lg:grid-cols-[minmax(0,280px)_1fr] gap-6">
+    <div class="space-y-2">
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-600">Vista árbol</h2>
+      <ng-container *ngIf="catalog().branches.length > 0; else treePlaceholder">
+        <p-tree
+          class="hierarchy-tree border border-slate-200 rounded-xl bg-white p-2 text-sm"
+          [value]="treeNodes()"
+          selectionMode="single"
+          (onNodeSelect)="onTreeNodeSelect($event)"
+        ></p-tree>
+      </ng-container>
+      <ng-template #treePlaceholder>
+        <p class="text-sm text-slate-500 border border-dashed border-slate-200 rounded-xl p-4 bg-white leading-relaxed">
+          Aún no hay sucursales en el catálogo local. Creá una con <strong>Alta</strong> en la pestaña Sucursales o desde
+          <code class="text-xs bg-slate-100 px-1 rounded">/setup/branch</code>.
+        </p>
+      </ng-template>
+    </div>
+
+    <div class="space-y-4">
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-600">Filtros en cascada</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
+        <div class="flex flex-col gap-1">
+          <label class="text-[10px] font-bold uppercase text-slate-500" for="flt-region">Región</label>
+          <select
+            id="flt-region"
+            class="sms-native-select"
+            [ngModel]="selectedRegion()"
+            (ngModelChange)="onRegionDropdownChange($event)"
+          >
+            <option value="">Todas las regiones</option>
+            <option *ngFor="let r of hierRegions()" [value]="r">{{ r }}</option>
+          </select>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-[10px] font-bold uppercase text-slate-500" for="flt-branch">Sucursal</label>
+          <select
+            id="flt-branch"
+            class="sms-native-select"
+            [ngModel]="selectedBranchId()"
+            (ngModelChange)="onBranchDropdownChange($event)"
+          >
+            <option value="">Todas / sin filtro</option>
+            <option *ngFor="let o of branchDropdownOptions()" [value]="o.value">{{ o.label }}</option>
+          </select>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-[10px] font-bold uppercase text-slate-500" for="flt-building">Edificio</label>
+          <select
+            id="flt-building"
+            class="sms-native-select"
+            [ngModel]="selectedBuildingId()"
+            (ngModelChange)="onBuildingDropdownChange($event)"
+            [disabled]="!selectedBranchId()"
+          >
+            <option value="">Todos</option>
+            <option *ngFor="let o of buildingDropdownOptions()" [value]="o.value">{{ o.label }}</option>
+          </select>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="text-[10px] font-bold uppercase text-slate-500" for="flt-cc">Centro de costo</label>
+          <select
+            id="flt-cc"
+            class="sms-native-select"
+            [ngModel]="selectedCostCenterId()"
+            (ngModelChange)="onCostCenterDropdownChange($event)"
+            [disabled]="!selectedBranchId()"
+          >
+            <option value="">Todos</option>
+            <option *ngFor="let o of costCenterDropdownOptions()" [value]="o.value">{{ o.label }}</option>
+          </select>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p-tabView [(activeIndex)]="activeTabIndex" styleClass="hierarchy-tabs">
+    <p-tabPanel header="Sucursales">
+      <div class="flex justify-end mb-3">
+        <p-button label="Alta" icon="pi pi-plus" (onClick)="openCreate('branch')" styleClass="rounded-xl"></p-button>
+      </div>
+      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <p-table [value]="branchesRows()" styleClass="p-datatable-sm text-sm hierarchy-table">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>Región</th>
+              <th>m²</th>
+              <th></th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-row>
+            <tr>
+              <td class="font-mono text-xs">{{ row.branchId }}</td>
+              <td>{{ row.name }}</td>
+              <td>{{ row.region }}</td>
+              <td>{{ row.m2Surface }}</td>
+              <td class="text-right whitespace-nowrap">
+                <p-button icon="pi pi-pencil" [text]="true" (onClick)="openEdit('branch', row)" styleClass="mr-1"></p-button>
+                <p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="confirmDelete('branch', row)"></p-button>
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="5" class="text-center py-10 text-slate-500 text-sm">
+                Sin sucursales en catálogo local. Pulsa <strong>Alta</strong> arriba.
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+    </p-tabPanel>
+
+    <p-tabPanel header="Edificios">
+      <div class="flex justify-end mb-3">
+        <p-button label="Alta" icon="pi pi-plus" (onClick)="openCreate('building')" styleClass="rounded-xl"></p-button>
+      </div>
+      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <p-table [value]="buildingsRows()" styleClass="p-datatable-sm text-sm hierarchy-table">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Sucursal</th>
+              <th>Building ID</th>
+              <th>Nombre</th>
+              <th>Uso</th>
+              <th></th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-row>
+            <tr>
+              <td class="font-mono text-xs">{{ row.branchId }}</td>
+              <td class="font-mono text-xs">{{ row.buildingId }}</td>
+              <td>{{ row.name }}</td>
+              <td>{{ row.usageType }}</td>
+              <td class="text-right whitespace-nowrap">
+                <p-button icon="pi pi-pencil" [text]="true" (onClick)="openEdit('building', row)"></p-button>
+                <p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="confirmDelete('building', row)"></p-button>
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="5" class="text-center py-10 text-slate-500 text-sm">
+                Sin edificios (filtrados por sucursal si elegiste una). Pulsa <strong>Alta</strong>.
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+    </p-tabPanel>
+
+    <p-tabPanel header="Centros de costo">
+      <div class="flex justify-end mb-3">
+        <p-button label="Alta" icon="pi pi-plus" (onClick)="openCreate('cost-center')" styleClass="rounded-xl"></p-button>
+      </div>
+      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <p-table [value]="costCentersRows()" styleClass="p-datatable-sm text-sm hierarchy-table">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>ID</th>
+              <th>Nombre</th>
+              <th>Sucursal</th>
+              <th>Método</th>
+              <th>%</th>
+              <th></th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-row>
+            <tr>
+              <td class="font-mono text-xs">{{ row.id }}</td>
+              <td>{{ row.name }}</td>
+              <td class="font-mono text-xs">{{ row.branchId }}</td>
+              <td>{{ row.method }}</td>
+              <td>{{ row.percentage }}</td>
+              <td class="text-right whitespace-nowrap">
+                <p-button icon="pi pi-pencil" [text]="true" (onClick)="openEdit('cost-center', row)"></p-button>
+                <p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="confirmDelete('cost-center', row)"></p-button>
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="6" class="text-center py-10 text-slate-500 text-sm">
+                Sin centros de costo. Pulsa <strong>Alta</strong> o <strong>Sync centros de costo</strong>.
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+    </p-tabPanel>
+
+    <p-tabPanel header="Activos">
+      <div class="flex justify-end mb-3">
+        <p-button label="Alta" icon="pi pi-plus" (onClick)="openCreate('asset')" styleClass="rounded-xl"></p-button>
+      </div>
+      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <p-table [value]="assetsRows()" styleClass="p-datatable-sm text-sm hierarchy-table">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Asset</th>
+              <th>Nombre</th>
+              <th>Sucursal</th>
+              <th>Edificio</th>
+              <th>CC</th>
+              <th></th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-row>
+            <tr>
+              <td class="font-mono text-xs">{{ row.assetId }}</td>
+              <td>{{ row.name }}</td>
+              <td class="font-mono text-xs">{{ row.branchId }}</td>
+              <td class="font-mono text-xs">{{ row.buildingId }}</td>
+              <td class="font-mono text-xs">{{ row.costCenterId }}</td>
+              <td class="text-right whitespace-nowrap">
+                <p-button icon="pi pi-pencil" [text]="true" (onClick)="openEdit('asset', row)"></p-button>
+                <p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="confirmDelete('asset', row)"></p-button>
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="6" class="text-center py-10 text-slate-500 text-sm">
+                Sin activos en catálogo (respeta filtros de sucursal/edificio/CC).
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+    </p-tabPanel>
+
+    <p-tabPanel header="Medidores">
+      <div class="flex justify-end mb-3">
+        <p-button label="Alta" icon="pi pi-plus" (onClick)="openCreate('meter')" styleClass="rounded-xl"></p-button>
+      </div>
+      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <p-table [value]="metersRows()" styleClass="p-datatable-sm text-sm hierarchy-table">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Sucursal</th>
+              <th>Meter ID</th>
+              <th>Nombre</th>
+              <th>Tipo</th>
+              <th>Edificio</th>
+              <th></th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-row>
+            <tr>
+              <td class="font-mono text-xs">{{ row.branchId }}</td>
+              <td class="font-mono text-xs">{{ row.meterId }}</td>
+              <td>{{ row.name }}</td>
+              <td>{{ row.type }}</td>
+              <td class="font-mono text-xs">{{ row.buildingId }}</td>
+              <td class="text-right whitespace-nowrap">
+                <p-button icon="pi pi-pencil" [text]="true" (onClick)="openEdit('meter', row)"></p-button>
+                <p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="confirmDelete('meter', row)"></p-button>
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="6" class="text-center py-10 text-slate-500 text-sm">
+                Sin medidores en catálogo (filtra por sucursal/edificio arriba).
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+    </p-tabPanel>
+
+    <p-tabPanel header="Tarifas">
+      <div class="flex justify-end mb-3">
+        <p-button label="Alta" icon="pi pi-plus" (onClick)="openCreate('tariff')" styleClass="rounded-xl"></p-button>
+      </div>
+      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <p-table [value]="tariffsRows()" styleClass="p-datatable-sm text-sm hierarchy-table">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Sucursal</th>
+              <th>Servicio</th>
+              <th>Proveedor</th>
+              <th>Contrato</th>
+              <th>Tarifa base</th>
+              <th></th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-row>
+            <tr>
+              <td class="font-mono text-xs">{{ row.branchId }}</td>
+              <td>{{ row.serviceType }}</td>
+              <td>{{ row.providerName }}</td>
+              <td>{{ row.contractId }}</td>
+              <td>{{ row.baseRate }}</td>
+              <td class="text-right whitespace-nowrap">
+                <p-button icon="pi pi-pencil" [text]="true" (onClick)="openEdit('tariff', row)"></p-button>
+                <p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="confirmDelete('tariff', row)"></p-button>
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="6" class="text-center py-10 text-slate-500 text-sm">
+                Sin tarifas. Elegí sucursal y usá <strong>Sync tarifas</strong> o <strong>Alta</strong>.
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+    </p-tabPanel>
+
+    <p-tabPanel header="Alertas">
+      <div class="flex justify-end mb-3">
+        <p-button label="Alta" icon="pi pi-plus" (onClick)="openCreate('alert-rule')" styleClass="rounded-xl"></p-button>
+      </div>
+      <div class="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+        <p-table [value]="alertsRows()" styleClass="p-datatable-sm text-sm hierarchy-table">
+          <ng-template pTemplate="header">
+            <tr>
+              <th>Sucursal</th>
+              <th>Entidad</th>
+              <th>Tipo</th>
+              <th>Nombre</th>
+              <th></th>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="body" let-row>
+            <tr>
+              <td class="font-mono text-xs">{{ row.branchId }}</td>
+              <td class="font-mono text-xs">{{ row.entityId }}</td>
+              <td>{{ row.alertType }}</td>
+              <td>{{ row.name }}</td>
+              <td class="text-right whitespace-nowrap">
+                <p-button icon="pi pi-pencil" [text]="true" (onClick)="openEdit('alert-rule', row)"></p-button>
+                <p-button icon="pi pi-trash" [text]="true" severity="danger" (onClick)="confirmDelete('alert-rule', row)"></p-button>
+              </td>
+            </tr>
+          </ng-template>
+          <ng-template pTemplate="emptymessage">
+            <tr>
+              <td colspan="5" class="text-center py-10 text-slate-500 text-sm">
+                Sin reglas de alerta en catálogo (filtra por sucursal arriba).
+              </td>
+            </tr>
+          </ng-template>
+        </p-table>
+      </div>
+    </p-tabPanel>
+  </p-tabView>
+
+  <p-dialog
+    [header]="dialogTitle"
+    [visible]="dialogVisible()"
+    (visibleChange)="dialogVisible.set($event)"
+    [modal]="true"
+    [style]="{ width: 'min(100vw - 2rem, 540px)' }"
+    [draggable]="false"
+    styleClass="rounded-2xl"
+  >
+    <form *ngIf="dialogForm" [formGroup]="dialogForm" class="space-y-4 pt-2">
+      <ng-container *ngFor="let f of dialogFields()">
+        <div *ngIf="f.type !== 'checkbox'" class="flex flex-col gap-1">
+          <label [attr.for]="'dlg-' + f.key" class="text-[10px] font-bold uppercase text-slate-600">{{ f.label }}</label>
+          <input
+            *ngIf="f.type === 'text'"
+            [id]="'dlg-' + f.key"
+            type="text"
+            pInputText
+            class="w-full rounded-xl"
+            [formControlName]="f.key"
+          />
+          <input
+            *ngIf="f.type === 'number'"
+            [id]="'dlg-' + f.key"
+            type="number"
+            pInputText
+            class="w-full rounded-xl"
+            [formControlName]="f.key"
+          />
+        </div>
+        <label *ngIf="f.type === 'checkbox'" class="flex items-center gap-2 cursor-pointer">
+          <input type="checkbox" [formControlName]="f.key" class="rounded border-slate-300" />
+          <span class="text-sm text-slate-700">{{ f.label }}</span>
+        </label>
+      </ng-container>
+      <div class="flex justify-end gap-2 pt-4">
+        <p-button label="Cancelar" [text]="true" (onClick)="closeDialog()" styleClass="rounded-xl"></p-button>
+        <p-button label="Guardar" icon="pi pi-check" (onClick)="submitDialog()" styleClass="rounded-xl"></p-button>
+      </div>
+    </form>
+  </p-dialog>
+
+  <p-confirmDialog></p-confirmDialog>
+</div>

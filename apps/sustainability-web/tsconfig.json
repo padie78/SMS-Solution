@@ -15,6 +15,9 @@
     "declaration": false,
     "experimentalDecorators": true,
     "moduleResolution": "node",
+    "paths": {
+      "@pages/setup/*": ["src/app/pages/setup/*"]
+    },
     "importHelpers": true,
     "target": "ES2022",
     "module": "ES2022",

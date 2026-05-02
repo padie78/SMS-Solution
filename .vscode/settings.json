@@ -1,0 +1,4 @@
+{
+  "typescript.tsdk": "apps/sustainability-web/node_modules/typescript/lib",
+  "typescript.enablePromptUseWorkspaceTsdk": true
+}

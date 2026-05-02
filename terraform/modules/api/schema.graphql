@@ -208,6 +208,115 @@ input LinkAssetExternalIdentifierInput {
   supplyAddress: String
 }
 
+# --- Master data / configuración global (ConfigService — setting-organization.sh) ---
+
+input SaveOrgConfigInput {
+  name: String
+  taxId: String
+  hqAddress: String
+  totalGlobalM2: Float
+  industrySector: String
+  currency: String
+  reportingCurrency: String
+  minConfidence: Float
+  baselineYear: Int
+  reductionTarget: Float
+  targetYear: Int
+  subscriptionPlan: String
+}
+
+input CreateBranchInput {
+  branchId: String
+  name: String
+  m2Surface: Float
+  facilityType: String
+  timezone: String
+  region: String
+}
+
+input SaveBuildingInput {
+  name: String
+  usageType: String
+  status: String
+  yearBuilt: Int
+  m2Surface: Float
+  m3Volume: Float
+  hvacType: String
+  hasBms: Boolean
+}
+
+input SaveCostCenterInput {
+  id: String
+  name: String
+  branchId: String
+  method: String
+  percentage: Float
+  annualBudget: Float
+}
+
+input SaveAssetInput {
+  name: String
+  category: String
+  status: String
+  nominalPower: Float
+  meterId: String
+  branchId: String
+  buildingId: String
+  costCenterId: String
+}
+
+input SaveMeterInput {
+  name: String
+  serialNumber: String
+  iotName: String
+  protocol: String
+  type: String
+  isMain: Boolean
+  buildingId: String
+}
+
+input SaveTariffInput {
+  providerName: String
+  contractId: String
+  pricingModel: String
+  baseRate: Float
+  validFrom: String
+  validTo: String
+}
+
+input SaveAlertRuleInput {
+  name: String
+  status: String
+  priority: String
+  threshold: Float
+  operator: String
+}
+
+input SaveUserInput {
+  fullName: String
+  email: String
+  role: String
+  language: String
+}
+
+input SaveProductionLogInput {
+  units: Float
+  unitType: String
+  shiftMode: String
+  efficiency: Float
+  activeLines: Int
+}
+
+input SaveEmissionFactorInput {
+  name: String
+  year: Int
+  regionCode: String
+  activityType: String
+  unit: String
+  value: Float
+  scope: String
+}
+
 # --- 5. CONSULTAS (QUERIES) ---
 
 type Query {
@@ -238,6 +347,18 @@ type Mutation {
   confirmInvoice(id: ID!, input: ConfirmInvoiceInput!): ActionResponse! @aws_cognito_user_pools
   approveInvoice(invoiceId: ID!): Invoice @aws_cognito_user_pools
   linkAssetExternalIdentifier(assetId: ID!, input: LinkAssetExternalIdentifierInput!): ActionResponse! @aws_cognito_user_pools
+
+  saveOrgConfig(orgId: ID, input: SaveOrgConfigInput!): MutationResponse @aws_cognito_user_pools
+  createBranch(orgId: ID, input: CreateBranchInput!): MutationResponse @aws_cognito_user_pools
+  saveBuilding(orgId: ID, branchId: ID!, buildingId: ID!, input: SaveBuildingInput!): MutationResponse @aws_cognito_user_pools
+  saveCostCenter(orgId: ID, input: SaveCostCenterInput!): MutationResponse @aws_cognito_user_pools
+  saveAsset(orgId: ID, assetId: ID!, input: SaveAssetInput!): MutationResponse @aws_cognito_user_pools
+  saveMeter(orgId: ID, branchId: ID!, meterId: ID!, input: SaveMeterInput!): MutationResponse @aws_cognito_user_pools
+  saveTariff(orgId: ID, branchId: ID!, serviceType: String!, input: SaveTariffInput!): MutationResponse @aws_cognito_user_pools
+  saveAlertRule(orgId: ID, branchId: ID!, entityId: ID!, alertType: String!, input: SaveAlertRuleInput!): MutationResponse @aws_cognito_user_pools
+  saveUser(orgId: ID, userId: ID!, input: SaveUserInput!): MutationResponse @aws_cognito_user_pools
+  saveProductionLog(orgId: ID, branchId: ID!, period: String!, input: SaveProductionLogInput!): MutationResponse @aws_cognito_user_pools
+  saveEmissionFactor(input: SaveEmissionFactorInput!): MutationResponse @aws_cognito_user_pools
 }
 
 # --- 7. TIEMPO REAL (SUBSCRIPTIONS) ---

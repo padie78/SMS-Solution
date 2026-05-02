@@ -1,0 +1,56 @@
+.hierarchy-tree ::ng-deep .p-tree-container {
+  max-height: min(70vh, 520px);
+  overflow: auto;
+}
+
+.hierarchy-admin ::ng-deep .p-tabview-nav-link {
+  border-radius: 0.75rem 0.75rem 0 0;
+}
+
+.hierarchy-admin ::ng-deep .p-tabview-panels {
+  background: #fff;
+  border: 1px solid rgb(226 232 240);
+  border-top: none;
+  border-radius: 0 0 0.75rem 0.75rem;
+  padding: 1rem;
+}
+
+.hierarchy-admin ::ng-deep .hierarchy-table.p-datatable .p-datatable-thead > tr > th {
+  background-color: #f8fafc;
+  color: #475569;
+  font-weight: 700;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.hierarchy-admin ::ng-deep .hierarchy-table.p-datatable .p-datatable-tbody > tr > td {
+  padding: 0.65rem 1rem;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+:host ::ng-deep .sms-native-select {
+  width: 100%;
+  min-height: var(--sms-control-height, 40px);
+  border-radius: var(--sms-control-radius, 12px);
+  border: 1px solid #cbd5e1;
+  background-color: #fff;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  color: #0f172a;
+  box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+}
+
+:host ::ng-deep .sms-native-select:focus {
+  outline: none;
+  border-color: #34d399;
+  box-shadow: 0 0 0 3px rgb(52 211 153 / 0.25);
+}
+
+:host ::ng-deep .sms-native-select:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background-color: #f8fafc;
+}

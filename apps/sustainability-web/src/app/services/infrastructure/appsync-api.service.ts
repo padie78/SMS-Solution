@@ -214,4 +214,32 @@ export class AppSyncApiService {
 
     return rows.filter((r) => Number.isFinite(r.value));
   }
+
+  /** Centros de costo (analytics resolver; payload AWSJSON heterogéneo). */
+  async getCostCenters(): Promise<unknown[]> {
+    const query = `
+      query GetCostCenters {
+        getCostCenters
+      }
+    `;
+    const data = await this.executeGraphql<{ getCostCenters: unknown }>(query);
+    const raw = data.getCostCenters;
+    if (raw == null) return [];
+    return Array.isArray(raw) ? raw : [raw];
+  }
+
+  /** Tarifas por sucursal (analytics resolver). */
+  async getTariffsByBranch(branchId: string): Promise<unknown[]> {
+    const query = `
+      query GetTariffsByBranch($branchId: ID!) {
+        getTariffsByBranch(branchId: $branchId)
+      }
+    `;
+    const data = await this.executeGraphql<{ getTariffsByBranch: unknown }>(query, {
+      branchId
+    });
+    const raw = data.getTariffsByBranch;
+    if (raw == null) return [];
+    return Array.isArray(raw) ? raw : [raw];
+  }
 }

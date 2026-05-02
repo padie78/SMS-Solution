@@ -24,6 +24,18 @@ export class AuthService {
     }
   }
 
+  /** Claim Cognito `custom:organization_id` si existe en el IdToken. */
+  async getOrganizationIdClaim(): Promise<string | null> {
+    try {
+      const session = await fetchAuthSession();
+      const payload = session.tokens?.idToken?.payload as Record<string, unknown> | undefined;
+      const raw = payload?.['custom:organization_id'];
+      return typeof raw === 'string' && raw.trim() ? raw.trim() : null;
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Ensures a user session exists and tokens are available.
    * This does not sign-in automatically; it only verifies and hydrates session state.

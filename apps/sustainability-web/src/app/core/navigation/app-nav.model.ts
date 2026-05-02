@@ -3,6 +3,8 @@ export interface AppNavItem {
   label: string;
   icon: string;
   route: string;
+  /** Tooltip / doc: mutación GraphQL o alcance */
+  description?: string;
 }
 
 export interface AppNavGroup {

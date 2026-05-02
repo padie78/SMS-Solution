@@ -5,16 +5,16 @@ import { BehaviorSubject, Observable } from 'rxjs';
  */
 export abstract class StateStoreService<T extends object> {
   private readonly subject: BehaviorSubject<T>;
+  readonly state$: Observable<T>;
 
   protected constructor(initial: T) {
     this.subject = new BehaviorSubject<T>(initial);
+    this.state$ = this.subject.asObservable();
   }
 
   protected get snapshot(): T {
     return this.subject.value;
   }
-
-  readonly state$: Observable<T> = this.subject.asObservable();
 
   protected setState(next: T): void {
     this.subject.next(next);
