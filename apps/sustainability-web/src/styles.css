@@ -2,6 +2,7 @@
 @import "primeng/resources/themes/lara-light-blue/theme.css";
 @import "primeng/resources/primeng.min.css";
 @import "primeicons/primeicons.css";
+@import "primeflex/primeflex.css";
 
 /* 2. LUEGO TAILWIND */
 @tailwind base;
@@ -20,6 +21,8 @@ body {
   --sms-line-height: 1.4;
   --sms-control-height: 40px;
   --sms-control-radius: 12px;
+  /* Shell header — alineado con sidebar fijo y hamburguesa móvil */
+  --sms-shell-header-height: 73.745px;
 }
 
 html {
@@ -714,64 +717,49 @@ button#user-trigger:focus {
   outline-offset: 2px;
 }
 
-/* =========================
-   Shell Sidebar
-   ========================= */
-
-app-shell-sidebar .p-sidebar {
-  background-color: #0f172a !important;
-  border-right: 1px solid #1e293b !important;
-  padding: 0 !important;
-  box-shadow: 20px 0 25px -5px rgba(0, 0, 0, 0.1), 10px 0 10px -5px rgba(0, 0, 0, 0.04);
+/* Workspace org dropdown — panel en `body` (appendTo); fondo esmeralda */
+.p-dropdown-panel.pc-workspace-dropdown-panel {
+  background: linear-gradient(180deg, #065f46 0%, #064e3b 45%, #022c22 100%) !important;
+  border: 1px solid rgb(52 211 153 / 0.45) !important;
+  border-radius: 0.5rem !important;
+  box-shadow:
+    0 18px 40px rgb(0 0 0 / 0.45),
+    inset 0 1px 0 rgb(255 255 255 / 0.06) !important;
 }
 
-app-shell-sidebar .p-sidebar-header {
-  background-color: #0f172a !important;
-  padding: 1rem 1rem 0.5rem 1rem !important;
-  z-index: 100;
+.p-dropdown-panel.pc-workspace-dropdown-panel .p-dropdown-items,
+.p-dropdown-panel.pc-workspace-dropdown-panel .p-dropdown-items-wrapper {
+  background: transparent !important;
 }
 
-app-shell-sidebar .p-sidebar-close {
-  color: #64748b !important;
-  width: 2rem !important;
-  height: 2rem !important;
-  transition: all 0.2s ease;
+.p-dropdown-panel.pc-workspace-dropdown-panel .p-dropdown-item {
+  color: #ecfdf5 !important;
+  font-size: 0.8125rem !important;
+  border-radius: 0.375rem !important;
 }
 
-app-shell-sidebar .p-sidebar-close:hover {
+.p-dropdown-panel.pc-workspace-dropdown-panel .p-dropdown-item:not(.p-highlight):not(.p-disabled):hover {
+  background: rgb(16 185 129 / 0.22) !important;
   color: #ffffff !important;
-  background-color: #1e293b !important;
 }
 
-app-shell-sidebar nav a {
-  text-decoration: none;
-  margin: 0 0.5rem;
-  padding-top: 0.65rem !important;
-  padding-bottom: 0.65rem !important;
-  border-left: 3px solid transparent;
+.p-dropdown-panel.pc-workspace-dropdown-panel .p-dropdown-item.p-highlight {
+  background: rgb(52 211 153 / 0.28) !important;
+  color: #ffffff !important;
 }
 
-app-shell-sidebar nav a i {
-  font-size: 1.1rem;
+.p-dropdown-panel.pc-workspace-dropdown-panel .p-dropdown-item.p-focus {
+  background: rgb(16 185 129 / 0.18) !important;
+  color: #ffffff !important;
 }
 
-app-shell-sidebar .active-link {
-  background-color: rgba(16, 185, 129, 0.08) !important;
-  color: #10b981 !important;
-  border-left: 3px solid #10b981 !important;
-  border-radius: 0 8px 8px 0 !important;
+.p-dropdown-panel.pc-workspace-dropdown-panel .p-dropdown-empty-message {
+  color: #a7f3d0 !important;
 }
 
-app-shell-sidebar .active-link i {
-  color: #10b981 !important;
-}
+/* Shell sidebar: estilos de navegación viven en shell-sidebar.component.scss (:host display:contents) */
 
-app-shell-sidebar nav a:hover:not(.active-link) {
-  background-color: rgba(30, 41, 59, 0.5);
-  color: #f8fafc;
-}
-
-app-shell-sidebar nav a:hover i {
-  transform: translateX(2px);
-  transition: transform 0.2s ease;
+/* Popup usuario cabecera — tema claro (Lara) */
+.p-menu.sms-user-menu-popup {
+  border-radius: 0.75rem !important;
 }

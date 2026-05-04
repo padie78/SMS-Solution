@@ -20,14 +20,15 @@
     "@angular/platform-browser-dynamic": "^18.0.0",
     "@angular/router": "^18.0.0",
     "aws-amplify": "^6.0.0",
+    "luxon": "^3.5.0",
+    "mathjs": "^13.2.0",
     "ng2-pdf-viewer": "^10.4.0",
+    "primeflex": "^4.0.0",
     "primeicons": "^7.0.0",
     "primeng": "^17.18.0",
     "rxjs": "~7.8.0",
     "tslib": "^2.3.0",
-    "zone.js": "~0.14.0",
-    "luxon": "^3.5.0",
-    "mathjs": "^13.2.0"
+    "zone.js": "~0.14.0"
   },
   "devDependencies": {
     "@angular-devkit/build-angular": "^18.0.0",

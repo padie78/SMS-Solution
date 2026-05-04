@@ -43,6 +43,6 @@ export class InvoiceManagerComponent implements OnInit {
   }
 
   navToCreate(): void {
-    void this.router.navigate(['/billing/invoices/new']);
+    void this.router.navigate(['/compliance/invoices/new']);
   }
 }

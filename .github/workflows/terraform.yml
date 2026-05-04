@@ -22,8 +22,11 @@ jobs:
           node-version: 20
           cache: 'npm'
           cache-dependency-path: |
+            package-lock.json
             apps/sustainability-web/package.json
             lambda_code/signer_lambda/package.json
+            lambda_code/dispatcher_lambda/package.json
+            lambda_code/worker_lambda/package.json
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
@@ -38,7 +41,12 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-central-1
 
-      # 2. Build signer_lambda: genera dist/ desde src/ (JS); Terraform usa handler src/index.handler
+      # 2a. Workspace packages (@sms/common) para dependencias file: del signer
+      - name: Build @sms/common
+        run: npm ci --no-audit --no-fund && npm run build -w @sms/common
+        working-directory: .
+
+      # 2b. signer_lambda: copia src → dist; Terraform zip incluye node_modules + handler src/index.handler
       - name: Build signer_lambda
         run: |
           npm ci --no-audit --no-fund
@@ -46,7 +54,21 @@ jobs:
           npm prune --omit=dev
         working-directory: ./lambda_code/signer_lambda
 
-      # 2. Infraestructura con Terraform
+      # 2c. dispatcher_lambda: zip Terraform incluye node_modules (@sms/common via file:)
+      - name: Install dispatcher_lambda dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          npm prune --omit=dev
+        working-directory: ./lambda_code/dispatcher_lambda
+
+      # 2d. worker_lambda: procesamiento SQS + pipeline invoice
+      - name: Install worker_lambda dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          npm prune --omit=dev
+        working-directory: ./lambda_code/worker_lambda
+
+      # 3. Infraestructura con Terraform
       - name: Terraform Init
         run: terraform init -input=false
         working-directory: ./terraform
@@ -60,7 +82,7 @@ jobs:
         run: terraform apply -auto-approve tfplan
         working-directory: ./terraform
 
-      # 3. Construcción del Frontend (Angular)
+      # 4. Construcción del Frontend (Angular)
       - name: Install Frontend Dependencies
         run: npm install --no-audit --no-fund
         working-directory: apps/sustainability-web
@@ -69,7 +91,7 @@ jobs:
         run: npm run build -- --configuration production
         working-directory: apps/sustainability-web
 
-      # 4. Despliegue de Activos a AWS
+      # 5. Despliegue de Activos a AWS
      # 4a. Capturar variables de infraestructura y exponerlas como outputs del step
       - name: Export Terraform Outputs
         id: tf_outputs

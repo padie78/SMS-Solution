@@ -1,0 +1,74 @@
+# =============================================================================
+# Monorepo SMS — no versionar artefactos de build, secretos ni ruido local
+# =============================================================================
+
+# --- Node / npm (cualquier carpeta del repo) ---
+node_modules/
+**/node_modules/
+lambda_code/**/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.npm/
+.pnpm-store/
+
+# --- TypeScript / paquetes workspace (p. ej. @sms/common → dist/) ---
+packages/*/dist/
+
+# --- Lambdas: salida de build local (p. ej. signer cp src → dist) ---
+lambda_code/*/dist/
+
+# --- Terraform ---
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log
+terraform/modules/**/zips/
+
+# --- AWS SAM local ---
+.aws-sam/
+
+# --- Variables de entorno (secretos / overrides locales) ---
+.env
+.env.*
+!.env.example
+
+# --- Logs y cachés de herramientas ---
+*.log
+logs/
+.eslintcache
+coverage/
+.nyc_output/
+*.tsbuildinfo
+
+# --- Cursor / IDE (logs de debug; no bloquear .cursorrules si existen) ---
+.cursor/*.log
+.cursor/debug*.log
+
+# --- Sistema operativo ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# --- Certificados / claves locales ---
+*.pem
+*.p12
+*.pfx
+id_rsa
+id_rsa.*
+
+# --- Fixtures de factura / PoC en la raíz (ajusta si deben ir al repo) ---
+/factura-*.pdf
+/factura_*.pdf
+/factura-test*.html
+
+# --- Python (si aparece tooling auxiliar) ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/

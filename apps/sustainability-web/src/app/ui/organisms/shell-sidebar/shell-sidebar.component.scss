@@ -1,0 +1,501 @@
+/**
+ * Pinecone-style fixed sidenav — deep slate, emerald active, Inter (see index.html).
+ */
+:host {
+  display: contents;
+}
+
+.sms-sidebar-hamburger {
+  --sms-hamburger-size: 2.625rem;
+  --sms-header-band: var(--sms-shell-header-height, 73.745px);
+
+  transform-origin: center center;
+  position: fixed;
+  left: max(1rem, env(safe-area-inset-left, 0px));
+  top: calc(env(safe-area-inset-top, 0px) + (var(--sms-header-band) - var(--sms-hamburger-size)) / 2);
+  z-index: 55;
+  width: var(--sms-hamburger-size);
+  height: var(--sms-hamburger-size);
+  padding: 0;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.625rem;
+  cursor: pointer;
+  color: #e5e7eb;
+  background-color: #111111;
+  border: 1px solid rgb(52 211 153 / 0.35);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.05),
+    0 2px 8px rgb(0 0 0 / 0.45);
+  transition:
+    transform 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+
+  &:hover {
+    background-color: #0d1f1a;
+    border-color: rgb(52 211 153 / 0.55);
+    color: #fff;
+  }
+
+  &:active {
+    transform: scale(0.94);
+  }
+
+  &:focus-visible {
+    outline: 2px solid #34d399;
+    outline-offset: 2px;
+  }
+
+  &:focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  &--hidden {
+    opacity: 0;
+    pointer-events: none;
+    transform: scale(0.88);
+    transition:
+      opacity 0.18s ease,
+      transform 0.18s ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    transition: none;
+
+    &:active {
+      transform: none;
+    }
+  }
+}
+
+.sms-sidebar-hamburger-bars {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 5px;
+  width: 1.125rem;
+  margin: 0 auto;
+
+  span {
+    display: block;
+    height: 2px;
+    border-radius: 9999px;
+    background: currentcolor;
+  }
+
+  span:nth-child(2) {
+    width: 85%;
+    align-self: center;
+  }
+}
+
+@media (min-width: 768px) {
+  .sms-sidebar-hamburger {
+    display: none !important;
+  }
+}
+
+.sms-sidebar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgb(0 0 0 / 55%);
+  backdrop-filter: blur(2px);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+
+  &--visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+@media (min-width: 768px) {
+  .sms-sidebar-backdrop {
+    display: none !important;
+  }
+}
+
+/* ─── Fixed shell (desktop below header) ─────────────────────────────────── */
+.sms-sidebar-shell {
+  --pc-sidebar-bg: #111111;
+  --pc-sidebar-border: #1f2937;
+  --pc-muted: #9ca3af;
+  --pc-text: #e5e7eb;
+  --pc-accent: #10b981;
+  --pc-accent-soft: rgb(16 185 129 / 0.14);
+
+  font-family:
+    'Inter',
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  background: var(--pc-sidebar-bg);
+  color: var(--pc-text);
+  border-right: 1px solid var(--pc-sidebar-border);
+  z-index: 35;
+  width: min(17.5rem, 92vw);
+  transition: width 0.2s ease;
+
+  @media (max-width: 767.98px) {
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100vh;
+    max-width: min(280px, 92vw);
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+
+    &--drawer-open {
+      transform: translateX(0);
+    }
+  }
+
+  @media (min-width: 768px) {
+    position: fixed;
+    top: var(--sms-shell-header-height, 73.745px);
+    left: 0;
+    width: 250px;
+    height: calc(100vh - var(--sms-shell-header-height, 73.745px));
+    transform: none !important;
+
+    &--collapsed {
+      width: 80px;
+    }
+  }
+}
+
+.sms-sidebar-mobile-bar {
+  flex-shrink: 0;
+  min-height: 2.75rem;
+  padding: 0.375rem 0.5rem 0.375rem 0.75rem;
+  border-bottom: 1px solid var(--pc-sidebar-border);
+  background: rgb(0 0 0 / 35%);
+}
+
+.sms-sidebar-mobile-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.625rem;
+  border: none;
+  background: transparent;
+  color: var(--pc-muted);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease;
+
+  &:hover {
+    color: #f9fafb;
+    background: rgb(31 41 55 / 0.65);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pc-accent);
+    outline-offset: 2px;
+  }
+}
+
+@media (min-width: 768px) {
+  .sms-sidebar-mobile-bar {
+    display: none !important;
+  }
+}
+
+/* Brand + workspace — ritmo vertical explícito; el p-dropdown de PrimeNG suele añadir huecos raros */
+.pc-sidebar-brand {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  /* Más aire arriba del logo; menos bajo el combo */
+  padding: 1.25rem 0.75rem 0.75rem;
+}
+
+.sms-sidebar-shell--collapsed .pc-sidebar-brand {
+  align-items: stretch;
+  padding: 1rem 0.5rem 0.75rem;
+}
+
+.pc-brand-mark {
+  border-radius: 0.5rem;
+  padding: 0.15rem 0;
+  transition: background 0.15s ease;
+
+  &:hover {
+    background: rgb(255 255 255 / 0.04);
+  }
+}
+
+.pc-brand-icon {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.5rem;
+  background: linear-gradient(145deg, #059669, #047857);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.35);
+}
+
+.pc-brand-title {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #f9fafb;
+}
+
+.pc-brand-sub {
+  font-size: 0.625rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--pc-muted);
+}
+
+.pc-workspace-collapsed-trigger {
+  height: 2.25rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--pc-sidebar-border);
+  background: rgb(0 0 0 / 0.35);
+  color: var(--pc-muted);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease,
+    background 0.15s ease;
+
+  &:hover {
+    color: var(--pc-text);
+    border-color: rgb(55 65 81 / 0.9);
+    background: rgb(17 24 39 / 0.6);
+  }
+}
+
+:host ::ng-deep .pc-workspace-dropdown.p-dropdown {
+  display: inline-flex;
+  width: 100%;
+  max-width: 100%;
+  margin: 0;
+  background: rgb(0 0 0 / 0.35);
+  border: 1px solid var(--pc-sidebar-border);
+  border-radius: 0.5rem;
+
+  .p-inputwrapper,
+  .p-dropdown-label-container {
+    margin: 0;
+  }
+
+  .p-dropdown-label {
+    color: var(--pc-text);
+    font-size: 0.8125rem;
+    padding-block: 0.625rem;
+  }
+
+  .p-dropdown-trigger {
+    color: var(--pc-muted);
+    width: 2.25rem;
+  }
+
+  &:not(.p-disabled):hover {
+    border-color: rgb(55 65 81 / 0.95);
+  }
+}
+
+/* Panel suele ir a `body`; estilos completos en styles.css (.pc-workspace-dropdown-panel) */
+:host ::ng-deep .pc-workspace-dropdown-panel.p-dropdown-panel {
+  background: linear-gradient(180deg, #065f46 0%, #064e3b 45%, #022c22 100%);
+  border: 1px solid rgb(52 211 153 / 0.45);
+  border-radius: 0.5rem;
+  box-shadow:
+    0 18px 40px rgb(0 0 0 / 0.45),
+    inset 0 1px 0 rgb(255 255 255 / 0.06);
+
+  .p-dropdown-items .p-dropdown-item {
+    color: #ecfdf5;
+    font-size: 0.8125rem;
+    border-radius: 0.375rem;
+  }
+
+  .p-dropdown-items .p-dropdown-item:not(.p-highlight):not(.p-disabled):hover {
+    background: rgb(16 185 129 / 0.22);
+    color: #fff;
+  }
+
+  .p-dropdown-items .p-dropdown-item.p-highlight {
+    background: rgb(52 211 153 / 0.28);
+    color: #fff;
+  }
+}
+
+/* Scrollable nav — mismo padding arriba y abajo */
+.pc-sidebar-nav {
+  padding: 0.75rem 0.75rem 0.75rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(55 65 81 / 0.9) transparent;
+
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgb(55 65 81 / 0.85);
+    border-radius: 999px;
+  }
+
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgb(75 85 99 / 0.95);
+  }
+}
+
+.sms-sidebar-shell--collapsed .pc-sidebar-nav {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.pc-nav-section {
+  margin-bottom: 1rem;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.pc-nav-pillar {
+  padding: 0 0.125rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(156 163 175 / 0.95);
+}
+
+.pc-nav-list {
+  list-style: none;
+}
+
+.pc-nav-link {
+  position: relative;
+  min-height: 2.25rem;
+  padding: 0.45rem 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgb(209 213 219 / 0.95);
+  text-decoration: none;
+  border-radius: 0.5rem;
+  border-left: 3px solid transparent;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+
+  &:hover {
+    background: rgb(255 255 255 / 0.04);
+    color: #f9fafb;
+  }
+
+  &--active {
+    background: var(--pc-accent-soft);
+    color: #6ee7b7;
+    border-left-color: var(--pc-accent);
+
+    .pc-nav-link__icon {
+      color: #34d399;
+    }
+  }
+
+  &--rail {
+    justify-content: center;
+    padding-left: 0.35rem;
+    padding-right: 0.35rem;
+  }
+}
+
+.pc-nav-link__icon-wrap {
+  position: relative;
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.pc-nav-link__icon {
+  font-size: 1rem;
+  color: var(--pc-muted);
+  transition: color 0.15s ease;
+}
+
+.pc-nav-link--active .pc-nav-link__icon {
+  color: #34d399;
+}
+
+.pc-nav-link__badge-dot {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 0.45rem;
+  height: 0.45rem;
+  border-radius: 50%;
+  background: #ef4444;
+  box-shadow: 0 0 0 2px #111111;
+}
+
+:host ::ng-deep .pc-route-badge.p-badge,
+:host ::ng-deep .sms-nav-route-badge.p-badge {
+  min-width: 1.125rem;
+  height: 1.125rem;
+  line-height: 1.125rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+}
+
+.pc-sidebar-rail {
+  border-top: 1px solid var(--pc-sidebar-border);
+  padding-top: 0.5rem;
+}
+
+.pc-rail-toggle {
+  min-height: 2.25rem;
+  border: 1px solid transparent;
+  background: rgb(0 0 0 / 0.35);
+  color: var(--pc-muted);
+  cursor: pointer;
+  transition:
+    color 0.15s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+
+  &:hover {
+    color: var(--pc-text);
+    background: rgb(31 41 55 / 0.55);
+    border-color: rgb(55 65 81 / 0.85);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--pc-accent);
+    outline-offset: 2px;
+  }
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

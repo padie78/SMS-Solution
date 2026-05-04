@@ -1,6 +1,7 @@
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
+import { buildInvoiceProcessingSkeleton } from "@sms/common";
+import { Logger } from "@sms/shared";
 import { ddb, TABLE_NAME } from "../../services/data/client.js";
-import { buildInvoiceSkeleton } from "../../utils/dbSchema.js";
 
 export class DynamoInvoiceRepository {
   /**
@@ -15,11 +16,20 @@ export class DynamoInvoiceRepository {
    * @param {{ orgId: string, sk: string, bucket: string, key: string, requestId: string }} params
    */
   async putInvoiceSkeleton(params) {
-    const invoiceItem = buildInvoiceSkeleton(params.orgId, params.sk, params.key, params.bucket);
+    const invoiceItem = buildInvoiceProcessingSkeleton({
+      orgId: params.orgId,
+      sk: params.sk,
+      s3Key: params.key,
+      bucket: params.bucket
+    });
 
-    console.log(
-      `[DB_OPERATION] [${params.requestId}] [${params.sk}] Attempting write to ${this.tableName} for Org: ${params.orgId}`
-    );
+    Logger.info("DynamoDB Put invoice skeleton", {
+      requestId: params.requestId,
+      sk: params.sk,
+      orgId: params.orgId,
+      tableName: this.tableName,
+      source: "dispatcher_lambda"
+    });
 
     await this.ddb.send(
       new PutCommand({
@@ -28,7 +38,11 @@ export class DynamoInvoiceRepository {
       })
     );
 
-    console.log(`[DB_SUCCESS] [${params.requestId}] [${params.sk}] Skeleton successfully persisted.`);
+    Logger.info("Invoice skeleton persisted", {
+      requestId: params.requestId,
+      sk: params.sk,
+      source: "dispatcher_lambda"
+    });
   }
 }
 

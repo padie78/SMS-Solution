@@ -1,3 +1,4 @@
+import { Logger } from "@sms/shared";
 import { ConfigError, ValidationError } from "../domain/errors.js";
 
 /**
@@ -8,7 +9,7 @@ export function buildS3PutObjectHandler(deps) {
     const requestId = context?.awsRequestId || "internal";
 
     try {
-      console.log(`[TRIGGER] [${requestId}] S3 PutObject event received.`);
+      Logger.info("S3 PutObject event received", { requestId, source: "dispatcher_lambda" });
 
       const record = event?.Records?.[0];
       const bucket = record?.s3?.bucket?.name;
@@ -22,7 +23,7 @@ export function buildS3PutObjectHandler(deps) {
       };
     } catch (error) {
       const msg = error?.message ? String(error.message) : "Unknown error";
-      console.error(`[FATAL_ERROR] [${requestId}] Dispatcher workflow failed: ${msg}`);
+      Logger.error("Dispatcher workflow failed", { requestId, err: msg, source: "dispatcher_lambda" });
 
       const isClientError = error instanceof ValidationError;
       const isConfigError = error instanceof ConfigError;

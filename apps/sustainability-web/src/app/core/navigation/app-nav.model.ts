@@ -1,16 +1,5 @@
-/** Domain navigation item (no PrimeNG types) */
-export interface AppNavItem {
-  label: string;
-  icon: string;
-  route: string;
-  /** Tooltip / doc: mutación GraphQL o alcance */
-  description?: string;
-}
-
-export interface AppNavGroup {
-  label: string;
-  items: AppNavItem[];
-}
+/** Strategic pillar for expansion / analytics (maps to `/ops`, `/assets`, `/strategy`, `/compliance`). */
+export type AppNavIntentKey = 'ops' | 'assets' | 'strategy' | 'compliance';
 
 export interface UserMenuLeaf {
   label: string;

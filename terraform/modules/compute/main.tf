@@ -1,12 +1,38 @@
 # ==============================================================================
 # 1. EMPAQUETADO DE CÓDIGO (ZIPs)
 # ==============================================================================
+# Rutas relativas a cada `source_dir`. NO se excluye `node_modules` completo:
+# la Lambda necesita dependencias de producción en runtime.
+# Sí se excluye basura habitual (types, tests, markdown) para achicar el artefacto.
+
+locals {
+  lambda_zip_excludes = [
+    ".git/**",
+    ".github/**",
+    "node_modules/.cache/**",
+    "node_modules/**/.cache/**",
+    "node_modules/@types/**",
+    "node_modules/**/README*",
+    "node_modules/**/*.md",
+    "node_modules/**/CHANGELOG*",
+    "node_modules/**/LICENSE*",
+    "node_modules/**/LICENCE*",
+    "node_modules/**/test/**",
+    "node_modules/**/tests/**",
+    "node_modules/**/__tests__/**",
+    "node_modules/**/docs/**",
+    "node_modules/**/.github/**",
+    "node_modules/**/*.map",
+    "node_modules/**/coverage/**"
+  ]
+}
 
 # Lambda que recibe el evento de S3 y envía a SQS
 data "archive_file" "dispatcher_zip" {
   type        = "zip"
   source_dir  = "${path.root}/../lambda_code/dispatcher_lambda"
   output_path = "${path.module}/zips/dispatcher.zip"
+  excludes    = local.lambda_zip_excludes
 }
 
 # Lambda que procesa los mensajes de SQS (OCR, IA, DynamoDB)
@@ -14,30 +40,35 @@ data "archive_file" "worker_zip" {
   type        = "zip"
   source_dir  = "${path.root}/../lambda_code/worker_lambda"
   output_path = "${path.module}/zips/worker.zip"
+  excludes    = local.lambda_zip_excludes
 }
 
 data "archive_file" "signer_zip" {
   type        = "zip"
   source_dir  = "${path.root}/../lambda_code/signer_lambda"
   output_path = "${path.module}/zips/signer.zip"
+  excludes    = local.lambda_zip_excludes
 }
 
 data "archive_file" "api_lambda_zip" {
   type        = "zip"
   source_dir  = "${path.root}/../lambda_code/api_lambda"
   output_path = "${path.module}/zips/api_lambda.zip"
+  excludes    = local.lambda_zip_excludes
 }
 
 data "archive_file" "analytics_zip" {
   type        = "zip"
   source_dir  = "${path.root}/../lambda_code/analytics_lambda"
   output_path = "${path.module}/zips/analytics.zip"
+  excludes    = local.lambda_zip_excludes
 }
 
 data "archive_file" "kpi_zip" {
   type        = "zip"
   source_dir  = "${path.root}/../lambda_code/kpi_engine_lambda"
   output_path = "${path.module}/zips/kpi.zip"
+  excludes    = local.lambda_zip_excludes
 }
 
 # ==============================================================================

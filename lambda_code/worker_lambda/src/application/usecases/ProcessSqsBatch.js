@@ -1,3 +1,6 @@
+import { parseInvoiceWorkerPipelineInput } from "@sms/common";
+import { Logger, formatZodIssues } from "@sms/shared";
+import { ZodError } from "zod";
 import { extractSkFromS3Key } from "../../domain/extractSkFromS3Key.js";
 import { ValidationError } from "../../domain/errors.js";
 
@@ -12,70 +15,80 @@ export class ProcessSqsBatch {
     this.deps = deps;
   }
 
-  /**
-   * @param {{ event: any, context: any }} params
-   */
+  /** @param {{ event: { Records?: object[] }, context?: object }} params */
   async execute(params) {
     const event = params.event;
     const records = event?.Records || [];
     const totalRecords = records.length;
 
-    console.log(`[WORKER_START] Batch received. Records to process: ${totalRecords}`);
+    Logger.info("Worker batch received", {
+      records: totalRecords,
+      source: "worker_lambda"
+    });
 
     for (const record of records) {
       const messageId = record.messageId;
 
       try {
-        const body = JSON.parse(record.body);
-        const bucket = body.bucket;
-        const key = body.key;
-        const orgId = body.orgId || this.deps.defaultOrgId;
-
-        let sk = body.sk;
-
-        console.log(`[WORKER_PROCESS] [${messageId}] Parsing message for S3 Key: ${key}`);
-
-        if (!sk && key) {
-          sk = extractSkFromS3Key(key);
-          console.log(`[WORKER_DEBUG] [${messageId}] SK extracted from S3 Key: ${sk}`);
+        let body;
+        try {
+          body = JSON.parse(record.body);
+        } catch {
+          Logger.warn("SQS body is not valid JSON", { messageId, source: "worker_lambda" });
+          continue;
         }
 
+        const pipelineInput = parseInvoiceWorkerPipelineInput(body, this.deps.defaultOrgId);
+
+        let sk = pipelineInput.sk;
         if (!sk) {
-          console.warn(`[WORKER_SKIP] [${messageId}] Missing SK. Skipping record. Key: ${key}`);
-          continue;
+          sk = extractSkFromS3Key(pipelineInput.key);
         }
-
-        if (!sk.startsWith("INV#")) {
-          console.warn(`[WORKER_SKIP] [${messageId}] Invalid SK format. Skipping record. SK: ${sk}`);
-          continue;
-        }
-
-        console.log(`[WORKER_EVENT] [${sk}] Starting Pipeline | Org: ${orgId} | Bucket: ${bucket}`);
 
         const pipelineParams = {
-          ...body,
+          ...pipelineInput,
           sk,
-          orgId
+          orgId: pipelineInput.orgId
         };
+
+        Logger.info("Starting invoice pipeline", {
+          messageId,
+          sk,
+          orgId: pipelineParams.orgId,
+          bucket: pipelineParams.bucket,
+          source: "worker_lambda"
+        });
 
         await this.deps.pipelineRunner.run(pipelineParams);
 
-        console.log(`[WORKER_SUCCESS] [${sk}] Workflow completed successfully.`);
+        Logger.info("Pipeline completed", { sk, messageId, source: "worker_lambda" });
       } catch (error) {
         const msg = error?.message ? String(error.message) : "Unknown error";
-        if (error instanceof ValidationError) {
-          console.warn(`[WORKER_SKIP] [${messageId}] ${msg}`);
+
+        if (error instanceof ZodError) {
+          Logger.warn("Invalid invoice queue payload", {
+            messageId,
+            detail: formatZodIssues(error),
+            source: "worker_lambda"
+          });
           continue;
         }
 
-        console.error(`[WORKER_FATAL_ERROR] [${messageId}] processing failed.`);
-        console.error(`[ERROR_DETAILS]: ${msg}`);
+        if (error instanceof ValidationError) {
+          Logger.warn("Validation skip", { messageId, detail: msg, source: "worker_lambda" });
+          continue;
+        }
+
+        Logger.error("Record processing failed", {
+          messageId,
+          err: msg,
+          source: "worker_lambda"
+        });
         throw error;
       }
     }
 
-    console.log(`[WORKER_FINISHED] All ${totalRecords} messages handled.`);
+    Logger.info("Worker batch finished", { records: totalRecords, source: "worker_lambda" });
     return { status: "BATCH_PROCESSED" };
   }
 }
-

@@ -1,3 +1,4 @@
+import { Logger } from "@sms/shared";
 import { getTextFromS3 } from "../../infrastructure/apis/textract.js";
 import { identifyCategory } from "../../infrastructure/ai/classifier.js";
 import { analyzeInvoice } from "../../infrastructure/ai/bedrock.js";
@@ -9,7 +10,7 @@ export const invoicePipeline = async (params) => {
   const { bucket, key, sk, orgId } = params;
   const startTime = Date.now();
 
-  console.log(`[PIPELINE_START] [${sk}] Mode: Extraction Only (No Footprint)`);
+  Logger.info("Pipeline start (extraction only)", { sk, source: "worker_lambda" });
 
   try {
     const rawText = await getTextFromS3(bucket, key);
@@ -17,7 +18,7 @@ export const invoicePipeline = async (params) => {
 
     const detectedCategory = await identifyCategory(rawText);
 
-    console.log(`[PIPELINE_STEP] [${sk}] Extracting invoice data via Bedrock...`);
+    Logger.info("Bedrock extraction step", { sk, source: "worker_lambda" });
     const aiAnalysis = await analyzeInvoice(rawText, detectedCategory);
 
     const emissionCalculations = { total_kg: 0, items: [] };
@@ -35,7 +36,7 @@ export const invoicePipeline = async (params) => {
     await persistTransaction(goldenRecord);
 
     try {
-      console.log(`[PIPELINE_STEP] [${sk}] Notifying Frontend...`);
+      Logger.info("Notifying frontend", { sk, source: "worker_lambda" });
 
       const src = aiAnalysis?.source_data || {};
       const tech = aiAnalysis?.technical_ids || {};
@@ -64,16 +65,20 @@ export const invoicePipeline = async (params) => {
       await notifyInvoiceUpdate(sk, "READY_FOR_REVIEW", "Digitization complete", uiPayload);
     } catch (notifyErr) {
       const msg = notifyErr?.message ? String(notifyErr.message) : "Unknown error";
-      console.warn(`[PIPELINE_WARN] [${sk}] Notification failed: ${msg}`);
+      Logger.warn("Notification failed", { sk, err: msg, source: "worker_lambda" });
     }
 
     const duration = (Date.now() - startTime) / 1000;
-    console.log(`[PIPELINE_SUCCESS] [${sk}] Finished in ${duration}s (Footprint skipped)`);
+    Logger.info("Pipeline success", {
+      sk,
+      durationSeconds: duration,
+      source: "worker_lambda"
+    });
 
     return goldenRecord;
   } catch (error) {
     const msg = error?.message ? String(error.message) : "Unknown error";
-    console.error(`[PIPELINE_FATAL_ERROR] [${sk}] ${msg}`);
+    Logger.error("Pipeline failed", { sk, err: msg, source: "worker_lambda" });
     await notifyInvoiceUpdate(sk, "FAILED", `Error: ${msg}`);
     throw error;
   }

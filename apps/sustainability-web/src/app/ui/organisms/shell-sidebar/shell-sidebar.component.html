@@ -1,59 +1,142 @@
-<p-sidebar
-  [(visible)]="visible"
-  [baseZIndex]="10000"
-  styleClass="w-80 border-r-0 shadow-2xl"
+<button
+  type="button"
+  class="sms-sidebar-hamburger"
+  [class.sms-sidebar-hamburger--hidden]="drawerOpen"
+  (click)="toggleMobileDrawer()"
+  [attr.aria-expanded]="drawerOpen"
+  [attr.aria-controls]="'sms-sidebar-panel'"
+  aria-label="Abrir o cerrar menú de navegación"
+>
+  <span class="sms-sidebar-hamburger-bars" aria-hidden="true">
+    <span></span><span></span><span></span>
+  </span>
+</button>
+
+<div
+  class="sms-sidebar-backdrop"
+  [class.sms-sidebar-backdrop--visible]="drawerOpen"
+  (click)="closeMobileDrawer()"
+  aria-hidden="true"
+></div>
+
+<aside
+  id="sms-sidebar-panel"
+  class="sms-sidebar-shell flex flex-column"
+  [class.sms-sidebar-shell--drawer-open]="drawerOpen"
+  [class.sms-sidebar-shell--collapsed]="sidenav.isCollapsed()"
   [attr.aria-label]="'Primary navigation'"
 >
-  <div class="flex flex-col h-full bg-slate-900 -m-5 overflow-hidden">
-    <div class="p-6 border-b border-slate-800/50 flex items-center gap-4">
-      <div
-        class="flex-shrink-0 bg-emerald-500 w-10 h-10 rounded-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center"
-      >
-        <i class="pi pi-bolt text-white text-xl" aria-hidden="true"></i>
-      </div>
-      <div class="flex flex-col">
-        <span class="text-white font-black text-xl leading-none tracking-tight">SMS</span>
-        <span class="text-emerald-500/80 text-[9px] uppercase tracking-[0.2em] font-black mt-1.5 leading-none">
-          Sustainability OS
-        </span>
-      </div>
-    </div>
-
-    <div class="flex-1 overflow-y-auto py-6 px-3 custom-scrollbar">
-      <div *ngFor="let group of menuGroups" class="mb-8">
-        <h3 class="text-slate-500 text-[10px] font-bold uppercase tracking-[0.2em] mb-4 px-3 opacity-80">
-          {{ group.label }}
-        </h3>
-
-        <nav class="flex flex-col gap-1.5" [attr.aria-label]="group.label">
-          <a
-            *ngFor="let item of group.items"
-            [routerLink]="item.route"
-            [title]="item.description || item.label"
-            routerLinkActive="active-link"
-            (click)="visible = false"
-            class="flex items-center gap-3 p-3 text-slate-400 hover:bg-slate-800/50 hover:text-emerald-400 rounded-xl transition-all group"
-          >
-            <i [class]="item.icon + ' text-base group-hover:scale-110 transition-transform'" aria-hidden="true"></i>
-            <span class="text-sm font-medium">{{ item.label }}</span>
-          </a>
-        </nav>
-      </div>
-    </div>
-
-    <div class="p-4 bg-slate-950 border-t border-slate-800">
-      <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-900/80 border border-slate-800 shadow-sm">
-        <div
-          class="w-9 h-9 rounded-lg bg-slate-800 border border-slate-700 flex items-center justify-center text-xs font-bold text-emerald-500 shadow-inner"
-          aria-hidden="true"
-        >
-          DH
-        </div>
-        <div class="flex flex-col min-w-0 text-left">
-          <p class="text-xs text-slate-200 font-bold truncate leading-tight">Diego Liascovich</p>
-          <p class="text-[9px] text-slate-500 uppercase font-bold tracking-wider mt-0.5">Cloud Architect</p>
-        </div>
-      </div>
-    </div>
+  <div class="sms-sidebar-mobile-bar md:hidden flex justify-content-end align-items-center">
+    <button
+      type="button"
+      class="sms-sidebar-mobile-close"
+      (click)="closeMobileDrawer()"
+      aria-label="Cerrar menú"
+    >
+      <i class="pi pi-times" aria-hidden="true"></i>
+    </button>
   </div>
-</p-sidebar>
+
+  <div class="pc-sidebar-brand">
+    <a
+      routerLink="/dashboard"
+      class="pc-brand-mark flex align-items-center gap-2 text-inherit"
+      (click)="closeMobileDrawer()"
+    >
+      <span class="pc-brand-icon flex align-items-center justify-content-center" aria-hidden="true">
+        <i class="pi pi-bolt text-white text-sm"></i>
+      </span>
+      @if (!sidenav.isCollapsed()) {
+        <span class="pc-brand-text flex flex-column">
+          <span class="pc-brand-title">EkoLedger</span>
+          <span class="pc-brand-sub">SMS</span>
+        </span>
+      }
+    </a>
+
+    @if (!sidenav.isCollapsed()) {
+      <p-dropdown
+        [options]="workspaceOptions"
+        optionLabel="label"
+        optionValue="value"
+        [ngModel]="selectedWorkspace()"
+        (ngModelChange)="selectedWorkspace.set($event)"
+        [showClear]="false"
+        styleClass="pc-workspace-dropdown w-full"
+        panelStyleClass="pc-workspace-dropdown-panel"
+        appendTo="body"
+        placeholder="Organization"
+      ></p-dropdown>
+    } @else {
+      <button
+        type="button"
+        class="pc-workspace-collapsed-trigger w-full flex justify-content-center align-items-center"
+        title="Organization"
+        aria-label="Organization"
+      >
+        <i class="pi pi-building" aria-hidden="true"></i>
+      </button>
+    }
+  </div>
+
+  <nav class="pc-sidebar-nav flex-1 min-h-0 overflow-y-auto overflow-x-hidden" aria-label="Application">
+    @for (section of navSections(); track section.id) {
+      <section class="pc-nav-section" [attr.aria-labelledby]="'pc-pillar-' + section.id">
+        <h2 class="pc-nav-pillar m-0" [id]="'pc-pillar-' + section.id">
+          @if (!sidenav.isCollapsed()) {
+            {{ section.label }}
+          } @else {
+            <span class="sr-only">{{ section.label }}</span>
+          }
+        </h2>
+        <ul class="pc-nav-list m-0 p-0 flex flex-column gap-1">
+          @for (item of section.items; track $index) {
+            <li>
+              <a
+                [routerLink]="item.routerLink"
+                class="pc-nav-link flex align-items-center gap-2 text-inherit"
+                [class.pc-nav-link--active]="isActivePath(item)"
+                [class.pc-nav-link--rail]="sidenav.isCollapsed()"
+                [title]="item.title ?? item.label ?? ''"
+                (click)="closeMobileDrawer()"
+              >
+                <span class="pc-nav-link__icon-wrap flex align-items-center justify-content-center flex-shrink-0">
+                  <i [class]="item.icon" class="pc-nav-link__icon" aria-hidden="true"></i>
+                  @if (item.badge && sidenav.isCollapsed()) {
+                    <span class="pc-nav-link__badge-dot" aria-hidden="true"></span>
+                  }
+                </span>
+                @if (!sidenav.isCollapsed()) {
+                  <span class="pc-nav-link__label flex-1 min-w-0 text-overflow-ellipsis white-space-nowrap">{{
+                    item.label
+                  }}</span>
+                  @if (item.badge) {
+                    <p-badge [value]="item.badge" [styleClass]="item.badgeStyleClass ?? 'pc-route-badge'" />
+                  }
+                }
+              </a>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+  </nav>
+
+  <div class="pc-sidebar-rail flex-shrink-0 px-2 pb-3 mt-auto hidden md:block">
+    <button
+      type="button"
+      class="pc-rail-toggle w-full flex align-items-center justify-content-center gap-2"
+      (click)="toggleCollapsedMode()"
+      [attr.aria-expanded]="!sidenav.isCollapsed()"
+      [attr.aria-label]="sidenav.isCollapsed() ? 'Expandir menú lateral' : 'Contraer menú lateral'"
+      [title]="sidenav.isCollapsed() ? 'Expandir' : 'Contraer'"
+    >
+      <i
+        class="pi"
+        [class.pi-angle-double-right]="sidenav.isCollapsed()"
+        [class.pi-angle-double-left]="!sidenav.isCollapsed()"
+        aria-hidden="true"
+      ></i>
+    </button>
+  </div>
+</aside>

@@ -1,4 +1,6 @@
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
+import { parseInvoiceDispatchQueueMessage } from "@sms/common";
+import { Logger } from "@sms/shared";
 import { ConfigError } from "../../domain/errors.js";
 
 export class SqsInvoiceQueue {
@@ -18,7 +20,7 @@ export class SqsInvoiceQueue {
       throw new ConfigError(`QUEUE_URL env var not set. requestId=${params.requestId}`);
     }
 
-    const messageBody = {
+    const draft = {
       bucket: params.bucket,
       key: params.key,
       orgId: params.orgId,
@@ -27,7 +29,14 @@ export class SqsInvoiceQueue {
       status: "PENDING_WORKER"
     };
 
-    console.log(`[DISPATCHER] [${params.requestId}] Enqueuing to SQS. sk=${params.sk}`);
+    const messageBody = parseInvoiceDispatchQueueMessage(draft);
+
+    Logger.info("Enqueue invoice to SQS", {
+      requestId: params.requestId,
+      sk: params.sk,
+      source: "dispatcher_lambda"
+    });
+
     await this.sqs.send(
       new SendMessageCommand({
         QueueUrl: this.queueUrl,

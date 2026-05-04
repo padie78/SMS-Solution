@@ -1,0 +1,15 @@
+<p-toast position="top-right" styleClass="rounded-xl shadow-xl"></p-toast>
+<div class="flex flex-col min-h-screen">
+  <app-shell-header />
+  <div class="flex flex-1 min-h-0 relative">
+    <app-shell-sidebar />
+    <main
+      class="sms-main-with-sidenav flex flex-1 flex-column min-h-0 overflow-auto bg-slate-50 p-6 md:p-8 md:min-w-0"
+      [class.sms-main-with-sidenav--rail]="sidenav.isCollapsed()"
+      role="main"
+    >
+      <router-outlet />
+    </main>
+  </div>
+  <app-footer />
+</div>

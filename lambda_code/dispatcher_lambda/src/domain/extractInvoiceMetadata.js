@@ -1,10 +1,12 @@
+import { safeParseDecodedInvoiceUploadKey } from "@sms/common";
 import { ValidationError } from "./errors.js";
+import { formatZodIssues } from "@sms/shared";
 
 /**
  * Decodes S3 Key and extracts the internal Invoice ID (SK).
  * Expected format: uploads/userId/INV#UUID__filename.pdf
  * @param {string} rawKey
- * @returns {{ sk: string, key: string }}
+ * @returns {import('@sms/common').DecodedInvoiceUploadKey}
  */
 export function extractInvoiceMetadata(rawKey) {
   const key = decodeURIComponent(String(rawKey).replace(/\+/g, " "));
@@ -15,10 +17,11 @@ export function extractInvoiceMetadata(rawKey) {
   }
 
   const sk = fileName.split("__")[0];
-  if (!sk.startsWith("INV#")) {
-    throw new ValidationError(`Format Error: Extracted ID "${sk}" does not start with "INV#"`);
+  const validated = safeParseDecodedInvoiceUploadKey({ sk, key });
+  if (!validated.success) {
+    throw new ValidationError(`${formatZodIssues(validated.error)} key=${key}`);
   }
 
-  return { sk, key };
+  return validated.data;
 }
 

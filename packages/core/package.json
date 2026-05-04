@@ -1,0 +1,14 @@
+{
+  "name": "@sms/core",
+  "version": "0.1.0",
+  "description": "Servicios de dominio puros (sin AWS ni persistencia)",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "sideEffects": false,
+  "dependencies": {},
+  "peerDependencies": {},
+  "keywords": ["sms", "domain-services"]
+}

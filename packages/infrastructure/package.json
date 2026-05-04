@@ -1,0 +1,18 @@
+{
+  "name": "@sms/infrastructure",
+  "version": "0.1.0",
+  "description": "AWS SDK v3, DynamoDB DocumentClient y repositorios (sin reglas de negocio)",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "sideEffects": false,
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.658.0",
+    "@aws-sdk/lib-dynamodb": "^3.658.0",
+    "@sms/common": "*"
+  },
+  "peerDependencies": {},
+  "keywords": ["sms", "aws", "dynamodb", "repository"]
+}

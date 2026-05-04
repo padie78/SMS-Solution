@@ -1,0 +1,14 @@
+{
+  "name": "@sms/shared",
+  "version": "0.1.0",
+  "description": "Cross-cutting: logging estructurado y utilidades de fecha",
+  "type": "module",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js"
+  },
+  "sideEffects": false,
+  "dependencies": {},
+  "peerDependencies": {},
+  "keywords": ["sms", "logging", "utils"]
+}

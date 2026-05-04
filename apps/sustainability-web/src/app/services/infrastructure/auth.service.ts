@@ -64,4 +64,37 @@ export class AuthService {
   async signOut(): Promise<void> {
     await signOut();
   }
+
+  /** Perfil reducido para shell sidebar (claims JWT Cognito). */
+  async getUserDisplayProfile(): Promise<{
+    displayName: string;
+    email: string;
+    roleLabel: string;
+  }> {
+    try {
+      const session = await fetchAuthSession();
+      const payload = session.tokens?.idToken?.payload as Record<string, unknown> | undefined;
+      const email = typeof payload?.['email'] === 'string' ? payload['email'] : '';
+      const given =
+        typeof payload?.['given_name'] === 'string'
+          ? payload['given_name']
+          : typeof payload?.['name'] === 'string'
+            ? payload['name']
+            : '';
+      const displayName =
+        given.trim() ||
+        (email.includes('@') ? email.split('@')[0] : '') ||
+        'Operator';
+      const roleRaw =
+        typeof payload?.['custom:role'] === 'string'
+          ? payload['custom:role']
+          : typeof payload?.['cognito:groups'] === 'object'
+            ? String(payload?.['cognito:groups'])
+            : '';
+      const roleLabel = roleRaw.trim() || 'Workspace';
+      return { displayName, email, roleLabel };
+    } catch {
+      return { displayName: 'Guest', email: '', roleLabel: '—' };
+    }
+  }
 }

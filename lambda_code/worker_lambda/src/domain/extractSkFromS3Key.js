@@ -1,19 +1,24 @@
+import { InvoiceSkSchema } from "@sms/common";
+import { formatZodIssues } from "@sms/shared";
 import { ValidationError } from "./errors.js";
 
 /**
- * Extracts invoice SK from the object key.
- * Expected filename: INV#...__something.pdf
+ * Extrae invoice SK desde la clave S3 (`…/INV#…__file`).
+ * Decodifica como el dispatcher (`INV%23…` → `INV#…`).
  * @param {string} key
- * @returns {string}
+ * @returns {import('@sms/common').InvoiceSk}
  */
 export function extractSkFromS3Key(key) {
-  const fileName = String(key).split("/").pop() || "";
-  const sk = fileName.split("__")[0];
+  const decoded = decodeURIComponent(String(key).replace(/\+/g, " "));
+  const fileName = decoded.split("/").pop() || "";
+  const candidate = fileName.split("__")[0];
 
-  if (!sk || !sk.startsWith("INV#")) {
-    throw new ValidationError(`Invalid or missing SK extracted from key. key=${String(key)}`);
+  const parsed = InvoiceSkSchema.safeParse(candidate);
+  if (!parsed.success) {
+    throw new ValidationError(
+      `Invalid invoice SK in key: ${formatZodIssues(parsed.error)} key=${decoded}`
+    );
   }
 
-  return sk;
+  return parsed.data;
 }
-

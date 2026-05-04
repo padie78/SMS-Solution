@@ -1,0 +1,51 @@
+import { z } from 'zod';
+
+/** Literales presentes en `setting-organization.sh` (mutaciones AppSync). */
+
+export const IndustrySectorSchema = z.enum(['MANUFACTURING']);
+export const CurrencyCodeSchema = z.enum(['ILS']);
+export const ReportingCurrencyCodeSchema = z.enum(['USD']);
+export const SubscriptionPlanSchema = z.enum(['ENTERPRISE']);
+export const FacilityTypeSchema = z.enum(['MANUFACTURING']);
+export const IanaTimezoneSchema = z.enum(['Asia/Jerusalem']);
+export const BuildingUsageTypeSchema = z.enum(['STORAGE_INDUSTRIAL']);
+export const OperationalStatusSchema = z.enum(['OPERATIONAL']);
+export const HvacTypeSchema = z.enum(['CENTRAL_CHILLER']);
+export const CostAllocationMethodSchema = z.enum(['SQUARE_METERS']);
+export const AlertTypeSchema = z.enum(['EFFICIENCY']);
+export const AlertStatusSchema = z.enum(['ENABLED']);
+export const AlertPrioritySchema = z.enum(['P1_CRITICAL']);
+export const AlertOperatorSchema = z.enum(['GREATER_THAN']);
+export const UserLanguageSchema = z.enum(['es']);
+export const EnergyServiceTypeSchema = z.enum(['ELECTRICITY']);
+export const TariffPricingModelSchema = z.enum(['TIME_OF_USE']);
+export const ProductionUnitTypeSchema = z.enum(['TONS']);
+export const ProductionShiftModeSchema = z.enum(['24/7']);
+export const EmissionActivityTypeSchema = z.enum(['ELEC']);
+export const EmissionScopeSchema = z.enum(['SCOPE_2']);
+export const EmissionFactorUnitSchema = z.enum(['kg/kWh']);
+export const MeterProtocolSchema = z.enum(['MQTT']);
+
+export type IndustrySector = z.infer<typeof IndustrySectorSchema>;
+export type CurrencyCode = z.infer<typeof CurrencyCodeSchema>;
+export type ReportingCurrencyCode = z.infer<typeof ReportingCurrencyCodeSchema>;
+export type SubscriptionPlan = z.infer<typeof SubscriptionPlanSchema>;
+export type FacilityType = z.infer<typeof FacilityTypeSchema>;
+export type IanaTimezone = z.infer<typeof IanaTimezoneSchema>;
+export type BuildingUsageType = z.infer<typeof BuildingUsageTypeSchema>;
+export type OperationalStatus = z.infer<typeof OperationalStatusSchema>;
+export type HvacType = z.infer<typeof HvacTypeSchema>;
+export type CostAllocationMethod = z.infer<typeof CostAllocationMethodSchema>;
+export type AlertType = z.infer<typeof AlertTypeSchema>;
+export type AlertStatus = z.infer<typeof AlertStatusSchema>;
+export type AlertPriority = z.infer<typeof AlertPrioritySchema>;
+export type AlertOperator = z.infer<typeof AlertOperatorSchema>;
+export type UserLanguage = z.infer<typeof UserLanguageSchema>;
+export type EnergyServiceType = z.infer<typeof EnergyServiceTypeSchema>;
+export type TariffPricingModel = z.infer<typeof TariffPricingModelSchema>;
+export type ProductionUnitType = z.infer<typeof ProductionUnitTypeSchema>;
+export type ProductionShiftMode = z.infer<typeof ProductionShiftModeSchema>;
+export type EmissionActivityType = z.infer<typeof EmissionActivityTypeSchema>;
+export type EmissionScope = z.infer<typeof EmissionScopeSchema>;
+export type EmissionFactorUnit = z.infer<typeof EmissionFactorUnitSchema>;
+export type MeterProtocol = z.infer<typeof MeterProtocolSchema>;

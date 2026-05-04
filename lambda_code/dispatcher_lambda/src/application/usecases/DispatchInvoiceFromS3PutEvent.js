@@ -1,5 +1,10 @@
-import { ConfigError } from "../../domain/errors.js";
+import {
+  parseDispatcherEnqueueResult,
+  safeParseS3DispatcherInvoke
+} from "@sms/common";
+import { ValidationError } from "../../domain/errors.js";
 import { extractInvoiceMetadata } from "../../domain/extractInvoiceMetadata.js";
+import { formatZodIssues } from "@sms/shared";
 
 export class DispatchInvoiceFromS3PutEvent {
   /**
@@ -15,21 +20,17 @@ export class DispatchInvoiceFromS3PutEvent {
   }
 
   /**
-   * @param {{
-   *  requestId: string,
-   *  bucket: string,
-   *  rawKey: string
-   * }} params
+   * Entrada típica del handler S3; el caso de uso valida contra {@link import('@sms/common').S3DispatcherInvoke}.
+   * @param {{ requestId: string, bucket?: string, rawKey?: string }} params
+   * @returns {Promise<import('@sms/common').DispatcherEnqueueResult>}
    */
   async execute(params) {
-    const { requestId, bucket, rawKey } = params;
+    const parsedInvoke = safeParseS3DispatcherInvoke(params);
+    if (!parsedInvoke.success) {
+      throw new ValidationError(`${formatZodIssues(parsedInvoke.error)}`);
+    }
 
-    if (!bucket) {
-      throw new ConfigError(`Missing bucket in event. requestId=${requestId}`);
-    }
-    if (!rawKey) {
-      throw new ConfigError(`Missing key in event. requestId=${requestId}`);
-    }
+    const { requestId, bucket, rawKey } = parsedInvoke.data;
 
     const { sk, key } = extractInvoiceMetadata(rawKey);
     const orgId = await this.deps.orgResolver.resolveOrgId({ bucket, key, requestId });
@@ -37,7 +38,12 @@ export class DispatchInvoiceFromS3PutEvent {
     await this.deps.invoiceRepository.putInvoiceSkeleton({ orgId, sk, bucket, key, requestId });
     await this.deps.invoiceQueue.enqueueInvoice({ bucket, key, orgId, sk, requestId });
 
-    return { status: "ENQUEUED", invoiceId: sk, orgId, key };
+    return parseDispatcherEnqueueResult({
+      status: "ENQUEUED",
+      invoiceId: sk,
+      orgId,
+      key
+    });
   }
 }
 

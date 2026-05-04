@@ -1,8 +1,14 @@
 /**
- * Port: persistence for invoice skeleton.
+ * Port: persistence for invoice skeleton (`buildInvoiceProcessingSkeleton` en @sms/common).
  *
  * @typedef {Object} InvoiceRepository
- * @property {(params: { orgId: string, sk: string, bucket: string, key: string, requestId: string }) => Promise<void>} putInvoiceSkeleton
+ * @property {(params: {
+ *   requestId: string,
+ *   orgId: import('@sms/common').SmsId,
+ *   sk: import('@sms/common').InvoiceSk,
+ *   bucket: string,
+ *   key: string
+ * }) => Promise<void>} putInvoiceSkeleton
  */
 
 export {};
