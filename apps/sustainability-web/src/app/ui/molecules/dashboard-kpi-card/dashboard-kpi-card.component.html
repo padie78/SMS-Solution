@@ -1,0 +1,37 @@
+<div
+  class="rounded-2xl border border-slate-200 bg-white p-5 flex flex-col gap-3 min-h-[8.5rem] shadow-sm hover:border-emerald-200/80 transition-colors"
+>
+  <ui-dashboard-metric-label [text]="label" [hint]="labelHint"></ui-dashboard-metric-label>
+  <div class="flex flex-row items-end justify-between gap-3 flex-wrap">
+    <div class="min-w-0">
+      <div class="text-2xl font-black tracking-tight text-slate-900 font-mono leading-none truncate">
+        {{ primaryValue }}
+      </div>
+      @if (secondaryLine) {
+        <div class="text-xs text-slate-500 mt-1.5 font-medium leading-snug">{{ secondaryLine }}</div>
+      }
+      @if (trendLabel !== null && trendLabel !== undefined) {
+        <div
+          class="text-[11px] font-bold mt-2 inline-flex items-center gap-1"
+          [class.text-emerald-700]="trendPositive === true"
+          [class.text-amber-700]="trendPositive === false"
+          [class.text-slate-500]="trendPositive === null"
+        >
+          <i
+            class="pi text-[10px]"
+            [class.pi-arrow-up-right]="trendPositive === true"
+            [class.pi-arrow-down-right]="trendPositive === false"
+            [class.pi-minus]="trendPositive === null"
+            aria-hidden="true"
+          ></i>
+          {{ trendLabel }}
+        </div>
+      }
+    </div>
+    <div class="shrink-0 w-28 h-8 text-emerald-600" aria-hidden="true">
+      <svg class="w-full h-full" viewBox="0 0 100 28" preserveAspectRatio="none">
+        <path [attr.d]="sparkPath()" fill="none" stroke="currentColor" stroke-width="1.5" vector-effect="non-scaling-stroke" />
+      </svg>
+    </div>
+  </div>
+</div>

@@ -1,12 +1,18 @@
-import { ChangeDetectorRef, Component, inject } from '@angular/core';
+import { ChangeDetectorRef, Component, inject, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
-import { StepperModule } from 'primeng/stepper'; 
+import { StepperModule } from 'primeng/stepper';
 import { ButtonModule } from 'primeng/button';
+import { ProgressBarModule } from 'primeng/progressbar';
 
 import { InvoiceUploadComponent } from './steps/upload.component';
-import { InvoiceValidationComponent } from './steps/validation.component';
 import { InvoiceStateService } from '../../../services/state/invoice-state.service';
 import { WorkflowStateService } from '../../../services/state/workflow-state.service';
+import { InvoiceOnboardingUiService } from '../../../features/invoice-onboarding/services/invoice-onboarding-ui.service';
+import { InvoiceOnboardingGateComponent } from '../../../ui/organisms/invoice-onboarding-gate/invoice-onboarding-gate.component';
+import { InvoiceOnboardingStepFormComponent } from '../../../ui/organisms/invoice-onboarding-step-form/invoice-onboarding-step-form.component';
+import { InvoiceOnboardingMeterAllocationComponent } from '../../../ui/organisms/invoice-onboarding-meter-allocation/invoice-onboarding-meter-allocation.component';
+import { InvoiceOnboardingGuardrailReviewComponent } from '../../../ui/organisms/invoice-onboarding-guardrail-review/invoice-onboarding-guardrail-review.component';
+import { InvoiceOnboardingSuccessPanelComponent } from '../../../ui/organisms/invoice-onboarding-success-panel/invoice-onboarding-success-panel.component';
 
 @Component({
   selector: 'app-invoice-create',
@@ -15,61 +21,74 @@ import { WorkflowStateService } from '../../../services/state/workflow-state.ser
     CommonModule,
     StepperModule,
     ButtonModule,
+    ProgressBarModule,
     InvoiceUploadComponent,
-    InvoiceValidationComponent
+    InvoiceOnboardingGateComponent,
+    InvoiceOnboardingStepFormComponent,
+    InvoiceOnboardingMeterAllocationComponent,
+    InvoiceOnboardingGuardrailReviewComponent,
+    InvoiceOnboardingSuccessPanelComponent
   ],
-  templateUrl: './invoice-create.component.html',
-  styleUrls: ['./invoice-create.component.css']
+  templateUrl: './invoice-create.component.html'
 })
-export class InvoiceCreateComponent {
+export class InvoiceCreateComponent implements OnInit {
   private readonly stateService = inject(InvoiceStateService);
   private readonly workflow = inject(WorkflowStateService);
   private readonly cdr = inject(ChangeDetectorRef);
+  readonly onboarding = inject(InvoiceOnboardingUiService);
 
-  /** Índice activo: 0 Carga, 1 Ubicación del gasto, 2 Datos de factura, 3 Sincronizar. */
+  /** 0 Documento, 1 Datos, 2 Medidores, 3 Guardrail */
   activeStepIndex = 0;
+
+  /**
+   * Onboarding UI es singleton: sin reset al entrar, `gatePassed` seguiría true tras una visita
+   * anterior y no se mostraría OCR vs manual.
+   */
+  ngOnInit(): void {
+    this.stateService.clear();
+    this.workflow.reset();
+    this.onboarding.resetFlow();
+    this.activeStepIndex = 0;
+  }
 
   private readonly maxStepIndex = 3;
 
-  isLoadingIA: boolean = false;
-
-  /**
-   * Tras subir la factura: intenta el callback del Stepper de PrimeNG y, si el índice no sube
-   * (p. ej. handler interno sin efecto), fuerza el paso siguiente para no quedar bloqueados en Carga.
-   */
-  handleStep1Complete(nextCallback: unknown): void {
-    const before = this.activeStepIndex;
-    this.executePrimeNGCallback(nextCallback);
-    if (this.activeStepIndex <= before) {
-      this.activeStepIndex = Math.min(before + 1, this.maxStepIndex);
-      this.cdr.detectChanges();
-    }
+  async onUploadDone(nextCallback: unknown): Promise<void> {
+    await this.onboarding.runPostUploadPipeline();
+    this.advance(nextCallback);
   }
 
-  /** Tras confirmar factura en el panel «Datos de factura», avanza al paso final. */
-  nextStep(): void {
-    this.activeStepIndex = Math.min(this.activeStepIndex + 1, this.maxStepIndex);
+  onFormDone(nextCallback: unknown): void {
+    this.advance(nextCallback);
   }
 
-  /** Ubicación del gasto → datos de factura (callback PrimeNG + fallback). */
-  advanceFromAllocation(nextCallback: unknown): void {
-    const before = this.activeStepIndex;
-    this.executePrimeNGCallback(nextCallback);
-    if (this.activeStepIndex <= before) {
-      this.activeStepIndex = Math.min(before + 1, this.maxStepIndex);
-      this.cdr.detectChanges();
-    }
+  onMetersDone(nextCallback: unknown): void {
+    this.advance(nextCallback);
   }
 
-  /**
-   * Navegación hacia atrás (Soporta llamada con o sin argumentos)
-   */
-  prevStep(prevCallback?: any) {
+  onGuardrailSubmit(): void {
+    this.onboarding.finalizeSuccessView();
+    this.cdr.markForCheck();
+  }
+
+  prevStep(prevCallback?: unknown): void {
     if (prevCallback) {
       this.executePrimeNGCallback(prevCallback);
     } else if (this.activeStepIndex > 0) {
       this.activeStepIndex--;
     }
+  }
+
+  private advance(nextCallback: unknown): void {
+    const before = this.activeStepIndex;
+    this.executePrimeNGCallback(nextCallback);
+    if (this.activeStepIndex <= before) {
+      this.activeStepIndex = Math.min(before + 1, this.maxStepIndex);
+    }
+    if (this.activeStepIndex === 2) {
+      this.onboarding.initMeterRowsFromConsumption();
+    }
+    this.cdr.detectChanges();
   }
 
   private executePrimeNGCallback(callback: unknown): void {
@@ -93,9 +112,10 @@ export class InvoiceCreateComponent {
     );
   }
 
-  resetProcess() {
+  resetProcess(): void {
     this.stateService.clear();
     this.workflow.reset();
+    this.onboarding.resetFlow();
     this.activeStepIndex = 0;
   }
 }

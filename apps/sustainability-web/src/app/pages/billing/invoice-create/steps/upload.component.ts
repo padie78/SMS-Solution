@@ -18,7 +18,14 @@ import { WorkflowStateService } from '../../../../services/state/workflow-state.
   standalone: true,
   imports: [CommonModule, FileUploadModule, ButtonModule, ToastModule],
   templateUrl: './upload.component.html',
-  styleUrls: ['./upload.component.css']
+  styles: [
+    `
+      :host {
+        display: block;
+        min-width: 0;
+      }
+    `
+  ]
 })
 export class InvoiceUploadComponent implements OnInit {
   private readonly stateService = inject(InvoiceStateService);

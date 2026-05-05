@@ -1,0 +1,120 @@
+:host {
+  display: block;
+  height: 100%;
+  min-height: 0;
+}
+
+/* Tokens alineados a `shell-sidebar` — rail oscuro dentro del contenido claro. */
+.iot-rail {
+  --iot-rail-bg: #111111;
+  --iot-rail-border: #1f2937;
+  --iot-rail-muted: #9ca3af;
+  --iot-rail-text: #e5e7eb;
+  --iot-rail-accent: #10b981;
+  --iot-rail-accent-soft: rgb(16 185 129 / 0.14);
+
+  background: var(--iot-rail-bg);
+  color: var(--iot-rail-text);
+  border: 1px solid var(--iot-rail-border);
+  border-radius: 1rem;
+  box-shadow:
+    0 1px 2px rgb(15 23 42 / 0.06),
+    0 8px 24px rgb(15 23 42 / 0.08);
+}
+
+.iot-rail__head {
+  padding: 1rem 0.75rem 0.75rem;
+  border-bottom: 1px solid var(--iot-rail-border);
+}
+
+.iot-rail__pillar {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgb(156 163 175 / 0.95);
+}
+
+.iot-rail__title {
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: #f9fafb;
+}
+
+.iot-rail__sub {
+  font-size: 0.6875rem;
+  line-height: 1.35;
+  color: var(--iot-rail-muted);
+}
+
+.iot-rail__nav {
+  padding: 0.75rem;
+  scrollbar-width: thin;
+  scrollbar-color: rgb(55 65 81 / 0.9) transparent;
+}
+
+.iot-rail__list {
+  list-style: none;
+}
+
+.iot-rail__link {
+  position: relative;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: rgb(209 213 219 / 0.95);
+  background: transparent;
+  border-radius: 0.5rem;
+  border-left: 3px solid transparent;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+
+  &:hover {
+    background: rgb(255 255 255 / 0.04);
+    color: #f9fafb;
+  }
+
+  &--active {
+    background: var(--iot-rail-accent-soft);
+    color: #6ee7b7;
+    border-left-color: var(--iot-rail-accent);
+
+    .iot-rail__icon {
+      color: #34d399;
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--iot-rail-accent);
+    outline-offset: 2px;
+  }
+}
+
+.iot-rail__icon-wrap {
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+.iot-rail__icon {
+  font-size: 1rem;
+  color: var(--iot-rail-muted);
+  transition: color 0.15s ease;
+}
+
+.iot-rail__link--active .iot-rail__icon {
+  color: #34d399;
+}
+
+.iot-rail__label {
+  font-weight: 600;
+}
+
+.iot-rail__sk {
+  margin-top: 0.125rem;
+  font-size: 0.625rem;
+  color: var(--iot-rail-muted);
+  opacity: 0.95;
+}

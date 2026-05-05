@@ -1,0 +1,26 @@
+:host {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ui-status-orb--live {
+  background-color: var(--green-500, #22c55e);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--green-500, #22c55e) 35%, transparent),
+    0 0 10px color-mix(in srgb, var(--green-500, #22c55e) 25%, transparent);
+  animation: ui-status-orb-pulse 1.6s ease-in-out infinite;
+}
+
+.ui-status-orb--ack {
+  background-color: var(--blue-600, #2563eb);
+}
+
+@keyframes ui-status-orb-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}

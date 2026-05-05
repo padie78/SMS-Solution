@@ -52,20 +52,21 @@ export const routes: Routes = [
     canActivate: [authGuard],
     children: [
       { path: '', pathMatch: 'full', redirectTo: 'incidents' },
-      navPlaceholder(
-        'incidents',
-        'Incident & Alerts',
-        'High-priority monitoring, anomaly triage, and operational response.',
-        'Live ops'
-      ),
+      {
+        path: 'incidents',
+        loadComponent: () =>
+          import('./pages/ops/incident-center/incident-center-page.component').then(
+            (m) => m.IncidentCenterPageComponent
+          ),
+        title: 'SMS - Incident Center'
+      },
       {
         path: 'telemetry',
         loadComponent: () =>
-          import('./pages/setup/setup-mutation-shell.component').then(
-            (m) => m.SetupMutationShellComponent
+          import('./pages/ops/iot-telemetry/iot-telemetry-explorer-page.component').then(
+            (m) => m.IotTelemetryExplorerPageComponent
           ),
-        data: { setupPage: 'meter' },
-        title: 'SMS - IoT Telemetry Hub'
+        title: 'SMS - IoT Telemetry Explorer'
       },
       navPlaceholder(
         'data-health',
@@ -185,8 +186,8 @@ export const routes: Routes = [
       {
         path: 'locations',
         loadComponent: () =>
-          import('./pages/setup/setup-hierarchy-admin.component').then(
-            (m) => m.SetupHierarchyAdminComponent
+          import('./modules/location/pages/location-manager/location-manager.page').then(
+            (m) => m.LocationManagerPage
           ),
         title: 'SMS - Location Manager'
       },

@@ -1,60 +1,82 @@
-<form (submit)="onFormSubmit($event)" class="animate-fade-in">
-  <div class="upload-form-container grid grid-cols-1 md:grid-cols-2 gap-8 p-6 bg-white rounded-2xl border border-slate-200 shadow-sm">
-    
-    <div class="flex flex-col gap-5">
-      <div class="flex items-center gap-3 border-b border-slate-100 pb-3">
-        <div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-          <i class="pi pi-upload text-sm"></i>
+<form (submit)="onFormSubmit($event)" class="block w-full min-w-0">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 w-full min-w-0">
+    <div class="flex flex-col gap-3 min-w-0">
+      <div
+        class="flex w-full min-w-0 flex-row items-start gap-3 border-b border-slate-200 pb-3"
+        role="group"
+        aria-label="Ingesta"
+      >
+        <div
+          class="flex-none w-8 h-8 rounded-lg bg-white text-emerald-600 flex flex-row items-center justify-center border border-slate-200"
+        >
+          <i class="pi pi-upload text-sm" aria-hidden="true"></i>
         </div>
-        <div>
-          <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Ingesta</h3>
-          <p class="text-[11px] text-slate-500 mt-0.5 leading-snug">
-            Solo documento en este paso. Región, sucursal, activo y centro de costo se resuelven en el paso de validación (automático o por excepción).
+        <div class="min-w-0 flex-1">
+          <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600 m-0">Ingesta</h3>
+          <p class="text-xs text-slate-500 mt-2 m-0 leading-relaxed">
+            Solo documento en este paso. Región, sucursal, activo y centro de costo se resuelven en el paso de validación
+            (automático o por excepción).
           </p>
         </div>
       </div>
-      <p class="text-xs text-slate-400 italic">
+      <p class="text-xs text-slate-400 italic m-0 leading-relaxed">
         Validación por excepción: la IA propone ubicación cuando reconoce CUPS, nº de serie, contrato o titular/dirección.
       </p>
     </div>
 
-    <div class="flex flex-col gap-4">
-      <div class="flex items-center gap-3 border-b border-slate-100 pb-3">
-        <div class="w-8 h-8 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center">
-          <i class="pi pi-file-pdf text-sm"></i>
+    <div class="flex flex-col gap-3 min-w-0">
+      <div
+        class="flex w-full min-w-0 flex-row items-center gap-3 border-b border-slate-200 pb-3"
+        role="group"
+        aria-label="Documento PDF"
+      >
+        <div
+          class="flex-none w-8 h-8 rounded-lg bg-white text-slate-600 flex flex-row items-center justify-center border border-slate-200"
+        >
+          <i class="pi pi-file-pdf text-sm" aria-hidden="true"></i>
         </div>
-        <h3 class="text-sm font-black text-slate-800 uppercase tracking-wider">Documento PDF</h3>
+        <h3 class="min-w-0 flex-1 text-xs font-bold uppercase tracking-wider text-slate-600 m-0">
+          Documento PDF
+        </h3>
       </div>
-      
-      <div class="drop-zone flex-1 flex flex-col items-center justify-center p-8 transition-all cursor-pointer">
-        <div class="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
-          <i class="pi pi-cloud-upload text-2xl text-slate-400"></i>
+
+      <div
+        class="drop-zone flex-1 flex flex-col items-center justify-center p-6 md:p-8 transition-all cursor-pointer rounded-xl border border-dashed border-slate-200 bg-white/80"
+      >
+        <div
+          class="w-14 h-14 md:w-16 md:h-16 bg-slate-50 rounded-full flex items-center justify-center border border-slate-100 mb-4"
+        >
+          <i class="pi pi-cloud-upload text-xl md:text-2xl text-slate-400" aria-hidden="true"></i>
         </div>
-        
-        <p-fileUpload 
-          mode="basic" 
+
+        <p-fileUpload
+          mode="basic"
           name="invoiceFile"
-          (onSelect)="onFileSelect($event)" 
-          chooseLabel="Subir factura" 
-          styleClass="p-button-rounded p-button-secondary p-button-text text-sm">
-        </p-fileUpload>
-        
-        <div *ngIf="selectedFile" class="mt-6 flex items-center gap-3 text-xs font-bold text-emerald-700 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-200">
-          <i class="pi pi-check-circle"></i>
-          <span class="truncate max-w-[220px]">{{ selectedFile.name }}</span>
-        </div>
+          (onSelect)="onFileSelect($event)"
+          chooseLabel="Subir factura"
+          styleClass="p-button-rounded p-button-secondary p-button-text text-sm"
+        />
+
+        @if (selectedFile) {
+          <div
+            class="mt-4 flex items-center gap-3 text-xs font-bold text-emerald-700 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-200 max-w-full"
+          >
+            <i class="pi pi-check-circle shrink-0" aria-hidden="true"></i>
+            <span class="min-w-0 truncate">{{ selectedFile.name }}</span>
+          </div>
+        }
       </div>
     </div>
 
-    <div class="col-span-1 md:col-span-2 pt-4 mt-2 border-t border-slate-100 flex justify-end">
-      <p-button 
+    <div class="col-span-1 md:col-span-2 flex justify-end border-t border-slate-200 pt-4 mt-1">
+      <p-button
         type="submit"
-        label="Analyze with IA" 
-        icon="pi pi-sparkles" 
+        label="Analyze with IA"
+        icon="pi pi-sparkles"
         [disabled]="!selectedFile || isLoading"
         [loading]="isLoading"
-        styleClass="p-button-emerald h-12 px-10 rounded-xl font-bold shadow-lg shadow-emerald-500/10">
-      </p-button>
+        styleClass="p-button-emerald rounded-xl text-xs font-bold px-6 h-11 shadow-sm"
+      />
     </div>
   </div>
 </form>

@@ -1,0 +1,16 @@
+:host {
+  display: block;
+}
+
+.incident-chart-wrap {
+  height: 220px;
+}
+
+::ng-deep .incident-detail-sidebar .p-sidebar-content {
+  padding-top: 0;
+}
+
+::ng-deep .incident-detail-sidebar .p-sidebar-header {
+  border-bottom: 1px solid #f1f5f9;
+  padding-bottom: 1rem;
+}

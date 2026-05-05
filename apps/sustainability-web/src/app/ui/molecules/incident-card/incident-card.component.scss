@@ -1,0 +1,16 @@
+.incident-card--sev-danger {
+  border-left-color: #ef4444;
+}
+
+.incident-card--sev-warning {
+  border-left-color: #f59e0b;
+}
+
+.incident-card--sev-info {
+  border-left-color: #2563eb;
+}
+
+:host div[role='button']:focus-visible {
+  outline: 2px solid rgb(16 185 129 / 0.6);
+  outline-offset: 2px;
+}

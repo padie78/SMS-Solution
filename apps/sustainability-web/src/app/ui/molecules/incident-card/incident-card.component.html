@@ -1,0 +1,63 @@
+<div
+  role="button"
+  tabindex="0"
+  [ngClass]="[cardShellClass, severityClass(incident.severity)]"
+  (click)="onActivate()"
+  (keydown)="onKeydown($event)"
+>
+  <div class="flex flex-col md:flex-row gap-4">
+    <div class="flex flex-row items-start gap-2 md:flex-col md:items-center">
+      <ui-status-orb [state]="incident.orbState" [ariaLabel]="'Señal ' + incident.orbState" />
+      <ui-severity-tag [severity]="incident.severity" [label]="severityLabel(incident)" />
+    </div>
+
+    <div class="flex-1 min-w-0 flex flex-col gap-2">
+      <div class="text-[11px] text-slate-500 uppercase font-black tracking-wider leading-snug">
+        {{ incident.locationPath }}
+      </div>
+      <div class="flex flex-col lg:flex-row flex-wrap gap-4 items-stretch">
+        <div class="flex-1 min-w-0">
+          <h2 class="text-sm md:text-base font-black text-slate-800 m-0 mb-1 leading-snug">
+            {{ incident.title }}
+          </h2>
+          <p class="text-xs text-slate-500 m-0 leading-relaxed max-w-xl">{{ incident.description }}</p>
+          <div class="flex flex-row flex-wrap items-center gap-2 mt-3">
+            <span
+              class="text-xs font-bold font-mono text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5"
+            >
+              {{ incident.id }} · {{ incident.assetLabel }}
+            </span>
+            <ui-trend-badge
+              [percent]="incident.trendPercent"
+              [direction]="incident.trendDirection"
+              [semantic]="incident.trendSemantic"
+            />
+          </div>
+        </div>
+
+        <div
+          class="flex flex-col gap-3 pl-3 border-l border-slate-100 lg:min-w-[12rem] shrink-0"
+          aria-label="Coste de inacción"
+        >
+          <span class="text-xs text-slate-500 uppercase font-black tracking-wider">Coste de inacción</span>
+          <div class="flex flex-col gap-2">
+            <div>
+              <div class="text-[11px] text-slate-500 uppercase font-black tracking-wider mb-1">
+                Económico (est.)
+              </div>
+              <div class="text-2xl font-black text-slate-900 font-mono leading-none tracking-tight">
+                {{ incident.inactiveCostUsd | currency: 'USD' : 'symbol' : '1.0-0' }}
+              </div>
+            </div>
+            <ui-metric-atom
+              caption="Carbono"
+              [numericValue]="incident.inactiveCarbonKgCo2e"
+              digitInfo="1.0-0"
+              unit="kg CO₂e"
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

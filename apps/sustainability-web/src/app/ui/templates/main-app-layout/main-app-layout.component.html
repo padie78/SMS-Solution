@@ -1,15 +1,16 @@
 <p-toast position="top-right" styleClass="rounded-xl shadow-xl"></p-toast>
-<div class="flex flex-col min-h-screen">
-  <app-shell-header />
-  <div class="flex flex-1 min-h-0 relative">
+<!-- h-dvh + overflow-hidden: el scroll vive solo en <main>; el header del shell no se desplaza ni depende de sticky frágil. -->
+<div class="flex flex-col h-dvh min-h-0 overflow-hidden">
+  <app-shell-header class="shrink-0 relative z-40" />
+  <div class="flex flex-1 min-h-0 min-w-0 overflow-hidden relative">
     <app-shell-sidebar />
     <main
-      class="sms-main-with-sidenav flex flex-1 flex-column min-h-0 overflow-auto bg-slate-50 p-6 md:p-8 md:min-w-0"
+      class="sms-main-with-sidenav flex flex-1 flex-col min-h-0 min-w-0 overflow-y-auto overflow-x-hidden bg-slate-50 p-6 md:p-8"
       [class.sms-main-with-sidenav--rail]="sidenav.isCollapsed()"
       role="main"
     >
       <router-outlet />
     </main>
   </div>
-  <app-footer />
+  <app-footer class="shrink-0" />
 </div>

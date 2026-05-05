@@ -1,0 +1,29 @@
+<aside class="iot-rail flex flex-column h-full min-h-0" aria-label="Selección de medidor">
+  <div class="iot-rail__head flex-shrink-0">
+    <p class="iot-rail__pillar m-0">METER · ASSETS</p>
+    <p class="iot-rail__title m-0 mt-1">Explorador</p>
+    <p class="iot-rail__sub m-0 mt-1">Misma navegación visual que el shell (Pinecone).</p>
+  </div>
+  <nav class="iot-rail__nav flex-1 min-h-0 overflow-y-auto" aria-label="Medidores">
+    <ul class="iot-rail__list m-0 p-0 flex flex-column gap-1">
+      @for (a of svc.state().assets; track a.id) {
+        <li>
+          <button
+            type="button"
+            class="iot-rail__link w-full flex align-items-start gap-2 text-left border-none cursor-pointer"
+            [class.iot-rail__link--active]="isActive(a.id)"
+            (click)="pick(a.id)"
+          >
+            <span class="iot-rail__icon-wrap flex align-items-center justify-content-center flex-shrink-0">
+              <i class="pi pi-bolt iot-rail__icon" aria-hidden="true"></i>
+            </span>
+            <span class="flex-1 min-w-0">
+              <span class="iot-rail__label block text-overflow-ellipsis white-space-nowrap">{{ a.label }}</span>
+              <span class="iot-rail__sk font-mono block text-overflow-ellipsis white-space-nowrap">{{ a.meterSk }}</span>
+            </span>
+          </button>
+        </li>
+      }
+    </ul>
+  </nav>
+</aside>

@@ -7,12 +7,14 @@
 
 .sms-sidebar-hamburger {
   --sms-hamburger-size: 2.625rem;
-  --sms-header-band: var(--sms-shell-header-height, 73.745px);
 
   transform-origin: center center;
   position: fixed;
   left: max(1rem, env(safe-area-inset-left, 0px));
-  top: calc(env(safe-area-inset-top, 0px) + (var(--sms-header-band) - var(--sms-hamburger-size)) / 2);
+  /* Centrado en la banda bajo el notch (no usar altura total del header, evita doble safe-area) */
+  top: calc(
+    env(safe-area-inset-top, 0px) + (var(--sms-shell-header-band, 3.5rem) - var(--sms-hamburger-size)) / 2
+  );
   z-index: 55;
   width: var(--sms-hamburger-size);
   height: var(--sms-hamburger-size);
@@ -162,10 +164,10 @@
 
   @media (min-width: 768px) {
     position: fixed;
-    top: var(--sms-shell-header-height, 73.745px);
+    top: var(--sms-shell-header-height);
     left: 0;
     width: 250px;
-    height: calc(100vh - var(--sms-shell-header-height, 73.745px));
+    height: calc(100vh - var(--sms-shell-header-height));
     transform: none !important;
 
     &--collapsed {

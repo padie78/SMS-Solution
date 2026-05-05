@@ -1,0 +1,172 @@
+<div class="gdesg-root max-w-[1600px] mx-auto space-y-6 pb-12">
+  <ui-contextual-header
+    eyebrow="SMS · Global ESG &amp; Operations"
+    title="Dashboard ejecutivo"
+    subtitle="Tres capas en una sola vista: descriptivo (STATS), predictivo (forecast) y prescriptivo (ai_analysis). Data ficticia reactiva para demo."
+    [context]="temporal.context()"
+    [periodLabel]="temporal.periodLabel()"
+    [isLoading]="temporal.isRegenerating()"
+    [layerOptions]="layers.options()"
+    [layers]="layers.selected()"
+    (layersChange)="layers.setSelected($event)"
+    (scaleChange)="temporal.setScale($event)"
+    (referenceDateChange)="temporal.setReferenceDate($event)"
+    (monthChange)="temporal.setMonth($event)"
+    (quarterChange)="temporal.setQuarter($event)"
+    (yearChange)="temporal.setYear($event)"
+    (refresh)="refresh()"
+  />
+
+  <!-- KPIs: mismo ritmo que “Filtros en cascada” en jerarquía -->
+  @if (layers.isOn('DESCRIPTIVE')) {
+    <section
+      class="rounded-2xl border border-slate-200 bg-slate-50/80 p-5 md:p-6 transition-opacity"
+      [class.opacity-60]="temporal.isRegenerating()"
+    >
+    <h2 class="text-xs font-bold uppercase tracking-wider text-slate-600 m-0 mb-4">Indicadores clave</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6 gap-4 md:gap-5">
+      <ui-dashboard-kpi-card
+        label="Reliability score"
+        labelHint="Pregunta #9 — audit_trail"
+        [primaryValue]="kpiReliabilityPrimary()"
+        secondaryLine="Integridad telemetría / facturas"
+        [trendLabel]="'Δ ' + (temporal.kwhDeltaPct() > 0 ? '+' : '') + (temporal.kwhDeltaPct() | number : '1.1-1') + '% vs periodo anterior'"
+        [trendPositive]="temporal.kwhDeltaPct() <= 0"
+        [sparkline]="stats().consumption_sparkline_kwh"
+      />
+      <ui-dashboard-kpi-card
+        label="Consumo vs presupuesto"
+        labelHint="STATS#MONTHLY — kWh"
+        [primaryValue]="kpiConsumptionPrimary()"
+        [secondaryLine]="'Total periodo: ' + (stats().total_kwh | number : '1.0-0') + ' kWh'"
+        [trendLabel]="'Δ ' + (temporal.kwhDeltaPct() > 0 ? '+' : '') + (temporal.kwhDeltaPct() | number : '1.1-1') + '% vs periodo anterior'"
+        [trendPositive]="temporal.kwhDeltaPct() <= 0"
+        [sparkline]="stats().consumption_sparkline_kwh"
+      />
+      <ui-dashboard-kpi-card
+        label="Intensidad de carbono"
+        labelHint="kg CO₂e / m²"
+        [primaryValue]="kpiCarbonPrimary()"
+        [secondaryLine]="kpiCarbonSecondary()"
+        [trendLabel]="'Drift modelado ' + (predictive().drift_index_pct | number : '1.1-1') + '%'"
+        [trendPositive]="predictive().drift_index_pct < 3"
+        [sparkline]="stats().consumption_sparkline_kwh"
+      />
+
+      <ui-dashboard-kpi-card
+        label="Gasto energético (periodo)"
+        labelHint="Pregunta #2 — total spend"
+        [primaryValue]="kpiSpendPrimary()"
+        [secondaryLine]="'Presupuesto ' + (stats().budget_spend_usd | number : '1.0-0') + ' USD'"
+        [trendLabel]="kpiSpendTrend()"
+        [trendPositive]="kpiSpendTrendPositive()"
+        [sparkline]="stats().consumption_sparkline_kwh"
+      />
+
+      <ui-dashboard-kpi-card
+        label="Prob. exceso presupuesto"
+        labelHint="Predictivo #3 — Monte Carlo"
+        [primaryValue]="kpiBudgetBurnPrimary()"
+        secondaryLine="Riesgo de burn antes de cierre"
+        [trendLabel]="'Ventana: ' + temporal.periodLabel()"
+        [trendPositive]="predictive().budget_exceed_probability < 0.35"
+        [sparkline]="stats().consumption_sparkline_kwh"
+      />
+
+      <ui-dashboard-kpi-card
+        label="Costo de procrastinación"
+        labelHint="Pregunta #18 — ai_analysis.pending"
+        [primaryValue]="kpiProcrastinationPrimary() + '/sem'"
+        [secondaryLine]="kpiPendingActions() + ' acciones pendientes'"
+        trendLabel="Ahorro no capturado"
+        [trendPositive]="null"
+        [sparkline]="stats().consumption_sparkline_kwh"
+      />
+    </div>
+    </section>
+  }
+
+  <!-- Predictivo + prescriptivo: más compacto y con espacio para sumar visuales -->
+  @if (layers.isOn('PREDICTIVE') || layers.isOn('PRESCRIPTIVE') || layers.isOn('AUDIT') || layers.isOn('OPERATIVE')) {
+    <!-- Extraído: mismo patrón que "Balance de masas..." (título + grid de cards) -->
+    <section class="transition-opacity" [class.opacity-60]="temporal.isRegenerating()">
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-600 m-0 mb-4">Forecast y acciones</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 min-w-0">
+        @if (layers.isOn('PREDICTIVE')) {
+          <div class="h-[360px] min-w-0">
+            <app-global-dashboard-forecast-chart />
+          </div>
+        }
+        @if (layers.isOn('PRESCRIPTIVE')) {
+          <div class="h-[360px] min-w-0">
+            <app-global-dashboard-action-center />
+          </div>
+        }
+        @if (layers.isOn('OPERATIVE')) {
+          <div class="h-[360px] min-w-0">
+            <app-global-dashboard-active-idle-chart />
+          </div>
+        }
+        @if (layers.isOn('AUDIT')) {
+          <div class="h-[360px] min-w-0">
+            <app-global-dashboard-data-quality-chart />
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+  <!-- Operativo + estratégico: dos tarjetas como grillas de ubicaciones -->
+  @if (layers.isOn('OPERATIVE') || layers.isOn('STRATEGIC') || layers.isOn('AUDIT') || layers.isOn('ESG')) {
+    <section class="transition-opacity" [class.opacity-60]="temporal.isRegenerating()">
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-600 m-0 mb-4">
+        Balance de masas y salud del sistema
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 min-w-0">
+        @if (layers.isOn('OPERATIVE')) {
+          <div class="h-[360px] min-w-0">
+            <app-global-dashboard-sankey-chart />
+          </div>
+        }
+        @if (layers.isOn('STRATEGIC')) {
+          <div class="h-[360px] min-w-0">
+            <app-global-dashboard-radar-chart />
+          </div>
+        }
+        @if (layers.isOn('AUDIT')) {
+          <div class="h-[360px] min-w-0">
+            <app-global-dashboard-data-quality-chart />
+          </div>
+        }
+        @if (layers.isOn('ESG')) {
+          <div class="h-[360px] min-w-0">
+            <app-global-dashboard-esg-traceability-chart />
+          </div>
+        }
+      </div>
+    </section>
+  }
+
+  @if (layers.isOn('DESCRIPTIVE') || layers.isOn('OPERATIVE')) {
+    <section class="transition-opacity" [class.opacity-60]="temporal.isRegenerating()">
+      <h2 class="text-xs font-bold uppercase tracking-wider text-slate-600 m-0 mb-4">
+        Operaciones y eficiencia (preguntas de negocio)
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 min-w-0 items-stretch">
+        @if (layers.isOn('DESCRIPTIVE')) {
+          <div class="h-[360px] min-w-0 overflow-hidden">
+            <app-global-dashboard-benchmark-sites-chart />
+          </div>
+        }
+        @if (layers.isOn('OPERATIVE')) {
+          <div class="h-[360px] min-w-0 overflow-hidden">
+            <app-global-dashboard-active-idle-chart />
+          </div>
+          <div class="h-[360px] min-w-0 overflow-hidden">
+            <app-global-dashboard-phantom-consumption-chart />
+          </div>
+        }
+      </div>
+    </section>
+  }
+</div>

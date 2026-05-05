@@ -5,6 +5,7 @@
 
 header.sms-shell-header {
   box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
   min-height: var(--sms-shell-header-height);
   height: var(--sms-shell-header-height);
   background-color: #020617;

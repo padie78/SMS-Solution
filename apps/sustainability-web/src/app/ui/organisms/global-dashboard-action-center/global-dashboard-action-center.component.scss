@@ -1,0 +1,14 @@
+:host {
+  display: block;
+  height: 100%;
+}
+
+.action-center {
+  max-height: 28rem;
+}
+
+@media (min-width: 1280px) {
+  .action-center {
+    max-height: 36rem;
+  }
+}

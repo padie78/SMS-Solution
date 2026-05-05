@@ -1,5 +1,6 @@
 <!-- Full-screen loading overlay (no spinner) -->
-<div *ngIf="isLoading" class="sms-loading" aria-busy="true" aria-live="polite">
+@if (isLoading) {
+<div class="sms-loading" aria-busy="true" aria-live="polite">
   <div class="sms-loading__backdrop"></div>
   <div class="sms-loading__panel" role="status" aria-label="Analizando documento">
     <div class="sms-loading__kicker">SMS ENGINE</div>
@@ -26,11 +27,15 @@
     </div>
   </div>
 </div>
+}
 
-<div class="validation-wrapper flex bg-gradient-to-br from-slate-50 via-slate-50 to-emerald-50/30 rounded-3xl overflow-hidden shadow-2xl border border-slate-200 min-h-[800px] h-[800px] relative">
-  
-  <!-- PDF (1/4) -->
-  <div class="w-1/4 flex flex-col bg-slate-950 p-4 min-h-0">
+<div
+  class="validation-wrapper flex flex-col lg:flex-row rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden relative min-h-0 w-full lg:min-h-[min(640px,calc(100dvh-14rem))] lg:max-h-[min(840px,calc(100dvh-13rem))]"
+>
+  <!-- PDF (narrow column) -->
+  <div
+    class="w-full lg:w-[28%] flex flex-col bg-slate-950 p-4 md:p-5 min-h-0 border-b lg:border-b-0 lg:border-r border-slate-800 lg:max-h-[min(840px,calc(100dvh-13rem))]"
+  >
     <div class="flex justify-between items-center mb-4">
       <div class="flex items-center gap-2">
         <div class="w-2 h-2 rounded-full" [ngClass]="isLoading ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'"></div>
@@ -57,7 +62,7 @@
         [zoom]="zoom"
         [autoresize]="true"
         [show-all]="true"
-        class="pdf-canvas-container block w-full min-h-[560px]"
+        class="pdf-canvas-container block w-full min-h-[min(480px,42vh)] lg:min-h-[min(520px,55vh)]"
       ></pdf-viewer>
       
       <div *ngIf="!pdfSrc" class="flex flex-col items-center justify-center h-full text-slate-500 p-10 text-center">
@@ -67,23 +72,31 @@
     </div>
   </div>
 
-  <!-- Form (3/4) -->
-  <div class="w-3/4 flex flex-col p-10 bg-white/90 border-l border-slate-200 overflow-y-auto custom-scrollbar relative min-h-0">
+  <!-- Form -->
+  <div
+    class="w-full lg:flex-1 flex flex-col p-5 md:p-6 bg-white lg:border-l border-slate-200 overflow-y-auto custom-scrollbar relative min-h-0 lg:max-h-[min(840px,calc(100dvh-13rem))]"
+  >
     <div *ngIf="errorMessage" class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
       {{ errorMessage }}
     </div>
 
-    <div class="header mb-10 flex items-start justify-between gap-6">
-      <div>
-      <p *ngIf="invoice" class="text-[11px] font-black text-emerald-700 uppercase tracking-[0.2em] mb-2">
-        <ng-container *ngIf="auditPanel === 'allocation'">Paso 2 de 4 — Ubicación del gasto</ng-container>
-        <ng-container *ngIf="auditPanel === 'invoice'">Paso 3 de 4 — Datos de la factura</ng-container>
+    <div class="header mb-6 flex items-start justify-between gap-4 md:gap-6">
+      <div class="min-w-0">
+      @if (invoice) {
+      <p class="text-[11px] font-black text-emerald-700 uppercase tracking-[0.2em] mb-2 m-0">
+        @if (auditPanel === 'allocation') {
+          <span>Paso 2 de 4 — Ubicación del gasto</span>
+        }
+        @if (auditPanel === 'invoice') {
+          <span>Paso 3 de 4 — Datos de la factura</span>
+        }
       </p>
+      }
       <p-tag [value]="isLoading ? 'EXTRAYENDO...' : 'DATOS DETECTADOS'" 
              [severity]="isLoading ? 'warning' : 'success'" 
-             [rounded]="true" class="mb-4"></p-tag>
-      <h2 class="text-slate-900 text-2xl font-bold tracking-tight">Confirmar Auditoría</h2>
-      <p class="text-slate-500 text-sm mt-1">Verifica la información antes de calcular la huella de carbono.</p>
+             [rounded]="true" class="mb-3"></p-tag>
+      <h2 class="text-slate-900 text-xl md:text-2xl font-black tracking-tight m-0">Confirmar auditoría</h2>
+      <p class="text-slate-500 text-sm mt-1.5 m-0 leading-relaxed">Verifica la información antes de calcular la huella de carbono.</p>
       </div>
       <div class="hidden md:flex flex-col items-end text-xs text-slate-500">
         <span class="font-mono">Invoice: {{ invoice?.invoiceNumber || '—' }}</span>
@@ -92,8 +105,9 @@
     </div>
 
     <!-- Jerarquía operativa / contable (matching IA + excepción manual) — panel Ubicación del gasto -->
-    <section *ngIf="invoice && auditPanel === 'allocation'" class="val-form mb-10 rounded-2xl border border-slate-200 bg-slate-50/80 p-6">
-      <div class="val-form__header flex flex-wrap items-start justify-between gap-4 mb-6">
+    @if (invoice && auditPanel === 'allocation') {
+    <section class="val-form mb-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-5 md:p-6">
+      <div class="val-form__header flex flex-wrap items-start justify-between gap-4 mb-5">
         <div>
           <h3 class="val-form__title text-sm font-black text-slate-800 uppercase tracking-wider">
             Ubicación del gasto
@@ -206,8 +220,10 @@
         </div>
       </form>
     </section>
+    }
 
-    <div *ngIf="isLoading && !invoice" class="form-content flex-1 space-y-6" aria-hidden="true">
+    @if (isLoading && !invoice) {
+    <div class="form-content flex-1 space-y-6" aria-hidden="true">
       <ui-skeleton-line [height]="12" width="200px"></ui-skeleton-line>
       <ui-skeleton-line [height]="40" width="100%"></ui-skeleton-line>
       <div class="grid grid-cols-2 gap-6">
@@ -216,10 +232,12 @@
       </div>
       <ui-skeleton-line [height]="88" width="100%"></ui-skeleton-line>
     </div>
+    }
 
     <!-- Datos documentales — mismo contenedor BEM que Ubicación del gasto -->
-    <section *ngIf="invoice && auditPanel === 'invoice'" class="val-form mb-10 rounded-2xl border border-slate-200 bg-slate-50/80 p-6">
-      <div class="val-form__header flex flex-wrap items-start justify-between gap-4 mb-6">
+    @if (invoice && auditPanel === 'invoice') {
+    <section class="val-form mb-6 rounded-2xl border border-slate-200 bg-slate-50/80 p-5 md:p-6">
+      <div class="val-form__header flex flex-wrap items-start justify-between gap-4 mb-5">
         <div>
           <h3 class="val-form__title text-sm font-black text-slate-800 uppercase tracking-wider">
             Datos de la factura
@@ -340,8 +358,9 @@
         </div>
       </div>
     </section>
+    }
 
-    <div class="footer-actions flex justify-between items-center mt-10 pt-6 border-t border-slate-100">
+    <div class="footer-actions flex justify-between items-center mt-8 pt-5 border-t border-slate-200 flex-wrap gap-3">
       <p-button
         [label]="auditPanel === 'allocation' ? 'Cancelar' : 'Volver a ubicación'"
         (click)="goBack()"
@@ -355,7 +374,7 @@
         iconPos="right"
         [disabled]="!invoice || hierarchyResolving || !hierarchyReady"
         (click)="emitContinue()"
-        styleClass="p-button-emerald px-10 h-12 rounded-xl font-bold">
+        styleClass="p-button-emerald rounded-xl text-xs font-bold px-8 h-11 shadow-sm">
       </p-button>
 
       <div *ngIf="auditPanel === 'invoice'" class="flex items-center gap-3">
@@ -363,7 +382,7 @@
                   [loading]="isLoading"
                   [disabled]="isLoading || !invoice || hierarchyResolving || !hierarchyReady"
                   (click)="handleConfirm()"
-                  styleClass="p-button-emerald px-10 h-12 rounded-xl">
+                  styleClass="p-button-emerald rounded-xl text-xs font-bold px-8 h-11 shadow-sm">
         </p-button>
       </div>
     </div>

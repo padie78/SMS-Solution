@@ -1,3 +1,19 @@
+:host {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+:host .invoice-paper {
+  min-height: min(280px, 35vh);
+}
+
+@media (min-width: 1024px) {
+  :host .invoice-paper {
+    min-height: 0;
+  }
+}
+
 /* BEM: validation hierarchy (invoice assignment) */
 .val-form__title {
   letter-spacing: 0.06em;

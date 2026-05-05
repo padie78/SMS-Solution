@@ -21,8 +21,19 @@ body {
   --sms-line-height: 1.4;
   --sms-control-height: 40px;
   --sms-control-radius: 12px;
-  /* Shell header — alineado con sidebar fijo y hamburguesa móvil */
-  --sms-shell-header-height: 73.745px;
+  /*
+   * Shell header: banda útil (sin notch). Móvil más compacto; desktop diseño fijo.
+   * Altura total (--sms-shell-header-height) = safe-area + banda (sidebar / hamburguesa).
+   */
+  --sms-shell-header-band: 3.5rem;
+  --sms-shell-header-height: calc(env(safe-area-inset-top, 0px) + var(--sms-shell-header-band));
+}
+
+@media (min-width: 768px) {
+  :root {
+    --sms-shell-header-band: 73.745px;
+    --sms-shell-header-height: calc(env(safe-area-inset-top, 0px) + var(--sms-shell-header-band));
+  }
 }
 
 html {
@@ -539,6 +550,16 @@ app-root {
 
 .p-stepper .p-stepper-header:has(~ .p-highlight) .p-stepper-separator {
   background-color: #10b981; /* emerald-500 */
+}
+
+.invoice-create-flow .p-stepper-nav {
+  margin-bottom: 1.25rem;
+}
+
+/* Evita doble gutter: Lara añade padding en .p-stepper-panels y la página ya usa p-5 md:p-6. */
+.invoice-create-flow .p-stepper .p-stepper-panels {
+  padding: 0 !important;
+  background: transparent !important;
 }
 
 .loading-overlay {
