@@ -82,7 +82,10 @@ import { LocationStatusBadgeComponent } from '../../atoms/location-status-badge/
       }
 
       :host-context(.p-treenode-content:hover) .qa,
-      :host-context(.p-highlight) .qa {
+      :host-context(.p-treenode:hover) .qa,
+      :host-context(.p-treenode-content:focus-within) .qa,
+      :host-context(.p-highlight) .qa,
+      :host-context(.p-treenode-content.p-highlight) .qa {
         opacity: 1;
         pointer-events: auto;
         transform: translateX(0);

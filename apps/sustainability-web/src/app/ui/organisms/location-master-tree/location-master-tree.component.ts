@@ -177,33 +177,61 @@ function labelForType(t: SmsLocationNodeType): string {
       <p-contextMenu #cm [model]="contextMenuItems()" />
 
       <div class="flex-1 min-h-0 overflow-hidden border-round-xl border border-slate-200 bg-white">
-        <p-tree
-          class="sms-tree h-full overflow-auto"
-          [value]="nodes"
-          [filter]="true"
-          filterMode="lenient"
-          [filterBy]="'label'"
-          filterPlaceholder="Buscar ubicaciones…"
-          [lazy]="true"
-          [loading]="loading"
-          [draggableNodes]="true"
-          [droppableNodes]="true"
-          [contextMenu]="cm"
-          selectionMode="single"
-          [(selection)]="selection"
-          (onNodeSelect)="onSelect($event)"
-          (onNodeExpand)="onExpand($event)"
-          (onNodeDrop)="onDrop($event)"
-        >
-          <ng-template pTemplate="default" let-node>
-            <sms-tree-node-template
-              [node]="asSmsNode(node)"
-              (createChild)="onQuickCreateChild($event)"
-              (edit)="onQuickEdit($event)"
-              (delete)="onQuickDelete($event)"
-            />
-          </ng-template>
-        </p-tree>
+        <div class="h-full flex flex-column" *ngIf="(nodes?.length ?? 0) > 0; else emptyState">
+          <p-tree
+            class="sms-tree h-full overflow-auto"
+            [value]="nodes"
+            [filter]="true"
+            filterMode="lenient"
+            [filterBy]="'label'"
+            filterPlaceholder="Buscar ubicaciones…"
+            [lazy]="true"
+            [loading]="loading"
+            [draggableNodes]="true"
+            [droppableNodes]="true"
+            [contextMenu]="cm"
+            selectionMode="single"
+            [(selection)]="selection"
+            (onNodeSelect)="onSelect($event)"
+            (onNodeExpand)="onExpand($event)"
+            (onNodeDrop)="onDrop($event)"
+          >
+            <ng-template pTemplate="default" let-node>
+              <sms-tree-node-template
+                [node]="asSmsNode(node)"
+                (createChild)="onQuickCreateChild($event)"
+                (edit)="onQuickEdit($event)"
+                (delete)="onQuickDelete($event)"
+              />
+            </ng-template>
+          </p-tree>
+        </div>
+
+        <ng-template #emptyState>
+          <div class="h-full flex flex-column align-items-center justify-content-center gap-3 p-6 text-center">
+            <div class="inline-flex align-items-center justify-content-center w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200">
+              <i class="pi pi-sitemap text-indigo-700 text-xl" aria-hidden="true"></i>
+            </div>
+            <div class="max-w-md">
+              <div class="text-sm font-black text-slate-900">Todavía no hay nodos en tu jerarquía</div>
+              <div class="text-[12px] text-slate-500 mt-1 leading-relaxed">
+                Empezá creando una <span class="font-semibold text-slate-700">Organización</span>. Luego vas a poder agregar
+                regiones y el resto de niveles.
+              </div>
+              <div class="text-[11px] text-slate-400 mt-2" data-testid="location-tree-empty">
+                Tip: si esto aparece y esperabas ver datos, revisá la carga de raíces ("loadRoots") o el mock storage.
+              </div>
+            </div>
+            <button
+              pButton
+              type="button"
+              class="p-button border-round-xl text-xs font-bold"
+              icon="pi pi-plus"
+              label="Crear organización"
+              (click)="createOrganization()"
+            ></button>
+          </div>
+        </ng-template>
       </div>
     </div>
   `
