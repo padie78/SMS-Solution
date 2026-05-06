@@ -186,9 +186,7 @@ export const routes: Routes = [
       {
         path: 'locations',
         loadComponent: () =>
-          import('./modules/location/pages/location-manager/location-manager.page').then(
-            (m) => m.LocationManagerPage
-          ),
+          import('./features/location/location.component').then((m) => m.LocationComponent),
         title: 'SMS - Location Manager'
       },
       navPlaceholder(

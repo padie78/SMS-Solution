@@ -1,5 +1,5 @@
 output "invoice_dispatcher_role_arn" {
-  value = aws_iam_role.worker_lambda_role.arn
+  value = aws_iam_role.dispatcher_lambda_role.arn
 }
 
 output "worker_lambda_role_arn" {

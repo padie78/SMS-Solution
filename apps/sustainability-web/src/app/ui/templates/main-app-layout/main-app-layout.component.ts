@@ -3,7 +3,7 @@ import { RouterOutlet } from '@angular/router';
 import { ToastModule } from 'primeng/toast';
 import { ShellHeaderComponent } from '../../organisms/shell-header/shell-header.component';
 import { ShellSidebarComponent } from '../../organisms/shell-sidebar/shell-sidebar.component';
-import { FooterComponent } from '../../../components/layout/footer/footer.component';
+import { FooterComponent } from '../../organisms/shell-footer/footer.component';
 import { SidenavLayoutService } from '../../layout/sidenav-layout.service';
 
 @Component({

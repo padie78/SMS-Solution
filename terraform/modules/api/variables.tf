@@ -1,13 +1,13 @@
 # ==============================================================================
 # 1. IDENTIFICACIÓN Y ENTORNO
 # ==============================================================================
-variable "project_name" { 
-  type        = string 
+variable "project_name" {
+  type        = string
   description = "Nombre base del proyecto"
 }
 
-variable "environment" { 
-  type        = string 
+variable "environment" {
+  type        = string
   description = "Entorno de despliegue (dev, staging, prod)"
 }
 
@@ -82,4 +82,9 @@ variable "kpi_lambda_role_id" {
 variable "api_lambda_role_id" {
   type        = string
   description = "ID del rol de IAM de la Lambda API"
+}
+
+variable "upload_bucket_arn" {
+  description = "ARN del bucket de uploads (S3) para permisos de lectura/escritura"
+  type        = string
 }

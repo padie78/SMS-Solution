@@ -4,9 +4,10 @@ import { S3OrgResolverAws } from "./infrastructure/aws/S3OrgResolverAws.js";
 import { DynamoInvoiceRepository } from "./infrastructure/dynamodb/DynamoInvoiceRepository.js";
 import { SqsInvoiceQueue } from "./infrastructure/aws/SqsInvoiceQueue.js";
 
-const queueUrl =
-  process.env.QUEUE_URL ||
-  "https://sqs.eu-central-1.amazonaws.com/473959757331/sms-platform-invoice-queue-dev";
+const queueUrl = process.env.SQS_QUEUE_URL;
+if (!queueUrl) {
+  throw new Error("SQS_QUEUE_URL environment variable is not defined");
+}
 
 const orgResolver = new S3OrgResolverAws();
 const invoiceRepository = new DynamoInvoiceRepository();

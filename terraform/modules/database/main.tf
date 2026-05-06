@@ -3,32 +3,32 @@ resource "aws_dynamodb_table" "emissions_table" {
   billing_mode = var.billing_mode
 
   # PK: Siempre será "ORG#<UUID>"
-  hash_key  = "PK" 
+  hash_key = "PK"
   # SK: Será "INV#..." para facturas o "STATS#..." para totales
-  range_key = "SK" 
+  range_key = "SK"
 
   stream_enabled   = true
   stream_view_type = "NEW_AND_OLD_IMAGES"
 
-  attribute { 
+  attribute {
     name = "PK"
-    type = "S" 
+    type = "S"
   }
-  
-  attribute { 
+
+  attribute {
     name = "SK"
-    type = "S" 
+    type = "S"
   }
 
   # Atributos para el GSI (Consultas transversales)
-  attribute { 
+  attribute {
     name = "GSI1_PK" # Ej: service_type
-    type = "S" 
+    type = "S"
   }
-  
-  attribute { 
+
+  attribute {
     name = "GSI1_SK" # Ej: timestamp o co2_value
-    type = "S" 
+    type = "S"
   }
 
   global_secondary_index {

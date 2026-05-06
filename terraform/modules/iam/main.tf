@@ -66,7 +66,7 @@ resource "aws_iam_policy" "worker_sqs_consume" {
 }
 
 resource "aws_iam_policy" "ai_processing_policy" {
-  name        = "${var.project_name}-ai-policy-${var.environment}"
+  name = "${var.project_name}-ai-policy-${var.environment}"
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -76,8 +76,8 @@ resource "aws_iam_policy" "ai_processing_policy" {
         Resource = "*"
       },
       {
-        Effect   = "Allow"
-        Action   = "bedrock:InvokeModel"
+        Effect = "Allow"
+        Action = "bedrock:InvokeModel"
         Resource = [
           "arn:aws:bedrock:eu-central-1::foundation-model/anthropic.claude-3-haiku-20240307-v1:0",
           "arn:aws:bedrock:eu-central-1:*:inference-profile/eu.anthropic.claude-*"
@@ -89,7 +89,7 @@ resource "aws_iam_policy" "ai_processing_policy" {
 
 # --- Storage: S3 Access ---
 resource "aws_iam_policy" "s3_processing_policy" {
-  name        = "${var.project_name}-s3-policy-${var.environment}"
+  name = "${var.project_name}-s3-policy-${var.environment}"
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -101,12 +101,21 @@ resource "aws_iam_policy" "s3_processing_policy" {
 }
 
 resource "aws_iam_policy" "dynamo_app_policy" {
-  name   = "${var.project_name}-dynamo-policy-${var.environment}"
+  name = "${var.project_name}-dynamo-policy-${var.environment}"
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = ["dynamodb:PutItem", "dynamodb:GetItem", "dynamodb:UpdateItem", "dynamodb:Query", "dynamodb:DeleteItem"]
+      Effect = "Allow"
+      Action = [
+        "dynamodb:PutItem",
+        "dynamodb:GetItem",
+        "dynamodb:UpdateItem",
+        "dynamodb:Query",
+        "dynamodb:DeleteItem",
+        "dynamodb:BatchGetItem",
+        "dynamodb:BatchWriteItem",
+        "dynamodb:TransactWriteItems"
+      ]
       Resource = [var.dynamo_table_arn, "${var.dynamo_table_arn}/index/*"]
     }]
   })
@@ -160,6 +169,12 @@ resource "aws_iam_role_policy_attachment" "worker_dynamo" {
 # --- API Role: Dynamo + S3 ---
 resource "aws_iam_role_policy_attachment" "api_dynamo" {
   role       = aws_iam_role.api_lambda_role.name
+  policy_arn = aws_iam_policy.dynamo_app_policy.arn
+}
+
+# --- Generic role also needs Dynamo for KPI engine (uses TransactWrite) ---
+resource "aws_iam_role_policy_attachment" "generic_dynamo" {
+  role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.dynamo_app_policy.arn
 }
 

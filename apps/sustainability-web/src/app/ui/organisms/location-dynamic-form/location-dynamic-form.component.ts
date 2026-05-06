@@ -6,8 +6,8 @@ import { ButtonModule } from 'primeng/button';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
-import type { SmsLocationNode, SmsNodeStatus } from '../../../../../core/models/sms-location-node.model';
-import { LocationService } from '../../../services/location.service';
+import type { SmsLocationNode, SmsNodeStatus } from '../../../core/models/sms-location-node.model';
+import { LocationService } from '../../../features/location/services/location.service';
 
 interface StatusOption {
   label: string;
@@ -17,14 +17,7 @@ interface StatusOption {
 @Component({
   selector: 'sms-dynamic-form',
   standalone: true,
-  imports: [
-    CommonModule,
-    ReactiveFormsModule,
-    ButtonModule,
-    InputTextModule,
-    InputNumberModule,
-    DropdownModule
-  ],
+  imports: [CommonModule, ReactiveFormsModule, ButtonModule, InputTextModule, InputNumberModule, DropdownModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="flex flex-column gap-3 w-full max-w-[980px] mx-auto" *ngIf="node(); else empty">
@@ -64,13 +57,11 @@ interface StatusOption {
           />
         </div>
 
-        <!-- RegionDTO -->
         <div class="col-span-12 md:col-span-6" *ngIf="showField('code')">
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Code</label>
           <input pInputText class="w-full" formControlName="code" placeholder="(optional)" />
         </div>
 
-        <!-- BranchDTO -->
         <div class="col-span-12 md:col-span-6" *ngIf="showField('timezone')">
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Timezone</label>
           <input pInputText class="w-full" formControlName="timezone" placeholder="e.g. Asia/Jerusalem" />
@@ -88,7 +79,6 @@ interface StatusOption {
           <input pInputText class="w-full" formControlName="regionLabel" placeholder="(optional)" />
         </div>
 
-        <!-- BuildingDTO -->
         <div class="col-span-12 md:col-span-6" *ngIf="showField('usageType')">
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Usage type</label>
           <input pInputText class="w-full" formControlName="usageType" placeholder="(optional)" />
@@ -118,7 +108,6 @@ interface StatusOption {
           <input pInputText class="w-full" formControlName="hasBms" placeholder="true/false" />
         </div>
 
-        <!-- CostCenterDTO -->
         <div class="col-span-12 md:col-span-6" *ngIf="showField('allocationMethod')">
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Allocation method</label>
           <input pInputText class="w-full" formControlName="allocationMethod" placeholder="e.g. SQUARE_METERS" />
@@ -132,7 +121,6 @@ interface StatusOption {
           <p-inputNumber class="w-full" formControlName="annualBudget" [min]="0" />
         </div>
 
-        <!-- AssetDTO -->
         <div class="col-span-12 md:col-span-6" *ngIf="showField('assetType')">
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Asset type</label>
           <input pInputText class="w-full" formControlName="assetType" placeholder="HVAC / LIGHTING / …" />
@@ -146,7 +134,6 @@ interface StatusOption {
           <p-inputNumber class="w-full" formControlName="nominalPower" [min]="0" [maxFractionDigits]="3" />
         </div>
 
-        <!-- MeterDTO -->
         <div class="col-span-12 md:col-span-6" *ngIf="showField('meterType')">
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Meter type</label>
           <input pInputText class="w-full" formControlName="meterType" placeholder="ELECTRICITY / WATER / GAS" />
@@ -168,19 +155,13 @@ interface StatusOption {
           <input pInputText class="w-full" formControlName="isMain" placeholder="true/false" />
         </div>
 
-        <!-- Legacy / prototype -->
         <div class="col-span-12 md:col-span-6" *ngIf="showField('cups')">
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">CUPS</label>
           <input pInputText class="w-full" formControlName="cups" />
         </div>
         <div class="col-span-12 md:col-span-6" *ngIf="showField('nominalPower_kw')">
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Nominal power (kW)</label>
-          <p-inputNumber
-            class="w-full"
-            formControlName="nominalPower_kw"
-            [minFractionDigits]="0"
-            [maxFractionDigits]="3"
-          />
+          <p-inputNumber class="w-full" formControlName="nominalPower_kw" [minFractionDigits]="0" [maxFractionDigits]="3" />
         </div>
       </form>
 
@@ -210,7 +191,7 @@ interface StatusOption {
     </ng-template>
   `
 })
-export class DynamicFormComponent {
+export class LocationDynamicFormComponent {
   private readonly fb = inject(FormBuilder);
   private readonly location = inject(LocationService);
   private readonly destroyRef = inject(DestroyRef);
@@ -233,14 +214,11 @@ export class DynamicFormComponent {
     iotName: this.fb.control<string | null>(null),
     protocol: this.fb.control<string | null>(null),
     nominalPower_kw: this.fb.control<number | null>(null),
-    // RegionDTO
     code: this.fb.control<string | null>(null),
-    // BranchDTO
     timezone: this.fb.control<string | null>(null),
     facilityType: this.fb.control<string | null>(null),
     m2Surface: this.fb.control<number | null>(null),
     regionLabel: this.fb.control<string | null>(null),
-    // BuildingDTO
     usageType: this.fb.control<string | null>(null),
     usageTypeEnum: this.fb.control<string | null>(null),
     operationalStatus: this.fb.control<string | null>(null),
@@ -248,17 +226,14 @@ export class DynamicFormComponent {
     m3Volume: this.fb.control<number | null>(null),
     hvacType: this.fb.control<string | null>(null),
     hasBms: this.fb.control<string | null>(null),
-    // CostCenterDTO
     allocationMethod: this.fb.control<string | null>(null),
     percentage: this.fb.control<number | null>(null),
     annualBudget: this.fb.control<number | null>(null),
-    // AssetDTO
     assetType: this.fb.control<string | null>(null),
     assetStatus: this.fb.control<string | null>(null),
     nominalPower: this.fb.control<number | null>(null),
-    // MeterDTO
     meterType: this.fb.control<string | null>(null),
-    isMain: this.fb.control<string | null>(null),
+    isMain: this.fb.control<string | null>(null)
   });
 
   private readonly activeFields = signal<Set<string>>(new Set(['name', 'status']));
@@ -298,7 +273,7 @@ export class DynamicFormComponent {
             assetStatus: n.metadata?.assetStatus ?? null,
             nominalPower: n.metadata?.nominalPower ?? null,
             meterType: n.metadata?.meterType ?? null,
-            isMain: n.metadata?.isMain == null ? null : n.metadata?.isMain ? 'true' : 'false',
+            isMain: n.metadata?.isMain == null ? null : n.metadata?.isMain ? 'true' : 'false'
           },
           { emitEvent: false }
         );
@@ -307,11 +282,12 @@ export class DynamicFormComponent {
       { allowSignalWrites: true }
     );
 
-    // If node changes while saving, avoid stale saves.
     this.form.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      // noop; just ensures CD updates for OnPush parent contexts
+      // noop
     });
   }
+
+  readonly _ = computed(() => this.node());
 
   showField(key: string): boolean {
     return this.activeFields().has(key);
@@ -352,7 +328,7 @@ export class DynamicFormComponent {
         assetStatus: n.metadata?.assetStatus ?? null,
         nominalPower: n.metadata?.nominalPower ?? null,
         meterType: n.metadata?.meterType ?? null,
-        isMain: n.metadata?.isMain == null ? null : n.metadata?.isMain ? 'true' : 'false',
+        isMain: n.metadata?.isMain == null ? null : n.metadata?.isMain ? 'true' : 'false'
       },
       { emitEvent: false }
     );
@@ -374,6 +350,7 @@ export class DynamicFormComponent {
         if (s === 'false' || s === '0' || s === 'no') return false;
         return null;
       };
+
       await this.location.updateNode(n.location_id, {
         name: raw.name,
         status: raw.status,
@@ -406,6 +383,7 @@ export class DynamicFormComponent {
           isMain: this.showField('isMain') ? parseBool(raw.isMain) : n.metadata?.isMain ?? null
         }
       });
+
       this.form.markAsPristine();
     } finally {
       this.saving.set(false);
@@ -413,25 +391,14 @@ export class DynamicFormComponent {
   }
 
   private fieldsForType(type: SmsLocationNode['type']): Set<string> {
+    if (type === 'ORGANIZATION') return new Set(['name', 'status']);
     if (type === 'REGION') return new Set(['name', 'status', 'code']);
     if (type === 'BRANCH') return new Set(['name', 'status', 'timezone', 'facilityType', 'm2Surface', 'regionLabel']);
     if (type === 'BUILDING')
-      return new Set([
-        'name',
-        'status',
-        'usageType',
-        'usageTypeEnum',
-        'operationalStatus',
-        'yearBuilt',
-        'm2Surface',
-        'm3Volume',
-        'hvacType',
-        'hasBms'
-      ]);
+      return new Set(['name', 'status', 'usageType', 'usageTypeEnum', 'operationalStatus', 'yearBuilt', 'm2Surface', 'm3Volume', 'hvacType', 'hasBms']);
     if (type === 'COST_CENTER') return new Set(['name', 'status', 'allocationMethod', 'percentage', 'annualBudget']);
     if (type === 'ASSET') return new Set(['name', 'status', 'assetType', 'assetStatus', 'nominalPower', 'nominalPower_kw']);
-    if (type === 'METER')
-      return new Set(['name', 'status', 'meterType', 'serialNumber', 'iotName', 'protocol', 'isMain', 'cups']);
+    if (type === 'METER') return new Set(['name', 'status', 'meterType', 'serialNumber', 'iotName', 'protocol', 'isMain', 'cups']);
     return new Set(['name', 'status']);
   }
 }

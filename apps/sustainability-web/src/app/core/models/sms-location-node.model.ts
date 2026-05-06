@@ -1,6 +1,7 @@
 import type { TreeNode } from 'primeng/api';
 
 export type SmsLocationNodeType =
+  | 'ORGANIZATION'
   | 'REGION'
   | 'BRANCH'
   | 'BUILDING'

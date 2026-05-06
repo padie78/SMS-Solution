@@ -1,23 +1,23 @@
 # /outputs.tf (RAÍZ)
 
 # 1. El bucket donde subes las facturas (procesamiento)
-output "upload_bucket_name" { 
-  value = module.storage.bucket_id 
+output "upload_bucket_name" {
+  value = module.storage.bucket_id
 }
 
 # 2. La base de datos de emisiones
-output "dynamo_table_name" { 
-  value = module.database.table_name 
+output "dynamo_table_name" {
+  value = module.database.table_name
 }
 
 # 3. El endpoint de AppSync para tu Frontend
-output "api_endpoint" { 
-  value = module.api.appsync_url 
+output "api_endpoint" {
+  value = module.api.appsync_url
 }
 
 # 4. Sincronizado con tu GitHub Action (BUCKET)
 output "s3_bucket_name" {
-  value = module.frontend_storage.bucket_id 
+  value = module.frontend_storage.bucket_id
 }
 
 # 5. Sincronizado con tu GitHub Action (DIST_ID)

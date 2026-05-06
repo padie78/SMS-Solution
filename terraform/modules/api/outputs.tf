@@ -9,7 +9,7 @@ output "appsync_graphql_url" {
 output "appsync_api_key" {
   description = "La clave de API para acceso rápido (desarrollo)"
   value       = aws_appsync_api_key.hub_key.key
-  sensitive   = true 
+  sensitive   = true
 }
 
 # ==============================================================================

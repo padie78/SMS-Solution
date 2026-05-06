@@ -11,7 +11,7 @@ output "bucket_arn" {
 # ESTA ES LA QUE TE DABA ERROR: 
 # Cambiamos 'aws_s3_bucket.upload_bucket' por 'module.s3_bucket.s3_bucket_id'
 output "bucket_name" {
-  value = module.s3_bucket.s3_bucket_id 
+  value = module.s3_bucket.s3_bucket_id
 }
 
 # El endpoint del frontend (esto ya estaba bien)

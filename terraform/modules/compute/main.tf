@@ -141,7 +141,7 @@ resource "aws_lambda_function" "api_lambda" {
   filename      = data.archive_file.api_lambda_zip.output_path
   handler       = "src/index.handler"
   runtime       = "nodejs20.x"
-  role          = var.api_lambda_role_arn 
+  role          = var.api_lambda_role_arn
   timeout       = 15
   memory_size   = 256
   architectures = [var.lambda_architecture]

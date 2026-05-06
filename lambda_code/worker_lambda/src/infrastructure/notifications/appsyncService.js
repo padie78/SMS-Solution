@@ -4,11 +4,11 @@ import https from "https";
  * Dispatches a GraphQL mutation to AppSync to update invoice status in real-time.
  */
 export const notifyInvoiceUpdate = async (id, status, message, payload = null) => {
-  const appsyncUrl = new URL(
-    process.env.APPSYNC_URL ||
-      "https://75nymxzbp5dddnsnehigmroili.appsync-api.eu-central-1.amazonaws.com/graphql"
-  );
-  const apiKey = process.env.APPSYNC_API_KEY || "da2-uwvkviowwrfthglgmhirgrib74";
+  const appsyncUrlRaw = process.env.APPSYNC_URL;
+  const apiKey = process.env.APPSYNC_API_KEY;
+  if (!appsyncUrlRaw) throw new Error("APPSYNC_URL environment variable is not defined");
+  if (!apiKey) throw new Error("APPSYNC_API_KEY environment variable is not defined");
+  const appsyncUrl = new URL(appsyncUrlRaw);
 
   const mutation = `
         mutation UpdateStatus($id: ID!, $status: InvoiceStatus!, $data: AWSJSON, $msg: String) {

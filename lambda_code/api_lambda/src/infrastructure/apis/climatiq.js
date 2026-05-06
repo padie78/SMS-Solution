@@ -22,9 +22,11 @@ export const calculateFootprint = async (lines, country = "ES") => {
     let totalN2o = 0;
     
     const items = [];
-    const CLIMATIQ_TOKEN = process.env.CLIMATIQ_TOKEN || "2E44QNZJMX5X5B6EM43E88KRZ8"; 
-    // Variable para controlar el Mock (puedes usar process.env.USE_MOCK === 'true')
-    const USE_MOCK = true; 
+    const CLIMATIQ_TOKEN = process.env.CLIMATIQ_TOKEN;
+    const USE_MOCK = (process.env.USE_MOCK || "").toLowerCase() === "true";
+    if (!USE_MOCK && !CLIMATIQ_TOKEN) {
+        throw new Error("CLIMATIQ_TOKEN environment variable is not defined (and USE_MOCK is false)");
+    }
 
     for (const line of lines) {
         try {

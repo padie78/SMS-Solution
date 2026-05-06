@@ -72,7 +72,7 @@ variable "point_in_time_recovery_enabled" {
 variable "table_name" {
   description = "Nombre de la tabla DynamoDB"
   type        = string
-} 
+}
 
 variable "tags" {
   description = "Tags adicionales"

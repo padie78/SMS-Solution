@@ -205,8 +205,8 @@ resource "aws_iam_role_policy" "api_lambda_extended_policy" {
         Effect = "Allow"
         Action = ["s3:GetObject", "s3:ListBucket", "s3:GetBucketLocation"]
         Resource = [
-          "arn:aws:s3:::sms-platform-dev-uploads",
-          "arn:aws:s3:::sms-platform-dev-uploads/*"
+          var.upload_bucket_arn,
+          "${var.upload_bucket_arn}/*"
         ]
       },
       {

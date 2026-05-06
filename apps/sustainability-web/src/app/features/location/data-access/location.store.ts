@@ -3,84 +3,43 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import type { TreeNode } from 'primeng/api';
 import { firstValueFrom } from 'rxjs';
 import type { SmsLocationNode, SmsLocationNodeType } from '../../../core/models/sms-location-node.model';
-import { toTreeNodeIdentity } from '../../../core/models/sms-location-node.model';
+import { LOCATION_API_BASE_URL, LOCATION_MOCK_STORAGE_KEY, LOCATION_USE_MOCK } from '../data/location.mock';
+import { canDrop, sortNodes, withPrimeTreeFields } from '../lib/location-tree-helpers';
 
-interface LocationsListResponse {
-  items: SmsLocationNode[];
-}
-
-interface LocationCreateRequest {
-  parent_id?: string | null;
-  type: SmsLocationNodeType;
-  name: string;
-  status?: SmsLocationNode['status'];
-  metadata?: SmsLocationNode['metadata'];
-}
-
-type LocationPatchRequest = Partial<Pick<SmsLocationNode, 'name' | 'status' | 'metadata' | 'consumption_data' | 'environmental_impact'>>;
-
-interface ParentPatchRequest {
-  parent_id: string | null;
-}
-
-const TYPE_ORDER: ReadonlyArray<SmsLocationNodeType> = [
-  'REGION',
-  'BRANCH',
-  'BUILDING',
-  'COST_CENTER',
-  'ASSET',
-  'METER'
-];
-
-function typeRank(t: SmsLocationNodeType): number {
-  return TYPE_ORDER.indexOf(t);
-}
-
-function canDrop(childType: SmsLocationNodeType, parentType: SmsLocationNodeType | null): boolean {
-  const childRank = typeRank(childType);
-  if (childRank < 0) return false;
-  if (childType === 'REGION') return parentType == null;
-  if (parentType == null) return false;
-  const parentRank = typeRank(parentType);
-  return parentRank === childRank - 1;
-}
-
-function withPrimeTreeFields(node: SmsLocationNode, parent?: TreeNode): SmsLocationNode {
-  const leaf = node.hasChildren === false;
-  const children = node.children ?? (node.hasChildren ? undefined : []);
-  return {
-    ...node,
-    ...toTreeNodeIdentity(node),
-    data: node,
-    leaf,
-    children,
-    parent
-  };
+function nextId(prefix: string): string {
+  const uuid = globalThis.crypto?.randomUUID?.();
+  return `${prefix}_${uuid ?? Math.random().toString(16).slice(2)}`;
 }
 
 @Injectable({ providedIn: 'root' })
 export class LocationService {
   private readonly http = inject(HttpClient);
 
-  /**
-   * Base URL for API Gateway endpoints.
-   * Keep it relative by default so Angular proxy / same-origin deployments work.
-   */
-  private readonly baseUrl = '/locations';
-
-  /**
-   * Mock mode: run Location Manager without backend.
-   * Flip to `false` when API Gateway endpoints are ready.
-   */
-  private readonly useMock = true;
-
-  private readonly mockStorageKey = 'sms.location.manager.mock.v1';
   private mockRows: SmsLocationNode[] = [];
 
   readonly tree = signal<SmsLocationNode[]>([]);
   readonly selectedNode = signal<SmsLocationNode | null>(null);
   readonly loading = signal(false);
   readonly lastError = signal<string | null>(null);
+
+  private touchTree(): void {
+    // PrimeNG Tree + OnPush: algunas mutaciones in-place no disparan re-render.
+    // Esta copia superficial fuerza detección sin reconstruir el sub-árbol.
+    this.tree.set([...this.tree()]);
+  }
+
+  private collectExpandedIds(): Set<string> {
+    const out = new Set<string>();
+    const walk = (nodes: SmsLocationNode[]) => {
+      for (const n of nodes) {
+        if (n.expanded && n.location_id) out.add(n.location_id);
+        const children = (n.children ?? []) as SmsLocationNode[];
+        if (children.length) walk(children);
+      }
+    };
+    walk(this.tree());
+    return out;
+  }
 
   readonly breadcrumb = computed(() => {
     const node = this.selectedNode();
@@ -112,18 +71,43 @@ export class LocationService {
   }
 
   async loadRoots(): Promise<void> {
+    const expandedBefore = this.collectExpandedIds();
     this.loading.set(true);
     this.lastError.set(null);
     try {
-      if (this.useMock) {
+      if (LOCATION_USE_MOCK) {
         const roots = this.mockRows
           .filter((n) => !n.parent_id)
           .map((n) => this.withMockComputedChildren(withPrimeTreeFields(n)));
-        this.tree.set(this.sortNodes(roots));
+        this.tree.set(sortNodes(roots));
       } else {
-        const resp = await firstValueFrom(this.http.get<LocationsListResponse>(`${this.baseUrl}/root`));
+        const resp = await firstValueFrom(this.http.get<{ items: SmsLocationNode[] }>(`${LOCATION_API_BASE_URL}/root`));
         const roots = (resp.items ?? []).map((n) => withPrimeTreeFields(n));
         this.tree.set(roots);
+      }
+
+      // UX: si la raíz es ORGANIZATION (nuevo modelo), expandimos y precargamos su primer nivel
+      // para que en un refresh (F5) no “desaparezcan” las regiones hasta que el usuario expanda.
+      const orgRoots = this.tree().filter((n) => n.type === 'ORGANIZATION');
+      for (const org of orgRoots) {
+        org.expanded = true;
+        await this.ensureChildrenLoaded(org);
+      }
+
+      // Rehidrata expansiones previas (lazy tree) para que no “desaparezcan” hijos tras refresh.
+      // Recorremos por niveles para asegurar que padres existan antes de buscar hijos.
+      const pending = new Set(expandedBefore);
+      for (let i = 0; i < 8 && pending.size > 0; i += 1) {
+        let progressed = false;
+        for (const id of Array.from(pending)) {
+          const node = this.findNodeById(id);
+          if (!node) continue;
+          node.expanded = true;
+          await this.ensureChildrenLoaded(node);
+          pending.delete(id);
+          progressed = true;
+        }
+        if (!progressed) break;
       }
     } catch (e: unknown) {
       this.lastError.set(this.describeHttpError('Failed to load roots', e));
@@ -141,46 +125,54 @@ export class LocationService {
     }
     this.lastError.set(null);
     try {
-      if (this.useMock) {
+      if (LOCATION_USE_MOCK) {
         const children = this.mockRows
           .filter((n) => (n.parent_id ?? null) === parent.location_id)
           .map((n) => this.withMockComputedChildren(withPrimeTreeFields(n, parent)));
-        parent.children = this.sortNodes(children);
+        parent.children = sortNodes(children);
         parent.leaf = (parent.children ?? []).length === 0;
+        this.touchTree();
       } else {
         const resp = await firstValueFrom(
-          this.http.get<LocationsListResponse>(`${this.baseUrl}/${encodeURIComponent(parent.location_id)}/children`)
+          this.http.get<{ items: SmsLocationNode[] }>(
+            `${LOCATION_API_BASE_URL}/${encodeURIComponent(parent.location_id)}/children`
+          )
         );
         const children = (resp.items ?? []).map((n) => withPrimeTreeFields(n, parent));
         parent.children = children;
         parent.leaf = children.length === 0;
+        this.touchTree();
       }
     } catch (e: unknown) {
       this.lastError.set(this.describeHttpError('Failed to load children', e));
     }
   }
 
-  async createNodeOptimistic(request: LocationCreateRequest): Promise<SmsLocationNode> {
+  async createNodeOptimistic(request: {
+    readonly parent_id?: string | null;
+    readonly type: SmsLocationNodeType;
+    readonly name: string;
+    readonly status?: SmsLocationNode['status'];
+    readonly metadata?: SmsLocationNode['metadata'];
+  }): Promise<SmsLocationNode> {
     this.lastError.set(null);
-    const tmpId = `tmp_${crypto.randomUUID?.() ?? Math.random().toString(16).slice(2)}`;
-    const optimistic: SmsLocationNode = withPrimeTreeFields(
-      {
-        location_id: tmpId,
-        parent_id: request.parent_id ?? null,
-        type: request.type,
-        name: request.name,
-        status: request.status ?? 'ACTIVE',
-        metadata: request.metadata ?? {},
-        hasChildren: false
-      } as SmsLocationNode
-    );
+    const tmpId = nextId('tmp');
+    const optimistic: SmsLocationNode = withPrimeTreeFields({
+      location_id: tmpId,
+      parent_id: request.parent_id ?? null,
+      type: request.type,
+      name: request.name,
+      status: request.status ?? 'ACTIVE',
+      metadata: request.metadata ?? {},
+      hasChildren: false
+    } as SmsLocationNode);
 
     this.insertOptimistic(optimistic);
 
     try {
-      if (this.useMock) {
+      if (LOCATION_USE_MOCK) {
         const created: SmsLocationNode = {
-          location_id: `loc_${crypto.randomUUID?.() ?? Math.random().toString(16).slice(2)}`,
+          location_id: nextId('loc'),
           parent_id: request.parent_id ?? null,
           type: request.type,
           name: request.name,
@@ -196,12 +188,12 @@ export class LocationService {
         const createdNode = this.withMockComputedChildren(withPrimeTreeFields(created));
         this.replaceNodeId(tmpId, createdNode);
         return createdNode;
-      } else {
-        const created = await firstValueFrom(this.http.post<SmsLocationNode>(`${this.baseUrl}`, request));
-        const createdNode = withPrimeTreeFields(created);
-        this.replaceNodeId(tmpId, createdNode);
-        return createdNode;
       }
+
+      const created = await firstValueFrom(this.http.post<SmsLocationNode>(`${LOCATION_API_BASE_URL}`, request));
+      const createdNode = withPrimeTreeFields(created);
+      this.replaceNodeId(tmpId, createdNode);
+      return createdNode;
     } catch (e: unknown) {
       this.removeNodeById(tmpId);
       const msg = this.describeHttpError('Failed to create node', e);
@@ -210,18 +202,30 @@ export class LocationService {
     }
   }
 
-  async updateNode(id: string, patch: LocationPatchRequest): Promise<SmsLocationNode> {
+  async updateNode(
+    id: string,
+    patch: Partial<
+      Pick<SmsLocationNode, 'name' | 'status' | 'metadata' | 'consumption_data' | 'environmental_impact'>
+    >
+  ): Promise<SmsLocationNode> {
     this.lastError.set(null);
     const target = this.findNodeById(id);
     const prev = target ? structuredClone(target.data as SmsLocationNode) : null;
     if (target) {
-      Object.assign(target, withPrimeTreeFields({ ...(target.data as SmsLocationNode), ...patch, location_id: id } as SmsLocationNode, target.parent as TreeNode));
-      // refresh label if name changed
+      Object.assign(
+        target,
+        withPrimeTreeFields(
+          { ...(target.data as SmsLocationNode), ...patch, location_id: id } as SmsLocationNode,
+          target.parent as TreeNode
+        )
+      );
       if (patch.name != null) target.label = patch.name;
       (target.data as SmsLocationNode).name = patch.name ?? (target.data as SmsLocationNode).name;
+      this.touchTree();
     }
+
     try {
-      if (this.useMock) {
+      if (LOCATION_USE_MOCK) {
         const idx = this.mockRows.findIndex((r) => r.location_id === id);
         if (idx < 0) throw new Error('Node not found');
         const cur = this.mockRows[idx];
@@ -233,20 +237,25 @@ export class LocationService {
         } as SmsLocationNode;
         this.mockRows = [...this.mockRows.slice(0, idx), updated, ...this.mockRows.slice(idx + 1)];
         this.persistMock();
-        const updatedNode = this.withMockComputedChildren(withPrimeTreeFields(updated, target?.parent as TreeNode | undefined));
-        this.replaceNodeId(id, updatedNode);
-        return updatedNode;
-      } else {
-        const updated = await firstValueFrom(
-          this.http.patch<SmsLocationNode>(`${this.baseUrl}/${encodeURIComponent(id)}`, patch)
+        const updatedNode = this.withMockComputedChildren(
+          withPrimeTreeFields(updated, target?.parent as TreeNode | undefined)
         );
-        const updatedNode = withPrimeTreeFields(updated, target?.parent as TreeNode | undefined);
         this.replaceNodeId(id, updatedNode);
+        this.touchTree();
         return updatedNode;
       }
+
+      const updated = await firstValueFrom(
+        this.http.patch<SmsLocationNode>(`${LOCATION_API_BASE_URL}/${encodeURIComponent(id)}`, patch)
+      );
+      const updatedNode = withPrimeTreeFields(updated, target?.parent as TreeNode | undefined);
+      this.replaceNodeId(id, updatedNode);
+      this.touchTree();
+      return updatedNode;
     } catch (e: unknown) {
       if (target && prev) {
         Object.assign(target, withPrimeTreeFields(prev, target.parent as TreeNode));
+        this.touchTree();
       }
       const msg = this.describeHttpError('Failed to update node', e);
       this.lastError.set(msg);
@@ -263,9 +272,9 @@ export class LocationService {
     if (!node || !nodeType) throw new Error('Node not found');
     if (!canDrop(nodeType, parentType)) throw new Error('Invalid hierarchy drop');
 
-    // optimistic move
     const previousParent = node.parent as SmsLocationNode | undefined;
     this.detachFromParent(node);
+
     if (newParent) {
       newParent.children = [...(newParent.children ?? []), node];
       node.parent = newParent;
@@ -282,7 +291,7 @@ export class LocationService {
     }
 
     try {
-      if (this.useMock) {
+      if (LOCATION_USE_MOCK) {
         const idx = this.mockRows.findIndex((r) => r.location_id === nodeId);
         if (idx < 0) throw new Error('Node not found');
         const cur = this.mockRows[idx];
@@ -295,13 +304,12 @@ export class LocationService {
         this.persistMock();
       } else {
         await firstValueFrom(
-          this.http.patch<void>(`${this.baseUrl}/${encodeURIComponent(nodeId)}/parent`, {
+          this.http.patch<void>(`${LOCATION_API_BASE_URL}/${encodeURIComponent(nodeId)}/parent`, {
             parent_id: newParentId
-          } satisfies ParentPatchRequest)
+          } as { parent_id: string | null })
         );
       }
     } catch (e: unknown) {
-      // revert
       this.detachFromParent(node);
       if (previousParent) {
         previousParent.children = [...(previousParent.children ?? []), node];
@@ -327,12 +335,12 @@ export class LocationService {
     const snapshot = this.snapshotSubtree(node);
     this.removeNodeById(id);
     try {
-      if (this.useMock) {
+      if (LOCATION_USE_MOCK) {
         const ids = this.collectSubtreeIds(id);
         this.mockRows = this.mockRows.filter((r) => !ids.has(r.location_id));
         this.persistMock();
       } else {
-        await firstValueFrom(this.http.delete<void>(`${this.baseUrl}/${encodeURIComponent(id)}`));
+        await firstValueFrom(this.http.delete<void>(`${LOCATION_API_BASE_URL}/${encodeURIComponent(id)}`));
       }
       if (this.selectedNode()?.location_id === id) this.selectedNode.set(null);
     } catch (e: unknown) {
@@ -343,6 +351,18 @@ export class LocationService {
     }
   }
 
+  validateDrop(dragNode: SmsLocationNode, dropNode: SmsLocationNode | null): { ok: boolean; reason?: string } {
+    const childType = (dragNode.data as SmsLocationNode | undefined)?.type ?? dragNode.type;
+    const parentType = dropNode ? ((dropNode.data as SmsLocationNode | undefined)?.type ?? dropNode.type) : null;
+    if (!canDrop(childType, parentType)) {
+      return { ok: false, reason: 'Jerarquía inválida para este movimiento.' };
+    }
+    if (dropNode && this.isAncestor(dragNode, dropNode)) {
+      return { ok: false, reason: 'No se puede mover un nodo dentro de su propio sub-árbol.' };
+    }
+    return { ok: true };
+  }
+
   private withMockComputedChildren(node: SmsLocationNode): SmsLocationNode {
     const hasChildren = this.mockRows.some((r) => (r.parent_id ?? null) === node.location_id);
     return {
@@ -350,13 +370,6 @@ export class LocationService {
       hasChildren,
       leaf: !hasChildren
     };
-  }
-
-  private sortNodes(nodes: SmsLocationNode[]): SmsLocationNode[] {
-    return [...nodes].sort((a, b) => {
-      if (a.type !== b.type) return String(a.type).localeCompare(String(b.type));
-      return String(a.name).localeCompare(String(b.name));
-    });
   }
 
   private collectSubtreeIds(rootId: string): Set<string> {
@@ -372,9 +385,9 @@ export class LocationService {
   }
 
   private loadMockFromStorage(): void {
-    if (!this.useMock) return;
+    if (!LOCATION_USE_MOCK) return;
     try {
-      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(this.mockStorageKey) : null;
+      const raw = typeof window !== 'undefined' ? window.localStorage.getItem(LOCATION_MOCK_STORAGE_KEY) : null;
       if (!raw) return;
       const parsed = JSON.parse(raw) as unknown;
       if (!Array.isArray(parsed)) return;
@@ -385,10 +398,10 @@ export class LocationService {
   }
 
   private persistMock(): void {
-    if (!this.useMock) return;
+    if (!LOCATION_USE_MOCK) return;
     try {
       if (typeof window === 'undefined') return;
-      window.localStorage.setItem(this.mockStorageKey, JSON.stringify(this.mockRows));
+      window.localStorage.setItem(LOCATION_MOCK_STORAGE_KEY, JSON.stringify(this.mockRows));
     } catch {
       // ignore
     }
@@ -409,19 +422,6 @@ export class LocationService {
             ? ` · ${JSON.stringify(err.error)}`
             : '';
     return `${prefix}: ${status}${url}${body}`;
-  }
-
-  validateDrop(dragNode: SmsLocationNode, dropNode: SmsLocationNode | null): { ok: boolean; reason?: string } {
-    const childType = (dragNode.data as SmsLocationNode | undefined)?.type ?? dragNode.type;
-    const parentType = dropNode ? ((dropNode.data as SmsLocationNode | undefined)?.type ?? dropNode.type) : null;
-    if (!canDrop(childType, parentType)) {
-      return { ok: false, reason: 'Jerarquía inválida para este movimiento.' };
-    }
-    // prevent cycles
-    if (dropNode && this.isAncestor(dragNode, dropNode)) {
-      return { ok: false, reason: 'No se puede mover un nodo dentro de su propio sub-árbol.' };
-    }
-    return { ok: true };
   }
 
   private findNodeById(id: string): SmsLocationNode | null {
@@ -466,7 +466,9 @@ export class LocationService {
       if (this.selectedNode()?.location_id === oldId) this.selectedNode.set(replacement);
       return;
     }
-    parent.children = (parent.children ?? []).map((c) => ((c as SmsLocationNode).location_id === oldId ? replacement : c)) as SmsLocationNode[];
+    parent.children = (parent.children ?? []).map((c) =>
+      (c as SmsLocationNode).location_id === oldId ? replacement : c
+    ) as SmsLocationNode[];
     if (this.selectedNode()?.location_id === oldId) this.selectedNode.set(replacement);
   }
 
@@ -479,7 +481,9 @@ export class LocationService {
   private detachFromParent(node: SmsLocationNode): void {
     const parent = node.parent as SmsLocationNode | undefined;
     if (parent) {
-      parent.children = (parent.children ?? []).filter((c) => (c as SmsLocationNode).location_id !== node.location_id) as SmsLocationNode[];
+      parent.children = (parent.children ?? []).filter(
+        (c) => (c as SmsLocationNode).location_id !== node.location_id
+      ) as SmsLocationNode[];
       if ((parent.children ?? []).length === 0) {
         parent.leaf = parent.hasChildren === false;
       }
@@ -500,7 +504,6 @@ export class LocationService {
   private snapshotSubtree(node: SmsLocationNode): { parentId: string | null; node: SmsLocationNode } {
     const parentId = (node.parent as SmsLocationNode | undefined)?.location_id ?? null;
     const clone = structuredClone(node.data as SmsLocationNode) as SmsLocationNode;
-    // children snapshot is shallow: enough to restore at same place visually after failure.
     clone.children = node.children as SmsLocationNode[] | undefined;
     return { parentId, node: clone };
   }

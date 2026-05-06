@@ -3,24 +3,34 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@a
 import { BreadcrumbModule } from 'primeng/breadcrumb';
 import type { MenuItem } from 'primeng/api';
 import { SplitterModule } from 'primeng/splitter';
-import { MasterTreeComponent } from '../../ui/organisms/master-tree/master-tree.component';
-import { DetailExplorerComponent } from '../../ui/organisms/detail-explorer/detail-explorer.component';
-import { LocationService } from '../../services/location.service';
-import type { SmsLocationNode } from '../../../../core/models/sms-location-node.model';
+import { LocationMasterTreeComponent } from '../../../ui/organisms/location-master-tree/location-master-tree.component';
+import { LocationDetailExplorerComponent } from '../../../ui/organisms/location-detail-explorer/location-detail-explorer.component';
+import { LocationService } from '../../../features/location/services/location.service';
+import type { SmsLocationNode } from '../../../core/models/sms-location-node.model';
 
 @Component({
   selector: 'sms-location-manager-page',
   standalone: true,
-  imports: [CommonModule, SplitterModule, BreadcrumbModule, MasterTreeComponent, DetailExplorerComponent],
+  imports: [CommonModule, SplitterModule, BreadcrumbModule, LocationMasterTreeComponent, LocationDetailExplorerComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="max-w-[1600px] mx-auto space-y-6 pb-12 min-w-0">
-      <header class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <div class="max-w-[1600px] mx-auto space-y-5 md:space-y-6 pb-12 min-w-0">
+      <header class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p class="text-xs font-bold text-emerald-700 m-0">SMS · Trust &amp; Compliance</p>
-          <h1 class="text-3xl font-black text-slate-900 tracking-tight mt-1 m-0">Location Manager</h1>
+          <div class="flex flex-wrap items-center gap-2">
+            <h1 class="text-3xl font-black text-slate-900 tracking-tight mt-1 m-0">Location Manager</h1>
+            <span
+              class="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-800"
+            >
+              UI v2
+            </span>
+          </div>
           <p class="text-slate-500 text-sm max-w-3xl leading-relaxed mt-2 m-0">
-            Administra la jerarquía de ubicación y energía: Region → Branch → Building → Cost Center → Asset → Meter.
+            La raíz es tu <strong class="text-slate-700">Organización</strong>. Desde ahí modelás la jerarquía operativa y
+            energética: <span class="font-mono text-slate-600">Region → Branch → Building → Cost Center → Asset → Meter</span>.
+            Usá el árbol para crear nodos y <strong class="text-slate-700">drag &amp; drop</strong> para reubicar (valida la
+            jerarquía).
           </p>
         </div>
         <div class="flex flex-wrap gap-2 align-items-center justify-content-end shrink-0">
@@ -72,12 +82,15 @@ export class LocationManagerPage implements OnInit {
   readonly breadcrumbItems = computed<MenuItem[]>(() => {
     const nodes = this.location.breadcrumb();
     if (nodes.length === 0) {
-      return [{ label: 'Locations' }];
+      return [{ label: 'Organización' }];
     }
-    return nodes.map((n) => ({
-      label: n.name,
-      title: `${n.type} · ${n.location_id}`
-    }));
+    return [
+      { label: 'Organización', title: 'Root' },
+      ...nodes.map((n) => ({
+        label: n.name,
+        title: `${n.type} · ${n.location_id}`
+      }))
+    ];
   });
 
   async ngOnInit(): Promise<void> {

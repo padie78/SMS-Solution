@@ -1,6 +1,6 @@
-variable "project_name"      { type = string }
-variable "environment"       { type = string }
-variable "dynamo_table_arn"  { type = string }
+variable "project_name" { type = string }
+variable "environment" { type = string }
+variable "dynamo_table_arn" { type = string }
 variable "invoice_queue_arn" { type = string }
 variable "invoice_queue_url" { type = string }
 

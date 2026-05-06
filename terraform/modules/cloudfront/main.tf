@@ -18,7 +18,7 @@ resource "aws_cloudfront_response_headers_policy" "csp_policy" {
       # 'unsafe-inline' es necesario para los estilos de PrimeNG/Tailwind
       content_security_policy = "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.amazonaws.com https://*.appsync-api.us-east-1.amazonaws.com;"
     }
-    
+
     strict_transport_security {
       access_control_max_age_sec = 31536000
       include_subdomains         = true
@@ -58,15 +58,15 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
 
   # Para aplicaciones Angular (SPA), manejamos los errores 403/404 redirigiendo al index.html
   custom_error_response {
-    error_code            = 403
-    response_code         = 200
-    response_page_path    = "/index.html"
+    error_code         = 403
+    response_code      = 200
+    response_page_path = "/index.html"
   }
 
   custom_error_response {
-    error_code            = 404
-    response_code         = 200
-    response_page_path    = "/index.html"
+    error_code         = 404
+    response_code      = 200
+    response_page_path = "/index.html"
   }
 
   default_cache_behavior {
@@ -81,11 +81,11 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
       }
     }
 
-    viewer_protocol_policy     = "redirect-to-https"
-    min_ttl                    = 0
-    default_ttl                = 3600
-    max_ttl                    = 86400
-    
+    viewer_protocol_policy = "redirect-to-https"
+    min_ttl                = 0
+    default_ttl            = 3600
+    max_ttl                = 86400
+
     # ASOCIACIÓN DE LA POLÍTICA CSP
     response_headers_policy_id = aws_cloudfront_response_headers_policy.csp_policy.id
   }

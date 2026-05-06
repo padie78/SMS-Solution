@@ -109,7 +109,7 @@ variable "billing_mode" {
   type        = string
   default     = "PAY_PER_REQUEST"
   description = "Modo de facturación: PROVISIONED o PAY_PER_REQUEST"
-  
+
   validation {
     condition     = contains(["PROVISIONED", "PAY_PER_REQUEST"], var.billing_mode)
     error_message = "El billing_mode debe ser PROVISIONED o PAY_PER_REQUEST."
@@ -160,7 +160,7 @@ variable "bedrock_model_id" {
 
 variable "ami_id" {
   type    = string
-  default = "ami-0c55b159cbfafe1f0" 
+  default = "ami-0c55b159cbfafe1f0"
 }
 
 variable "allowed_ip_network" {

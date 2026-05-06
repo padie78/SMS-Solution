@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { TagModule } from 'primeng/tag';
-import type { SmsNodeStatus } from '../../../../../core/models/sms-location-node.model';
+import type { SmsNodeStatus } from '../../../core/models/sms-location-node.model';
 
 type PrimeTagSeverity = 'success' | 'info' | 'warning' | 'danger' | undefined;
 
@@ -20,13 +20,13 @@ function mapSeverity(status?: SmsNodeStatus): PrimeTagSeverity {
 function mapLabel(status?: SmsNodeStatus): string {
   switch (status) {
     case 'ACTIVE':
-      return 'Active';
+      return 'Activo';
     case 'ALERT':
-      return 'Alert';
+      return 'Alerta';
     case 'MAINTENANCE':
-      return 'Maintenance';
+      return 'Mantenimiento';
     default:
-      return 'Unknown';
+      return 'Desconocido';
   }
 }
 
@@ -43,7 +43,7 @@ function mapLabel(status?: SmsNodeStatus): string {
     />
   `
 })
-export class SmsStatusBadgeComponent {
+export class LocationStatusBadgeComponent {
   @Input() status?: SmsNodeStatus;
 
   get severity(): PrimeTagSeverity {

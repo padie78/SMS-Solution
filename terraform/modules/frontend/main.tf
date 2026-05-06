@@ -1,7 +1,7 @@
 # 1. Bucket S3 para Hosting Estático
 resource "aws_s3_bucket" "webapp_bucket" {
   bucket        = "${var.project_name}-${var.environment}-webapp-hosting"
-  force_destroy = true 
+  force_destroy = true
 }
 
 resource "aws_s3_bucket_website_configuration" "webapp_config" {
@@ -38,7 +38,7 @@ resource "aws_s3_object" "config_json" {
   bucket       = aws_s3_bucket.webapp_bucket.id
   key          = "assets/config.json"
   content_type = "application/json"
-  content      = jsonencode({
+  content = jsonencode({
     appsync_url    = var.appsync_url
     appsync_region = var.appsync_region
     user_pool_id   = var.user_pool_id

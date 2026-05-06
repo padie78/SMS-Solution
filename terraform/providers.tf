@@ -5,10 +5,10 @@ terraform {
   # IMPORTANTE: Debés crear el bucket "sms-platform-terraform-state-diego" 
   # (o el nombre que elijas) manualmente en la consola antes de hacer el push.
   backend "s3" {
-    bucket         = "sms-platform-terraform-state-diego" # Cambiá esto por el nombre de tu bucket real
-    key            = "sms-platform/terraform.tfstate"
-    region         = "eu-central-1"
-    encrypt        = true
+    bucket  = "sms-platform-terraform-state-diego" # Cambiá esto por el nombre de tu bucket real
+    key     = "sms-platform/terraform.tfstate"
+    region  = "eu-central-1"
+    encrypt = true
     # dynamodb_table = "terraform-lock" # Habilitalo si creás una tabla Dynamo para locking
   }
 

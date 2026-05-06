@@ -33,18 +33,18 @@ signer_route_path = "/get-url"
 api_cors_max_age  = 3600
 
 api_cors_methods = [
-  "GET", 
-  "POST", 
-  "OPTIONS", 
-  "PUT", 
+  "GET",
+  "POST",
+  "OPTIONS",
+  "PUT",
   "DELETE"
 ]
 
 api_cors_headers = [
-  "Content-Type", 
-  "Authorization", 
-  "X-Amz-Date", 
-  "X-Api-Key", 
+  "Content-Type",
+  "Authorization",
+  "X-Amz-Date",
+  "X-Api-Key",
   "X-Amz-Security-Token"
 ]
 
