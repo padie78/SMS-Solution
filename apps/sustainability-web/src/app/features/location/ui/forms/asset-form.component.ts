@@ -167,7 +167,9 @@ export class AssetFormComponent {
     regionId: this.fb.control('', { validators: [Validators.required] }),
     branchId: this.fb.control('', { validators: [Validators.required] }),
     buildingId: this.fb.control('', { validators: [Validators.required] }),
-    costCenterId: this.fb.control('', { validators: [Validators.required] }),
+    // UX (mock mode): permitir guardar con solo `name`.
+    // Cost Center es transversal; puede asignarse luego.
+    costCenterId: this.fb.control(''),
     name: this.fb.control('', { validators: [Validators.required] }),
     type: this.fb.control((AssetTypeSchema.options[0] ?? 'HVAC') as AssetType, { validators: [Validators.required] }),
     status: this.fb.control((AssetLifecycleStatusSchema.options[0] ?? 'ACTIVE') as AssetLifecycleStatus, { validators: [Validators.required] }),

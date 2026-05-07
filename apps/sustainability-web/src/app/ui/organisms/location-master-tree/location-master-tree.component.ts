@@ -8,6 +8,7 @@ import { ContextMenuModule } from 'primeng/contextmenu';
 import { DragDropModule } from 'primeng/dragdrop';
 import { TreeModule } from 'primeng/tree';
 import type { TreeNode } from 'primeng/api';
+import { ConfirmDialogModule } from 'primeng/confirmdialog';
 import { LocationTreeNodeTemplateComponent } from '../../molecules/location-tree-node-template/location-tree-node-template.component';
 import type { SmsLocationNode, SmsLocationNodeType } from '../../../core/models/sms-location-node.model';
 import { LocationService } from '../../../features/location/services/location.service';
@@ -55,7 +56,15 @@ function labelForType(t: SmsLocationNodeType): string {
 @Component({
   selector: 'sms-master-tree',
   standalone: true,
-  imports: [CommonModule, TreeModule, DragDropModule, ContextMenuModule, ButtonModule, LocationTreeNodeTemplateComponent],
+  imports: [
+    CommonModule,
+    TreeModule,
+    DragDropModule,
+    ContextMenuModule,
+    ButtonModule,
+    ConfirmDialogModule,
+    LocationTreeNodeTemplateComponent
+  ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   providers: [ConfirmationService, TreeDragDropService],
   styles: [
@@ -173,6 +182,7 @@ function labelForType(t: SmsLocationNodeType): string {
       </div>
 
       <p-contextMenu #cm [model]="contextMenuItems()" />
+      <p-confirmDialog />
 
       <div class="flex-1 min-h-0 overflow-hidden border-round-xl border border-slate-200 bg-white">
         <div class="h-full flex flex-column" *ngIf="(nodes?.length ?? 0) > 0; else emptyState">
@@ -273,7 +283,7 @@ export class LocationMasterTreeComponent {
         label: 'Eliminar',
         icon: 'pi pi-trash',
         disabled: !target,
-        command: () => (target ? this.confirmDelete(target) : undefined)
+        command: () => (target ? void this.confirmDelete(target) : undefined)
       }
     ];
     return common;
@@ -321,7 +331,7 @@ export class LocationMasterTreeComponent {
   }
 
   onQuickDelete(node: SmsLocationNode): void {
-    this.confirmDelete(node);
+    void this.confirmDelete(node);
   }
 
   async createOrganization(): Promise<void> {
@@ -376,14 +386,35 @@ export class LocationMasterTreeComponent {
     }
   }
 
-  private confirmDelete(node: SmsLocationNode): void {
+  private async confirmDelete(node: SmsLocationNode): Promise<void> {
+    try {
+      const hasChildren = await this.location.hasDirectChildren(node);
+      if (hasChildren) {
+        this.location.lastError.set(
+          `No se puede eliminar "${node.name}" porque tiene nodos hijos. Eliminá primero los hijos.`
+        );
+        return;
+      }
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Error desconocido cargando hijos para validar eliminación';
+      this.location.lastError.set(msg);
+      return;
+    }
     this.confirm.confirm({
       message: `Delete \"${node.name}\" (${node.type})?`,
       header: 'Confirmar eliminación',
       icon: 'pi pi-exclamation-triangle',
       acceptLabel: 'Eliminar',
       rejectLabel: 'Cancelar',
-      accept: () => void this.location.deleteNode(node.location_id)
+      accept: async () => {
+        try {
+          await this.location.deleteNode(node.location_id);
+          this.reload.emit();
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : 'Error desconocido eliminando nodo';
+          this.location.lastError.set(msg);
+        }
+      }
     });
   }
 }

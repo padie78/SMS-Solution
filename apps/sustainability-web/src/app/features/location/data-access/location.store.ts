@@ -371,6 +371,19 @@ export class LocationService {
     }
   }
 
+  /**
+   * Determina si un nodo tiene hijos directos.
+   * - Mock mode: usa `mockRows` (source of truth localStorage).
+   * - Backend mode: asegura carga lazy y revisa `children`.
+   */
+  async hasDirectChildren(node: SmsLocationNode): Promise<boolean> {
+    if (LOCATION_USE_MOCK) {
+      return this.mockRows.some((r) => (r.parent_id ?? null) === node.location_id && r.type !== 'COST_CENTER');
+    }
+    await this.ensureChildrenLoaded(node);
+    return Array.isArray(node.children) && node.children.length > 0;
+  }
+
   validateDrop(dragNode: SmsLocationNode, dropNode: SmsLocationNode | null): { ok: boolean; reason?: string } {
     const childType = (dragNode.data as SmsLocationNode | undefined)?.type ?? dragNode.type;
     const parentType = dropNode ? ((dropNode.data as SmsLocationNode | undefined)?.type ?? dropNode.type) : null;
@@ -403,16 +416,28 @@ export class LocationService {
     const costCenters = this.mockRows.filter((n) => n.type === 'COST_CENTER');
     if (costCenters.length === 0) return;
 
-    const ccToParent = new Map<string, string | null>();
+    const byId = new Map<string, SmsLocationNode>();
+    for (const n of this.mockRows) byId.set(n.location_id, n);
+
+    const ccToPhysicalParent = new Map<string, string | null>();
     for (const cc of costCenters) {
-      ccToParent.set(cc.location_id, cc.parent_id ?? null);
+      const parentId = cc.parent_id ?? null;
+      const parent = parentId ? byId.get(parentId) : undefined;
+      // Solo migramos hacia un padre físico válido (idealmente BUILDING).
+      // Si no existe, dejamos la relación como está (para no "perder" nodos).
+      if (parent && (parent.type === 'BUILDING' || parent.type === 'BRANCH')) {
+        ccToPhysicalParent.set(cc.location_id, parentId);
+      }
     }
 
     let changed = false;
     this.mockRows = this.mockRows.map((n) => {
-      const newParent = ccToParent.get(n.parent_id ?? '');
+      const currentParentId = n.parent_id ?? null;
+      if (!currentParentId) return n;
+      const newParent = ccToPhysicalParent.get(currentParentId);
       if (newParent === undefined) return n;
-      // Mueve el nodo que cuelga del CC al padre del CC (normalmente BUILDING).
+      if (newParent === currentParentId) return n;
+      // Mueve el nodo que cuelga del CC al padre físico del CC.
       changed = true;
       return { ...n, parent_id: newParent };
     });
