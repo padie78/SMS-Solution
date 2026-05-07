@@ -29,10 +29,16 @@ export interface SmsEnvironmentalImpact {
 export interface SmsLocationNodeMetadata {
   /** RegionDTO */
   code?: string | null;
+  organizationId?: string | null;
+  countryCode?: string | null;
+  description?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 
   /** BranchDTO */
-  regionLabel?: string | null;
   facilityType?: string | null;
+  energyTarget?: number | null;
+  isHeadquarters?: boolean | null;
   /** Utility identifier (e.g., ES... / AR...). Usually applies to Meter / Asset. */
   cups?: string | null;
   serialNumber?: string | null;
@@ -49,23 +55,40 @@ export interface SmsLocationNodeMetadata {
   m3Volume?: number | null;
   hvacType?: string | null;
   hasBms?: boolean | null;
+  bmsVendor?: string | null;
+  mainFuelType?: string | null;
+  buildingLatitude?: number | null;
+  buildingLongitude?: number | null;
+  regionId?: string | null;
+  branchOrganizationId?: string | null;
 
   /** CostCenterDTO */
   allocationMethod?: string | null;
   percentage?: number | null;
   annualBudget?: number | null;
+  currency?: string | null;
+  fiscalYear?: number | null;
+  externalId?: string | null;
 
   /** AssetDTO */
   assetType?: string | null;
   assetStatus?: string | null;
   nominalPower?: number | null;
   nominalPower_kw?: number | null;
+  assetOrganizationId?: string | null;
+  /** Jerarquía (Region / Branch) para enlaces contables y facturación. */
+  assetRegionId?: string | null;
+  /** Etiquetas clave/valor (AssetDTO.tags). */
+  tags?: Record<string, string> | null;
 
   /** MeterDTO */
   meterType?: string | null;
   isMain?: boolean | null;
-
-  tags?: string[] | null;
+  meterOrgId?: string | null;
+  meterRegionId?: string | null;
+  parentMeterId?: string | null;
+  assetId?: string | null;
+  meterStatus?: string | null;
   /** Ad-hoc properties to prototype without backend schema migrations. */
   custom?: Record<string, string> | null;
 }

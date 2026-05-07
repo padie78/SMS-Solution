@@ -7,7 +7,6 @@ const TYPE_ORDER: ReadonlyArray<SmsLocationNodeType> = [
   'REGION',
   'BRANCH',
   'BUILDING',
-  'COST_CENTER',
   'ASSET',
   'METER'
 ];
@@ -21,6 +20,9 @@ export function canDrop(childType: SmsLocationNodeType, parentType: SmsLocationN
   if (childRank < 0) return false;
   if (childType === 'ORGANIZATION') return parentType == null;
   if (childType === 'REGION') return parentType === 'ORGANIZATION';
+  // CostCenter es transversal; no participa del árbol físico.
+  if (childType === 'COST_CENTER') return false;
+  if (parentType === 'COST_CENTER') return false;
   if (parentType == null) return false;
   const parentRank = typeRank(parentType);
   return parentRank === childRank - 1;

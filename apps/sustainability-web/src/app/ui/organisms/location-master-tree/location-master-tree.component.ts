@@ -23,8 +23,6 @@ function nextChildTypes(parentType: SmsLocationNodeType | null): SmsLocationNode
     case 'BRANCH':
       return ['BUILDING'];
     case 'BUILDING':
-      return ['COST_CENTER'];
-    case 'COST_CENTER':
       return ['ASSET'];
     case 'ASSET':
       return ['METER'];
@@ -45,12 +43,12 @@ function labelForType(t: SmsLocationNodeType): string {
       return 'Sucursal';
     case 'BUILDING':
       return 'Edificio';
-    case 'COST_CENTER':
-      return 'Centro de costo';
     case 'ASSET':
       return 'Activo';
     case 'METER':
       return 'Medidor';
+    default:
+      return 'Nodo';
   }
 }
 

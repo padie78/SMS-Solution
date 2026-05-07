@@ -1,6 +1,5 @@
 export {
   AssetDTOSchema,
-  AssetOperationalStatusSchema,
   parseAssetDTO,
   safeParseAssetDTO,
   type AssetDTO

@@ -9,9 +9,21 @@ export const SubscriptionPlanSchema = z.enum(['ENTERPRISE']);
 export const FacilityTypeSchema = z.enum(['MANUFACTURING']);
 export const IanaTimezoneSchema = z.enum(['Asia/Jerusalem']);
 export const BuildingUsageTypeSchema = z.enum(['STORAGE_INDUSTRIAL']);
-export const OperationalStatusSchema = z.enum(['OPERATIONAL']);
+/** Estado operativo de edificios / instalaciones. */
+export const OperationalStatusSchema = z.enum([
+  'OPERATIONAL',
+  'INACTIVE',
+  'MAINTENANCE',
+  'STANDBY'
+]);
 export const HvacTypeSchema = z.enum(['CENTRAL_CHILLER']);
-export const CostAllocationMethodSchema = z.enum(['SQUARE_METERS']);
+export const CostAllocationMethodSchema = z.enum(['FIXED', 'PERCENTAGE', 'SQUARE_METERS']);
+/** Alta / baja para entidades jerárquicas (región, sucursal, etc.). */
+export const LifecycleStatusSchema = z.enum(['ACTIVE', 'INACTIVE']);
+export const AssetLifecycleStatusSchema = z.enum(['ACTIVE', 'INACTIVE', 'MAINTENANCE']);
+export const MeterOperationalStatusSchema = z.enum(['ACTIVE', 'INACTIVE', 'FAULT']);
+export const TariffLifecycleStatusSchema = z.enum(['ACTIVE', 'EXPIRED', 'PENDING']);
+export const MainFuelTypeSchema = z.enum(['ELECTRICITY', 'GAS', 'DIESEL', 'RENEWABLE']);
 export const AlertTypeSchema = z.enum(['EFFICIENCY']);
 export const AlertStatusSchema = z.enum(['ENABLED']);
 export const AlertPrioritySchema = z.enum(['P1_CRITICAL']);
@@ -36,6 +48,11 @@ export type BuildingUsageType = z.infer<typeof BuildingUsageTypeSchema>;
 export type OperationalStatus = z.infer<typeof OperationalStatusSchema>;
 export type HvacType = z.infer<typeof HvacTypeSchema>;
 export type CostAllocationMethod = z.infer<typeof CostAllocationMethodSchema>;
+export type LifecycleStatus = z.infer<typeof LifecycleStatusSchema>;
+export type AssetLifecycleStatus = z.infer<typeof AssetLifecycleStatusSchema>;
+export type MeterOperationalStatus = z.infer<typeof MeterOperationalStatusSchema>;
+export type TariffLifecycleStatus = z.infer<typeof TariffLifecycleStatusSchema>;
+export type MainFuelType = z.infer<typeof MainFuelTypeSchema>;
 export type AlertType = z.infer<typeof AlertTypeSchema>;
 export type AlertStatus = z.infer<typeof AlertStatusSchema>;
 export type AlertPriority = z.infer<typeof AlertPrioritySchema>;

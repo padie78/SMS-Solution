@@ -223,46 +223,72 @@ input SaveOrgConfigInput {
   reductionTarget: Float
   targetYear: Int
   subscriptionPlan: String
+  status: String
+  createdAt: String
+  updatedAt: String
 }
 
 input CreateBranchInput {
   branchId: String
+  organizationId: ID
+  regionId: ID
   name: String
   m2Surface: Float
   facilityType: String
   timezone: String
   region: String
+  energyTarget: Float
+  isHeadquarters: Boolean
+  address: AWSJSON
+  status: String
 }
 
 input SaveBuildingInput {
   name: String
+  organizationId: ID
+  regionId: ID
   usageType: String
+  usageTypeEnum: String
   status: String
   yearBuilt: Int
   m2Surface: Float
   m3Volume: Float
   hvacType: String
   hasBms: Boolean
+  bmsVendor: String
+  mainFuelType: String
+  coordinatesLat: Float
+  coordinatesLng: Float
 }
 
 input SaveCostCenterInput {
   id: String
+  organizationId: ID
   name: String
   branchId: String
+  buildingId: String
   method: String
+  allocationMethod: String
   percentage: Float
   annualBudget: Float
+  currency: String
+  fiscalYear: Int
+  externalId: String
+  status: String
 }
 
 input SaveAssetInput {
   name: String
   category: String
+  organizationId: ID
+  regionId: ID
   status: String
   nominalPower: Float
   meterId: String
   branchId: String
   buildingId: String
   costCenterId: String
+  tags: AWSJSON
 }
 
 input SaveMeterInput {
@@ -273,15 +299,24 @@ input SaveMeterInput {
   type: String
   isMain: Boolean
   buildingId: String
+  orgId: ID
+  regionId: ID
+  assetId: ID
+  parentMeterId: ID
+  status: String
 }
 
 input SaveTariffInput {
+  id: ID
+  buildingId: ID
   providerName: String
   contractId: String
   pricingModel: String
   baseRate: Float
   validFrom: String
   validTo: String
+  currency: String
+  status: String
 }
 
 input SaveAlertRuleInput {

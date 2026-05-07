@@ -1,21 +1,27 @@
 import { SmsDomainError } from '../shared/sms-domain-error.js';
 import type { MeterType } from '../shared/domain-enums.js';
-import type { MeterProtocol } from '../shared/graphql-setup-enums.js';
+import type { MeterOperationalStatus, MeterProtocol } from '../shared/graphql-setup-enums.js';
 import type { MeterDTO } from './meter.dto.js';
 
 /** Punto de medición: siempre Building; opcionalmente Asset para sub-medición. */
 export class MeterEntity {
   constructor(
     public readonly id: string,
+    public readonly orgId: string,
+    public readonly regionId: string,
+    public readonly branchId: string,
     public readonly buildingId: string,
     public readonly meterType: MeterType,
+    public readonly serialNumber: string,
+    public readonly name: string,
+    public readonly iotName: string,
+    public readonly protocol: MeterProtocol,
+    public readonly status: MeterOperationalStatus,
+    public readonly isMain: boolean = false,
     public readonly assetId?: string,
-    public readonly serialNumber?: string,
-    public readonly name?: string,
-    public readonly branchId?: string,
-    public readonly iotName?: string,
-    public readonly protocol?: MeterProtocol,
-    public readonly isMain?: boolean
+    public readonly parentMeterId?: string,
+    public readonly createdAt?: string,
+    public readonly updatedAt?: string
   ) {
     this.assertMeasurementHierarchy();
   }
@@ -23,23 +29,35 @@ export class MeterEntity {
   static fromDTO(dto: MeterDTO): MeterEntity {
     return new MeterEntity(
       dto.id,
+      dto.orgId,
+      dto.regionId,
+      dto.branchId,
       dto.buildingId,
       dto.meterType,
-      dto.assetId,
       dto.serialNumber,
       dto.name,
-      dto.branchId,
       dto.iotName,
       dto.protocol,
-      dto.isMain
+      dto.status,
+      dto.isMain,
+      dto.assetId,
+      dto.parentMeterId,
+      dto.createdAt,
+      dto.updatedAt
     );
   }
 
   assertMeasurementHierarchy(): void {
     if (!this.id?.trim()) throw new SmsDomainError('Meter.id required');
+    if (!this.orgId?.trim()) throw new SmsDomainError('Meter.orgId required');
+    if (!this.regionId?.trim()) throw new SmsDomainError('Meter.regionId required');
+    if (!this.branchId?.trim()) throw new SmsDomainError('Meter.branchId required');
     if (!this.buildingId?.trim()) {
       throw new SmsDomainError('Meter cannot exist without buildingId (localization tree)');
     }
+    if (!this.serialNumber?.trim()) throw new SmsDomainError('Meter.serialNumber required');
+    if (!this.name?.trim()) throw new SmsDomainError('Meter.name required');
+    if (!this.iotName?.trim()) throw new SmsDomainError('Meter.iotName required');
   }
 
   isSubMeter(): boolean {
@@ -58,15 +76,21 @@ export class MeterEntity {
   toValue(): MeterDTO {
     return {
       id: this.id,
+      orgId: this.orgId,
+      regionId: this.regionId,
+      branchId: this.branchId,
       buildingId: this.buildingId,
       meterType: this.meterType,
-      assetId: this.assetId,
       serialNumber: this.serialNumber,
       name: this.name,
-      branchId: this.branchId,
       iotName: this.iotName,
       protocol: this.protocol,
-      isMain: this.isMain
+      status: this.status,
+      isMain: this.isMain,
+      ...(this.assetId !== undefined ? { assetId: this.assetId } : {}),
+      ...(this.parentMeterId !== undefined ? { parentMeterId: this.parentMeterId } : {}),
+      ...(this.createdAt !== undefined ? { createdAt: this.createdAt } : {}),
+      ...(this.updatedAt !== undefined ? { updatedAt: this.updatedAt } : {})
     };
   }
 }

@@ -76,8 +76,9 @@ export class LocationService {
     this.lastError.set(null);
     try {
       if (LOCATION_USE_MOCK) {
+        this.normalizeMockPhysicalHierarchy();
         const roots = this.mockRows
-          .filter((n) => !n.parent_id)
+          .filter((n) => !n.parent_id && n.type !== 'COST_CENTER')
           .map((n) => this.withMockComputedChildren(withPrimeTreeFields(n)));
         this.tree.set(sortNodes(roots));
       } else {
@@ -92,6 +93,14 @@ export class LocationService {
       for (const org of orgRoots) {
         org.expanded = true;
         await this.ensureChildrenLoaded(org);
+      }
+
+      // En mock mode queremos que tras F5 se vea la jerarquía completa sin expandir manualmente.
+      // Precargamos recursivamente (lazy) varios niveles.
+      if (LOCATION_USE_MOCK) {
+        for (const org of orgRoots) {
+          await this.preloadDescendants(org, 8);
+        }
       }
 
       // Rehidrata expansiones previas (lazy tree) para que no “desaparezcan” hijos tras refresh.
@@ -116,6 +125,16 @@ export class LocationService {
     }
   }
 
+  private async preloadDescendants(root: SmsLocationNode, maxDepth: number): Promise<void> {
+    if (maxDepth <= 0) return;
+    root.expanded = true;
+    await this.ensureChildrenLoaded(root);
+    const children = (root.children ?? []) as SmsLocationNode[];
+    for (const child of children) {
+      await this.preloadDescendants(child, maxDepth - 1);
+    }
+  }
+
   async ensureChildrenLoaded(parent: SmsLocationNode): Promise<void> {
     const alreadyLoaded = Array.isArray(parent.children) && parent.children.length > 0;
     if (alreadyLoaded) return;
@@ -128,6 +147,7 @@ export class LocationService {
       if (LOCATION_USE_MOCK) {
         const children = this.mockRows
           .filter((n) => (n.parent_id ?? null) === parent.location_id)
+          .filter((n) => n.type !== 'COST_CENTER')
           .map((n) => this.withMockComputedChildren(withPrimeTreeFields(n, parent)));
         parent.children = sortNodes(children);
         parent.leaf = (parent.children ?? []).length === 0;
@@ -364,12 +384,40 @@ export class LocationService {
   }
 
   private withMockComputedChildren(node: SmsLocationNode): SmsLocationNode {
-    const hasChildren = this.mockRows.some((r) => (r.parent_id ?? null) === node.location_id);
+    const hasChildren = this.mockRows.some(
+      (r) => (r.parent_id ?? null) === node.location_id && r.type !== 'COST_CENTER'
+    );
     return {
       ...node,
       hasChildren,
       leaf: !hasChildren
     };
+  }
+
+  /**
+   * Cost Center es transversal y no cuelga del árbol físico.
+   * En mock mode, migramos cualquier Asset que hoy cuelgue de un COST_CENTER
+   * para que cuelgue del BUILDING padre del Cost Center.
+   */
+  private normalizeMockPhysicalHierarchy(): void {
+    const costCenters = this.mockRows.filter((n) => n.type === 'COST_CENTER');
+    if (costCenters.length === 0) return;
+
+    const ccToParent = new Map<string, string | null>();
+    for (const cc of costCenters) {
+      ccToParent.set(cc.location_id, cc.parent_id ?? null);
+    }
+
+    let changed = false;
+    this.mockRows = this.mockRows.map((n) => {
+      const newParent = ccToParent.get(n.parent_id ?? '');
+      if (newParent === undefined) return n;
+      // Mueve el nodo que cuelga del CC al padre del CC (normalmente BUILDING).
+      changed = true;
+      return { ...n, parent_id: newParent };
+    });
+
+    if (changed) this.persistMock();
   }
 
   private collectSubtreeIds(rootId: string): Set<string> {

@@ -1,26 +1,22 @@
 import { z } from 'zod';
 import { SmsIdSchema } from '../shared/sms-id.schema.js';
-import { CostAllocationMethodSchema } from '../shared/graphql-setup-enums.js';
+import { CostAllocationMethodSchema, LifecycleStatusSchema } from '../shared/graphql-setup-enums.js';
 
-export const CostCenterDTOSchema = z
-  .object({
-    id: SmsIdSchema,
-    name: z.string().min(1),
-    branchId: SmsIdSchema.optional(),
-    buildingId: SmsIdSchema.optional(),
-    /** Método de prorrateo (p. ej. `SQUARE_METERS` desde AppSync). */
-    allocationMethod: z.union([CostAllocationMethodSchema, z.string().min(1)]).optional(),
-    percentage: z.number().min(0).max(100).optional(),
-    annualBudget: z.number().nonnegative().optional()
-  })
-  .superRefine((data, ctx) => {
-    if (!data.branchId && !data.buildingId) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'CostCenter requires branchId and/or buildingId for financial traceability'
-      });
-    }
-  });
+export const CostCenterDTOSchema = z.object({
+  id: SmsIdSchema,
+  organizationId: SmsIdSchema,
+  name: z.string().min(1),
+  branchId: SmsIdSchema.optional(),
+  buildingId: SmsIdSchema.optional(),
+  annualBudget: z.number().nonnegative(),
+  currency: z.string().min(1).default('ILS'),
+  fiscalYear: z.number().int().default(() => new Date().getFullYear()),
+  allocationMethod: CostAllocationMethodSchema,
+  percentage: z.number().min(0).max(100).default(100),
+  externalId: z.string().min(1).optional(),
+  status: LifecycleStatusSchema,
+  updatedAt: z.string().min(1).optional()
+});
 
 export type CostCenterDTO = z.infer<typeof CostCenterDTOSchema>;
 

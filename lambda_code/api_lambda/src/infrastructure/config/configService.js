@@ -80,7 +80,13 @@ export const configService = {
             },
 
             last_updated: timestamp,
-            _internal_updated_at: timestamp
+            _internal_updated_at: timestamp,
+
+            org_lifecycle: {
+                status: input.status || "ACTIVE",
+                created_at: input.createdAt || timestamp,
+                updated_at: input.updatedAt || timestamp
+            },
         };
 
         try {
@@ -194,6 +200,8 @@ export const configService = {
 
             // 4. Clasificación y Ruteo
             tags: {
+                organization_id: input.organizationId || null,
+                region_id: input.regionId || null,
                 region: input.region || "UNKNOWN",
                 criticality: input.criticality || "MEDIUM",
                 cost_center_primary: input.primaryCC || "N/A"
@@ -202,8 +210,10 @@ export const configService = {
             last_updated: timestamp,
             metadata: {
                 created_at: timestamp,
-                status: "ACTIVE",
-                created_by: input.userId || "system"
+                status: input.status || "ACTIVE",
+                created_by: input.userId || "system",
+                is_headquarters: Boolean(input.isHeadquarters),
+                address: input.address ?? null
             }
         };
 
@@ -289,10 +299,17 @@ export const configService = {
             // 1. Información General
             building_info: {
                 name: input.name || "Nuevo Edificio",
+                organization_id: input.organizationId || null,
+                region_id: input.regionId || null,
                 usage_type: input.usageType || "INDUSTRIAL",
+                usage_type_enum: input.usageTypeEnum || null,
                 status: input.status || "OPERATIONAL",
                 year_built: Number(input.yearBuilt) || null,
-                manager_contact: input.managerContact || "N/A"
+                manager_contact: input.managerContact || "N/A",
+                bms_vendor: input.bmsVendor || null,
+                main_fuel_type: input.mainFuelType || null,
+                coordinates_lat: input.coordinatesLat ?? null,
+                coordinates_lng: input.coordinatesLng ?? null
             },
 
             // 2. Especificaciones Físicas (Ingeniería Térmica)
@@ -422,12 +439,15 @@ export const configService = {
                 accounting_code: input.accountingCode || "000-000",
                 manager_id: input.managerId || "UNASSIGNED",
                 parent_branch: input.branchId || "GLOBAL",
-                status: "ACTIVE"
+                parent_building: input.buildingId || null,
+                organization_id: input.organizationId || null,
+                external_id: input.externalId || null,
+                status: input.status || "ACTIVE"
             },
 
             // 2. Reglas de Prorrateo (Cómo paga la energía)
             allocation_rules: {
-                allocation_method: input.method || "FIXED_PCT",
+                allocation_method: input.allocationMethod || input.method || "SQUARE_METERS",
                 allocation_percentage: Number(input.percentage) || 0,
                 operating_hours: Number(input.operatingHours) || 8,
                 is_vat_exempt: Boolean(input.isVatExempt) || false
@@ -436,6 +456,8 @@ export const configService = {
             // 3. Control Presupuestario
             budget_config: {
                 annual_budget_cap: Number(input.annualBudget) || 0,
+                fiscal_year: Number(input.fiscalYear) || new Date().getFullYear(),
+                currency: input.currency || "ILS",
                 alert_thresholds: input.thresholds || [75, 90, 100],
                 over_budget_policy: input.budgetPolicy || "NOTIFY"
             },
@@ -522,7 +544,11 @@ export const configService = {
                 iot_thing_name: input.iotName || null
             },
 
+            tagging: typeof input.tags === "object" && input.tags !== null ? input.tags : {},
+
             assignment: {
+                organization_id: input.organizationId || null,
+                region_id: input.regionId || null,
                 branch_id: input.branchId,
                 building_id: input.buildingId,
                 cost_center_id: input.costCenterId,
@@ -660,6 +686,10 @@ export const configService = {
             },
 
             metadata: {
+                tariff_id: input.id || null,
+                building_id: input.buildingId || null,
+                currency: input.currency || "ILS",
+                lifecycle_status: input.status || "ACTIVE",
                 updated_at: timestamp,
                 updated_by: input.userId || "system",
                 version: "2.0"
@@ -1213,10 +1243,14 @@ export const configService = {
             },
 
             topology: {
+                organization_id: input.orgId || null,
+                region_id: input.regionId || null,
+                asset_id: input.assetId || null,
                 parent_meter_id: input.parentMeterId ? `METER#${input.parentMeterId.toUpperCase()}` : null,
                 role: input.isMain ? "MAIN_REVENUE" : "SUB_METER",
                 building_id: input.buildingId || "UNASSIGNED",
-                cost_center_id: input.costCenterId || "GENERAL"
+                cost_center_id: input.costCenterId || "GENERAL",
+                operational_status: input.status || "ACTIVE"
             },
 
             connectivity: {

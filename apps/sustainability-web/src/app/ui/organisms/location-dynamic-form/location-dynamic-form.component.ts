@@ -61,6 +61,22 @@ interface StatusOption {
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Code</label>
           <input pInputText class="w-full" formControlName="code" placeholder="(optional)" />
         </div>
+        <div class="col-span-12 md:col-span-6" *ngIf="showField('countryCode')">
+          <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Country code</label>
+          <input pInputText class="w-full" formControlName="countryCode" placeholder="e.g. IL" />
+        </div>
+        <div class="col-span-12" *ngIf="showField('description')">
+          <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Description</label>
+          <input pInputText class="w-full" formControlName="description" placeholder="(optional)" />
+        </div>
+        <div class="col-span-12 md:col-span-6" *ngIf="showField('latitude')">
+          <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Latitude</label>
+          <p-inputNumber class="w-full" formControlName="latitude" />
+        </div>
+        <div class="col-span-12 md:col-span-6" *ngIf="showField('longitude')">
+          <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Longitude</label>
+          <p-inputNumber class="w-full" formControlName="longitude" />
+        </div>
 
         <div class="col-span-12 md:col-span-6" *ngIf="showField('timezone')">
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Timezone</label>
@@ -74,9 +90,13 @@ interface StatusOption {
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Surface (m²)</label>
           <p-inputNumber class="w-full" formControlName="m2Surface" [min]="0" />
         </div>
-        <div class="col-span-12 md:col-span-6" *ngIf="showField('regionLabel')">
-          <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Region label</label>
-          <input pInputText class="w-full" formControlName="regionLabel" placeholder="(optional)" />
+        <div class="col-span-12 md:col-span-6" *ngIf="showField('energyTarget')">
+          <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Energy target</label>
+          <p-inputNumber class="w-full" formControlName="energyTarget" [min]="0" />
+        </div>
+        <div class="col-span-12 md:col-span-6" *ngIf="showField('isHeadquarters')">
+          <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">HQ (true/false)</label>
+          <input pInputText class="w-full" formControlName="isHeadquarters" placeholder="false" />
         </div>
 
         <div class="col-span-12 md:col-span-6" *ngIf="showField('usageType')">
@@ -107,6 +127,14 @@ interface StatusOption {
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Has BMS</label>
           <input pInputText class="w-full" formControlName="hasBms" placeholder="true/false" />
         </div>
+        <div class="col-span-12 md:col-span-6" *ngIf="showField('bmsVendor')">
+          <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">BMS vendor</label>
+          <input pInputText class="w-full" formControlName="bmsVendor" placeholder="(optional)" />
+        </div>
+        <div class="col-span-12 md:col-span-6" *ngIf="showField('mainFuelType')">
+          <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Main fuel</label>
+          <input pInputText class="w-full" formControlName="mainFuelType" placeholder="ELECTRICITY | GAS | …" />
+        </div>
 
         <div class="col-span-12 md:col-span-6" *ngIf="showField('allocationMethod')">
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Allocation method</label>
@@ -119,6 +147,18 @@ interface StatusOption {
         <div class="col-span-12 md:col-span-6" *ngIf="showField('annualBudget')">
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Annual budget</label>
           <p-inputNumber class="w-full" formControlName="annualBudget" [min]="0" />
+        </div>
+        <div class="col-span-12 md:col-span-6" *ngIf="showField('currency')">
+          <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Currency</label>
+          <input pInputText class="w-full" formControlName="currency" placeholder="ILS" />
+        </div>
+        <div class="col-span-12 md:col-span-6" *ngIf="showField('fiscalYear')">
+          <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Fiscal year</label>
+          <p-inputNumber class="w-full" formControlName="fiscalYear" [useGrouping]="false" />
+        </div>
+        <div class="col-span-12 md:col-span-6" *ngIf="showField('externalId')">
+          <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">External ID</label>
+          <input pInputText class="w-full" formControlName="externalId" placeholder="(optional)" />
         </div>
 
         <div class="col-span-12 md:col-span-6" *ngIf="showField('assetType')">
@@ -218,7 +258,12 @@ export class LocationDynamicFormComponent {
     timezone: this.fb.control<string | null>(null),
     facilityType: this.fb.control<string | null>(null),
     m2Surface: this.fb.control<number | null>(null),
-    regionLabel: this.fb.control<string | null>(null),
+    energyTarget: this.fb.control<number | null>(null),
+    isHeadquarters: this.fb.control<string | null>(null),
+    countryCode: this.fb.control<string | null>(null),
+    description: this.fb.control<string | null>(null),
+    latitude: this.fb.control<number | null>(null),
+    longitude: this.fb.control<number | null>(null),
     usageType: this.fb.control<string | null>(null),
     usageTypeEnum: this.fb.control<string | null>(null),
     operationalStatus: this.fb.control<string | null>(null),
@@ -226,9 +271,14 @@ export class LocationDynamicFormComponent {
     m3Volume: this.fb.control<number | null>(null),
     hvacType: this.fb.control<string | null>(null),
     hasBms: this.fb.control<string | null>(null),
+    bmsVendor: this.fb.control<string | null>(null),
+    mainFuelType: this.fb.control<string | null>(null),
     allocationMethod: this.fb.control<string | null>(null),
     percentage: this.fb.control<number | null>(null),
     annualBudget: this.fb.control<number | null>(null),
+    currency: this.fb.control<string | null>(null),
+    fiscalYear: this.fb.control<number | null>(null),
+    externalId: this.fb.control<string | null>(null),
     assetType: this.fb.control<string | null>(null),
     assetStatus: this.fb.control<string | null>(null),
     nominalPower: this.fb.control<number | null>(null),
@@ -258,7 +308,12 @@ export class LocationDynamicFormComponent {
             timezone: n.metadata?.timezone ?? null,
             facilityType: n.metadata?.facilityType ?? null,
             m2Surface: n.metadata?.m2Surface ?? null,
-            regionLabel: n.metadata?.regionLabel ?? null,
+            energyTarget: n.metadata?.energyTarget ?? null,
+            isHeadquarters: n.metadata?.isHeadquarters == null ? null : n.metadata.isHeadquarters ? 'true' : 'false',
+            countryCode: n.metadata?.countryCode ?? null,
+            description: n.metadata?.description ?? null,
+            latitude: n.metadata?.latitude ?? null,
+            longitude: n.metadata?.longitude ?? null,
             usageType: n.metadata?.usageType ?? null,
             usageTypeEnum: n.metadata?.usageTypeEnum ?? null,
             operationalStatus: n.metadata?.operationalStatus ?? null,
@@ -266,9 +321,14 @@ export class LocationDynamicFormComponent {
             m3Volume: n.metadata?.m3Volume ?? null,
             hvacType: n.metadata?.hvacType ?? null,
             hasBms: n.metadata?.hasBms == null ? null : n.metadata?.hasBms ? 'true' : 'false',
+            bmsVendor: n.metadata?.bmsVendor ?? null,
+            mainFuelType: n.metadata?.mainFuelType ?? null,
             allocationMethod: n.metadata?.allocationMethod ?? null,
             percentage: n.metadata?.percentage ?? null,
             annualBudget: n.metadata?.annualBudget ?? null,
+            currency: n.metadata?.currency ?? null,
+            fiscalYear: n.metadata?.fiscalYear ?? null,
+            externalId: n.metadata?.externalId ?? null,
             assetType: n.metadata?.assetType ?? null,
             assetStatus: n.metadata?.assetStatus ?? null,
             nominalPower: n.metadata?.nominalPower ?? null,
@@ -313,7 +373,12 @@ export class LocationDynamicFormComponent {
         timezone: n.metadata?.timezone ?? null,
         facilityType: n.metadata?.facilityType ?? null,
         m2Surface: n.metadata?.m2Surface ?? null,
-        regionLabel: n.metadata?.regionLabel ?? null,
+        energyTarget: n.metadata?.energyTarget ?? null,
+        isHeadquarters: n.metadata?.isHeadquarters == null ? null : n.metadata.isHeadquarters ? 'true' : 'false',
+        countryCode: n.metadata?.countryCode ?? null,
+        description: n.metadata?.description ?? null,
+        latitude: n.metadata?.latitude ?? null,
+        longitude: n.metadata?.longitude ?? null,
         usageType: n.metadata?.usageType ?? null,
         usageTypeEnum: n.metadata?.usageTypeEnum ?? null,
         operationalStatus: n.metadata?.operationalStatus ?? null,
@@ -321,9 +386,14 @@ export class LocationDynamicFormComponent {
         m3Volume: n.metadata?.m3Volume ?? null,
         hvacType: n.metadata?.hvacType ?? null,
         hasBms: n.metadata?.hasBms == null ? null : n.metadata?.hasBms ? 'true' : 'false',
+        bmsVendor: n.metadata?.bmsVendor ?? null,
+        mainFuelType: n.metadata?.mainFuelType ?? null,
         allocationMethod: n.metadata?.allocationMethod ?? null,
         percentage: n.metadata?.percentage ?? null,
         annualBudget: n.metadata?.annualBudget ?? null,
+        currency: n.metadata?.currency ?? null,
+        fiscalYear: n.metadata?.fiscalYear ?? null,
+        externalId: n.metadata?.externalId ?? null,
         assetType: n.metadata?.assetType ?? null,
         assetStatus: n.metadata?.assetStatus ?? null,
         nominalPower: n.metadata?.nominalPower ?? null,
@@ -357,7 +427,10 @@ export class LocationDynamicFormComponent {
         metadata: {
           ...(n.metadata ?? {}),
           code: this.showField('code') ? raw.code : n.metadata?.code ?? null,
-          regionLabel: this.showField('regionLabel') ? raw.regionLabel : n.metadata?.regionLabel ?? null,
+          countryCode: this.showField('countryCode') ? raw.countryCode : n.metadata?.countryCode ?? null,
+          description: this.showField('description') ? raw.description : n.metadata?.description ?? null,
+          latitude: this.showField('latitude') ? raw.latitude : n.metadata?.latitude ?? null,
+          longitude: this.showField('longitude') ? raw.longitude : n.metadata?.longitude ?? null,
           cups: this.showField('cups') ? raw.cups : n.metadata?.cups ?? null,
           serialNumber: this.showField('serialNumber') ? raw.serialNumber : n.metadata?.serialNumber ?? null,
           iotName: this.showField('iotName') ? raw.iotName : n.metadata?.iotName ?? null,
@@ -368,14 +441,21 @@ export class LocationDynamicFormComponent {
           usageType: this.showField('usageType') ? raw.usageType : n.metadata?.usageType ?? null,
           yearBuilt: this.showField('yearBuilt') ? raw.yearBuilt : n.metadata?.yearBuilt ?? null,
           m2Surface: this.showField('m2Surface') ? raw.m2Surface : n.metadata?.m2Surface ?? null,
+          energyTarget: this.showField('energyTarget') ? raw.energyTarget : n.metadata?.energyTarget ?? null,
+          isHeadquarters: this.showField('isHeadquarters') ? parseBool(raw.isHeadquarters) : n.metadata?.isHeadquarters ?? null,
           m3Volume: this.showField('m3Volume') ? raw.m3Volume : n.metadata?.m3Volume ?? null,
           usageTypeEnum: this.showField('usageTypeEnum') ? raw.usageTypeEnum : n.metadata?.usageTypeEnum ?? null,
           operationalStatus: this.showField('operationalStatus') ? raw.operationalStatus : n.metadata?.operationalStatus ?? null,
           hvacType: this.showField('hvacType') ? raw.hvacType : n.metadata?.hvacType ?? null,
           hasBms: this.showField('hasBms') ? parseBool(raw.hasBms) : n.metadata?.hasBms ?? null,
+          bmsVendor: this.showField('bmsVendor') ? raw.bmsVendor : n.metadata?.bmsVendor ?? null,
+          mainFuelType: this.showField('mainFuelType') ? raw.mainFuelType : n.metadata?.mainFuelType ?? null,
           allocationMethod: this.showField('allocationMethod') ? raw.allocationMethod : n.metadata?.allocationMethod ?? null,
           percentage: this.showField('percentage') ? raw.percentage : n.metadata?.percentage ?? null,
           annualBudget: this.showField('annualBudget') ? raw.annualBudget : n.metadata?.annualBudget ?? null,
+          currency: this.showField('currency') ? raw.currency : n.metadata?.currency ?? null,
+          fiscalYear: this.showField('fiscalYear') ? raw.fiscalYear : n.metadata?.fiscalYear ?? null,
+          externalId: this.showField('externalId') ? raw.externalId : n.metadata?.externalId ?? null,
           assetType: this.showField('assetType') ? raw.assetType : n.metadata?.assetType ?? null,
           assetStatus: this.showField('assetStatus') ? raw.assetStatus : n.metadata?.assetStatus ?? null,
           nominalPower: this.showField('nominalPower') ? raw.nominalPower : n.metadata?.nominalPower ?? null,
@@ -392,11 +472,44 @@ export class LocationDynamicFormComponent {
 
   private fieldsForType(type: SmsLocationNode['type']): Set<string> {
     if (type === 'ORGANIZATION') return new Set(['name', 'status']);
-    if (type === 'REGION') return new Set(['name', 'status', 'code']);
-    if (type === 'BRANCH') return new Set(['name', 'status', 'timezone', 'facilityType', 'm2Surface', 'regionLabel']);
+    if (type === 'REGION')
+      return new Set(['name', 'status', 'code', 'countryCode', 'description', 'latitude', 'longitude']);
+    if (type === 'BRANCH')
+      return new Set([
+        'name',
+        'status',
+        'timezone',
+        'facilityType',
+        'm2Surface',
+        'energyTarget',
+        'isHeadquarters'
+      ]);
     if (type === 'BUILDING')
-      return new Set(['name', 'status', 'usageType', 'usageTypeEnum', 'operationalStatus', 'yearBuilt', 'm2Surface', 'm3Volume', 'hvacType', 'hasBms']);
-    if (type === 'COST_CENTER') return new Set(['name', 'status', 'allocationMethod', 'percentage', 'annualBudget']);
+      return new Set([
+        'name',
+        'status',
+        'usageType',
+        'usageTypeEnum',
+        'operationalStatus',
+        'yearBuilt',
+        'm2Surface',
+        'm3Volume',
+        'hvacType',
+        'hasBms',
+        'bmsVendor',
+        'mainFuelType'
+      ]);
+    if (type === 'COST_CENTER')
+      return new Set([
+        'name',
+        'status',
+        'allocationMethod',
+        'percentage',
+        'annualBudget',
+        'currency',
+        'fiscalYear',
+        'externalId'
+      ]);
     if (type === 'ASSET') return new Set(['name', 'status', 'assetType', 'assetStatus', 'nominalPower', 'nominalPower_kw']);
     if (type === 'METER') return new Set(['name', 'status', 'meterType', 'serialNumber', 'iotName', 'protocol', 'isMain', 'cups']);
     return new Set(['name', 'status']);

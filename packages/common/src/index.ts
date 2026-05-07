@@ -18,6 +18,16 @@ export {
 export { SmsDomainError, RegionDomainError } from './shared/sms-domain-error.js';
 
 export {
+  AddressDTOSchema,
+  type AddressDTO
+} from './shared/address.dto.js';
+
+export {
+  GeoCoordinatesDTOSchema,
+  type GeoCoordinatesDTO
+} from './shared/geo.dto.js';
+
+export {
   ROLE_TO_CODE,
   decodeAssetType,
   decodeMeterType,
@@ -142,6 +152,11 @@ export {
   EmissionScopeSchema,
   EmissionFactorUnitSchema,
   MeterProtocolSchema,
+  LifecycleStatusSchema,
+  AssetLifecycleStatusSchema,
+  MeterOperationalStatusSchema,
+  TariffLifecycleStatusSchema,
+  MainFuelTypeSchema,
   type IndustrySector,
   type CurrencyCode,
   type ReportingCurrencyCode,
@@ -164,7 +179,12 @@ export {
   type EmissionActivityType,
   type EmissionScope,
   type EmissionFactorUnit,
-  type MeterProtocol
+  type MeterProtocol,
+  type LifecycleStatus,
+  type AssetLifecycleStatus,
+  type MeterOperationalStatus,
+  type TariffLifecycleStatus,
+  type MainFuelType
 } from './shared/graphql-setup-enums.js';
 
 export {
@@ -172,9 +192,14 @@ export {
   parseOrgConfigDTO,
   safeParseOrgConfigDTO,
   type OrgConfigDTO,
+  OrganizationDTOSchema,
+  parseOrganizationDTO,
+  safeParseOrganizationDTO,
+  type OrganizationDTO,
   OrgConfigEntity,
   OrgConfigMapper,
-  type OrgConfigPersistence
+  type OrgConfigPersistence,
+  type OrganizationDynamoItem
 } from './org-config/index.js';
 
 export {

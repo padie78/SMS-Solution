@@ -1,12 +1,12 @@
 import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input, computed } from '@angular/core';
 import type { SmsLocationNode } from '../../../core/models/sms-location-node.model';
-import { LocationDynamicFormComponent } from '../location-dynamic-form/location-dynamic-form.component';
+import { LocationDtoFormsHostComponent } from '../../../features/location/ui/forms/location-dto-forms-host.component';
 
 @Component({
   selector: 'sms-detail-explorer',
   standalone: true,
-  imports: [CommonModule, LocationDynamicFormComponent],
+  imports: [CommonModule, LocationDtoFormsHostComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="h-full min-w-0">
@@ -20,7 +20,7 @@ import { LocationDynamicFormComponent } from '../location-dynamic-form/location-
           </div>
         </div>
 
-        <sms-dynamic-form [node]="node" />
+        <sms-location-dto-forms-host [node]="node()!" />
       </div>
 
       <ng-template #empty>
