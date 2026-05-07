@@ -10,17 +10,22 @@ import { LocationDtoFormsHostComponent } from '../../../features/location/ui/for
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div class="h-full min-w-0">
-      <div *ngIf="node(); else empty" class="space-y-4">
-        <div class="flex flex-wrap align-items-start justify-content-between gap-3">
-          <div class="min-w-0">
-            <h2 class="text-xs font-bold uppercase tracking-wider text-slate-600 m-0">Properties</h2>
-            <div class="text-sm text-slate-500 mt-1">
-              {{ node()?.type }} · <span class="font-mono text-xs font-bold">{{ node()?.location_id }}</span>
-            </div>
+      <div *ngIf="node(); else empty" class="mx-auto w-full max-w-[980px] space-y-6">
+        <header class="w-full border-b border-slate-200/90 pb-5">
+          <h2 class="m-0 text-[11px] font-black uppercase tracking-[0.12em] text-slate-500">Properties</h2>
+          <div class="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span
+              class="inline-flex items-center rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-900"
+            >
+              {{ node()?.type }}
+            </span>
+            <span class="break-all font-mono text-sm font-semibold text-slate-800">{{ node()?.location_id }}</span>
           </div>
-        </div>
+        </header>
 
-        <sms-location-dto-forms-host [node]="node()!" />
+        <div class="w-full min-w-0">
+          <sms-location-dto-forms-host [node]="node()!" />
+        </div>
       </div>
 
       <ng-template #empty>

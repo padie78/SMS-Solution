@@ -8,7 +8,8 @@ export {
   OrganizationDTOSchema,
   parseOrganizationDTO,
   safeParseOrganizationDTO,
-  type OrganizationDTO
+  OrganizationDTO,
+  type OrganizationDTOInput
 } from './organization.dto.js';
 export { OrgConfigEntity } from './org-config.entity.js';
 export {

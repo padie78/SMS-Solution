@@ -1,7 +1,7 @@
 import { SmsDomainError } from '../shared/sms-domain-error.js';
 import type { LifecycleStatus } from '../shared/graphql-setup-enums.js';
 import type { GeoCoordinatesDTO } from '../shared/geo.dto.js';
-import type { RegionDTO } from './region.dto.js';
+import { RegionDTO } from './region.dto.js';
 
 /** Nivel 2 — agrupa sucursales geopolíticas / compliance. */
 export class RegionEntity {
@@ -12,9 +12,28 @@ export class RegionEntity {
     public readonly code: string,
     public readonly countryCode: string,
     public readonly timezone: string,
+    public readonly coordinates: GeoCoordinatesDTO,
+    public readonly climateZone: RegionDTO['climateZone'],
+    public readonly avgHDD: number,
+    public readonly avgCDD: number,
+    public readonly totalRegionalM2: number,
+    public readonly totalHeadcount: number,
+    public readonly annualRevenueTarget: number | undefined,
+    public readonly gridEmissionFactor: number,
+    public readonly carbonTaxRate: number,
+    public readonly carbonMarketType: RegionDTO['carbonMarketType'],
+    public readonly marginalAbatementCost: number,
+    public readonly renewableEnergyAvailability: number,
+    public readonly gridRenewableShare: number,
+    public readonly waterStressIndex: number,
+    public readonly localRegulations: readonly string[],
+    public readonly maturityLevel: RegionDTO['maturityLevel'],
+    public readonly economicArea: RegionDTO['economicArea'],
+    public readonly regionalManager: RegionDTO['regionalManager'],
+    public readonly regionalReductionTarget: number,
+    public readonly energyScarcityRisk: number,
     public readonly status: LifecycleStatus,
     public readonly description?: string,
-    public readonly coordinates?: GeoCoordinatesDTO,
     public readonly createdAt?: string,
     public readonly updatedAt?: string
   ) {
@@ -29,9 +48,28 @@ export class RegionEntity {
       dto.code,
       dto.countryCode,
       dto.timezone,
+      dto.coordinates,
+      dto.climateZone,
+      dto.avgHDD,
+      dto.avgCDD,
+      dto.totalRegionalM2,
+      dto.totalHeadcount,
+      dto.annualRevenueTarget,
+      dto.gridEmissionFactor,
+      dto.carbonTaxRate,
+      dto.carbonMarketType,
+      dto.marginalAbatementCost,
+      dto.renewableEnergyAvailability,
+      dto.gridRenewableShare,
+      dto.waterStressIndex,
+      dto.localRegulations,
+      dto.maturityLevel,
+      dto.economicArea,
+      dto.regionalManager,
+      dto.regionalReductionTarget,
+      dto.energyScarcityRisk,
       dto.status,
       dto.description,
-      dto.coordinates,
       dto.createdAt,
       dto.updatedAt
     );
@@ -47,18 +85,37 @@ export class RegionEntity {
   }
 
   toValue(): RegionDTO {
-    return {
-      id: this.id,
-      organizationId: this.organizationId,
-      name: this.name,
-      code: this.code,
-      countryCode: this.countryCode,
-      timezone: this.timezone,
-      status: this.status,
-      ...(this.description !== undefined ? { description: this.description } : {}),
-      ...(this.coordinates !== undefined ? { coordinates: this.coordinates } : {}),
-      ...(this.createdAt !== undefined ? { createdAt: this.createdAt } : {}),
-      ...(this.updatedAt !== undefined ? { updatedAt: this.updatedAt } : {})
-    };
+    return new RegionDTO(
+      this.id,
+      this.organizationId,
+      this.name,
+      this.code,
+      this.countryCode,
+      this.timezone,
+      this.coordinates,
+      this.climateZone,
+      this.avgHDD,
+      this.avgCDD,
+      this.totalRegionalM2,
+      this.totalHeadcount,
+      this.annualRevenueTarget,
+      this.gridEmissionFactor,
+      this.carbonTaxRate,
+      this.carbonMarketType,
+      this.marginalAbatementCost,
+      this.renewableEnergyAvailability,
+      this.gridRenewableShare,
+      this.waterStressIndex,
+      [...this.localRegulations],
+      this.maturityLevel,
+      this.economicArea,
+      this.regionalManager,
+      this.regionalReductionTarget,
+      this.energyScarcityRisk,
+      this.status,
+      this.createdAt,
+      this.updatedAt,
+      this.description
+    );
   }
 }

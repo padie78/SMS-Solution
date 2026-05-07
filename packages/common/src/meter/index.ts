@@ -2,7 +2,16 @@ export {
   MeterDTOSchema,
   parseMeterDTO,
   safeParseMeterDTO,
-  type MeterDTO
+  MeterDTO,
+  type MeterDTOInput,
+  MeterServiceTypeSchema,
+  MeterUnitSchema,
+  MeterAccuracyClassSchema,
+  MeterCommunicationStatusSchema,
+  type MeterServiceType,
+  type MeterUnit,
+  type MeterAccuracyClass,
+  type MeterCommunicationStatus
 } from './meter.dto.js';
 
 export { MeterEntity } from './meter.entity.js';

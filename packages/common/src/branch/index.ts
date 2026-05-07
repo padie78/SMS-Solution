@@ -1,8 +1,19 @@
 export {
   BranchDTOSchema,
+  BranchStatusSchema,
+  BranchTypeSchema,
+  OwnershipTypeSchema,
+  BackupPowerTypeSchema,
+  OperatingHoursDTOSchema,
+  BranchManagerDTOSchema,
   parseBranchDTO,
   safeParseBranchDTO,
-  type BranchDTO
+  BranchDTO,
+  type BranchDTOInput,
+  type BranchStatus,
+  type BranchType,
+  type OwnershipType,
+  type BackupPowerType
 } from './branch.dto.js';
 
 export { BranchEntity } from './branch.entity.js';

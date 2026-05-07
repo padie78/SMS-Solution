@@ -1,7 +1,7 @@
 import type { SmsEntityTag } from '../shared/sms-entity-tag.js';
 import { OrgConfigEntity } from './org-config.entity.js';
 import type { OrgConfigDTO } from './org-config.dto.js';
-import type { OrganizationDTO } from './organization.dto.js';
+import { OrganizationDTO } from './organization.dto.js';
 import type { LifecycleStatus } from '../shared/graphql-setup-enums.js';
 
 export interface OrgConfigPersistence {
@@ -26,8 +26,16 @@ export interface OrgConfigPersistence {
   unit_sys?: 'METRIC' | 'IMPERIAL';
   def_tz?: string;
   fy_start?: number;
+  /**
+   * Enterprise estándar: objeto anidado (Dynamo Map).
+   * Back-compat: si no existe, se aceptan los campos legacy `adm_*`.
+   */
+  admin_contact?: { name: string; email: string; phone?: string };
+  /** Legacy (deprecated). */
   adm_nm?: string;
+  /** Legacy (deprecated). */
   adm_em?: string;
+  /** Legacy (deprecated). */
   adm_ph?: string;
   esg_fw?: string[];
   st?: LifecycleStatus;
@@ -66,12 +74,14 @@ export const OrgConfigMapper = Object.freeze({
       ...(entity.websiteUrl ? { web_url: entity.websiteUrl } : {}),
       ...(entity.logoUrl ? { logo_url: entity.logoUrl } : {}),
       prim_lang: entity.primaryLanguage,
-      unit_sys: entity.unitSystem,
+      unit_sys: entity.unitSystem ?? 'METRIC',
       def_tz: entity.defaultTimeZone,
-      fy_start: entity.fiscalYearStart,
-      adm_nm: entity.adminContact?.name,
-      adm_em: entity.adminContact?.email,
-      adm_ph: entity.adminContact?.phone,
+      fy_start: entity.fiscalYearStart ?? 1,
+      admin_contact: {
+        name: entity.adminContact?.name ?? 'N/A',
+        email: entity.adminContact?.email ?? 'N/A',
+        ...(entity.adminContact?.phone ? { phone: entity.adminContact.phone } : {})
+      },
       esg_fw: [...(entity.esgFrameworks ?? [])],
       st: entity.status,
       ...(entity.createdAt ? { crt_at: entity.createdAt } : {}),
@@ -107,25 +117,43 @@ export const OrgConfigMapper = Object.freeze({
   },
 
   persistenceToOrganizationDTO(row: OrgConfigPersistence): OrganizationDTO {
-    return {
-      orgId: row.org_id,
-      ...OrgConfigMapper.persistenceToDTO(row),
-      legalName: row.leg_nm ?? row.nm,
-      ...(row.web_url ? { websiteUrl: row.web_url } : {}),
-      ...(row.logo_url ? { logoUrl: row.logo_url } : {}),
-      primaryLanguage: row.prim_lang ?? 'en',
-      unitSystem: row.unit_sys ?? 'METRIC',
-      defaultTimeZone: row.def_tz ?? 'UTC',
-      fiscalYearStart: row.fy_start ?? 1,
-      adminContact: {
-        name: row.adm_nm ?? 'N/A',
-        email: row.adm_em ?? 'N/A',
-        phone: row.adm_ph ?? 'N/A'
-      },
-      esgFrameworks: Array.isArray(row.esg_fw) ? row.esg_fw : [],
-      status: row.st ?? 'ACTIVE',
-      ...(row.crt_at ? { createdAt: row.crt_at } : {}),
-      ...(row.upd_at ? { updatedAt: row.upd_at } : {})
-    };
+    const adminContact =
+      row.admin_contact ??
+      (row.adm_nm || row.adm_em || row.adm_ph
+        ? {
+            name: row.adm_nm ?? 'N/A',
+            email: row.adm_em ?? 'N/A',
+            ...(row.adm_ph ? { phone: row.adm_ph } : {})
+          }
+        : { name: 'N/A', email: 'N/A' });
+
+    const dto = new OrganizationDTO(
+      row.org_id,
+      row.nm,
+      row.leg_nm ?? row.nm,
+      row.tax_id,
+      row.ind_sec as OrgConfigDTO['industrySector'],
+      row.hq_addr,
+      row.web_url,
+      row.logo_url,
+      row.prim_lang ?? 'en',
+      (row.unit_sys ?? 'METRIC') as 'METRIC' | 'IMPERIAL',
+      row.curr as OrgConfigDTO['currency'],
+      row.rep_curr as OrgConfigDTO['reportingCurrency'],
+      row.fy_start ?? 1,
+      row.tot_glob_m2,
+      row.base_yr,
+      row.tgt_yr,
+      row.red_tgt,
+      row.min_conf,
+      Array.isArray(row.esg_fw) ? row.esg_fw : [],
+      row.sub_plan as OrgConfigDTO['subscriptionPlan'],
+      row.st ?? 'ACTIVE',
+      adminContact,
+      row.crt_at,
+      row.upd_at
+    );
+    (dto as { defaultTimeZone: string }).defaultTimeZone = row.def_tz ?? 'UTC';
+    return dto;
   }
 });

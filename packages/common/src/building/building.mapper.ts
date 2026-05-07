@@ -1,7 +1,12 @@
 import type { SmsEntityTag } from '../shared/sms-entity-tag.js';
 import { BuildingEntity } from './building.entity.js';
-import type { BuildingDTO } from './building.dto.js';
-import type { MainFuelType, OperationalStatus } from '../shared/graphql-setup-enums.js';
+import { BuildingDTO } from './building.dto.js';
+import type {
+  BuildingUsageType,
+  HvacType,
+  MainFuelType,
+  OperationalStatus
+} from '../shared/graphql-setup-enums.js';
 
 export interface BuildingPersistence {
   sms_et: SmsEntityTag;
@@ -10,9 +15,35 @@ export interface BuildingPersistence {
   bld_id: string;
   br_id: string;
   b_nm: string;
+  st: OperationalStatus;
+
+  /** Enterprise */
+  fp_m2?: number;
+  floors?: number;
+  reno_yr?: number;
+  ins_qual?: 'POOR' | 'AVERAGE' | 'HIGH';
+  ww_ratio?: number;
+  roof_ty?: 'GREEN' | 'REFLECTIVE' | 'STANDARD';
+  hv_age?: number;
+  hv_eff?: number;
+  maint_st?: 'OPTIMAL' | 'DEGRADED' | 'CRITICAL';
+  audit_dt?: string;
+  lt_tech?: 'LED' | 'FLUORESCENT' | 'HID' | 'MIXED';
+  lt_pd?: number;
+  bms_prot?: string[];
+  smart_m?: boolean;
+  dg?: 'MANUAL' | 'MONTHLY' | 'DAILY' | 'TELEMETRY';
+  sub_topo?: 'CENTRALIZED' | 'BY_FLOOR' | 'BY_LOAD' | 'NONE';
+  bdg_cert?: string[];
+  epc?: string;
+  onsite_kw?: number;
+  aq_sns?: boolean;
+  wat_rcy?: boolean;
+  ev_pts?: number;
+
+  /** Legacy */
   use_ty?: string;
   use_ty_en: string;
-  st: OperationalStatus;
   yr_blt?: number;
   m2: number;
   m3?: number;
@@ -26,13 +57,15 @@ export interface BuildingPersistence {
   upd_at?: string;
 }
 
+const ZERO_COORD = { lat: 0, lng: 0 } as const;
+
 export const BuildingMapper = Object.freeze({
   dtoToEntity(dto: BuildingDTO): BuildingEntity {
     return BuildingEntity.fromDTO(dto);
   },
 
   toPersistence(entity: BuildingEntity): BuildingPersistence {
-    const coords = entity.coordinates;
+    const c = entity.coordinates;
     return {
       sms_et: 'BLD',
       org_id: entity.organizationId,
@@ -40,17 +73,40 @@ export const BuildingMapper = Object.freeze({
       bld_id: entity.id,
       br_id: entity.branchId,
       b_nm: entity.name,
+      st: entity.status,
       use_ty_en: entity.usageTypeEnum,
       m2: entity.m2Surface,
+      m3: entity.m3Volume,
+      yr_blt: entity.yearBuilt,
       hvac_ty: entity.hvacType,
       bms: entity.hasBms,
-      st: entity.status,
-      ...(entity.usageType ? { use_ty: entity.usageType } : {}),
-      ...(entity.yearBuilt !== undefined ? { yr_blt: entity.yearBuilt } : {}),
-      ...(entity.m3Volume !== undefined ? { m3: entity.m3Volume } : {}),
-      ...(entity.bmsVendor ? { bms_vnd: entity.bmsVendor } : {}),
-      ...(entity.mainFuelType ? { main_fuel: entity.mainFuelType } : {}),
-      ...(coords !== undefined ? { crd_lat: coords.lat, crd_lng: coords.lng } : {}),
+      ...(entity.usageType?.trim() ? { use_ty: entity.usageType.trim() } : {}),
+      main_fuel: entity.mainFuelType,
+      ...(entity.bmsVendor?.trim() ? { bms_vnd: entity.bmsVendor.trim() } : {}),
+      crd_lat: c.lat,
+      crd_lng: c.lng,
+      ...(entity.footprintM2 !== undefined ? { fp_m2: entity.footprintM2 } : {}),
+      floors: entity.floorsCount,
+      ...(entity.renovationYear !== undefined ? { reno_yr: entity.renovationYear } : {}),
+      ins_qual: entity.insulationQuality,
+      ww_ratio: entity.windowWallRatio,
+      roof_ty: entity.roofType,
+      ...(entity.hvacAgeYears !== undefined ? { hv_age: entity.hvacAgeYears } : {}),
+      ...(entity.hvacEfficiencyRating !== undefined ? { hv_eff: entity.hvacEfficiencyRating } : {}),
+      maint_st: entity.maintenanceStatus,
+      ...(entity.lastEnergyAuditDate ? { audit_dt: entity.lastEnergyAuditDate } : {}),
+      lt_tech: entity.lightingTechnology,
+      ...(entity.lightingPowerDensity !== undefined ? { lt_pd: entity.lightingPowerDensity } : {}),
+      bms_prot: [...entity.bmsProtocols],
+      smart_m: entity.hasSmartMetering,
+      dg: entity.dataGranularity,
+      sub_topo: entity.submeteringTopology,
+      bdg_cert: [...entity.buildingCertifications],
+      ...(entity.epcRating ? { epc: entity.epcRating } : {}),
+      ...(entity.onsiteGenerationCapacityKw !== undefined ? { onsite_kw: entity.onsiteGenerationCapacityKw } : {}),
+      aq_sns: entity.airQualitySensors,
+      wat_rcy: entity.waterRecyclingSystem,
+      ev_pts: entity.evChargingPoints,
       ...(entity.createdAt ? { crt_at: entity.createdAt } : {}),
       ...(entity.updatedAt ? { upd_at: entity.updatedAt } : {})
     };
@@ -58,25 +114,49 @@ export const BuildingMapper = Object.freeze({
 
   persistenceToDTO(row: BuildingPersistence): BuildingDTO {
     const hasCoords = row.crd_lat !== undefined && row.crd_lng !== undefined;
-    return {
-      id: row.bld_id,
-      organizationId: row.org_id,
-      regionId: row.reg_id,
-      branchId: row.br_id,
-      name: row.b_nm,
-      usageTypeEnum: row.use_ty_en as BuildingDTO['usageTypeEnum'],
-      status: row.st,
-      m2Surface: row.m2,
-      hvacType: row.hvac_ty as BuildingDTO['hvacType'],
-      hasBms: row.bms,
-      ...(row.use_ty ? { usageType: row.use_ty } : {}),
-      ...(row.yr_blt !== undefined ? { yearBuilt: row.yr_blt } : {}),
-      ...(row.m3 !== undefined ? { m3Volume: row.m3 } : {}),
-      ...(row.bms_vnd ? { bmsVendor: row.bms_vnd } : {}),
-      ...(row.main_fuel ? { mainFuelType: row.main_fuel } : {}),
-      ...(hasCoords ? { coordinates: { lat: row.crd_lat as number, lng: row.crd_lng as number } } : {}),
-      ...(row.crt_at ? { createdAt: row.crt_at } : {}),
-      ...(row.upd_at ? { updatedAt: row.upd_at } : {})
-    };
+    const coords = hasCoords ? { lat: row.crd_lat as number, lng: row.crd_lng as number } : ZERO_COORD;
+
+    return new BuildingDTO(
+      row.bld_id,
+      row.org_id,
+      row.reg_id,
+      row.br_id,
+      row.b_nm,
+      row.st,
+      row.use_ty_en as BuildingUsageType,
+      row.m2,
+      row.m3 ?? 0,
+      row.fp_m2,
+      row.floors,
+      row.yr_blt ?? new Date().getFullYear(),
+      row.reno_yr,
+      row.ins_qual,
+      row.ww_ratio,
+      row.roof_ty,
+      coords,
+      row.hvac_ty as HvacType,
+      row.hv_age,
+      row.hv_eff,
+      row.maint_st,
+      row.audit_dt,
+      row.main_fuel ?? 'ELECTRICITY',
+      row.lt_tech,
+      row.lt_pd,
+      row.bms,
+      row.bms_vnd,
+      row.bms_prot,
+      row.smart_m ?? false,
+      row.dg,
+      row.sub_topo,
+      row.bdg_cert,
+      row.epc,
+      row.onsite_kw,
+      row.aq_sns,
+      row.wat_rcy,
+      row.ev_pts,
+      row.crt_at,
+      row.upd_at,
+      row.use_ty
+    );
   }
 });

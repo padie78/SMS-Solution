@@ -2,7 +2,20 @@ export {
   BuildingDTOSchema,
   parseBuildingDTO,
   safeParseBuildingDTO,
-  type BuildingDTO
+  BuildingDTO,
+  type BuildingDTOInput,
+  BuildingInsulationQualitySchema,
+  BuildingRoofTypeSchema,
+  BuildingMaintenanceStatusSchema,
+  BuildingLightingTechnologySchema,
+  BuildingDataGranularitySchema,
+  BuildingSubmeteringTopologySchema,
+  type BuildingInsulationQuality,
+  type BuildingRoofType,
+  type BuildingMaintenanceStatus,
+  type BuildingLightingTechnology,
+  type BuildingDataGranularity,
+  type BuildingSubmeteringTopology
 } from './building.dto.js';
 
 export { BuildingEntity } from './building.entity.js';

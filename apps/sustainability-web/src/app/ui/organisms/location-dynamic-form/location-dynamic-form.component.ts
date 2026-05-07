@@ -182,9 +182,9 @@ interface StatusOption {
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Serial number</label>
           <input pInputText class="w-full" formControlName="serialNumber" />
         </div>
-        <div class="col-span-12 md:col-span-6" *ngIf="showField('iotName')">
-          <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">IoT name</label>
-          <input pInputText class="w-full" formControlName="iotName" />
+        <div class="col-span-12 md:col-span-6" *ngIf="showField('internalTag')">
+          <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Internal tag</label>
+          <input pInputText class="w-full" formControlName="internalTag" />
         </div>
         <div class="col-span-12 md:col-span-6" *ngIf="showField('protocol')">
           <label class="block text-slate-600 text-xs font-bold uppercase tracking-wider mb-2">Protocol</label>
@@ -251,7 +251,7 @@ export class LocationDynamicFormComponent {
     status: this.fb.control<SmsNodeStatus>('ACTIVE', { nonNullable: true }),
     cups: this.fb.control<string | null>(null),
     serialNumber: this.fb.control<string | null>(null),
-    iotName: this.fb.control<string | null>(null),
+    internalTag: this.fb.control<string | null>(null),
     protocol: this.fb.control<string | null>(null),
     nominalPower_kw: this.fb.control<number | null>(null),
     code: this.fb.control<string | null>(null),
@@ -301,7 +301,7 @@ export class LocationDynamicFormComponent {
             status: n.status ?? 'ACTIVE',
             cups: n.metadata?.cups ?? null,
             serialNumber: n.metadata?.serialNumber ?? null,
-            iotName: n.metadata?.iotName ?? null,
+            internalTag: n.metadata?.internalTag ?? n.metadata?.iotName ?? null,
             protocol: n.metadata?.protocol ?? null,
             nominalPower_kw: n.metadata?.nominalPower_kw ?? null,
             code: n.metadata?.code ?? null,
@@ -366,7 +366,7 @@ export class LocationDynamicFormComponent {
         status: n.status ?? 'ACTIVE',
         cups: n.metadata?.cups ?? null,
         serialNumber: n.metadata?.serialNumber ?? null,
-        iotName: n.metadata?.iotName ?? null,
+        internalTag: n.metadata?.internalTag ?? n.metadata?.iotName ?? null,
         protocol: n.metadata?.protocol ?? null,
         nominalPower_kw: n.metadata?.nominalPower_kw ?? null,
         code: n.metadata?.code ?? null,
@@ -433,7 +433,9 @@ export class LocationDynamicFormComponent {
           longitude: this.showField('longitude') ? raw.longitude : n.metadata?.longitude ?? null,
           cups: this.showField('cups') ? raw.cups : n.metadata?.cups ?? null,
           serialNumber: this.showField('serialNumber') ? raw.serialNumber : n.metadata?.serialNumber ?? null,
-          iotName: this.showField('iotName') ? raw.iotName : n.metadata?.iotName ?? null,
+          internalTag: this.showField('internalTag')
+            ? raw.internalTag
+            : n.metadata?.internalTag ?? n.metadata?.iotName ?? null,
           protocol: this.showField('protocol') ? raw.protocol : n.metadata?.protocol ?? null,
           nominalPower_kw: this.showField('nominalPower_kw') ? raw.nominalPower_kw : n.metadata?.nominalPower_kw ?? null,
           timezone: this.showField('timezone') ? raw.timezone : n.metadata?.timezone ?? null,
@@ -511,7 +513,8 @@ export class LocationDynamicFormComponent {
         'externalId'
       ]);
     if (type === 'ASSET') return new Set(['name', 'status', 'assetType', 'assetStatus', 'nominalPower', 'nominalPower_kw']);
-    if (type === 'METER') return new Set(['name', 'status', 'meterType', 'serialNumber', 'iotName', 'protocol', 'isMain', 'cups']);
+    if (type === 'METER')
+      return new Set(['name', 'status', 'meterType', 'serialNumber', 'internalTag', 'protocol', 'isMain', 'cups']);
     return new Set(['name', 'status']);
   }
 }

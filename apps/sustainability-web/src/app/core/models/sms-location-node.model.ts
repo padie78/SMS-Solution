@@ -43,6 +43,8 @@ export interface SmsLocationNodeMetadata {
   cups?: string | null;
   serialNumber?: string | null;
   iotName?: string | null;
+  /** MeterDTO Enterprise: etiqueta inventario / legado iotName */
+  internalTag?: string | null;
   protocol?: string | null;
   timezone?: string | null;
 

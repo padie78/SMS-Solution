@@ -2,7 +2,16 @@ export {
   EmissionFactorDTOSchema,
   parseEmissionFactorDTO,
   safeParseEmissionFactorDTO,
-  type EmissionFactorDTO
+  EmissionFactorDTO,
+  generateEmissionFactorId,
+  EmissionFactorActivityTypeSchema,
+  EmissionFactorScopeNumberSchema,
+  EmissionFactorPhysicalUnitSchema,
+  EmissionFactorCalculationMethodSchema,
+  EmissionFactorGwpReferenceSchema,
+  EmissionFactorCatalogStatusSchema,
+  EmissionFactorDataQualityTierSchema,
+  type EmissionFactorDTOInput
 } from './emission-factor.dto.js';
 export { EmissionFactorEntity } from './emission-factor.entity.js';
 export {

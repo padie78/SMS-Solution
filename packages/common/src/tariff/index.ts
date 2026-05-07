@@ -2,7 +2,15 @@ export {
   TariffDTOSchema,
   parseTariffDTO,
   safeParseTariffDTO,
-  type TariffDTO
+  TariffDTO,
+  TariffDemandChargeUnitSchema,
+  TariffSeasonSchema,
+  TariffTierRatePairSchema,
+  generateTariffId,
+  type TariffDTOInput,
+  type TariffDemandChargeUnit,
+  type TariffSeason,
+  type TariffTierRatePair
 } from './tariff.dto.js';
 export { TariffEntity } from './tariff.entity.js';
 export { TariffMapper, type TariffPersistence } from './tariff.mapper.js';

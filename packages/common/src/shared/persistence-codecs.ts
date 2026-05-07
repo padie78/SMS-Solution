@@ -1,5 +1,6 @@
 import {
   ASSET_TYPE_TO_PERSISTENCE,
+  MeterTypeSchema,
   METER_TYPE_TO_PERSISTENCE,
   type AssetType,
   type MeterType,
@@ -20,9 +21,12 @@ export function decodeAssetType(code: string): AssetType {
 }
 
 export function decodeMeterType(code: string): MeterType {
-  const entry = Object.entries(METER_TYPE_TO_PERSISTENCE).find(([, v]) => v === code);
-  if (!entry) throw new Error(`Unknown persisted meter type code: ${code}`);
-  return entry[0] as MeterType;
+  if (!code?.trim()) return 'ELECTRICITY';
+  const c = code.trim();
+  const hit = Object.entries(METER_TYPE_TO_PERSISTENCE).find(([, v]) => v === c);
+  if (hit) return hit[0] as MeterType;
+  const parsed = MeterTypeSchema.safeParse(c);
+  return parsed.success ? parsed.data : 'ELECTRICITY';
 }
 
 export function decodeRole(code: string): UserRole {

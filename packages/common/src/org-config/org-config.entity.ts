@@ -1,7 +1,7 @@
 import { SmsDomainError } from '../shared/sms-domain-error.js';
 import type { LifecycleStatus } from '../shared/graphql-setup-enums.js';
 import type { OrgConfigDTO } from './org-config.dto.js';
-import type { OrganizationDTO } from './organization.dto.js';
+import { OrganizationDTO } from './organization.dto.js';
 
 export class OrgConfigEntity {
   constructor(
@@ -125,21 +125,33 @@ export class OrgConfigEntity {
   }
 
   toOrganizationDTO(): OrganizationDTO {
-    return {
-      orgId: this.orgId,
-      ...this.toValue(),
-      legalName: this.legalName,
-      ...(this.websiteUrl ? { websiteUrl: this.websiteUrl } : {}),
-      ...(this.logoUrl ? { logoUrl: this.logoUrl } : {}),
-      primaryLanguage: this.primaryLanguage,
-      unitSystem: this.unitSystem,
-      defaultTimeZone: this.defaultTimeZone,
-      fiscalYearStart: this.fiscalYearStart,
-      adminContact: this.adminContact,
-      esgFrameworks: [...this.esgFrameworks],
-      status: this.status,
-      ...(this.createdAt !== undefined ? { createdAt: this.createdAt } : {}),
-      ...(this.updatedAt !== undefined ? { updatedAt: this.updatedAt } : {})
-    };
+    const dto = new OrganizationDTO(
+      this.orgId,
+      this.name,
+      this.legalName,
+      this.taxId,
+      this.industrySector,
+      this.hqAddress,
+      this.websiteUrl,
+      this.logoUrl,
+      this.primaryLanguage,
+      this.unitSystem,
+      this.currency,
+      this.reportingCurrency,
+      this.fiscalYearStart,
+      this.totalGlobalM2,
+      this.baselineYear,
+      this.targetYear,
+      this.reductionTarget,
+      this.minConfidence,
+      [...this.esgFrameworks],
+      this.subscriptionPlan,
+      this.status,
+      this.adminContact,
+      this.createdAt,
+      this.updatedAt
+    );
+    (dto as { defaultTimeZone: string }).defaultTimeZone = this.defaultTimeZone;
+    return dto;
   }
 }
