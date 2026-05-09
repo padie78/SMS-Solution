@@ -184,7 +184,7 @@ type Subscription {
     @aws_subscribe(mutations: ["saveNode", "moveNode", "updateNode"])
     @aws_cognito_user_pools
 
-  onNodeDeleted: ID
+  onNodeDeleted: MutationResponse
     @aws_subscribe(mutations: ["deleteNode"])
     @aws_cognito_user_pools
 }
