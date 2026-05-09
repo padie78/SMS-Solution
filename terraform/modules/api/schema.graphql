@@ -16,7 +16,7 @@ enum NodeType {
   COST_CENTER
 }
 
-enum InvoiceStatus @aws_api_key @aws_cognito_user_pools {
+enum InvoiceStatus {
   UPLOADED
   PROCESSING
   READY_FOR_REVIEW
@@ -27,7 +27,7 @@ enum InvoiceStatus @aws_api_key @aws_cognito_user_pools {
 
 # --- 1. RESPUESTAS UNIFICADAS ---
 
-type MutationResponse {
+type MutationResponse @aws_api_key @aws_cognito_user_pools {
   success: Boolean!
   message: String
   id: ID
@@ -35,13 +35,13 @@ type MutationResponse {
   entity: AWSJSON
 }
 
-type ActionResponse {
+type ActionResponse @aws_api_key @aws_cognito_user_pools {
   success: Boolean!
   message: String
   id: String
 }
 
-type PresignedUrlResponse {
+type PresignedUrlResponse @aws_cognito_user_pools {
   uploadURL: String!
   key: String!
   invoiceId: String!
@@ -50,7 +50,7 @@ type PresignedUrlResponse {
 
 # --- 2. NÚCLEO ANALÍTICO ---
 
-type AnalyticsResponse {
+type AnalyticsResponse @aws_cognito_user_pools {
   id: ID!
   metadata: AnalyticsMetadata
   financials_total_spend: Float
@@ -63,7 +63,7 @@ type AnalyticsResponse {
   sourceData: AWSJSON 
 }
 
-type AnalyticsMetadata {
+type AnalyticsMetadata @aws_cognito_user_pools {
   entityId: ID
   nodeType: NodeType
   year: String
@@ -73,13 +73,13 @@ type AnalyticsMetadata {
 
 # --- 3. ENTIDADES ---
 
-type Node @aws_cognito_user_pools {
+type Node @aws_api_key @aws_cognito_user_pools {
   id: ID!
   parentId: ID
-  path: String!  # Formato: #ROOT#BRANCH_ID#BUILDING_ID#
+  path: String!
   nodeType: NodeType!
   name: String!
-  metadata: AWSJSON # Aquí viven los campos específicos (m2, serialNumber, etc.)
+  metadata: AWSJSON
   createdAt: String
   updatedAt: String
 }
@@ -96,20 +96,19 @@ type Invoice @aws_api_key @aws_cognito_user_pools {
   status: InvoiceStatus
   storageKey: String
   extractedData: AWSJSON
-  nodeId: ID # El ID del nodo (Building/Meter) al que pertenece
+  nodeId: ID
 }
 
-# --- 4. INPUTS COMPACTOS ---
+# --- 4. INPUTS ---
 
 input SaveNodeInput {
-  id: ID                # Si viene, es Update. Si no, Create.
-  parentId: ID!         # 'ROOT' para el nivel superior
+  id: ID
+  parentId: ID!
   nodeType: NodeType!
   name: String!
   metadata: AWSJSON     
 }
 
-# Nuevo input para actualizaciones parciales
 input UpdateNodeInput {
   name: String
   metadata: AWSJSON
@@ -122,23 +121,12 @@ input CreateInvoiceInput {
   internalNote: String
 }
 
-input ConfirmInvoiceInput {
-  status: InvoiceStatus!
-  extracted_data: AWSJSON!
-  nodeId: ID
-  serviceType: String
-}
-
-# --- 5. CONSULTAS (QUERIES) ---
+# --- 5. CONSULTAS ---
 
 type Query {
-  # Obtener el árbol o una rama completa usando el GSI de Path
   getTree(rootNodeId: ID): [Node] @aws_cognito_user_pools
-  
   getNode(id: ID!): Node @aws_cognito_user_pools
-  
   getInvoice(id: ID!): Invoice @aws_cognito_user_pools
-  
   getConsumptionAnalytics(
     entityId: ID!, 
     startDate: String!, 
@@ -146,45 +134,35 @@ type Query {
   ): AnalyticsResponse @aws_cognito_user_pools
 }
 
-# --- 6. ACCIONES (MUTATIONS) ---
+# --- 6. ACCIONES ---
 
 type Mutation {
-  # Crea o reemplaza un nodo (con validación de jerarquía)
   saveNode(input: SaveNodeInput!): MutationResponse @aws_cognito_user_pools
-
-  # Actualiza solo campos específicos sin requerir parentId
   updateNode(id: ID!, input: UpdateNodeInput!): MutationResponse @aws_cognito_user_pools
-
-  # Elimina un nodo (y opcionalmente gestiona huérfanos)
   deleteNode(id: ID!): MutationResponse @aws_cognito_user_pools
-  
-  # Mover una rama entera del árbol
   moveNode(id: ID!, newParentId: ID!): MutationResponse @aws_cognito_user_pools
-
   createInvoice(input: CreateInvoiceInput!): Invoice @aws_cognito_user_pools
-  
   updateInvoiceStatus(
     id: ID!, 
     status: InvoiceStatus!, 
     extractedData: AWSJSON, 
     message: String
   ): Invoice @aws_api_key @aws_cognito_user_pools
-
   getPresignedUrl(fileName: String!, fileType: String!, invoiceId: String!): PresignedUrlResponse @aws_cognito_user_pools
 }
 
-# --- 7. TIEMPO REAL ---
+# --- 7. SUSCRIPCIONES (CORREGIDAS) ---
 
 type Subscription {
   onInvoiceUpdated(id: ID!): Invoice
     @aws_subscribe(mutations: ["updateInvoiceStatus"])
     @aws_api_key @aws_cognito_user_pools
     
-  onNodeChanged(parentId: ID): Node
+  onNodeChanged: Node
     @aws_subscribe(mutations: ["saveNode", "moveNode", "updateNode"])
-    @aws_cognito_user_pools
+    @aws_api_key @aws_cognito_user_pools
 
   onNodeDeleted: MutationResponse
     @aws_subscribe(mutations: ["deleteNode"])
-    @aws_cognito_user_pools
+    @aws_api_key @aws_cognito_user_pools
 }
