@@ -25,10 +25,13 @@ export class ConfigServiceAdapter {
     try {
       const pk = tenantPartitionPk(orgId);
       if (!pk || !sk) return null;
-      const res = await docClient.send(new GetCommand({
-        TableName: TABLE_NAME,
-        Key: { PK: pk, SK: sk }
-      }));
+      const res = await docClient.send(
+        new GetCommand({
+          TableName: TABLE_NAME,
+          Key: { PK: pk, SK: sk },
+          ConsistentRead: true
+        })
+      );
       return res.Item;
     } catch (error) {
       console.error("Error en getNode:", error);
@@ -186,7 +189,9 @@ export class ConfigServiceAdapter {
               ...baseEav,
               ":pk": pk
             },
-            FilterExpression: entityFilter
+            FilterExpression: entityFilter,
+            // Tras saveNode + getTree(null) inmediato el read eventual puede omitir el ítem recién Put.
+            ConsistentRead: true
           })
         );
       }

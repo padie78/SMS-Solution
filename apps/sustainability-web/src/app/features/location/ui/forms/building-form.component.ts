@@ -213,7 +213,6 @@ export class BuildingFormComponent implements OnChanges {
     });
 
     const wasDraft = isSmsTreeDraftNode(this.parentNode);
-    this.location.lastError.set('Guardando edificio…');
     try {
       if (wasDraft) {
         await this.location.finalizeLocationNodeDraft(this.parentNode.location_id, {

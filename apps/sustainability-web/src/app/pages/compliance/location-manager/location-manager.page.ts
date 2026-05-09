@@ -93,6 +93,7 @@ type QuickAction = 'openCostCenters' | 'openTariffs' | 'openAssetsInventory';
             >
               <sms-master-tree
                 [nodes]="location.tree()"
+                [treeViewEpoch]="location.treeViewEpoch()"
                 [loading]="location.loading()"
                 (selected)="onNodeSelected($event)"
                 (dropped)="onNodeDropped($event)"

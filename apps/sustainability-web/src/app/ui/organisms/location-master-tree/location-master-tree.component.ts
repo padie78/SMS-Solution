@@ -334,58 +334,60 @@ function decorateTreeNodeBadgeData(nodes: SmsLocationNode[]): SmsLocationNode[] 
 
       <div class="flex-1 min-h-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-sm">
         <div class="h-full flex flex-column" *ngIf="(treeNodes?.length ?? 0) > 0; else emptyState">
-          <p-tree
-            class="sms-tree h-full overflow-auto"
-            [value]="treeNodes"
-            [filter]="true"
-            filterMode="lenient"
-            [filterBy]="'label,location_id'"
-            filterPlaceholder="Buscar por nombre o ID…"
-            [lazy]="true"
-            [loading]="loading"
-            [draggableNodes]="true"
-            [droppableNodes]="true"
-            [contextMenu]="cm"
-            selectionMode="single"
-            [(selection)]="selection"
-            (onNodeSelect)="onSelect($event)"
-            (onNodeContextMenuSelect)="onContextSelect($event)"
-            (onNodeExpand)="onExpand($event)"
-            (onNodeDrop)="onDrop($event)"
-            (onFilter)="onFilter($event)"
-          >
-            <!--
-              PrimeNG p-tree resuelve el template buscando \`templateMap[node.type]\`.
-              Si el tipo no está registrado, NO cae al "default" y renderiza
-              \`{{ node.label }}\` plano (sin badge, tooltip ni quick actions).
-              Por eso registramos un \`<ng-template pTemplate="<TYPE>">\` por
-              cada SmsLocationNodeType, todos delegando al mismo \`#treeNodeTpl\`.
-            -->
-            <ng-template pTemplate="default" let-node>
-              <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
-            </ng-template>
-            <ng-template pTemplate="ORGANIZATION" let-node>
-              <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
-            </ng-template>
-            <ng-template pTemplate="REGION" let-node>
-              <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
-            </ng-template>
-            <ng-template pTemplate="BRANCH" let-node>
-              <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
-            </ng-template>
-            <ng-template pTemplate="BUILDING" let-node>
-              <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
-            </ng-template>
-            <ng-template pTemplate="COST_CENTER" let-node>
-              <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
-            </ng-template>
-            <ng-template pTemplate="ASSET" let-node>
-              <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
-            </ng-template>
-            <ng-template pTemplate="METER" let-node>
-              <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
-            </ng-template>
-          </p-tree>
+          @for (_epoch of [treeViewEpoch]; track _epoch) {
+            <p-tree
+              class="sms-tree h-full overflow-auto"
+              [value]="treeNodes"
+              [filter]="true"
+              filterMode="lenient"
+              [filterBy]="'label,location_id'"
+              filterPlaceholder="Buscar por nombre o ID…"
+              [lazy]="true"
+              [loading]="loading"
+              [draggableNodes]="true"
+              [droppableNodes]="true"
+              [contextMenu]="cm"
+              selectionMode="single"
+              [(selection)]="selection"
+              (onNodeSelect)="onSelect($event)"
+              (onNodeContextMenuSelect)="onContextSelect($event)"
+              (onNodeExpand)="onExpand($event)"
+              (onNodeDrop)="onDrop($event)"
+              (onFilter)="onFilter($event)"
+            >
+              <!--
+                PrimeNG p-tree resuelve el template buscando \`templateMap[node.type]\`.
+                Si el tipo no está registrado, NO cae al "default" y renderiza
+                \`{{ node.label }}\` plano (sin badge, tooltip ni quick actions).
+                Por eso registramos un \`<ng-template pTemplate="<TYPE>">\` por
+                cada SmsLocationNodeType, todos delegando al mismo \`#treeNodeTpl\`.
+              -->
+              <ng-template pTemplate="default" let-node>
+                <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
+              </ng-template>
+              <ng-template pTemplate="ORGANIZATION" let-node>
+                <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
+              </ng-template>
+              <ng-template pTemplate="REGION" let-node>
+                <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
+              </ng-template>
+              <ng-template pTemplate="BRANCH" let-node>
+                <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
+              </ng-template>
+              <ng-template pTemplate="BUILDING" let-node>
+                <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
+              </ng-template>
+              <ng-template pTemplate="COST_CENTER" let-node>
+                <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
+              </ng-template>
+              <ng-template pTemplate="ASSET" let-node>
+                <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
+              </ng-template>
+              <ng-template pTemplate="METER" let-node>
+                <ng-container *ngTemplateOutlet="treeNodeTpl; context: { $implicit: node }"></ng-container>
+              </ng-template>
+            </p-tree>
+          }
 
           <!-- Único punto de definición del template del nodo del árbol. -->
           <ng-template #treeNodeTpl let-node>
@@ -451,10 +453,14 @@ export class LocationMasterTreeComponent implements OnChanges {
     const arr = value ?? [];
     decorateTreeNodeBadgeData(arr);
     this.treeNodes = arr;
+    this.cdr.markForCheck();
   }
   get nodes(): SmsLocationNode[] {
     return this.treeNodes;
   }
+
+  /** Se incrementa en el store al recargar o dar de alta; destruye y recrea el `p-tree` (lazy suele ignorar cambios en `[value]`). */
+  @Input({ required: true }) treeViewEpoch = 0;
 
   @Input() loading = false;
 
@@ -475,7 +481,7 @@ export class LocationMasterTreeComponent implements OnChanges {
   selection: TreeNode | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
-    if (!changes['nodes']) return;
+    if (!changes['nodes'] && !changes['treeViewEpoch']) return;
     queueMicrotask(() => this.syncSelectionWithStore());
   }
 

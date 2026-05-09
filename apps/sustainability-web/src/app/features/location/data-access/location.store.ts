@@ -49,6 +49,16 @@ export class LocationService {
   readonly loading = signal(false);
   readonly lastError = signal<string | null>(null);
 
+  /**
+   * Se incrementa al reconstruir el árbol de forma relevante para forzar que el `p-tree` (lazy + OnPush)
+   * no reutilice estado interno obsoleto.
+   */
+  readonly treeViewEpoch = signal(0);
+
+  private bumpTreeViewEpoch(): void {
+    this.treeViewEpoch.update((n) => n + 1);
+  }
+
   private touchTree(): void {
     // PrimeNG Tree + OnPush: algunas mutaciones in-place no disparan re-render.
     // Esta copia superficial fuerza detección sin reconstruir el sub-árbol.
@@ -286,6 +296,7 @@ export class LocationService {
     } as SmsLocationNode);
     this.insertOptimistic(draft);
     this.touchTree();
+    this.bumpTreeViewEpoch();
     return draft;
   }
 
@@ -350,6 +361,7 @@ export class LocationService {
         const createdNode = this.withMockComputedChildren(withPrimeTreeFields(created));
         this.replaceDraftNodeAfterPersist(tempId, createdNode);
         this.touchTree();
+        this.bumpTreeViewEpoch();
         if (this.selectedNode()?.location_id === tempId) {
           this.selectedNode.set(createdNode);
         }
@@ -370,7 +382,7 @@ export class LocationService {
 
       this.removeSubtreeUiRoot(tempId);
 
-      await this.softReloadRemoteTree();
+      await this.softReloadRemoteTree({ bumpEpoch: false });
 
       const remappedNested = nestedDrafts.map((s) => ({
         ...s,
@@ -379,6 +391,7 @@ export class LocationService {
       this.graftDraftSnapshots(remappedNested);
       this.tree.set(sortNodes(this.tree()));
       this.touchTree();
+      this.bumpTreeViewEpoch();
 
       let createdNode = this.findNodeById(newId);
       if (!createdNode) {
@@ -409,7 +422,8 @@ export class LocationService {
   }
 
   /** Refetch completo respetando expansiones conocidas actualmente en UI. */
-  private async softReloadRemoteTree(): Promise<void> {
+  private async softReloadRemoteTree(opts?: { bumpEpoch?: boolean }): Promise<void> {
+    const bumpEpoch = opts?.bumpEpoch !== false;
     const expandedBefore = this.collectExpandedIds();
     try {
       const rows = await this.nodeApi.getTree(null);
@@ -418,6 +432,9 @@ export class LocationService {
       await this.expandRestoredBranches(expandedBefore);
     } finally {
       this.touchTree();
+      if (bumpEpoch) {
+        this.bumpTreeViewEpoch();
+      }
     }
   }
 
@@ -485,6 +502,7 @@ export class LocationService {
       // Igual que `softReloadRemoteTree`: tras mutar `expanded`/hijos in-place, la ref del array raíz
       // debe cambiar o el padre OnPush y el p-tree no repintan aunque `remoteFlat` esté actualizado.
       this.touchTree();
+      this.bumpTreeViewEpoch();
       this.loading.set(false);
       if (!LOCATION_USE_MOCK) {
         this.connectNodeChangeSubscription();

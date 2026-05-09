@@ -155,7 +155,6 @@ export class RegionFormComponent implements OnChanges {
       ...(dto as unknown as SmsLocationNodeMetadata)
     });
     const wasDraft = isSmsTreeDraftNode(this.parentNode);
-    this.location.lastError.set('Guardando región…');
     try {
       if (wasDraft) {
         await this.location.finalizeLocationNodeDraft(this.parentNode.location_id, {

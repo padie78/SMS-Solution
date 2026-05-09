@@ -180,7 +180,6 @@ export class CostCenterFormComponent implements OnChanges {
   async save(): Promise<void> {
     if (this.form.invalid) return;
     const dto = costCenterFormRawValueToDTO(this.form.getRawValue() as CostCenterFormValue);
-    this.location.lastError.set('Guardando centro de costo…');
     try {
       await this.location.updateNode(this.parentNode.location_id, {
         name: dto.name,
