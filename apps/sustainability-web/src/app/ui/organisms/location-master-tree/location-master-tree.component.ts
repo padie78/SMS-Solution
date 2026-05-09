@@ -13,6 +13,7 @@ import { TooltipModule } from 'primeng/tooltip';
 import { LocationTreeNodeTemplateComponent } from '../../molecules/location-tree-node-template/location-tree-node-template.component';
 import type { SmsLocationNode, SmsLocationNodeType } from '../../../core/models/sms-location-node.model';
 import { buildLocationNodeTooltipText } from '../../../features/location/utils/location-node-tooltip.util';
+import { isSmsTreeDraftNode } from '../../../features/location/lib/location-tree-helpers';
 import { LocationService } from '../../../features/location/services/location.service';
 import { NotificationService } from '../../../services/ui/notification.service';
 
@@ -719,25 +720,19 @@ export class LocationMasterTreeComponent {
   }
 
   async createOrganization(): Promise<void> {
-    this.location.lastError.set('Creando organización…');
     try {
-      const created = await this.location.createNodeOptimistic({
-        parent_id: null,
-        type: 'ORGANIZATION',
-        name: 'Organización · Nueva',
-        status: 'ACTIVE'
-      });
+      const draft = this.location.addOrganizationDraftToTree();
       this.location.lastError.set(null);
-      this.notify.success(
-        'Organización creada',
-        `Se creó "${created.name}". Configurá los datos en el detalle.`
+      this.notify.show(
+        'info',
+        'Borrador en el árbol',
+        'Completá el formulario a la derecha y pulsá Guardar para crear la organización en el sistema.'
       );
-      this.selected.emit(created);
-      this.reload.emit();
+      this.selected.emit(draft);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Error desconocido creando organización';
+      const msg = e instanceof Error ? e.message : 'Error preparando borrador';
       this.location.lastError.set(msg);
-      this.notify.error('No se pudo crear la organización', msg);
+      this.notify.error('No se pudo añadir el borrador', msg);
       throw e;
     }
   }
@@ -747,6 +742,14 @@ export class LocationMasterTreeComponent {
       const msg = 'Primero creá o seleccioná una Organización.';
       this.location.lastError.set(msg);
       this.notify.show('warn', 'No se puede crear la región', msg);
+      return;
+    }
+    if (isSmsTreeDraftNode(parent)) {
+      this.notify.show(
+        'warn',
+        'Organización pendiente',
+        'Guardá primero esta organización (formulario · Guardar) antes de crear una región.'
+      );
       return;
     }
     try {
@@ -766,6 +769,14 @@ export class LocationMasterTreeComponent {
   }
 
   private async createChild(parent: SmsLocationNode | null, type: SmsLocationNodeType): Promise<void> {
+    if (parent && isSmsTreeDraftNode(parent)) {
+      this.notify.show(
+        'warn',
+        'Organización pendiente',
+        'Guardá primero esta organización (formulario · Guardar) antes de agregar niveles jerárquicos.'
+      );
+      return;
+    }
     const name = `${type} · New`;
     if (type === 'REGION') {
       await this.createRegion(parent);

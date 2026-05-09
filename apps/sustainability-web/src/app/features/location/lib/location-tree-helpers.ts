@@ -15,6 +15,12 @@ function typeRank(t: SmsLocationNodeType): number {
   return TYPE_ORDER.indexOf(t);
 }
 
+/** `tmp_*` = nodo insertado en el árbol antes del primer `saveNode` (no existe aún en AppSync/mockRows). */
+export function isSmsTreeDraftNode(node: Pick<SmsLocationNode, 'location_id'>): boolean {
+  const id = node.location_id;
+  return typeof id === 'string' && id.startsWith('tmp_');
+}
+
 export function canDrop(childType: SmsLocationNodeType, parentType: SmsLocationNodeType | null): boolean {
   const childRank = typeRank(childType);
   if (childRank < 0) return false;

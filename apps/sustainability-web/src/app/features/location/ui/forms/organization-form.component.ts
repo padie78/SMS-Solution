@@ -18,6 +18,7 @@ import type { CostCenterDTO, OrganizationDTO } from '@sms/common';
 import type { SmsLocationNode, SmsLocationNodeMetadata } from '../../../../core/models/sms-location-node.model';
 import { ORG_COST_CENTERS_CUSTOM_KEY } from '../../../../services/state/organization-cost-center-registry.service';
 import { NotificationService } from '../../../../services/ui/notification.service';
+import { isSmsTreeDraftNode } from '../../lib/location-tree-helpers';
 import { LocationService } from '../../services/location.service';
 import { resolveHierarchyContext } from './location-hierarchy-context';
 import { LocationFormActionsComponent } from './location-form-actions.component';
@@ -180,18 +181,30 @@ export class OrganizationFormComponent implements OnChanges {
       custom: nextCustom
     };
 
+    const wasDraft = isSmsTreeDraftNode(this.parentNode);
     this.location.lastError.set('Guardando organización…');
     try {
-      await this.location.updateNode(this.parentNode.location_id, {
-        name: dto.name,
-        status: dto.status === 'ACTIVE' ? 'ACTIVE' : 'MAINTENANCE',
-        metadata: nextMetadata
-      });
+      if (wasDraft) {
+        await this.location.finalizeOrganizationDraft(this.parentNode.location_id, {
+          name: dto.name,
+          status: dto.status === 'ACTIVE' ? 'ACTIVE' : 'MAINTENANCE',
+          metadata: nextMetadata
+        });
+      } else {
+        await this.location.updateNode(this.parentNode.location_id, {
+          name: dto.name,
+          status: dto.status === 'ACTIVE' ? 'ACTIVE' : 'MAINTENANCE',
+          metadata: nextMetadata
+        });
+      }
       this.location.lastError.set(null);
       this.costCentersState.set(costCenters);
       this.lastResetValue = this.form.getRawValue() as OrganizationFormValue;
       this.form.markAsPristine();
-      this.notify.success('Organización guardada', `Se actualizaron los datos de "${dto.name}".`);
+      this.notify.success(
+        wasDraft ? 'Organización creada' : 'Organización guardada',
+        wasDraft ? `"${dto.name}" quedó registrada en la jerarquía.` : `Se actualizaron los datos de "${dto.name}".`
+      );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error desconocido guardando organización';
       this.location.lastError.set(msg);

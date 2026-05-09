@@ -329,6 +329,13 @@ function maxTone(a: BadgeTone, b: BadgeTone): BadgeTone {
         </span>
 
         <span
+          *ngIf="node.metadata?.smsLocalDraft"
+          class="text-[10px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-md border border-amber-200 bg-amber-50 text-amber-900 shrink-0"
+        >
+          Borrador
+        </span>
+
+        <span
           *ngIf="valueBadge as b"
           class="sms-kpi-chip shrink-0"
           [ngClass]="'sms-kpi-chip--' + b.tone"

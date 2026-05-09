@@ -91,6 +91,8 @@ export interface SmsLocationNodeMetadata {
   parentMeterId?: string | null;
   assetId?: string | null;
   meterStatus?: string | null;
+  /** Solo cliente: alta pendiente del primer persist (ej. Org recién paso “+ crear”). */
+  smsLocalDraft?: boolean | null;
   /** Ad-hoc properties to prototype without backend schema migrations. */
   custom?: Record<string, string> | null;
 }

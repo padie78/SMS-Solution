@@ -2,13 +2,14 @@ import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angul
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import type { TreeNode } from 'primeng/api';
 import { Subscription, firstValueFrom } from 'rxjs';
-import type { SmsLocationNode, SmsLocationNodeType } from '../../../core/models/sms-location-node.model';
+import type { SmsLocationNode, SmsLocationNodeMetadata, SmsLocationNodeType } from '../../../core/models/sms-location-node.model';
 import { LOCATION_API_BASE_URL, LOCATION_MOCK_STORAGE_KEY, LOCATION_USE_MOCK } from '../data/location.mock';
 import type { GraphqlNodeDto } from './location-api.models';
 import { LocationNodeAppSyncService } from './location-node-appsync.service';
 import {
   canDrop,
   hierarchicalSmsRootsFromFlatDtos,
+  isSmsTreeDraftNode,
   sortNodes,
   withPrimeTreeFields
 } from '../lib/location-tree-helpers';
@@ -122,8 +123,107 @@ export class LocationService {
       this.nodeApi.parseMetadata(meta as GraphqlNodeDto['metadata'])
     );
     const sortedRoots = sortNodes(roots);
-    this.tree.set(sortedRoots);
+    this.tree.set(this.mergeDraftOrganizationRoots(sortedRoots));
     this.touchTree();
+  }
+
+  /** Conserva organizaciones en borrador (tmp_*) al reconstruir el árbol desde API / mockRows. */
+  private mergeDraftOrganizationRoots(roots: SmsLocationNode[]): SmsLocationNode[] {
+    const drafts = this.tree().filter((n) => n.type === 'ORGANIZATION' && isSmsTreeDraftNode(n));
+    if (drafts.length === 0) return roots;
+    const keep = roots.filter((r) => !drafts.some((d) => d.location_id === r.location_id));
+    return sortNodes([...drafts, ...keep]);
+  }
+
+  /**
+   * Solo UI: organization root en árbol. El persist ocurre al guardar el formulario (`finalizeOrganizationDraft`).
+   */
+  addOrganizationDraftToTree(): SmsLocationNode {
+    this.lastError.set(null);
+    const tmpId = nextId('tmp');
+    const draft: SmsLocationNode = withPrimeTreeFields({
+      location_id: tmpId,
+      parent_id: null,
+      type: 'ORGANIZATION',
+      name: 'Organización · borrador',
+      status: 'ACTIVE',
+      metadata: { smsLocalDraft: true },
+      hasChildren: false
+    } as SmsLocationNode);
+    this.insertOptimistic(draft);
+    this.touchTree();
+    return draft;
+  }
+
+  async finalizeOrganizationDraft(
+    tempId: string,
+    payload: {
+      readonly name: string;
+      readonly status: SmsLocationNode['status'];
+      readonly metadata: SmsLocationNodeMetadata;
+    }
+  ): Promise<SmsLocationNode> {
+    this.lastError.set(null);
+    const draft = this.findNodeById(tempId);
+    if (!draft || draft.type !== 'ORGANIZATION' || !isSmsTreeDraftNode(draft)) {
+      throw new Error('No hay un borrador de organización válido para guardar.');
+    }
+
+    const metaRecord = { ...(payload.metadata as unknown as Record<string, unknown>) };
+    delete metaRecord['smsLocalDraft'];
+    const metadataJson = LocationNodeAppSyncService.metadataToAwsJson(metaRecord);
+
+    try {
+      if (LOCATION_USE_MOCK) {
+        const created: SmsLocationNode = {
+          location_id: nextId('loc'),
+          parent_id: null,
+          type: 'ORGANIZATION',
+          name: payload.name,
+          status: payload.status ?? 'ACTIVE',
+          metadata: metaRecord as SmsLocationNode['metadata'],
+          hasChildren: false,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        } as SmsLocationNode;
+        this.mockRows = [...this.mockRows, created];
+        this.persistMock();
+        const createdNode = this.withMockComputedChildren(withPrimeTreeFields(created));
+        this.replaceNodeId(tempId, createdNode);
+        this.touchTree();
+        return createdNode;
+      }
+
+      const mutation = await this.nodeApi.saveNode({
+        parentId: GRAPHQL_ROOT_PARENT_ID,
+        nodeType: 'ORGANIZATION',
+        name: payload.name,
+        metadata: metadataJson
+      });
+      this.nodeApi.assertSuccess(mutation, 'saveNode');
+      await this.softReloadRemoteTree();
+
+      let createdNode = mutation.id ? this.findNodeById(mutation.id) : null;
+      if (!createdNode) {
+        const guessed = [...this.remoteFlat().values()].find(
+          (n) => n.nodeType === 'ORGANIZATION' && n.name === payload.name
+        );
+        createdNode = guessed ? this.findNodeById(guessed.id) : null;
+      }
+
+      if (!createdNode) {
+        throw new Error(mutation.message || 'Guardado ejecutado pero el nodo no apareció tras refrescar desde AppSync.');
+      }
+      this.replaceNodeId(tempId, createdNode);
+      this.touchTree();
+      return createdNode;
+    } catch (e: unknown) {
+      const msg = LOCATION_USE_MOCK
+        ? this.describeHttpError('Failed to persist organization draft', e)
+        : this.describeGraphOrHttpError('No se pudo crear la organización', e);
+      this.lastError.set(msg);
+      throw new Error(msg);
+    }
   }
 
   /** Refetch completo respetando expansiones conocidas actualmente en UI. */
@@ -170,7 +270,7 @@ export class LocationService {
         const roots = this.mockRows
           .filter((n) => !n.parent_id && n.type !== 'COST_CENTER')
           .map((n) => this.withMockComputedChildren(withPrimeTreeFields(n)));
-        this.tree.set(sortNodes(roots));
+        this.tree.set(this.mergeDraftOrganizationRoots(sortNodes(roots)));
       } else {
         const rows = await this.nodeApi.getTree(null);
         this.mergeIntoRemoteIndex(rows, true);
@@ -458,6 +558,11 @@ export class LocationService {
       this.tree.set([...this.tree(), node]);
     }
 
+    if (isSmsTreeDraftNode(node)) {
+      this.touchTree();
+      return;
+    }
+
     try {
       if (LOCATION_USE_MOCK) {
         const idx = this.mockRows.findIndex((r) => r.location_id === nodeId);
@@ -512,6 +617,12 @@ export class LocationService {
     this.lastError.set(null);
     const node = this.findNodeById(id);
     if (!node) return;
+    if (isSmsTreeDraftNode(node)) {
+      this.removeNodeById(id);
+      if (this.selectedNode()?.location_id === id) this.selectedNode.set(null);
+      this.touchTree();
+      return;
+    }
     const snapshot = this.snapshotSubtree(node);
     this.removeNodeById(id);
     try {
@@ -551,6 +662,12 @@ export class LocationService {
   validateDrop(dragNode: SmsLocationNode, dropNode: SmsLocationNode | null): { ok: boolean; reason?: string } {
     const childType = (dragNode.data as SmsLocationNode | undefined)?.type ?? dragNode.type;
     const parentType = dropNode ? ((dropNode.data as SmsLocationNode | undefined)?.type ?? dropNode.type) : null;
+    if (dropNode && isSmsTreeDraftNode(dropNode)) {
+      return {
+        ok: false,
+        reason: 'Esta organización es un borrador: guardala primero antes de colocar otros nodos debajo.'
+      };
+    }
     if (!canDrop(childType, parentType)) {
       return { ok: false, reason: 'Jerarquía inválida para este movimiento.' };
     }

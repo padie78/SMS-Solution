@@ -8,6 +8,7 @@ import {
   DeleteCommand
 } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
+import { tenantPartitionPk } from "../dynamodb/tenantPartitionPk.js";
 import { appendSegmentToLocationPath, normalizeSegmentId } from "../dynamodb/nodePathModel.js";
 
 const client = new DynamoDBClient({});
@@ -64,10 +65,11 @@ export class ConfigServiceAdapter {
       metaObj = {};
     }
 
+    const pk = tenantPartitionPk(orgId);
     const item = {
-      PK: `ORG#${orgId}`,
+      PK: pk,
       SK: sk,
-      holdingId: orgId,
+      holdingId: pk,
       path: finalPath,
       nodeType,
       name,
@@ -86,6 +88,7 @@ export class ConfigServiceAdapter {
    * Corregido: Se eliminó el casteo de tipo 'as const' y 'params: any'
    */
   async updateNode(orgId, sk, updateData) {
+    const pk = tenantPartitionPk(orgId);
     const timestamp = new Date().toISOString();
     
     // Filtramos campos undefined y preparamos la actualización
@@ -98,7 +101,7 @@ export class ConfigServiceAdapter {
 
     const params = {
       TableName: TABLE_NAME,
-      Key: { PK: `ORG#${orgId}`, SK: sk },
+      Key: { PK: pk, SK: sk },
       UpdateExpression: `SET ${updateExpressions.join(", ")}, last_updated = :t`,
       ExpressionAttributeNames: expressionAttributeNames,
       ExpressionAttributeValues: expressionAttributeValues,
@@ -121,11 +124,12 @@ export class ConfigServiceAdapter {
    * @param {string} sk 
    */
   async deleteNode(orgId, sk) {
+    const pk = tenantPartitionPk(orgId);
     const params = {
       TableName: TABLE_NAME,
-      Key: { 
-        PK: `ORG#${orgId}`, 
-        SK: sk 
+      Key: {
+        PK: pk,
+        SK: sk
       },
       ConditionExpression: "attribute_exists(PK)" // Solo borra si existe
     };
@@ -146,6 +150,8 @@ export class ConfigServiceAdapter {
    * Listar nodos (Jerarquía funcional)
    */
   async listNodes(orgId, filter) {
+    const pk = tenantPartitionPk(orgId);
+    const holdingKey = pk;
     const { underPath, nodeType } = filter || {};
     const entityFilter = "entity_type = :et";
     const baseEav = {
@@ -163,7 +169,7 @@ export class ConfigServiceAdapter {
             ExpressionAttributeNames: { "#pth": "path" },
             ExpressionAttributeValues: {
               ...baseEav,
-              ":hid": orgId,
+              ":hid": holdingKey,
               ":pref": underPath
             },
             FilterExpression: entityFilter
@@ -176,7 +182,7 @@ export class ConfigServiceAdapter {
             KeyConditionExpression: "PK = :pk",
             ExpressionAttributeValues: {
               ...baseEav,
-              ":pk": `ORG#${orgId}`
+              ":pk": pk
             },
             FilterExpression: entityFilter
           })
