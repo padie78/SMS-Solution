@@ -1,6 +1,6 @@
 import { buildAppSyncHandler } from "./handlers/appsyncHandler.js";
-import { HandleAppSyncRequest } from "./application/usecases/HandleAppSyncRequest.js";
-import { ConfigServiceAdapter } from "./infrastructure/config/ConfigServiceAdapter.js";
+import { HandleAppSyncRequest } from "./application/usecases/handleAppSyncRequest.js";
+import { ConfigServiceAdapter } from "./infrastructure/config/configServiceAdapter.js";
 
 const bucket = process.env.S3_BUCKET_NAME || "sms-platform-dev-uploads";
 

@@ -13,12 +13,12 @@ const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.DATABASE_NAME || "sms-platform-dev-emissions";
 
-export const configServiceAdapter = {
+export class ConfigServiceAdapter {
   
   /**
    * Obtiene un nodo por su PK y SK
    */
-  getNode: async (orgId, sk) => {
+  async getNode(orgId, sk) {
     try {
       const res = await docClient.send(new GetCommand({
         TableName: TABLE_NAME,
@@ -29,12 +29,12 @@ export const configServiceAdapter = {
       console.error("Error en getNode:", error);
       return null;
     }
-  },
+  }
 
   /**
    * Crea o reemplaza un nodo (Polimórfico)
    */
-  saveNode: async (orgId, input) => {
+  async saveNode(orgId, input) {
     const timestamp = new Date().toISOString();
     const { id, parentId, nodeType, name, metadata = {} } = input;
 
@@ -64,13 +64,13 @@ export const configServiceAdapter = {
 
     await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
     return { success: true, id: sk, path: finalPath, item };
-  },
+  }
 
   /**
    * UPDATE GENÉRICO
    * Corregido: Se eliminó el casteo de tipo 'as const' y 'params: any'
    */
-  updateNode: async (orgId, sk, updateData) => {
+  async updateNode(orgId, sk, updateData) {
     const timestamp = new Date().toISOString();
     
     // Filtramos campos undefined y preparamos la actualización
@@ -98,14 +98,14 @@ export const configServiceAdapter = {
       console.error("Error en updateNode:", error);
       return { success: false, message: error.message };
     }
-  },
+  }
 
   /**
    * Elimina un nodo específico.
    * @param {string} orgId 
    * @param {string} sk 
    */
-  deleteNode: async (orgId, sk) => {
+  async deleteNode(orgId, sk) {
     const params = {
       TableName: TABLE_NAME,
       Key: { 
@@ -125,12 +125,12 @@ export const configServiceAdapter = {
       console.error("Error en deleteNode:", error);
       return { success: false, message: error.message };
     }
-  },
+  }
 
   /**
    * Listar nodos (Jerarquía funcional)
    */
-  listNodes: async (orgId, filter) => {
+  async listNodes(orgId, filter) {
     const { underPath, nodeType } = filter || {};
     
     const params = {
@@ -158,4 +158,4 @@ export const configServiceAdapter = {
       return [];
     }
   }
-};
+}
