@@ -38,6 +38,24 @@ resource "aws_dynamodb_table" "emissions_table" {
     projection_type = "ALL"
   }
 
+  # Path enumeration: consultas begins_with(path) por tenant (holding)
+  attribute {
+    name = "holdingId"
+    type = "S"
+  }
+
+  attribute {
+    name = "path"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "GSI_NodePath"
+    hash_key        = "holdingId"
+    range_key       = "path"
+    projection_type = "ALL"
+  }
+
   # Recomendado para auditoría: PITR habilitado siempre en producción
   point_in_time_recovery {
     enabled = true

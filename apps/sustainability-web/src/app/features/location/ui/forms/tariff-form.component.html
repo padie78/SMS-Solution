@@ -35,12 +35,17 @@
             @if (field.kind !== 'hidden') {
               <div [class]="gridClass(field)">
                 <label
-                  class="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                  class="mb-2 inline-flex items-center text-[11px] font-bold uppercase tracking-wider text-slate-500"
                   [attr.for]="'tariff-field-' + field.key"
                 >
-                  {{ field.label }}
-                  @if (field.required && !field.readonly && field.kind !== 'checkbox') {
-                    <span class="text-rose-600"> *</span>
+                  <span>
+                    {{ field.label }}
+                    @if (field.required && !field.readonly && field.kind !== 'checkbox') {
+                      <span class="text-rose-600"> *</span>
+                    }
+                  </span>
+                  @if (field.help) {
+                    <ui-help-tip [text]="field.help" position="right" [showDelay]="200" />
                   }
                 </label>
 
@@ -95,7 +100,13 @@
                     ></textarea>
                   }
                   @case ('checkbox') {
-                    <p-checkbox [binary]="true" [inputId]="'tariff-field-' + field.key" [formControlName]="field.key" />
+                    <ui-input-switch
+                      [inputId]="'tariff-field-' + field.key"
+                      [formControlName]="field.key"
+                      [label]="field.label"
+                      [helpText]="field.help"
+                      [disabled]="field.readonly === true"
+                    />
                   }
                   @case ('date') {
                     <p-calendar

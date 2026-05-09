@@ -19,6 +19,7 @@ import {
   type TariffLifecycleStatus,
   type TariffPricingModel
 } from '@sms/common';
+import { withHelp } from './form-help.util';
 
 export type TariffFormValue = {
   id: string;
@@ -102,6 +103,8 @@ export interface TariffFormFieldDef<K extends keyof TariffFormValue = keyof Tari
   readonly min?: number;
   readonly max?: number;
   readonly step?: number;
+  /** Texto del icono de ayuda al lado del label (opcional). */
+  readonly help?: string;
 }
 
 export interface TariffFormTabDef {
@@ -135,7 +138,7 @@ export function tariffFieldValidators(meta: TariffFormFieldDef): ValidatorFn[] {
   return v;
 }
 
-export const TARIFF_FORM_TABS: ReadonlyArray<TariffFormTabDef> = Object.freeze([
+const TARIFF_FORM_TABS_RAW: ReadonlyArray<TariffFormTabDef> = Object.freeze([
   {
     id: 'general',
     label: 'General',
@@ -433,6 +436,109 @@ export const TARIFF_FORM_TABS: ReadonlyArray<TariffFormTabDef> = Object.freeze([
     ]
   }
 ]);
+
+/**
+ * Texto de ayuda contextual por campo del formulario Tariff.
+ * Foco: explicar cada componente de una factura de energía y su impacto en el costo total.
+ */
+const TARIFF_FIELD_HELP: Partial<Record<keyof TariffFormValue, string>> = {
+  providerName:
+    'Nombre del proveedor o distribuidora (ej. "EDF", "Iberdrola", "IEC"). ' +
+    'Aparece en reportes y permite agrupar tarifas por proveedor.',
+  contractId:
+    'Identificador único del contrato con el proveedor (referencia legal). ' +
+    'Permite cruzar con auditorías regulatorias.',
+  buildingId:
+    'Si la tarifa aplica sólo a un edificio específico, indicar su ID. Vacío = aplica ' +
+    'a toda la sucursal.',
+  serviceType:
+    'Tipo de servicio energético: ELECTRICITY, NATURAL_GAS, STEAM, WATER, etc. ' +
+    'Define la fórmula de cálculo.',
+  pricingModel:
+    'Modelo de precio: FIXED (tarifa plana), TOU (Time-Of-Use), TIERED (escalones), ' +
+    'DEMAND, INDEXED. Determina qué campos son relevantes.',
+  currency:
+    'Moneda en que se factura (ISO, máx. 8 caracteres: ILS, USD, EUR…). ' +
+    'Si difiere de la operativa se convierte en consolidación.',
+  status:
+    'Estado del contrato: ACTIVE (vigente), EXPIRED (vencido), PENDING (en aprobación), ' +
+    'TERMINATED (rescindido). Sólo ACTIVE se aplica a lecturas nuevas.',
+  validFrom:
+    'Fecha desde la cual la tarifa es aplicable. Lecturas anteriores usan la tarifa previa.',
+  validTo:
+    'Fecha hasta la cual la tarifa es aplicable. Después se requiere una nueva tarifa o ' +
+    'extensión del contrato.',
+  baseRate:
+    'Tarifa base por unidad de energía (moneda/kWh, moneda/m³…). Es el precio ' +
+    'fundamental antes de cargos adicionales.',
+  expectedAverageRate:
+    'Tarifa promedio esperada teniendo en cuenta TOU, escalones, etc. Útil para ' +
+    'forecasts presupuestarios. Opcional.',
+  fixedMonthlyFee:
+    'Cargo fijo mensual independiente del consumo (cargo por servicio). Opcional.',
+  taxPercentage:
+    'Impuestos aplicados como fracción 0–1 (ej. 0.17 = 17% IVA). Se aplica sobre el ' +
+    'subtotal energético.',
+  billingCycleDay:
+    'Día del mes (1–31) en el que cierra el ciclo de facturación. Pivote para alinear ' +
+    'lecturas de medidores con facturas.',
+  demandChargeRate:
+    'Cargo por demanda máxima registrada en el período. Muy relevante en grandes ' +
+    'consumidores (industria). Opcional.',
+  demandChargeUnit:
+    'Unidad sobre la que se cobra demanda: KW, KVA, KW_PEAK_15MIN. Define la ventana ' +
+    'de medición.',
+  reactiveEnergyCharge:
+    'Cargo por consumo de energía reactiva (kVArh). Penaliza factor de potencia bajo. ' +
+    'Opcional.',
+  powerFactorThreshold:
+    'Umbral mínimo de factor de potencia (0–1, típico 0.95). Por debajo, se aplica ' +
+    'penalidad reactiva.',
+  touScheduleId:
+    'ID del calendario TOU (Time-Of-Use) que define las franjas horarias punta/valle. ' +
+    'Sólo aplica si pricingModel = TOU.',
+  peakRate:
+    'Tarifa aplicable en franja punta (la más cara, usualmente horario laboral pico). Opcional.',
+  valleyRate:
+    'Tarifa aplicable en franja valle (la más barata, usualmente noche). Opcional.',
+  shoulderRate:
+    'Tarifa aplicable en franja intermedia/hombro (entre punta y valle). Opcional.',
+  season:
+    'Temporada a la que aplica la tarifa: SUMMER, WINTER, ALL_YEAR, etc. ' +
+    'Algunas tarifas distinguen verano/invierno.',
+  tieredRatesJson:
+    'Definición de escalones de consumo en JSON: [{"limit": 1000, "rate": 0.12}, ...]. ' +
+    'Las primeras 1000 unidades cuestan 0.12, después el siguiente escalón.',
+  fuelAdjustmentFactor:
+    'Factor de ajuste por costo de combustible del generador (>0). Multiplica el rate ' +
+    'base. Típico en mercados con pass-through de combustible.',
+  indexReferenceId:
+    'ID del índice de referencia para indexación (CPI, IPC, Brent, gas price). Sólo ' +
+    'aplica si pricingModel = INDEXED.',
+  indexAdjustmentFormula:
+    'Fórmula libre que describe cómo el índice ajusta el rate (ej. "rate * (1 + ΔIPC)"). ' +
+    'Documentación técnica.',
+  volatilityIndex:
+    'Índice 0–1 de volatilidad del precio. Útil para análisis de riesgo de exposición ' +
+    'a mercados spot.',
+  greenPremium:
+    'Prima verde adicional pagada por origen renovable certificado. Permite separar el ' +
+    'costo de la "verdura" del costo eléctrico base.',
+  carbonTaxRate:
+    'Tasa impositiva al carbono pasada al cliente (moneda/tCO₂e). Si la tarifa ya ' +
+    'incluye carbon tax, cargarla aquí. Opcional.',
+  efficiencyRebateRate:
+    'Tasa de bonificación por eficiencia/medidas verdes acordadas con el utility. Opcional.',
+  tagsJson:
+    'Etiquetas libres clave→valor en JSON. Filtros y agrupaciones en dashboards.',
+  createdAt: 'Marca temporal RFC3339 de creación. Sólo lectura.',
+  updatedAt: 'Marca temporal RFC3339 de la última modificación. Sólo lectura.'
+};
+
+/** Tabs con `help` inyectado desde `TARIFF_FIELD_HELP`. */
+export const TARIFF_FORM_TABS: ReadonlyArray<TariffFormTabDef> = Object.freeze(
+  withHelp(TARIFF_FORM_TABS_RAW, TARIFF_FIELD_HELP as Record<string, string>)
+);
 
 export const TARIFF_FIELD_GRID_CLASS: Record<TariffFormFieldDef['mdCols'], string> = {
   4: 'col-span-12 md:col-span-4',

@@ -7,6 +7,7 @@ import { Validators } from '@angular/forms';
 import type { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 
 import type { BranchDTO } from '@sms/common';
+import { withHelp } from './form-help.util';
 import {
   BackupPowerTypeSchema,
   BranchStatusSchema,
@@ -116,6 +117,8 @@ export interface BranchFormFieldDef<K extends keyof BranchFormValue = keyof Bran
   readonly step?: number;
   readonly patternRegex?: RegExp;
   readonly patternHint?: string;
+  /** Texto del icono de ayuda al lado del label (opcional). */
+  readonly help?: string;
 }
 
 export interface BranchFormTabDef {
@@ -161,7 +164,7 @@ export function branchFieldValidators(meta: BranchFormFieldDef): ValidatorFn[] {
   return v;
 }
 
-export const BRANCH_FORM_TABS: ReadonlyArray<BranchFormTabDef> = Object.freeze([
+const BRANCH_FORM_TABS_RAW: ReadonlyArray<BranchFormTabDef> = Object.freeze([
   {
     id: 'general',
     label: 'General',
@@ -515,8 +518,143 @@ export const BRANCH_FORM_TABS: ReadonlyArray<BranchFormTabDef> = Object.freeze([
         readonly: true
       }
     ]
+  },
+  {
+    id: 'tariffs',
+    label: 'Tarifas',
+    headline: 'Contratos energéticos asociados',
+    fields: []
   }
 ]);
+
+/** Tab id usado para inyectar la grilla de tarifas (no usa fields del config). */
+export const BRANCH_TARIFFS_TAB_ID = 'tariffs' as const;
+
+/**
+ * Texto de ayuda contextual por campo del formulario Branch.
+ * Foco: explicar el rol operativo y energético del dato.
+ */
+const BRANCH_FIELD_HELP: Partial<Record<keyof BranchFormValue, string>> = {
+  name:
+    'Nombre legible de la sucursal (ej. "Planta Negev", "Tienda Madrid Centro"). ' +
+    'Es la unidad mínima de control operativo y reporting.',
+  branchCode:
+    'Código corto único de la sucursal en el ERP/contabilidad. Se usa para ' +
+    'cruzar facturas energéticas con la sucursal en el cierre contable.',
+  timezone:
+    'Zona horaria local (IANA). Si está vacía, hereda la de la región. ' +
+    'Crítica para tarifas con franjas horarias.',
+  status:
+    'Estado operativo: OPERATIONAL, UNDER_CONSTRUCTION, CLOSED, etc. ' +
+    'Sucursales no-OPERATIONAL no consolidan en KPIs de desempeño actual.',
+  branchType:
+    'Tipo de instalación: PLANT, OFFICE, RETAIL, WAREHOUSE, DATA_CENTER… ' +
+    'Determina los benchmarks aplicables.',
+  isHeadquarters:
+    'Marca esta sucursal como sede central de la organización. Sólo puede haber una.',
+  constructionYear:
+    'Año de construcción original. Útil para inferir antigüedad de envolvente y HVAC.',
+  renovationYear:
+    'Último año de renovación mayor (envolvente, HVAC, eficiencia). Opcional.',
+  tagsText:
+    'Lista libre de etiquetas (separadas por comas) para filtrar y agrupar sucursales ' +
+    '(ej. "frio_industrial, dark_store").',
+  operatingWeekdaysOpen:
+    'Hora de apertura entre semana en formato HH:MM 24h (ej. "08:00"). ' +
+    'Define la franja "operación" para baseline vs no-operación.',
+  operatingWeekdaysClose: 'Hora de cierre entre semana en formato HH:MM 24h (ej. "20:00").',
+  operatingWeekendsOpen:
+    'Hora de apertura en fin de semana (HH:MM). Vacío = no opera fines de semana.',
+  operatingWeekendsClose: 'Hora de cierre en fin de semana (HH:MM). Vacío = no opera.',
+  ownershipType:
+    'Régimen de tenencia: OWNED, LEASED, MANAGED, FRANCHISED. Afecta el alcance ' +
+    'del control operacional (relevante para Scope 1/2/3 boundaries).',
+  leaseExpirationDate:
+    'Fecha de expiración del contrato de arrendamiento. Pivote para decidir ROI ' +
+    'de inversiones de eficiencia.',
+  defaultTariffId:
+    'ID de la tarifa de electricidad por defecto que aplica a esta sucursal. ' +
+    'Se usa cuando un medidor no declara una tarifa propia.',
+  costCenterId:
+    'Centro de costo principal al que se imputa el gasto energético de la sucursal. ' +
+    'Es complementario a la asignación multi-CC vía metadata.custom.',
+  annualEnergyBudget:
+    'Presupuesto anual de energía (en moneda local). Se compara contra el gasto real ' +
+    'para calcular budget burn y desvíos.',
+  localCurrency:
+    'Moneda en la que se contabiliza el gasto local (ej. ARS, ILS, EUR). ' +
+    'Si difiere de la operativa, se convierte en runtime con tipo de cambio.',
+  annualRevenueTarget:
+    'Objetivo de revenue anual de la sucursal. Habilita intensidades por ingreso ' +
+    '(kgCO₂/$). Opcional.',
+  totalFloorAreaM2:
+    'Superficie total construida bajo control operacional, en m². Denominador de ' +
+    'intensidades energéticas (kWh/m²) y de carbono (kgCO₂/m²).',
+  employeeCount:
+    'Cantidad de empleados (incluye part-time). Se usa para denominadores sociales.',
+  fteEmployees:
+    'Equivalente a tiempo completo (Full-Time Equivalent). Más fiel que headcount ' +
+    'para intensidades de tipo "kWh/empleado".',
+  openingDaysPerYear:
+    'Días operativos al año (ej. 250 oficina, 365 retail). Permite normalizar ' +
+    'consumo por día de operación.',
+  averageDailyVisitors:
+    'Visitantes promedio por día. Útil en retail/educativo para intensidad por footfall.',
+  energyIntensityTarget:
+    'Meta de intensidad energética (kWh/m² u otra unidad acordada). Se usa para ' +
+    'medir progreso vs baseline.',
+  baseloadThreshold:
+    'Umbral mínimo de potencia (kW) que define el baseload nocturno. Lecturas por debajo ' +
+    'sugieren cierre correcto; por encima, "fantasma" o equipos olvidados.',
+  peakPowerContracted:
+    'Potencia máxima contratada con el utility (kW). Superarla suele tener penalidades ' +
+    'fuertes; alimenta alertas de demand peak.',
+  weatherStationId:
+    'ID de la estación meteorológica más cercana (para normalización HDD/CDD). ' +
+    'Opcional; si vacío, se usa la regional.',
+  backupPowerType:
+    'Tipo de respaldo eléctrico instalado: NONE, DIESEL_GENERATOR, BATTERY, UPS, etc. ' +
+    'Afecta huella en eventos de apagón.',
+  fuelTankCapacityLiters:
+    'Capacidad del tanque de combustible del generador (litros). Necesario para ' +
+    'calcular emisiones Scope 1 directas y autonomía.',
+  criticalLoadKw:
+    'Carga eléctrica crítica que debe mantenerse en un apagón (kW). Define el sizing ' +
+    'mínimo del respaldo y de la batería.',
+  hasOnSiteRenewable:
+    'Marca la sucursal como tenedora de generación renovable propia (FV, eólica, etc.). ' +
+    'Habilita el bloque de capacidad y net metering en medidores asociados.',
+  renewableCapacityKw:
+    'Capacidad instalada renovable propia (kWp). Se usa en Scope 2 método mercado y ' +
+    'en proyecciones de autoconsumo.',
+  hasEvCharging:
+    'Hay puntos de carga de vehículos eléctricos en la sucursal. Cambia el patrón ' +
+    'de demanda y puede requerir tarifa especial.',
+  certificationsText:
+    'Certificaciones edilicias (LEED, BREEAM, ISO 50001) separadas por comas. ' +
+    'Habilita filtros y bonificaciones de tarifas verdes.',
+  hasAirQualityMonitoring:
+    'Hay sensores de calidad de aire interior (CO₂, COVs, PM2.5). Material para ' +
+    'reportes de bienestar laboral y CSRD social.',
+  coolingSetPoint:
+    'Setpoint estándar de refrigeración (°C). Subirlo 1°C suele ahorrar 6-9% del ' +
+    'consumo de A/C.',
+  heatingSetPoint:
+    'Setpoint estándar de calefacción (°C). Bajarlo 1°C suele ahorrar 7-10% del ' +
+    'consumo de calefacción.',
+  branchManagerName: 'Nombre del responsable operativo de la sucursal.',
+  branchManagerEmail:
+    'Email del responsable de la sucursal. Recibe alertas locales y reportes mensuales.',
+  branchManagerPhone:
+    'Teléfono del responsable (formato internacional). Opcional, mín. 3 chars si se carga.',
+  createdAt: 'Marca temporal RFC3339 de creación. Sólo lectura.',
+  updatedAt: 'Marca temporal RFC3339 de la última modificación. Sólo lectura.'
+};
+
+/** Tabs con `help` inyectado desde `BRANCH_FIELD_HELP`. */
+export const BRANCH_FORM_TABS: ReadonlyArray<BranchFormTabDef> = Object.freeze(
+  withHelp(BRANCH_FORM_TABS_RAW, BRANCH_FIELD_HELP as Record<string, string>)
+);
 
 export const BRANCH_FIELD_GRID_CLASS: Record<BranchFormFieldDef['mdCols'], string> = {
   4: 'col-span-12 md:col-span-4',

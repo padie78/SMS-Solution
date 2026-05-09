@@ -11,10 +11,8 @@ import {
   signal
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { CalendarModule } from 'primeng/calendar';
 import { CardModule } from 'primeng/card';
-import { CheckboxModule } from 'primeng/checkbox';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
@@ -26,7 +24,16 @@ import type {
   SmsNodeStatus
 } from '../../../../core/models/sms-location-node.model';
 import { LocationService } from '../../services/location.service';
-import { CostCenterAutocompleteComponent } from './cost-center-autocomplete.component';
+import { NotificationService } from '../../../../services/ui/notification.service';
+import { LocationFormActionsComponent } from './location-form-actions.component';
+import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
+import { UiInputSwitchComponent } from '../../../../ui/atoms/ui-input-switch/ui-input-switch.component';
+import { NodeCostCenterMultiPickerComponent } from './node-cost-center-multi-picker.component';
+import {
+  readNodeCostCenterIds,
+  sanitizeIds,
+  writeNodeCostCenterIdsCustom
+} from './node-cost-center-metadata.util';
 import { resolveHierarchyContext } from './location-hierarchy-context';
 import {
   ASSET_FIELD_GRID_CLASS,
@@ -58,14 +65,15 @@ function assetLifecycleStatusToSmsNodeStatus(s: AssetLifecycleStatus): SmsNodeSt
     CommonModule,
     ReactiveFormsModule,
     CardModule,
-    ButtonModule,
     InputTextModule,
     InputTextareaModule,
     InputNumberModule,
     DropdownModule,
-    CheckboxModule,
     CalendarModule,
-    CostCenterAutocompleteComponent
+    NodeCostCenterMultiPickerComponent,
+    LocationFormActionsComponent,
+    UiHelpTipComponent,
+    UiInputSwitchComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './asset-form.component.html'
@@ -80,8 +88,12 @@ export class AssetFormComponent implements OnChanges {
   readonly tabs: ReadonlyArray<AssetFormTabDef> = ASSET_FORM_TABS;
   readonly activeTabId = signal<string>(ASSET_FORM_TABS[0]?.id ?? 'general');
 
+  /** Lista de Cost Centers asignados (multi). Se persiste en `metadata.custom.costCenterIds`. */
+  readonly selectedCostCenterIds = signal<string[]>([]);
+
   private readonly location = inject(LocationService);
   private readonly fb = inject(FormBuilder);
+  private readonly notify = inject(NotificationService);
 
   readonly form: AssetFormGroup = buildAssetFormGroup(this.fb);
   private lastResetValue: AssetFormValue | null = null;
@@ -129,6 +141,18 @@ export class AssetFormComponent implements OnChanges {
     this.form.controls.buildingId.disable({ emitEvent: false });
     this.form.controls.id.disable({ emitEvent: false });
 
+    // Multi-asignación: prioridad a la lista canónica de metadata.custom.costCenterIds.
+    // Fallback al costCenterId del DTO (`controls.costCenterId.value`) si la lista viene vacía.
+    const fromMetadata = readNodeCostCenterIds(this.parentNode.metadata);
+    if (fromMetadata.length > 0) {
+      this.selectedCostCenterIds.set(fromMetadata);
+    } else {
+      const fromDto = (this.form.controls.costCenterId.value ?? '').trim();
+      this.selectedCostCenterIds.set(
+        fromDto.length > 0 && fromDto !== 'cc-unassigned' ? [fromDto] : []
+      );
+    }
+
     this.lastResetValue = this.form.getRawValue() as AssetFormValue;
     this.form.markAsPristine();
   }
@@ -150,8 +174,12 @@ export class AssetFormComponent implements OnChanges {
     this.preview.update((x) => !x);
   }
 
-  onCostCenterChange(id: string | null): void {
-    this.form.controls.costCenterId.setValue(id ?? '');
+  onCostCenterIdsChange(ids: string[]): void {
+    const cleaned = sanitizeIds(ids);
+    this.selectedCostCenterIds.set(cleaned);
+    // AssetDTO.costCenterId es required (zod usa 'cc-unassigned' como default si vacío).
+    // Sincronizamos con el primero como representación para el DTO.
+    this.form.controls.costCenterId.setValue(cleaned[0] ?? '');
     this.form.controls.costCenterId.markAsDirty();
     this.form.markAsDirty();
   }
@@ -188,20 +216,31 @@ export class AssetFormComponent implements OnChanges {
   async save(): Promise<void> {
     if (this.form.invalid) return;
     const dto = assetFormRawValueToDTO(this.form.getRawValue() as AssetFormValue);
+    const ccIds = this.selectedCostCenterIds();
+
+    const nextCustom = writeNodeCostCenterIdsCustom(this.parentNode.metadata?.custom, ccIds);
+    const nextMetadata: SmsLocationNodeMetadata = {
+      ...(this.parentNode.metadata ?? {}),
+      ...(dto as unknown as SmsLocationNodeMetadata),
+      custom: nextCustom
+    };
+
     this.location.lastError.set('Guardando activo…');
     try {
       await this.location.updateNode(this.parentNode.location_id, {
         name: dto.name,
         status: assetLifecycleStatusToSmsNodeStatus(dto.status),
-        metadata: dto as unknown as SmsLocationNodeMetadata
+        metadata: nextMetadata
       });
       this.location.lastError.set(null);
       this.dto.emit(dto);
       this.lastResetValue = this.form.getRawValue() as AssetFormValue;
       this.form.markAsPristine();
+      this.notify.success('Activo guardado', `Se actualizaron los datos de "${dto.name}".`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error desconocido guardando activo';
       this.location.lastError.set(msg);
+      this.notify.error('No se pudo guardar el activo', msg);
     }
   }
 }

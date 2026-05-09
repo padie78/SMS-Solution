@@ -102,6 +102,9 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
   field       = each.key
   data_source = aws_appsync_datasource.api_lambda_ds.name
 
+  request_template  = file("${path.module}/resolvers/invoke-api-lambda-with-holding.vtl")
+  response_template = file("${path.module}/resolvers/lambda-default-response.vtl")
+
   # Forzamos a que el Schema se haya cargado antes de intentar crear los resolvers
   depends_on = [
     aws_appsync_graphql_api.api,
@@ -140,6 +143,9 @@ resource "aws_appsync_resolver" "api_lambda_queries" {
   type        = "Query"
   field       = each.key
   data_source = aws_appsync_datasource.api_lambda_ds.name
+
+  request_template  = file("${path.module}/resolvers/invoke-api-lambda-with-holding.vtl")
+  response_template = file("${path.module}/resolvers/lambda-default-response.vtl")
 
   depends_on = [
     aws_appsync_graphql_api.api,

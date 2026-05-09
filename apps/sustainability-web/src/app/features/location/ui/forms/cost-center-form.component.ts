@@ -11,10 +11,8 @@ import {
   signal
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { CalendarModule } from 'primeng/calendar';
 import { CardModule } from 'primeng/card';
-import { CheckboxModule } from 'primeng/checkbox';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
@@ -27,6 +25,9 @@ import type {
 } from '../../../../core/models/sms-location-node.model';
 import { LocationService } from '../../services/location.service';
 import { resolveHierarchyContext } from './location-hierarchy-context';
+import { LocationFormActionsComponent } from './location-form-actions.component';
+import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
+import { UiInputSwitchComponent } from '../../../../ui/atoms/ui-input-switch/ui-input-switch.component';
 import {
   COST_CENTER_FIELD_GRID_CLASS,
   COST_CENTER_FORM_DEFAULT_VALUE,
@@ -60,13 +61,14 @@ function toSmsNodeStatus(status: unknown): SmsNodeStatus {
     CommonModule,
     ReactiveFormsModule,
     CardModule,
-    ButtonModule,
     InputTextModule,
     InputTextareaModule,
     InputNumberModule,
     DropdownModule,
-    CheckboxModule,
-    CalendarModule
+    CalendarModule,
+    LocationFormActionsComponent,
+    UiHelpTipComponent,
+    UiInputSwitchComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './cost-center-form.component.html'

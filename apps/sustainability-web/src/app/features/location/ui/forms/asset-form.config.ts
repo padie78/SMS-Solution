@@ -7,6 +7,7 @@ import { Validators } from '@angular/forms';
 import type { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 
 import type { AssetDTO } from '@sms/common';
+import { withHelp } from './form-help.util';
 import {
   AssetLifecycleStatusSchema,
   AssetCriticalitySchema,
@@ -125,6 +126,8 @@ export interface AssetFormFieldDef<K extends keyof AssetFormValue = keyof AssetF
   readonly min?: number;
   readonly max?: number;
   readonly step?: number;
+  /** Texto del icono de ayuda al lado del label (opcional). */
+  readonly help?: string;
 }
 
 export interface AssetFormTabDef {
@@ -155,7 +158,7 @@ export function assetFieldValidators(meta: AssetFormFieldDef): ValidatorFn[] {
   return v;
 }
 
-export const ASSET_FORM_TABS: ReadonlyArray<AssetFormTabDef> = Object.freeze([
+const ASSET_FORM_TABS_RAW: ReadonlyArray<AssetFormTabDef> = Object.freeze([
   {
     id: 'general',
     label: 'General',
@@ -502,6 +505,123 @@ export const ASSET_FORM_TABS: ReadonlyArray<AssetFormTabDef> = Object.freeze([
     ]
   }
 ]);
+
+/**
+ * Texto de ayuda contextual por campo del formulario Asset.
+ * Foco: explicar el rol del dato en GHG, mantenimiento y telemetría.
+ */
+const ASSET_FIELD_HELP: Partial<Record<keyof AssetFormValue, string>> = {
+  name:
+    'Nombre legible del activo (ej. "Compresor Sala Máquinas A1"). Debe ser único ' +
+    'dentro del edificio para que sea reconocible.',
+  assetTag:
+    'Tag interno físico (etiqueta CMMS). Se usa para conciliar con el sistema de ' +
+    'mantenimiento (Maximo, Infor, etc.).',
+  barcode:
+    'Código de barras / QR físico para escaneo en mantenimientos preventivos. Opcional.',
+  type:
+    'Tipo de activo: HVAC_CHILLER, BOILER, COMPRESSOR, MOTOR, LIGHTING, etc. ' +
+    'Determina los baselines y los modelos predictivos aplicables.',
+  status:
+    'Estado de ciclo de vida: OPERATIONAL, IDLE, FAULT, DECOMMISSIONED. Activos ' +
+    'no-OPERATIONAL no consumen ni emiten en los reportes actuales.',
+  criticality:
+    'Criticidad operativa: LOW, MEDIUM, HIGH, CRITICAL. Define la prioridad de ' +
+    'mantenimientos y el SLA de respuesta a fallos.',
+  manufacturer: 'Fabricante (Daikin, Carrier, ABB, Siemens…). Útil para warranties y catálogos.',
+  model: 'Modelo específico del fabricante. Permite asociar fichas técnicas y eficiencia nominal.',
+  serialNumber: 'Número de serie del fabricante. Identificador único físico.',
+  installationDate:
+    'Fecha de instalación en sitio. Punto de partida para vida útil restante (RUL).',
+  usefulLifeYears:
+    'Vida útil esperada en años (catálogo o ISO 14224). Junto con installationDate ' +
+    'calcula el deterioro esperado y la fecha óptima de reemplazo.',
+  decommissionDate:
+    'Fecha planificada o efectiva de baja del activo. Si está cargada, el activo ' +
+    'no consolida en KPIs después de esa fecha.',
+  isSignificantEnergyUse:
+    'Marca el activo como Significant Energy Use (SEU) según ISO 50001 ' +
+    '(usualmente top 80% del consumo energético).',
+  nominalPowerKw:
+    'Potencia nominal del activo en kW (placa de fábrica). Es la potencia máxima ' +
+    'que puede demandar a régimen.',
+  standbyPowerKw:
+    'Consumo en standby/parado (kW). Material para detectar consumo fantasma y ' +
+    'baselines nocturnos. Opcional.',
+  energySource:
+    'Fuente de energía principal: ELECTRICITY, NATURAL_GAS, DIESEL, STEAM, etc. ' +
+    'Define el factor de emisión y el Scope.',
+  nominalEfficiency:
+    'Eficiencia nominal (0–1, ej. COP 0.85 = 85% de eficiencia). Catálogo del ' +
+    'fabricante a régimen.',
+  dutyCycleExpected:
+    'Fracción 0–1 del tiempo en operación (duty cycle). 0.3 = 30% del año encendido. ' +
+    'Pivote de la energía anual estimada.',
+  powerFactorTarget:
+    'Factor de potencia objetivo (0–1, típico 0.95). Por debajo del umbral, las ' +
+    'distribuidoras suelen aplicar penalidades por reactiva.',
+  ghgScope:
+    'Scope GHG: SCOPE_1 (combustión directa), SCOPE_2 (electricidad comprada), ' +
+    'SCOPE_3 (cadena). Define el método de cálculo de emisiones.',
+  emissionSourceCategory:
+    'Categoría de fuente de emisión (GRI/SASB). Afina la clasificación dentro del Scope.',
+  fuelType: 'Tipo específico de combustible (DIESEL_B5, GAS_NATURAL, GLP, etc.). Opcional.',
+  biogenicFraction:
+    'Fracción 0–1 de carbono biogénico en el combustible (biodiesel, biomasa). ' +
+    'Las emisiones biogénicas se reportan separadas según GHG Protocol.',
+  refrigerantGasType:
+    'Refrigerante usado (R410A, R32, R1234yf…). Crítico para Scope 1 fugitivas y ' +
+    'compliance F-Gas.',
+  refrigerantChargeKg:
+    'Carga total de refrigerante en kg. Material para emisiones por fugas anuales.',
+  refrigerantGWP:
+    'GWP del refrigerante (Global Warming Potential, AR5). R410A=2088, R32=675. ' +
+    'Si vacío, se infiere del tipo.',
+  annualLeakageRateExpected:
+    'Tasa anual esperada de fugas de refrigerante (0–1, típico 0.05–0.15 por equipo). ' +
+    'Multiplica refrigerantChargeKg × GWP × tasa para emisiones Scope 1 fugitivas.',
+  meterId:
+    'ID del medidor que registra el consumo del activo (si está submedida). ' +
+    'Si vacío, se prorratea desde un medidor padre.',
+  cloudDeviceId:
+    'ID del dispositivo en la plataforma IoT/cloud (AWS IoT, Azure IoT). ' +
+    'Habilita la telemetría en vivo. Opcional.',
+  telemetryTopic:
+    'Tópico MQTT/Kafka donde el dispositivo publica telemetría. Necesario para ' +
+    'streaming en tiempo real.',
+  isVirtualAsset:
+    'Marca el activo como virtual (no físico): suma/diferencia/agregación de otros ' +
+    'activos. No se mantiene físicamente.',
+  dataQualityScore:
+    'Score 0–1 de calidad del dato (frecuencia, completitud, anomalías). Bajo el ' +
+    'umbral, las predicciones se marcan como baja confianza.',
+  lastMaintenanceDate: 'Fecha de la última intervención de mantenimiento. Opcional.',
+  nextMaintenanceDate:
+    'Fecha planificada del próximo mantenimiento. Genera alertas predictivas si vence.',
+  maintenanceVendor: 'Empresa contratada para mantenimiento. Opcional.',
+  conditionIndex:
+    'Índice de condición actual: NEW, GOOD, DEGRADED, FAULT. Junto a usefulLifeYears ' +
+    'alimenta la estimación de RUL.',
+  efficiencyDegradationFactor:
+    'Factor anual de degradación de eficiencia (0–1). Típico HVAC: 0.01–0.02 al año. ' +
+    'Modelo de envejecimiento.',
+  redundancyLevel:
+    'Nivel de redundancia: NONE, N+1, 2N. Crítico para activos de misión crítica ' +
+    '(data centers, hospitales).',
+  mtbfHours:
+    'Mean Time Between Failures (horas). Vida media entre fallos según ' +
+    'fabricante o histórico. Opcional.',
+  tagsJson:
+    'Etiquetas clave→valor en JSON ({"line":"A","shift":"morning"}). Filtros y ' +
+    'agrupaciones libres en dashboards.',
+  createdAt: 'Marca temporal RFC3339 de creación. Sólo lectura.',
+  updatedAt: 'Marca temporal RFC3339 de la última modificación. Sólo lectura.'
+};
+
+/** Tabs con `help` inyectado desde `ASSET_FIELD_HELP`. */
+export const ASSET_FORM_TABS: ReadonlyArray<AssetFormTabDef> = Object.freeze(
+  withHelp(ASSET_FORM_TABS_RAW, ASSET_FIELD_HELP as Record<string, string>)
+);
 
 export const ASSET_FIELD_GRID_CLASS: Record<AssetFormFieldDef['mdCols'], string> = {
   4: 'col-span-12 md:col-span-4',

@@ -19,10 +19,125 @@ import { callExtractionAgent } from "../ai/agent.js";
 import { calculateFootprint } from "../apis/climatiq.js";
 import { buildGoldenRecord } from "../../utils/mapper.js";
 import { persistTransaction } from "../dynamodb/db.js";
+import {
+    appendSegmentToLocationPath,
+    legacyBuildingSk,
+    legacyMeterSk,
+    LOCATION_NODE_ENTITY,
+    normalizeSegmentId,
+    stableLocationNodeSk,
+} from "../dynamodb/nodePathModel.js";
+import { cascadeReplacePathPrefixUnderHolding } from "../dynamodb/nodePathCascade.js";
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME = process.env.DATABASE_NAME || "sms-platform-dev-emissions";
+
+async function fetchBuildingRowFlexible(orgPk, branchId, buildingId) {
+    const bKey = normalizeSegmentId(buildingId);
+    const brKey = normalizeSegmentId(branchId);
+    const keys = [
+        { SK: stableLocationNodeSk(LOCATION_NODE_ENTITY.BUILDING, bKey) },
+        { SK: legacyBuildingSk(brKey, bKey) },
+    ];
+    for (const key of keys) {
+        const g = await docClient.send(new GetCommand({
+            TableName: TABLE_NAME,
+            Key: { PK: orgPk, SK: key.SK }
+        }));
+        if (g.Item) return g.Item;
+    }
+    return null;
+}
+
+async function fetchMeterRowFlexible(orgPk, meterId) {
+    const mKey = normalizeSegmentId(meterId);
+    const keys = [
+        { SK: stableLocationNodeSk(LOCATION_NODE_ENTITY.METER, mKey) },
+        { SK: legacyMeterSk(mKey) },
+    ];
+    for (const key of keys) {
+        const g = await docClient.send(new GetCommand({
+            TableName: TABLE_NAME,
+            Key: { PK: orgPk, SK: key.SK }
+        }));
+        if (g.Item) return g.Item;
+    }
+    return null;
+}
+
+async function collectMetersHybrid(orgPk) {
+    const prefixes = ["METER#", "NODE#METER#"];
+    const bySk = new Map();
+    for (const pref of prefixes) {
+        let eks = undefined;
+        do {
+            const res = await docClient.send(new QueryCommand({
+                TableName: TABLE_NAME,
+                KeyConditionExpression: "PK = :pk AND begins_with(SK, :skp)",
+                ExpressionAttributeValues: { ":pk": orgPk, ":skp": pref },
+                ExclusiveStartKey: eks
+            }));
+            for (const row of res.Items ?? []) {
+                bySk.set(row.SK, row);
+            }
+            eks = res.LastEvaluatedKey;
+        } while (eks);
+    }
+    return [...bySk.values()];
+}
+
+async function resolveExternalParentPath(orgPk, kind, rawId, branchFallbackId) {
+    const k = kind == null ? "" : String(kind).toUpperCase();
+    const ridRaw = rawId == null ? "" : String(rawId).trim();
+
+    if (k === "ORG_ROOT" || k === "TENANT_ROOT") {
+        return "";
+    }
+
+    if (!ridRaw) {
+        throw new Error("PARENT_ID_REQUIRED_FOR_PATH_RESOLUTION");
+    }
+
+    const id = normalizeSegmentId(ridRaw);
+    if (k === LOCATION_NODE_ENTITY.BRANCH || k === "BRANCH") {
+        const g = await docClient.send(new GetCommand({
+            TableName: TABLE_NAME,
+            Key: { PK: orgPk, SK: `BRANCH#${id}` }
+        }));
+        return g.Item?.path || appendSegmentToLocationPath(undefined, id);
+    }
+    if (k === LOCATION_NODE_ENTITY.BUILDING || k === "BUILDING") {
+        const bg = await fetchBuildingRowFlexible(
+            orgPk,
+            branchFallbackId || "",
+            id
+        );
+        return bg?.path || legacyBuildingFallbackPath(branchFallbackId, id);
+    }
+    if (k === LOCATION_NODE_ENTITY.METER || k === "METER") {
+        const m = await fetchMeterRowFlexible(orgPk, id);
+        return m?.path || legacyMeterFallbackPath(branchFallbackId, id);
+    }
+    throw new Error(`Unsupported parentKind for path resolution: ${k}`);
+}
+
+function legacyBuildingFallbackPath(branchId, buildingId) {
+    if (!branchId) return appendSegmentToLocationPath(undefined, normalizeSegmentId(buildingId));
+    const bPath = appendSegmentToLocationPath(
+        appendSegmentToLocationPath(undefined, normalizeSegmentId(branchId)),
+        normalizeSegmentId(buildingId)
+    );
+    return bPath;
+}
+
+function legacyMeterFallbackPath(branchId, meterId) {
+    if (!branchId) return appendSegmentToLocationPath(undefined, normalizeSegmentId(meterId));
+    return appendSegmentToLocationPath(
+        appendSegmentToLocationPath(undefined, normalizeSegmentId(branchId)),
+        normalizeSegmentId(meterId)
+    );
+}
 
 /**
  * Helper para formatear las respuestas de éxito consistentes con AppSync/GraphQL
@@ -164,12 +279,16 @@ export const configService = {
     createBranch: async (orgId, input) => {
         // Generamos un ID con prefijo regional si viene en el input, sino genérico
         const branchId = input.branchId || `BR-${randomUUID().split('-')[0].toUpperCase()}`;
+        const branchKey = normalizeSegmentId(branchId);
         const timestamp = new Date().toISOString();
 
         const item = {
             PK: `ORG#${orgId}`,
-            SK: `BRANCH#${branchId}`,
+            SK: `BRANCH#${branchKey}`,
             entity_type: "BRANCH_CONFIG",
+            holdingId: orgId,
+            path: appendSegmentToLocationPath(undefined, branchKey),
+            node_kind: LOCATION_NODE_ENTITY.BRANCH,
 
             // 1. Información Física y Geográfica
             branch_info: {
@@ -225,7 +344,7 @@ export const configService = {
 
             return {
                 success: true,
-                branchId: branchId,
+                branchId: branchKey,
                 ...formatResponse(item)
             };
         } catch (error) {
@@ -288,15 +407,29 @@ export const configService = {
     saveBuilding: async (orgId, branchId, buildingId, input) => {
         const timestamp = new Date().toISOString();
 
-        // El buildingId se limpia para asegurar que sea parte de la SK correctamente
-        const bId = buildingId.toUpperCase().replace(/\s+/g, '-');
+        const pk = `ORG#${orgId}`;
+        const branchKey = normalizeSegmentId(branchId);
+        const bId = normalizeSegmentId(buildingId);
 
-        const item = {
-            PK: `ORG#${orgId}`,
-            SK: `BRANCH#${branchId}#BLDG#${bId}`,
-            entity_type: "BUILDING_CONFIG",
+        let parentPathHint = appendSegmentToLocationPath(undefined, branchKey);
+        try {
+            const bg = await docClient.send(new GetCommand({
+                TableName: TABLE_NAME,
+                Key: { PK: pk, SK: `BRANCH#${branchKey}` },
+            }));
+            if (bg.Item?.path) {
+                parentPathHint = bg.Item.path;
+            }
+        } catch (_) {
+            // ignore lookup failures; fall back to synthetic branch path
+        }
 
-            // 1. Información General
+        const path = appendSegmentToLocationPath(parentPathHint, bId);
+        const nodeSk = stableLocationNodeSk(LOCATION_NODE_ENTITY.BUILDING, bId);
+
+        const metadata = {
+            kind: LOCATION_NODE_ENTITY.BUILDING,
+            parent_id: branchKey,
             building_info: {
                 name: input.name || "Nuevo Edificio",
                 organization_id: input.organizationId || null,
@@ -311,37 +444,39 @@ export const configService = {
                 coordinates_lat: input.coordinatesLat ?? null,
                 coordinates_lng: input.coordinatesLng ?? null
             },
-
-            // 2. Especificaciones Físicas (Ingeniería Térmica)
             physical_specs: {
                 m2_surface: Number(input.m2Surface) || 0,
                 m3_volume: Number(input.m3Volume) || 0,
                 max_occupancy: Number(input.maxOccupancy) || 0,
                 roof_type: input.roofType || "STANDARD",
-                insulation_u_value: Number(input.uValue) || 0 // Coeficiente de transmitancia
+                insulation_u_value: Number(input.uValue) || 0
             },
-
-            // 3. Configuración de Sistemas
             systems_config: {
                 hvac_type: input.hvacType || "NONE",
                 lighting_tech: input.lightingTech || "LED",
                 bms_integrated: Boolean(input.hasBms) || false,
                 backup_generation: Boolean(input.hasBackup) || false
             },
-
-            // 4. Contexto de Ubicación
             location_context: {
-                parent_branch: branchId,
+                parent_branch: branchKey,
                 internal_zone_id: input.zoneId || "GENERAL",
                 is_shared_facility: Boolean(input.isShared) || false
             },
-
-            // 5. Clasificación y Negocio
             tags: {
                 criticality: input.criticality || "MEDIUM",
                 cost_center_primary: input.primaryCC || "N/A"
-            },
+            }
+        };
 
+        const item = {
+            PK: pk,
+            SK: nodeSk,
+            entity_type: "BUILDING_CONFIG",
+            holdingId: orgId,
+            path,
+            node_kind: LOCATION_NODE_ENTITY.BUILDING,
+            legacy_branch_building_sk: legacyBuildingSk(branchKey, bId),
+            metadata,
             last_updated: timestamp,
             _internal_version: 1
         };
@@ -355,6 +490,7 @@ export const configService = {
             return {
                 success: true,
                 buildingId: bId,
+                branchId: branchKey,
                 ...formatResponse(item)
             };
         } catch (error) {
@@ -1214,18 +1350,42 @@ export const configService = {
 
     saveMeter: async (orgId, branchId, meterId, input) => {
         const timestamp = new Date().toISOString();
-        const mId = meterId.toUpperCase();
-        const bId = branchId.toUpperCase();
+        const pk = `ORG#${orgId}`;
+        const mId = normalizeSegmentId(meterId);
+        const branchKey = normalizeSegmentId(branchId);
 
-        const item = {
-            PK: `ORG#${orgId}`,
-            SK: `METER#${mId}`,
-            // GSI para buscar todos los medidores de una planta específica
-            GSI1_PK: `BRANCH#${bId}`,
-            GSI1_SK: `TYPE#${(input.type || 'ELECTRICITY').toUpperCase()}#${mId}`,
+        const collision = await fetchMeterRowFlexible(pk, mId);
+        if (collision) {
+            return { success: false, message: "Meter ID already exists" };
+        }
 
-            entity_type: "METER_CONFIG",
+        let parentBasis = "";
+        if (input.parentMeterId) {
+            const pm = await fetchMeterRowFlexible(pk, input.parentMeterId);
+            parentBasis =
+                pm?.path || legacyMeterFallbackPath(branchKey, input.parentMeterId);
+        } else if (input.buildingId && String(input.buildingId).trim() !== "" &&
+            input.buildingId !== "UNASSIGNED") {
+            const bRow = await fetchBuildingRowFlexible(pk, branchKey, input.buildingId);
+            parentBasis =
+                bRow?.path || legacyBuildingFallbackPath(branchKey, input.buildingId);
+        } else {
+            parentBasis = appendSegmentToLocationPath(undefined, branchKey);
+        }
 
+        const path = appendSegmentToLocationPath(parentBasis, mId);
+        const stableSk = stableLocationNodeSk(LOCATION_NODE_ENTITY.METER, mId);
+
+        const parentMeterSk = input.parentMeterId
+            ? stableLocationNodeSk(
+                LOCATION_NODE_ENTITY.METER,
+                normalizeSegmentId(input.parentMeterId)
+            )
+            : null;
+
+        const metadata = {
+            kind: LOCATION_NODE_ENTITY.METER,
+            parent_branch_id: branchKey,
             meter_info: {
                 name: input.name || "Nuevo Medidor",
                 serial_number: input.serialNumber,
@@ -1233,38 +1393,53 @@ export const configService = {
                 model: input.model || "iEM3000",
                 firmware_version: input.firmware || "1.0.0"
             },
-
             metrology: {
                 unit: input.unit || "kWh",
                 scaling_factor: Number(input.scalingFactor) || 1.0,
-                ct_ratio: input.ctRatio || "1:1", // Importante para auditoría
+                ct_ratio: input.ctRatio || "1:1",
                 accuracy_class: input.accuracyClass || "1.0",
                 is_fiscal: Boolean(input.isMain) || false
             },
-
             topology: {
                 organization_id: input.orgId || null,
                 region_id: input.regionId || null,
                 asset_id: input.assetId || null,
-                parent_meter_id: input.parentMeterId ? `METER#${input.parentMeterId.toUpperCase()}` : null,
+                parent_meter_id: parentMeterSk,
                 role: input.isMain ? "MAIN_REVENUE" : "SUB_METER",
-                building_id: input.buildingId || "UNASSIGNED",
+                building_id: input.buildingId
+                    ? normalizeSegmentId(input.buildingId)
+                    : "UNASSIGNED",
                 cost_center_id: input.costCenterId || "GENERAL",
                 operational_status: input.status || "ACTIVE"
             },
-
             connectivity: {
                 iot_thing_name: input.iotName || `MTR_${mId}`,
                 protocol: input.protocol || "MQTT",
                 sampling_rate_sec: Number(input.samplingRate) || 900,
                 connection_status: "PROVISIONED"
             },
-
             assignment: {
-                branch_id: bId,
+                branch_id: branchKey,
                 physical_location: input.location || "Tablero General"
-            },
+            }
+        };
 
+        const item = {
+            PK: pk,
+            SK: stableSk,
+            GSI1_PK: `BRANCH#${branchKey}`,
+            GSI1_SK: `TYPE#${(input.type || "ELECTRICITY").toUpperCase()}#${mId}`,
+            entity_type: "METER_CONFIG",
+            holdingId: orgId,
+            path,
+            node_kind: LOCATION_NODE_ENTITY.METER,
+            legacy_meter_sk: legacyMeterSk(mId),
+            metadata,
+            meter_info: metadata.meter_info,
+            metrology: metadata.metrology,
+            topology: metadata.topology,
+            connectivity: metadata.connectivity,
+            assignment: metadata.assignment,
             last_updated: timestamp
         };
 
@@ -1272,10 +1447,9 @@ export const configService = {
             await docClient.send(new PutCommand({
                 TableName: TABLE_NAME,
                 Item: item,
-                // Protección contra sobreescritura accidental
                 ConditionExpression: "attribute_not_exists(SK)"
             }));
-            return { success: true, meterId: mId };
+            return { success: true, meterId: mId, branchId: branchKey, ...formatResponse(item) };
         } catch (error) {
             if (error.name === "ConditionalCheckFailedException") {
                 return { success: false, message: "Meter ID already exists" };
@@ -1284,9 +1458,90 @@ export const configService = {
             throw error;
         }
     },
+
+    /**
+     * Reemplazo masivo de prefijos de `path` bajo un holding (GSI_NodePath).
+     * Expuesto para operaciones internas / futuras mutaciones GraphQL de “move”.
+     */
+    relocateSubtreeByPathPrefixes: async (orgId, oldSubtreePrefix, newSubtreePrefix) => {
+        return cascadeReplacePathPrefixUnderHolding({
+            docClient,
+            tableName: TABLE_NAME,
+            holdingId: orgId,
+            oldSubtreePrefix,
+            newSubtreePrefix,
+        });
+    },
+
+    /**
+     * Mueve un nodo de ubicación bajo un nuevo padre recalculando `path` en cascada.
+     * `entityKind`: BRANCH | BUILDING | METER (uppercase). `newParentKind` idem o ORG_ROOT.
+     */
+    moveLocationNode: async (orgId, params = {}) => {
+        const {
+            entityKind,
+            entityId,
+            newParentKind = "ORG_ROOT",
+            newParentId = "",
+            branchFallbackId = "",
+        } = params;
+
+        const pk = `ORG#${orgId}`;
+        const kind = String(entityKind || "").toUpperCase();
+        const eid = normalizeSegmentId(entityId);
+
+        let moving = null;
+        if (kind === LOCATION_NODE_ENTITY.BUILDING || kind === "BUILDING") {
+            moving = await fetchBuildingRowFlexible(pk, branchFallbackId, eid);
+        } else if (kind === LOCATION_NODE_ENTITY.METER || kind === "METER") {
+            moving = await fetchMeterRowFlexible(pk, eid);
+        } else if (kind === LOCATION_NODE_ENTITY.BRANCH || kind === "BRANCH") {
+            const g = await docClient.send(new GetCommand({
+                TableName: TABLE_NAME,
+                Key: { PK: pk, SK: `BRANCH#${eid}` },
+            }));
+            moving = g.Item ?? null;
+        }
+
+        if (!moving?.path) {
+            throw new Error("LOCATION_NODE_MISSING_PATH");
+        }
+
+        const oldSubtreePrefix = /** @type {string} */ (moving.path);
+
+        const parentBasis = await resolveExternalParentPath(
+            pk,
+            newParentKind,
+            newParentId,
+            branchFallbackId
+        );
+
+        const newSubtreePrefix = appendSegmentToLocationPath(parentBasis, eid);
+        const stats = await cascadeReplacePathPrefixUnderHolding({
+            docClient,
+            tableName: TABLE_NAME,
+            holdingId: orgId,
+            oldSubtreePrefix,
+            newSubtreePrefix,
+        });
+
+        return {
+            success: true,
+            message: "Subtree relocated",
+            oldSubtreePrefix,
+            newSubtreePrefix,
+            ...stats,
+        };
+    },
     updateMeter: async (orgId, meterId, input) => {
         const timestamp = new Date().toISOString();
-        const mId = meterId.toUpperCase();
+        const mId = normalizeSegmentId(meterId);
+        const pk = `ORG#${orgId}`;
+
+        const live = await fetchMeterRowFlexible(pk, mId);
+        if (!live?.SK) {
+            throw new Error("METER_NOT_FOUND");
+        }
 
         let updateExp = "SET last_updated = :t";
         const attrValues = { ":t": timestamp };
@@ -1301,7 +1556,12 @@ export const configService = {
         // Cambio de ubicación jerárquica
         if (input.parentMeterId !== undefined) {
             updateExp += ", #top.parent_meter_id = :pm";
-            attrValues[":pm"] = input.parentMeterId ? `METER#${input.parentMeterId.toUpperCase()}` : null;
+            attrValues[":pm"] = input.parentMeterId
+                ? stableLocationNodeSk(
+                    LOCATION_NODE_ENTITY.METER,
+                    normalizeSegmentId(input.parentMeterId)
+                )
+                : null;
         }
 
         // Cambio de estado operativo
@@ -1313,7 +1573,7 @@ export const configService = {
         try {
             const response = await docClient.send(new UpdateCommand({
                 TableName: TABLE_NAME,
-                Key: { PK: `ORG#${orgId}`, SK: `METER#${mId}` },
+                Key: { PK: pk, SK: live.SK },
                 ConditionExpression: "attribute_exists(PK)",
                 UpdateExpression: updateExp,
                 ExpressionAttributeNames: attrNames,
@@ -1351,20 +1611,7 @@ export const configService = {
 
         let meters = [];
         try {
-            let eks = undefined;
-            do {
-                const res = await docClient.send(new QueryCommand({
-                    TableName: TABLE_NAME,
-                    KeyConditionExpression: "PK = :pk AND begins_with(SK, :pref)",
-                    ExpressionAttributeValues: {
-                        ":pk": pk,
-                        ":pref": "METER#"
-                    },
-                    ExclusiveStartKey: eks
-                }));
-                meters = meters.concat(res.Items || []);
-                eks = res.LastEvaluatedKey;
-            } while (eks);
+            meters = await collectMetersHybrid(pk);
         } catch (error) {
             console.error("[resolveInvoiceAssignment] Query meters failed:", error);
             return {
@@ -1396,7 +1643,10 @@ export const configService = {
             return cupsQ && c && c === cupsQ;
         };
         const matchesSerial = (item) => {
-            const serial = normToken(item.meter_info?.serial_number);
+            const serial = normToken(
+                item.meter_info?.serial_number ||
+                item.metadata?.meter_info?.serial_number
+            );
             return serialQ && serial && serial === serialQ;
         };
         const matchesContract = (item) => {
@@ -1435,9 +1685,12 @@ export const configService = {
         }
 
         const meterSk = chosen.SK || "";
-        const meterShortId = meterSk.replace(/^METER#/, "");
-        const topology = chosen.topology || {};
-        const assignment = chosen.assignment || {};
+        const meterShortId = meterSk
+            .replace(/^NODE#METER#/, "")
+            .replace(/^METER#/, "");
+        const topology = chosen.topology || chosen.metadata?.topology || {};
+        const assignment =
+            chosen.assignment || chosen.metadata?.assignment || {};
         const branchId = assignment.branch_id || "";
         const buildingId = topology.building_id || "";
         const costCenterId = topology.cost_center_id || "";
@@ -1476,6 +1729,9 @@ export const configService = {
             const pmNorm = (v) => {
                 if (!v) return "";
                 const s = String(v).trim().toUpperCase();
+                if (s.startsWith("NODE#METER#")) {
+                    return s.replace(/^NODE#METER#/, "");
+                }
                 return s.startsWith("METER#") ? s.replace(/^METER#/, "") : s;
             };
             const linked = candidates.find((a) => {
@@ -1528,9 +1784,20 @@ export const configService = {
             return { success: false, message: "Asset has no linked meter (primary_meter_id).", id: null };
         }
 
-        let meterSk = String(mid).trim().toUpperCase();
-        if (!meterSk.startsWith("METER#")) {
-            meterSk = `METER#${meterSk}`;
+        const midTok = String(mid)
+            .trim()
+            .toUpperCase()
+            .replace(/^NODE#METER#/, "")
+            .replace(/^METER#/, "");
+
+        const meterLive = await fetchMeterRowFlexible(
+            `ORG#${orgId}`,
+            midTok
+        );
+
+        let meterSk = meterLive?.SK;
+        if (!meterSk) {
+            meterSk = `METER#${midTok}`;
         }
 
         const ext = {

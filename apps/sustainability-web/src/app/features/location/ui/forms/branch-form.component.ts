@@ -11,24 +11,32 @@ import {
   signal
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { CalendarModule } from 'primeng/calendar';
 import { CardModule } from 'primeng/card';
-import { CheckboxModule } from 'primeng/checkbox';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputTextareaModule } from 'primeng/inputtextarea';
-import type { BranchDTO, BranchStatus } from '@sms/common';
+import type { BranchDTO, BranchStatus, TariffDTO } from '@sms/common';
 import type { SmsLocationNode, SmsLocationNodeMetadata, SmsNodeStatus } from '../../../../core/models/sms-location-node.model';
 import { LocationService } from '../../services/location.service';
+import { NotificationService } from '../../../../services/ui/notification.service';
 import { resolveHierarchyContext } from './location-hierarchy-context';
-import { CostCenterAutocompleteComponent } from './cost-center-autocomplete.component';
-import { TariffFormListComponent } from './tariff-form-list.component';
+import { LocationFormActionsComponent } from './location-form-actions.component';
+import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
+import { UiInputSwitchComponent } from '../../../../ui/atoms/ui-input-switch/ui-input-switch.component';
+import { NodeCostCenterMultiPickerComponent } from './node-cost-center-multi-picker.component';
+import {
+  readNodeCostCenterIds,
+  sanitizeIds,
+  writeNodeCostCenterIdsCustom
+} from './node-cost-center-metadata.util';
+import { BranchTariffTableComponent } from './branch-tariff-table.component';
 import {
   BRANCH_FIELD_GRID_CLASS,
   BRANCH_FORM_ENUM_OPTIONS,
   BRANCH_FORM_TABS,
+  BRANCH_TARIFFS_TAB_ID,
   branchFormRawValueToDTO,
   buildBranchFormGroup,
   hydrateBranchFormFromPartial,
@@ -55,15 +63,16 @@ function branchStatusToSmsNodeStatus(status: BranchStatus): SmsNodeStatus {
     CommonModule,
     ReactiveFormsModule,
     CardModule,
-    ButtonModule,
     InputTextModule,
     InputTextareaModule,
     InputNumberModule,
     DropdownModule,
-    CheckboxModule,
     CalendarModule,
-    CostCenterAutocompleteComponent,
-    TariffFormListComponent
+    NodeCostCenterMultiPickerComponent,
+    BranchTariffTableComponent,
+    LocationFormActionsComponent,
+    UiHelpTipComponent,
+    UiInputSwitchComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './branch-form.component.html'
@@ -72,8 +81,8 @@ export class BranchFormComponent implements OnChanges {
   @Input({ required: true }) parentNode!: SmsLocationNode;
 
   @Output() dto = new EventEmitter<BranchDTO>();
-  @Output() costCenterSelected = new EventEmitter<string | null>();
-  @Output() tariffs = new EventEmitter<import('@sms/common').TariffDTO[]>();
+  @Output() costCentersSelected = new EventEmitter<string[]>();
+  @Output() tariffs = new EventEmitter<TariffDTO[]>();
 
   readonly ctx = computed(() => resolveHierarchyContext(this.parentNode));
 
@@ -82,8 +91,18 @@ export class BranchFormComponent implements OnChanges {
   readonly tabs: ReadonlyArray<BranchFormTabDef> = BRANCH_FORM_TABS;
   readonly activeTabId = signal<string>(BRANCH_FORM_TABS[0]?.id ?? 'general');
 
+  /** Tab id reservado para la grilla de tarifas (renderizado especial en el template). */
+  readonly tariffsTabId = BRANCH_TARIFFS_TAB_ID;
+
+  /** Estado local de tarifas para que add/edit/delete se reflejen al instante en la grilla. */
+  readonly tariffsState = signal<TariffDTO[]>([]);
+
+  /** Lista de Cost Centers asignados (multi). Se persiste en `metadata.custom.costCenterIds`. */
+  readonly selectedCostCenterIds = signal<string[]>([]);
+
   private readonly location = inject(LocationService);
   private readonly fb = inject(FormBuilder);
+  private readonly notify = inject(NotificationService);
 
   readonly form: BranchFormGroup = buildBranchFormGroup(this.fb);
   private lastResetValue: BranchFormValue | null = null;
@@ -117,8 +136,23 @@ export class BranchFormComponent implements OnChanges {
     this.form.controls.regionId.disable({ emitEvent: false });
     this.form.controls.id.disable({ emitEvent: false });
 
+    const incomingTariffs = (this.parentNode.metadata as { tariffs?: unknown } | undefined)?.tariffs;
+    if (Array.isArray(incomingTariffs)) {
+      this.tariffsState.set(incomingTariffs as TariffDTO[]);
+    } else {
+      this.tariffsState.set([]);
+    }
+
+    this.selectedCostCenterIds.set(readNodeCostCenterIds(this.parentNode.metadata));
+
     this.lastResetValue = this.form.getRawValue() as BranchFormValue;
     this.form.markAsPristine();
+  }
+
+  onTariffsChange(list: TariffDTO[]): void {
+    this.tariffsState.set(list);
+    this.tariffs.emit(list);
+    this.form.markAsDirty();
   }
 
   gridClass(field: BranchFormFieldDef): string {
@@ -138,8 +172,11 @@ export class BranchFormComponent implements OnChanges {
     this.preview.update((x) => !x);
   }
 
-  onCostCenterChange(id: string | null): void {
-    this.form.controls.costCenterId.setValue(id);
+  onCostCenterIdsChange(ids: string[]): void {
+    const cleaned = sanitizeIds(ids);
+    this.selectedCostCenterIds.set(cleaned);
+    // BranchDTO.costCenterId acepta sólo uno; sincronizamos con el primero como representación legacy.
+    this.form.controls.costCenterId.setValue(cleaned[0] ?? null);
     this.form.markAsDirty();
   }
 
@@ -175,21 +212,32 @@ export class BranchFormComponent implements OnChanges {
   async save(): Promise<void> {
     if (this.form.invalid) return;
     const dto = branchFormRawValueToDTO(this.form.getRawValue() as BranchFormValue);
+    const ccIds = this.selectedCostCenterIds();
+
+    const nextCustom = writeNodeCostCenterIdsCustom(this.parentNode.metadata?.custom, ccIds);
+    const nextMetadata: SmsLocationNodeMetadata = {
+      ...(this.parentNode.metadata ?? {}),
+      ...(dto as unknown as SmsLocationNodeMetadata),
+      custom: nextCustom
+    };
+
     this.location.lastError.set('Guardando sucursal…');
     try {
       await this.location.updateNode(this.parentNode.location_id, {
         name: dto.name,
         status: branchStatusToSmsNodeStatus(dto.status),
-        metadata: dto as unknown as SmsLocationNodeMetadata
+        metadata: nextMetadata
       });
       this.location.lastError.set(null);
       this.dto.emit(dto);
-      this.costCenterSelected.emit(this.form.controls.costCenterId.value);
+      this.costCentersSelected.emit(ccIds);
       this.lastResetValue = this.form.getRawValue() as BranchFormValue;
       this.form.markAsPristine();
+      this.notify.success('Sucursal guardada', `Se actualizaron los datos de "${dto.name}".`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error desconocido guardando sucursal';
       this.location.lastError.set(msg);
+      this.notify.error('No se pudo guardar la sucursal', msg);
     }
   }
 }

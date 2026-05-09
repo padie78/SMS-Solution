@@ -58,9 +58,14 @@ html {
 .ui-button {
   min-height: var(--sms-control-height);
   border-radius: var(--sms-control-radius);
-  @apply inline-flex items-center justify-center gap-2 px-4 text-sm font-semibold transition
+  @apply inline-flex items-center justify-center gap-2 px-4 text-sm font-bold transition
     focus:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2
     disabled:opacity-50 disabled:pointer-events-none;
+}
+
+.ui-button > i {
+  font-size: 0.85rem;
+  line-height: 1;
 }
 
 /* PrimeNG buttons: match control height */
@@ -78,8 +83,31 @@ html {
   line-height: 1;
 }
 
+/* Primary — Invoice Command style: esmeralda dominante con sombra y lift en hover. */
 .ui-button--primary {
-  @apply bg-emerald-600 text-white shadow-sm shadow-emerald-600/20 hover:bg-emerald-700 border border-emerald-700/30;
+  background-color: #10b981; /* emerald-500 */
+  color: #ffffff;
+  border: none;
+  box-shadow: 0 4px 14px 0 rgba(16, 185, 129, 0.25);
+}
+
+.ui-button--primary:not(:disabled):hover {
+  background-color: #059669; /* emerald-600 */
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px 0 rgba(16, 185, 129, 0.35);
+}
+
+.ui-button--primary:disabled {
+  background-color: #cbd5e1; /* slate-300 */
+  color: #ffffff;
+  box-shadow: none;
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.ui-button--primary > i {
+  color: #ffffff;
 }
 
 .ui-button--secondary {
@@ -783,4 +811,151 @@ button#user-trigger:focus {
 /* Popup usuario cabecera — tema claro (Lara) */
 .p-menu.sms-user-menu-popup {
   border-radius: 0.75rem !important;
+}
+
+/* =========================
+   Location Master Tree (organism + node template)
+   Reglas globales necesarias porque:
+   - pTooltip con appendTo="body" sale del scope del :host emulado,
+   - .p-treenode-content recibe .p-highlight desde PrimeNG y `:host-context`
+     en componentes encapsulados a veces no matchea fiable.
+   ========================= */
+
+/* Tooltip multilínea por tipo de nodo. */
+.p-tooltip.sms-tree-tooltip .p-tooltip-text {
+  white-space: pre-line;
+  font-size: 0.72rem;
+  font-weight: 500;
+  line-height: 1.4;
+  background: rgba(6, 95, 70, 0.98); /* emerald-800 */
+  color: rgb(236 253 245); /* emerald-50 */
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.55rem;
+  box-shadow: 0 10px 22px rgba(6, 95, 70, 0.22);
+  max-width: 22rem;
+}
+
+.p-tooltip.sms-tree-tooltip .p-tooltip-arrow {
+  border-right-color: rgba(6, 95, 70, 0.98) !important;
+  border-left-color: rgba(6, 95, 70, 0.98) !important;
+  border-top-color: rgba(6, 95, 70, 0.98) !important;
+  border-bottom-color: rgba(6, 95, 70, 0.98) !important;
+}
+
+/* Hover y selección en tono esmeralda — aplican incluso si el tema Lara
+   intenta imponer su azul por defecto. */
+.sms-tree .p-treenode {
+  width: 100%;
+  max-width: 100%;
+}
+
+.sms-tree .p-treenode-content {
+  width: 100%;
+  max-width: 100%;
+  flex-wrap: nowrap;
+  border-radius: 0.85rem;
+  border: 1px solid transparent;
+  transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.sms-tree .p-treenode-content .p-treenode-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.sms-tree sms-tree-node-template {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.sms-tree .p-treenode-content:hover {
+  background: rgba(236, 253, 245, 0.55) !important; /* emerald-50/55 */
+}
+
+.sms-tree .p-treenode-content.p-highlight {
+  background: rgba(236, 253, 245, 0.72) !important;
+  border-color: transparent !important;
+  border-left: 4px solid #10b981 !important; /* emerald-500 */
+  box-shadow: inset 0 0 0 1px rgba(16, 185, 129, 0.06) !important;
+}
+
+.sms-tree .p-treenode-content.p-highlight:hover {
+  background: rgba(236, 253, 245, 0.88) !important;
+}
+
+.sms-tree .p-treenode-content.p-highlight .p-treenode-label {
+  color: rgb(6 95 70); /* emerald-800 — refuerza legibilidad del título */
+}
+
+/* Ícono principal del nodo seleccionado: pasa a esmeralda.
+   Por defecto el ícono es slate-500 (estandarizado en NODE_ICON_COLOR);
+   acá lo "pisamos" para reforzar la selección sin importar la clase
+   text-* exacta. */
+.sms-tree .p-treenode-content.p-highlight i.node-icon,
+.sms-tree .p-treenode-content.p-highlight i.node-icon[class*="text-"] {
+  color: #059669 !important; /* emerald-600 */
+}
+
+/* ============================================================
+ * PrimeNG p-inputSwitch · Esquema de color esmeralda (global)
+ * ------------------------------------------------------------
+ * Los toggles booleanos del sistema usan el átomo `ui-input-switch`.
+ * Este bloque anula el azul del tema lara-light-blue de PrimeNG.
+ * ============================================================ */
+
+ui-input-switch .p-inputswitch {
+  width: 3rem !important;
+  height: 1.65rem !important;
+}
+
+ui-input-switch .p-inputswitch .p-inputswitch-slider {
+  background: #cbd5e1 !important; /* slate-300 */
+  border: 1px solid #94a3b8 !important; /* slate-400 */
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08) !important;
+  transition:
+    background-color 140ms ease,
+    border-color 140ms ease,
+    box-shadow 140ms ease;
+}
+
+ui-input-switch .p-inputswitch .p-inputswitch-slider::before {
+  width: 1.1rem !important;
+  height: 1.1rem !important;
+  margin-top: -0.55rem !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.25) !important;
+}
+
+ui-input-switch .p-inputswitch:not(.p-disabled):hover .p-inputswitch-slider {
+  background: #a7f3d0 !important; /* emerald-200 */
+  border-color: #10b981 !important; /* emerald-500 */
+}
+
+ui-input-switch .p-inputswitch.p-focus .p-inputswitch-slider,
+ui-input-switch .p-inputswitch:focus-visible .p-inputswitch-slider {
+  outline: 0 none !important;
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.25) !important;
+}
+
+ui-input-switch .p-inputswitch.p-inputswitch-checked .p-inputswitch-slider {
+  background: #10b981 !important; /* emerald-500 */
+  border-color: #059669 !important; /* emerald-600 */
+}
+
+ui-input-switch .p-inputswitch.p-inputswitch-checked:not(.p-disabled):hover .p-inputswitch-slider {
+  background: #059669 !important; /* emerald-600 */
+  border-color: #047857 !important; /* emerald-700 */
+}
+
+ui-input-switch .p-inputswitch.p-inputswitch-checked .p-inputswitch-slider::before {
+  background: #ffffff !important;
+}
+
+ui-input-switch .p-inputswitch.p-disabled .p-inputswitch-slider {
+  background: #e2e8f0 !important; /* slate-200 */
+  border-color: #cbd5e1 !important; /* slate-300 */
+  opacity: 0.85;
 }

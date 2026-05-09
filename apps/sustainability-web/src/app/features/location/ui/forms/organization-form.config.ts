@@ -8,6 +8,7 @@ import { Validators } from '@angular/forms';
 import type { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 
 import type { OrganizationDTO } from '@sms/common';
+import { withHelp } from './form-help.util';
 import {
   CurrencyCodeSchema,
   IndustrySectorSchema,
@@ -117,6 +118,8 @@ export interface OrganizationFormFieldDef<K extends keyof OrganizationFormValue 
   readonly step?: number;
   readonly patternRegex?: RegExp;
   readonly patternHint?: string;
+  /** Texto del icono de ayuda al lado del label (opcional). */
+  readonly help?: string;
 }
 
 export interface OrganizationFormTabDef {
@@ -143,7 +146,7 @@ export function organizationFieldValidators(meta: OrganizationFormFieldDef): Val
   return v;
 }
 
-export const ORGANIZATION_FORM_TABS: ReadonlyArray<OrganizationFormTabDef> = Object.freeze([
+const ORGANIZATION_FORM_TABS_RAW: ReadonlyArray<OrganizationFormTabDef> = Object.freeze([
   {
     id: 'general',
     label: 'General',
@@ -359,8 +362,97 @@ export const ORGANIZATION_FORM_TABS: ReadonlyArray<OrganizationFormTabDef> = Obj
         readonly: true
       }
     ]
+  },
+  {
+    id: 'costCenters',
+    label: 'Centros de Costo',
+    headline: 'Gestión presupuestaria transversal',
+    fields: []
   }
 ]);
+
+export const ORGANIZATION_COST_CENTERS_TAB_ID = 'costCenters' as const;
+
+/**
+ * Texto de ayuda contextual por campo del formulario Organization.
+ * Se renderiza al hover sobre el icono `pi pi-question-circle` al lado del label.
+ *
+ * Convención: explicar el OBJETIVO de negocio del campo y, cuando aplica,
+ * dejar pistas sobre cómo se usa downstream (ESG, contabilidad, multi-tenant).
+ */
+const ORGANIZATION_FIELD_HELP: Partial<Record<keyof OrganizationFormValue, string>> = {
+  name:
+    'Nombre comercial de la organización tal como aparece en marketing y dashboards. ' +
+    'Es el identificador visual del tenant en toda la app.',
+  legalName:
+    'Razón social oficial registrada en el organismo fiscal. Se usa en facturas, ' +
+    'certificados ESG y reportes regulatorios (no se muestra al usuario final).',
+  websiteUrl:
+    'URL del sitio web corporativo. Se usa en exports y branding de reportes ESG.',
+  logoUrl:
+    'URL pública del logo de la organización (PNG/SVG). Aparece en la barra superior ' +
+    'y en las cabeceras de los reportes generados.',
+  taxId:
+    'Identificador fiscal del tenant (CUIT/NIF/EIN según el país). Crítico para ' +
+    'cruzar facturas energéticas con la contabilidad.',
+  hqAddress:
+    'Domicilio legal de la sede principal. Se usa como ubicación por defecto cuando ' +
+    'una sucursal no declara su propio domicilio.',
+  totalGlobalM2:
+    'Superficie total construida bajo control operacional, en metros cuadrados. ' +
+    'Es el denominador de muchas intensidades ESG (kWh/m², kgCO₂/m²).',
+  primaryLanguage:
+    'Idioma por defecto de la UI y los reportes generados (códigos ISO 639-1).',
+  unitSystem:
+    'Sistema de unidades por defecto. METRIC = kWh, m², kg. IMPERIAL = kBTU, ft², lb. ' +
+    'Afecta la presentación, no el almacenamiento (siempre se guarda en SI).',
+  defaultTimeZone:
+    'Zona horaria por defecto en formato IANA (ej. "Asia/Jerusalem", "America/New_York"). ' +
+    'Crítica para tarifas con franjas horarias y agregaciones diarias.',
+  fiscalYearStart:
+    'Mes de inicio del año fiscal (1 = enero). Define el corte para presupuestos, ' +
+    'metas anuales de reducción y reportes a inversores.',
+  minConfidence:
+    'Umbral mínimo de confianza (0–1) para aceptar lecturas OCR de facturas o datos ' +
+    'extraídos automáticamente. Lecturas por debajo del umbral requieren revisión humana.',
+  esgFrameworks:
+    'Lista de marcos ESG bajo los que reporta la organización (GRI, SASB, TCFD, CSRD…). ' +
+    'Habilita los exports y dashboards específicos de cada marco.',
+  status:
+    'Estado del tenant: ACTIVE (operativo) o INACTIVE (suspendido). ' +
+    'Si está INACTIVE no se aceptan nuevos datos ni se ejecutan jobs programados.',
+  industrySector:
+    'Sector industrial principal (NAICS/ISIC). Define los benchmarks de comparación ' +
+    'energética y los factores de emisión por defecto.',
+  currency:
+    'Moneda operativa del tenant (la moneda en que registra sus facturas).',
+  reportingCurrency:
+    'Moneda en la que se consolidan los reportes para inversores y management. ' +
+    'Puede diferir de la operativa si la matriz reporta en USD/EUR.',
+  subscriptionPlan:
+    'Plan contratado en la plataforma. Define cuotas (organizaciones, sucursales, ' +
+    'medidores) y módulos disponibles (Bedrock, Textract, alertas…).',
+  baselineYear:
+    'Año baseline contra el que se mide la reducción de emisiones (típicamente 2019 o 2020).',
+  targetYear:
+    'Año objetivo de la meta de reducción (ej. 2030 para SBTi de corto plazo, 2050 para net zero).',
+  reductionTarget:
+    'Meta de reducción absoluta o porcentual (según convención del proceso interno). ' +
+    'Ej. 0.42 = -42% vs baseline; 100 = 100 t CO₂e absolutas.',
+  adminName: 'Nombre del contacto administrativo responsable del tenant.',
+  adminEmail:
+    'Email del administrador. Recibe notificaciones críticas (cuotas, billing, ' +
+    'alertas de seguridad) y cualquier requerimiento de auditoría.',
+  adminPhone:
+    'Teléfono del administrador (formato internacional con + y código de país). Opcional.',
+  createdAt: 'Marca temporal RFC3339 de creación del tenant. Sólo lectura.',
+  updatedAt: 'Marca temporal RFC3339 de la última modificación. Sólo lectura.'
+};
+
+/** Tabs del formulario con `help` ya inyectado desde `ORGANIZATION_FIELD_HELP`. */
+export const ORGANIZATION_FORM_TABS: ReadonlyArray<OrganizationFormTabDef> = Object.freeze(
+  withHelp(ORGANIZATION_FORM_TABS_RAW, ORGANIZATION_FIELD_HELP as Record<string, string>)
+);
 
 /** Clases Tailwind prefijadas para evitar purga dinámica. */
 export const ORGANIZATION_FIELD_GRID_CLASS: Record<OrganizationFormFieldDef['mdCols'], string> = {

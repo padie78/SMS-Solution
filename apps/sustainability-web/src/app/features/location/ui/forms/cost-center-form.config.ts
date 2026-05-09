@@ -18,6 +18,7 @@ import {
   type CostCenterType,
   type LifecycleStatus
 } from '@sms/common';
+import { withHelp } from './form-help.util';
 
 export type CostCenterFormValue = {
   id: string;
@@ -96,6 +97,8 @@ export interface CostCenterFormFieldDef<K extends keyof CostCenterFormValue = ke
   readonly min?: number;
   readonly max?: number;
   readonly step?: number;
+  /** Texto del icono de ayuda al lado del label (opcional). */
+  readonly help?: string;
 }
 
 export interface CostCenterFormTabDef {
@@ -144,7 +147,7 @@ export function costCenterFieldValidators(meta: CostCenterFormFieldDef): Validat
   return v;
 }
 
-export const COST_CENTER_FORM_TABS: ReadonlyArray<CostCenterFormTabDef> = Object.freeze([
+const COST_CENTER_FORM_TABS_RAW: ReadonlyArray<CostCenterFormTabDef> = Object.freeze([
   {
     id: 'general',
     label: 'General',
@@ -165,14 +168,20 @@ export const COST_CENTER_FORM_TABS: ReadonlyArray<CostCenterFormTabDef> = Object
         label: 'Nombre del centro de coste',
         kind: 'text',
         mdCols: 8,
-        required: true
+        required: true,
+        help:
+          'Nombre interno legible del centro de costo (p. ej. "Producción Línea 1"). ' +
+          'Se usa en reportes ESG y en la asignación de tarifas/medidores.'
       },
       {
         key: 'externalId',
         label: 'ID externo',
         kind: 'text',
         mdCols: 4,
-        placeholder: '(opcional)'
+        placeholder: '(opcional)',
+        help:
+          'Código del centro de costo en el ERP/contabilidad (SAP, Oracle, etc.). ' +
+          'Permite cruzar el dato con asientos contables.'
       },
       {
         key: 'parentId',
@@ -187,7 +196,10 @@ export const COST_CENTER_FORM_TABS: ReadonlyArray<CostCenterFormTabDef> = Object
         kind: 'select',
         mdCols: 6,
         enumKey: 'costCenterType',
-        required: true
+        required: true,
+        help:
+          'Clasificación contable del centro: Operacional, Departamento, Proyecto o Servicio. ' +
+          'Determina cómo se agrega el consumo en los reportes.'
       },
       {
         key: 'forecastModel',
@@ -210,7 +222,10 @@ export const COST_CENTER_FORM_TABS: ReadonlyArray<CostCenterFormTabDef> = Object
         label: 'Email del responsable',
         kind: 'email',
         mdCols: 6,
-        placeholder: '(opcional)'
+        placeholder: '(opcional)',
+        help:
+          'Email del responsable del centro de costo. Recibe alertas de presupuesto, ' +
+          'desvíos de consumo y aprobaciones de acciones prescriptivas.'
       },
       {
         key: 'operatingHoursId',
@@ -233,7 +248,10 @@ export const COST_CENTER_FORM_TABS: ReadonlyArray<CostCenterFormTabDef> = Object
         mdCols: 6,
         min: 0,
         step: 0.001,
-        placeholder: '(opcional)'
+        placeholder: '(opcional)',
+        help:
+          'Tope anual de emisiones de CO₂ equivalente asignado a este centro. ' +
+          'Cuando el consumo proyectado lo supere, se dispara una alerta predictiva.'
       },
       {
         key: 'carbonShadowPrice',
@@ -277,7 +295,10 @@ export const COST_CENTER_FORM_TABS: ReadonlyArray<CostCenterFormTabDef> = Object
         mdCols: 6,
         required: true,
         min: 0,
-        step: 0.01
+        step: 0.01,
+        help:
+          'Presupuesto operativo del centro de costo para el ejercicio (en la moneda configurada). ' +
+          'Se compara contra el gasto real para calcular budget burn.'
       },
       {
         key: 'currency',
@@ -414,6 +435,72 @@ export const COST_CENTER_FORM_TABS: ReadonlyArray<CostCenterFormTabDef> = Object
     ]
   }
 ]);
+
+/**
+ * Texto de ayuda contextual por campo del formulario CostCenter.
+ * Algunos fields ya tienen `help` inline (con prioridad); este mapa cubre el resto.
+ */
+const COST_CENTER_FIELD_HELP: Partial<Record<keyof CostCenterFormValue, string>> = {
+  parentId:
+    'ID del centro de costo padre, si forma parte de una jerarquía contable ' +
+    '(ej. CC operativos colgando de un CC departamental). Opcional.',
+  branchId:
+    'Sucursal a la que está principalmente asociado este CC. Opcional cuando es ' +
+    'transversal a múltiples sucursales.',
+  buildingId:
+    'Edificio asociado al CC. Útil cuando el CC representa un piso, ala u ocupante específico.',
+  forecastModel:
+    'Modelo de pronóstico de gasto: LINEAR (extrapolación), SEASONAL, ML. Determina ' +
+    'el algoritmo usado para el budget burn predictivo.',
+  status:
+    'Estado del centro: ACTIVE, ARCHIVED, PLANNED. Sólo los ACTIVE consolidan en KPIs.',
+  operatingHoursId:
+    'ID del calendario de horario operativo asociado. Permite separar consumo en horas ' +
+    'productivas vs ociosas.',
+  carbonShadowPrice:
+    'Precio sombra del carbono interno aplicado al CC ($/tCO₂e). Se usa en business ' +
+    'cases para inversiones de eficiencia.',
+  budgetThresholdAlert:
+    'Umbral 0–1 sobre el cual se dispara una alerta de budget burn (ej. 0.85 = ' +
+    '85% del presupuesto consumido).',
+  targetIntensity:
+    'Meta de intensidad energética definida por el negocio (kWh/unidad de producción, ' +
+    'por m², por persona…). Material para benchmarking interno.',
+  renewableEnergyTarget:
+    'Meta de % de energía renovable consumida por el CC (0–100). RE100 sería 100.',
+  budgetSensitivityIndex:
+    'Sensibilidad 0–1 del CC a desvíos presupuestarios. CC operativos críticos = alta; ' +
+    'overhead = baja.',
+  fiscalYear: 'Año fiscal al que aplica el presupuesto cargado.',
+  headcount:
+    'Cantidad de personas que reportan al CC. Denominador de intensidades sociales. Opcional.',
+  floorAreaSqm:
+    'Superficie atribuible al CC en m². Habilita métricas tipo kWh/m² específicas del CC. Opcional.',
+  productionUnitName:
+    'Nombre legible de la unidad productiva (ej. "ton acero", "litros leche", "horas paciente"). ' +
+    'Define la unidad de targetIntensity.',
+  allocationMethod:
+    'Método de asignación de costos compartidos: BY_AREA, BY_HEADCOUNT, BY_REVENUE, ' +
+    'BY_USAGE. Determina cómo se prorratean facturas multi-CC.',
+  percentage:
+    'Porcentaje 0–100 que se asigna a este CC cuando comparte recursos con otros. ' +
+    'Sólo aplica si isShared = true.',
+  isShared:
+    'Marca el CC como compartido (recibe una fracción del consumo de otros). Habilita ' +
+    'allocationMethod y percentage.',
+  allocationLastReviewDate:
+    'Fecha de la última revisión de la fórmula de asignación. Buenas prácticas: revisar anualmente.',
+  approvedBy: 'Usuario que aprobó el último cambio de allocation. Auditoría. Opcional.',
+  tagsJson:
+    'Etiquetas clave→valor en JSON ({"strategic":"true"}). Filtros y agrupaciones libres.',
+  createdAt: 'Marca temporal RFC3339 de creación. Sólo lectura.',
+  updatedAt: 'Marca temporal RFC3339 de la última modificación. Sólo lectura.'
+};
+
+/** Tabs con `help` inyectado desde `COST_CENTER_FIELD_HELP`. */
+export const COST_CENTER_FORM_TABS: ReadonlyArray<CostCenterFormTabDef> = Object.freeze(
+  withHelp(COST_CENTER_FORM_TABS_RAW, COST_CENTER_FIELD_HELP as Record<string, string>)
+);
 
 export const COST_CENTER_FIELD_GRID_CLASS: Record<CostCenterFormFieldDef['mdCols'], string> = {
   4: 'col-span-12 md:col-span-4',

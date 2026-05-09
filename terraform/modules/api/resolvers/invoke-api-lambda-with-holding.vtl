@@ -1,0 +1,23 @@
+## Invoca APILambdaDS inyectando holdingId desde Cognito claims (multi-tenant).
+## Prioridad: custom:holding_id → custom:organization_id (compatibilidad con tenant actual).
+#set($claimHolding = $ctx.identity.claims["custom:holding_id"])
+#set($claimOrg = $ctx.identity.claims["custom:organization_id"])
+#set($hid = $claimHolding)
+#if($util.isNullOrBlank($hid))
+  #set($hid = $claimOrg)
+#end
+#if($util.isNullOrBlank($hid))
+  $util.unauthorized()
+#end
+
+#set($payload = {})
+$util.qr($payload.put("holdingId", $hid))
+$util.qr($payload.put("arguments", $ctx.arguments))
+$util.qr($payload.put("identity", $ctx.identity))
+$util.qr($payload.put("info", $ctx.info))
+
+{
+  "version": "2018-05-29",
+  "operation": "Invoke",
+  "payload": $util.toJson($payload)
+}

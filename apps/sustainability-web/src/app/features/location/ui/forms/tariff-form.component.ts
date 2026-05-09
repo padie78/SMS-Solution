@@ -2,7 +2,8 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input, type OnChanges, signal } from '@angular/core';
 import { ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
 import { CalendarModule } from 'primeng/calendar';
-import { CheckboxModule } from 'primeng/checkbox';
+import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
+import { UiInputSwitchComponent } from '../../../../ui/atoms/ui-input-switch/ui-input-switch.component';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
@@ -32,8 +33,9 @@ import {
     InputTextareaModule,
     InputNumberModule,
     DropdownModule,
-    CheckboxModule,
-    CalendarModule
+    CalendarModule,
+    UiHelpTipComponent,
+    UiInputSwitchComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './tariff-form.component.html'

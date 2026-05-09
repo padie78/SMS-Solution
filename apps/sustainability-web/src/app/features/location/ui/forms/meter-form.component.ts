@@ -11,10 +11,8 @@ import {
   signal
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { CalendarModule } from 'primeng/calendar';
 import { CardModule } from 'primeng/card';
-import { CheckboxModule } from 'primeng/checkbox';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
@@ -26,7 +24,17 @@ import type {
   SmsNodeStatus
 } from '../../../../core/models/sms-location-node.model';
 import { LocationService } from '../../services/location.service';
+import { NotificationService } from '../../../../services/ui/notification.service';
 import { resolveHierarchyContext } from './location-hierarchy-context';
+import { LocationFormActionsComponent } from './location-form-actions.component';
+import { NodeCostCenterMultiPickerComponent } from './node-cost-center-multi-picker.component';
+import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
+import { UiInputSwitchComponent } from '../../../../ui/atoms/ui-input-switch/ui-input-switch.component';
+import {
+  readNodeCostCenterIds,
+  sanitizeIds,
+  writeNodeCostCenterIdsCustom
+} from './node-cost-center-metadata.util';
 import {
   METER_FIELD_GRID_CLASS,
   METER_FORM_ENUM_OPTIONS,
@@ -59,13 +67,15 @@ function meterOperationalStatusToSmsNodeStatus(status: MeterOperationalStatus): 
     CommonModule,
     ReactiveFormsModule,
     CardModule,
-    ButtonModule,
     InputTextModule,
     InputTextareaModule,
     InputNumberModule,
     DropdownModule,
-    CheckboxModule,
-    CalendarModule
+    CalendarModule,
+    NodeCostCenterMultiPickerComponent,
+    LocationFormActionsComponent,
+    UiHelpTipComponent,
+    UiInputSwitchComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './meter-form.component.html'
@@ -73,15 +83,21 @@ function meterOperationalStatusToSmsNodeStatus(status: MeterOperationalStatus): 
 export class MeterFormComponent implements OnChanges {
   @Input({ required: true }) parentNode!: SmsLocationNode;
   @Output() dto = new EventEmitter<MeterDTO>();
+  @Output() costCentersSelected = new EventEmitter<string[]>();
 
   readonly ctx = computed(() => resolveHierarchyContext(this.parentNode));
   readonly preview = signal(false);
+  /** Lista de Cost Centers asignados (multi). Se persiste en `metadata.custom.costCenterIds`. */
+  readonly selectedCostCenterIds = signal<string[]>([]);
+  /** Mantiene en signal el orgId resuelto vía ctx jerárquico para alimentar el picker. */
+  readonly organizationIdForCC = signal<string>('');
 
   readonly tabs: ReadonlyArray<MeterFormTabDef> = METER_FORM_TABS;
   readonly activeTabId = signal<string>(METER_FORM_TABS[0]?.id ?? 'general');
 
   private readonly location = inject(LocationService);
   private readonly fb = inject(FormBuilder);
+  private readonly notify = inject(NotificationService);
 
   readonly form: MeterFormGroup = buildMeterFormGroup(this.fb);
   private lastResetValue: MeterFormValue | null = null;
@@ -129,8 +145,16 @@ export class MeterFormComponent implements OnChanges {
     this.form.controls.buildingId.disable({ emitEvent: false });
     this.form.controls.id.disable({ emitEvent: false });
 
+    this.organizationIdForCC.set(String(orgId));
+    this.selectedCostCenterIds.set(readNodeCostCenterIds(this.parentNode.metadata));
+
     this.lastResetValue = this.form.getRawValue() as MeterFormValue;
     this.form.markAsPristine();
+  }
+
+  onCostCenterIdsChange(ids: string[]): void {
+    this.selectedCostCenterIds.set(sanitizeIds(ids));
+    this.form.markAsDirty();
   }
 
   gridClass(field: MeterFormFieldDef): string {
@@ -182,20 +206,32 @@ export class MeterFormComponent implements OnChanges {
   async save(): Promise<void> {
     if (this.form.invalid) return;
     const dto = meterFormRawValueToDTO(this.form.getRawValue() as MeterFormValue);
+    const ccIds = this.selectedCostCenterIds();
+
+    const nextCustom = writeNodeCostCenterIdsCustom(this.parentNode.metadata?.custom, ccIds);
+    const nextMetadata: SmsLocationNodeMetadata = {
+      ...(this.parentNode.metadata ?? {}),
+      ...(dto as unknown as SmsLocationNodeMetadata),
+      custom: nextCustom
+    };
+
     this.location.lastError.set('Guardando medidor…');
     try {
       await this.location.updateNode(this.parentNode.location_id, {
         name: dto.name,
         status: meterOperationalStatusToSmsNodeStatus(dto.status),
-        metadata: dto as unknown as SmsLocationNodeMetadata
+        metadata: nextMetadata
       });
       this.location.lastError.set(null);
       this.dto.emit(dto);
+      this.costCentersSelected.emit(ccIds);
       this.lastResetValue = this.form.getRawValue() as MeterFormValue;
       this.form.markAsPristine();
+      this.notify.success('Medidor guardado', `Se actualizaron los datos de "${dto.name}".`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error desconocido guardando medidor';
       this.location.lastError.set(msg);
+      this.notify.error('No se pudo guardar el medidor', msg);
     }
   }
 }

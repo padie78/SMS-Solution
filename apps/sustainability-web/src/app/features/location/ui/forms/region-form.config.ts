@@ -8,6 +8,7 @@ import { Validators } from '@angular/forms';
 import type { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 
 import type { RegionDTO } from '@sms/common';
+import { withHelp } from './form-help.util';
 import {
   CarbonMarketTypeSchema,
   ClimateZoneSchema,
@@ -105,6 +106,8 @@ export interface RegionFormFieldDef<K extends keyof RegionFormValue = keyof Regi
   readonly step?: number;
   readonly patternRegex?: RegExp;
   readonly patternHint?: string;
+  /** Texto del icono de ayuda al lado del label (opcional). */
+  readonly help?: string;
 }
 
 export interface RegionFormTabDef {
@@ -150,7 +153,7 @@ export function regionFieldValidators(meta: RegionFormFieldDef): ValidatorFn[] {
 /** Patrón país ISO‑3166 alfa‑2 sin depender del catálogo de países en common. */
 const COUNTRY_HINT = 'Código país ISO‑3166‑1 alpha‑2 (ej. ES, MX).';
 
-export const REGION_FORM_TABS: ReadonlyArray<RegionFormTabDef> = Object.freeze([
+const REGION_FORM_TABS_RAW: ReadonlyArray<RegionFormTabDef> = Object.freeze([
   {
     id: 'general',
     label: 'General',
@@ -392,6 +395,93 @@ export const REGION_FORM_TABS: ReadonlyArray<RegionFormTabDef> = Object.freeze([
     ]
   }
 ]);
+
+/**
+ * Texto de ayuda contextual por campo del formulario Region.
+ * Pensado para explicar el rol del dato en cálculos ESG y financieros.
+ */
+const REGION_FIELD_HELP: Partial<Record<keyof RegionFormValue, string>> = {
+  name:
+    'Nombre legible de la región (ej. "EMEA Sur", "Cono Sur"). ' +
+    'Es la unidad de agregación entre la organización y sus sucursales.',
+  code:
+    'Código corto único interno para la región (3–6 chars, ej. "EU-S"). ' +
+    'Se usa en exports CSV y URLs de dashboards.',
+  countryCode:
+    'País principal de la región en formato ISO‑3166‑1 alpha‑2 (ej. "AR", "ES", "IL"). ' +
+    'Determina el factor de emisión de red por defecto y la regulación aplicable.',
+  timezone:
+    'Zona horaria de referencia en formato IANA (ej. "Europe/Madrid"). ' +
+    'Se usa para alinear lecturas multi-país y respetar tarifas con franjas horarias.',
+  lat: 'Latitud del centroide de la región (decimal, -90 a 90). Útil en mapas y geo-análisis.',
+  lng: 'Longitud del centroide de la región (decimal, -180 a 180).',
+  climateZone:
+    'Zona climática ASHRAE/IECC. Determina baselines de calefacción/refrigeración ' +
+    'y cuántos HDD/CDD se esperan al año.',
+  avgHDD:
+    'Heating Degree Days promedio anual. Cuanto más alto, más demanda de calefacción. ' +
+    'Se usa para normalizar consumo invernal vs base climática.',
+  avgCDD:
+    'Cooling Degree Days promedio anual. Cuanto más alto, más demanda de refrigeración. ' +
+    'Se usa para normalizar consumo eléctrico de A/C.',
+  status: 'Estado de la región: ACTIVE (operativa) o INACTIVE (cerrada/migrada).',
+  description:
+    'Descripción libre de la región (notas internas, contexto histórico). Opcional.',
+  gridEmissionFactor:
+    'Factor de emisiones de la red eléctrica local en tCO₂e por unidad del proceso ' +
+    '(típicamente kgCO₂/kWh × 0.001). Crítico para Scope 2 ubicación.',
+  renewableEnergyAvailability:
+    'Fracción 0–1 de disponibilidad de oferta renovable contratable en la región ' +
+    '(PPA, certificados verdes). 1 = totalmente disponible.',
+  gridRenewableShare:
+    'Porcentaje 0–100 de generación renovable en el mix eléctrico nacional/regional. ' +
+    'Se usa para Scope 2 con método mercado vs ubicación.',
+  waterStressIndex:
+    'Índice de estrés hídrico WRI Aqueduct (0–1, 1 = estrés extremo). Material para ' +
+    'CSRD/SASB en sectores intensivos en agua.',
+  localRegulationsText:
+    'Lista (separada por comas) de regímenes regulatorios aplicables (EU ETS, ' +
+    'ley nacional de eficiencia, etc.). Se usa en checks de compliance.',
+  totalRegionalM2:
+    'Superficie total bajo control operacional en la región (m²). Denominador de ' +
+    'intensidades regionales.',
+  totalHeadcount:
+    'Cantidad de empleados FTE en la región. Denominador de intensidades sociales (S de ESG).',
+  annualRevenueTarget:
+    'Objetivo de ingresos anuales para la región (en moneda operativa). Opcional. ' +
+    'Habilita la métrica de intensidad por revenue (kgCO₂/$).',
+  carbonTaxRate:
+    'Tasa impositiva al carbono local (moneda / tCO₂e). Se usa en el costo total ' +
+    'de procastinación de acciones de reducción.',
+  marginalAbatementCost:
+    'Costo marginal de abatimiento (MAC) regional. Pivote para priorizar acciones ' +
+    'en la curva MACC.',
+  carbonMarketType:
+    'Tipo de mercado de carbono al que está expuesta la región: ETS, voluntary, none, etc.',
+  regionalReductionTarget:
+    'Meta regional de reducción de emisiones. La interpretación (Δ absoluto vs %) ' +
+    'depende del proceso interno; respetar la convención del baseline.',
+  energyScarcityRisk:
+    'Riesgo 0–1 de escasez/cortes energéticos. Alimenta los escenarios de continuidad ' +
+    'y la decisión de instalar respaldo.',
+  maturityLevel:
+    'Nivel de madurez del dato/IoT en la región: MANUAL (carga manual), HYBRID, ' +
+    'AUTO_IOT (telemetría completa). Afecta los SLAs de calidad esperados.',
+  economicArea:
+    'Área económica (EMEA, AMERICAS, APAC). Sirve para agrupar reportes ejecutivos.',
+  regionalManagerName: 'Nombre del responsable regional (operations / sustainability).',
+  regionalManagerEmail:
+    'Email del responsable regional. Recibe alertas de la región y aprobaciones de acciones.',
+  regionalManagerPhone:
+    'Teléfono del responsable regional (formato internacional). Opcional, mín. 3 chars si se carga.',
+  createdAt: 'Marca temporal RFC3339 de creación. Sólo lectura.',
+  updatedAt: 'Marca temporal RFC3339 de la última modificación. Sólo lectura.'
+};
+
+/** Tabs con `help` inyectado desde `REGION_FIELD_HELP`. */
+export const REGION_FORM_TABS: ReadonlyArray<RegionFormTabDef> = Object.freeze(
+  withHelp(REGION_FORM_TABS_RAW, REGION_FIELD_HELP as Record<string, string>)
+);
 
 export const REGION_FIELD_GRID_CLASS: Record<RegionFormFieldDef['mdCols'], string> = {
   4: 'col-span-12 md:col-span-4',

@@ -20,8 +20,13 @@ export class HandleAppSyncRequest {
    * }} params
    */
   async execute(params) {
-    const { methodName, orgId } = params;
+    const { methodName, orgId, tenantId, holdingId } = params;
+    const trustedTenant =
+      tenantId || holdingId || orgId || params.orgId || "";
     const args = params.args || {};
+
+    /** @type {string} PK tenant segment (trusted, never derived from GraphQL orgId alone) */
+    const orgScope = trustedTenant;
 
     switch (methodName) {
       case "processInvoice": {
@@ -29,47 +34,84 @@ export class HandleAppSyncRequest {
         if (!s3Key) {
           throw new ValidationError("Error: El nombre del archivo (fileName) no fue proporcionado.");
         }
-        return await this.deps.configService.processInvoiceIA(orgId, s3Key, this.deps.defaultBucket);
+        return await this.deps.configService.processInvoiceIA(
+          orgScope,
+          s3Key,
+          this.deps.defaultBucket
+        );
       }
 
       case "confirmInvoice":
-        return await this.deps.configService.confirmInvoice(orgId, args.sk, args.input);
+        return await this.deps.configService.confirmInvoice(orgScope, args.sk, args.input);
 
       case "resolveInvoiceAssignment":
-        return await this.deps.configService.resolveInvoiceAssignment(orgId, args.input || {});
+        return await this.deps.configService.resolveInvoiceAssignment(
+          orgScope,
+          args.input || {}
+        );
 
       case "linkAssetExternalIdentifier":
-        return await this.deps.configService.linkAssetExternalIdentifier(orgId, args.assetId, args.input || {});
+        return await this.deps.configService.linkAssetExternalIdentifier(
+          orgScope,
+          args.assetId,
+          args.input || {}
+        );
 
       case "saveOrgConfig":
-        return await this.deps.configService.saveOrgConfig(orgId, args.input);
+        return await this.deps.configService.saveOrgConfig(orgScope, args.input);
 
       case "saveUser":
-        return await this.deps.configService.saveUser(orgId, args.userId, args.input);
+        return await this.deps.configService.saveUser(orgScope, args.userId, args.input);
 
       case "createBranch":
-        return await this.deps.configService.createBranch(orgId, args.input || args);
+        return await this.deps.configService.createBranch(orgScope, args.input || args);
 
       case "saveBuilding":
-        return await this.deps.configService.saveBuilding(orgId, args.branchId, args.buildingId, args.input);
+        return await this.deps.configService.saveBuilding(
+          orgScope,
+          args.branchId,
+          args.buildingId,
+          args.input
+        );
 
       case "saveMeter":
-        return await this.deps.configService.saveMeter(orgId, args.branchId, args.meterId, args.input);
+        return await this.deps.configService.saveMeter(
+          orgScope,
+          args.branchId,
+          args.meterId,
+          args.input
+        );
 
       case "saveAsset":
-        return await this.deps.configService.saveAsset(orgId, args.assetId, args.input);
+        return await this.deps.configService.saveAsset(orgScope, args.assetId, args.input);
 
       case "saveCostCenter":
-        return await this.deps.configService.saveCostCenter(orgId, args.input);
+        return await this.deps.configService.saveCostCenter(orgScope, args.input);
 
       case "saveTariff":
-        return await this.deps.configService.saveTariff(orgId, args.branchId, args.serviceType, args.input);
+        return await this.deps.configService.saveTariff(
+          orgScope,
+          args.branchId,
+          args.serviceType,
+          args.input
+        );
 
       case "saveAlertRule":
-        return await this.deps.configService.saveAlertRule(orgId, args.branchId, args.entityId, args.alertType, args.input);
+        return await this.deps.configService.saveAlertRule(
+          orgScope,
+          args.branchId,
+          args.entityId,
+          args.alertType,
+          args.input
+        );
 
       case "saveProductionLog":
-        return await this.deps.configService.saveProductionLog(args.orgId || orgId, args.branchId, args.period, args.input);
+        return await this.deps.configService.saveProductionLog(
+          orgScope,
+          args.branchId,
+          args.period,
+          args.input
+        );
 
       case "saveEmissionFactor":
         return await this.deps.configService.saveEmissionFactor(args.input);

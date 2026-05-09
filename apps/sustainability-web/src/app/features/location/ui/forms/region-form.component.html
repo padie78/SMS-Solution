@@ -34,12 +34,17 @@
             @if (field.kind !== 'hidden') {
               <div [class]="gridClass(field)">
                 <label
-                  class="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                  class="mb-2 inline-flex items-center text-[11px] font-bold uppercase tracking-wider text-slate-500"
                   [attr.for]="'region-field-' + field.key"
                 >
-                  {{ field.label }}
-                  @if (field.required && !field.readonly) {
-                    <span class="text-rose-600"> *</span>
+                  <span>
+                    {{ field.label }}
+                    @if (field.required && !field.readonly) {
+                      <span class="text-rose-600"> *</span>
+                    }
+                  </span>
+                  @if (field.help) {
+                    <ui-help-tip [text]="field.help" position="right" [showDelay]="200" />
                   }
                 </label>
 
@@ -136,33 +141,13 @@
     }
   }
 
-  <div class="flex w-full flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
-    <button
-      pButton
-      type="button"
-      label="Reset"
-      icon="pi pi-refresh"
-      severity="secondary"
-      (click)="reset()"
-      [disabled]="!form.dirty"
-    ></button>
-    <button
-      pButton
-      type="button"
-      label="Guardar"
-      icon="pi pi-save"
-      (click)="save()"
-      [disabled]="form.invalid || !form.dirty"
-    ></button>
-    <button
-      pButton
-      type="button"
-      label="DTO preview"
-      icon="pi pi-code"
-      severity="secondary"
-      (click)="togglePreview()"
-    ></button>
-  </div>
+  <sms-location-form-actions
+    [dirty]="form.dirty"
+    [invalid]="form.invalid"
+    (resetRequested)="reset()"
+    (saveRequested)="save()"
+    (previewRequested)="togglePreview()"
+  />
 
   @if (preview()) {
     <pre class="w-full overflow-auto rounded-xl border border-slate-800 bg-slate-950 p-3 text-xs text-slate-100">{{ dtoPreview() }}</pre>

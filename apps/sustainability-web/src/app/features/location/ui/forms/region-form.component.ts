@@ -9,15 +9,17 @@ import {
   signal
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputTextareaModule } from 'primeng/inputtextarea';
 import type { SmsLocationNode } from '../../../../core/models/sms-location-node.model';
+import { NotificationService } from '../../../../services/ui/notification.service';
 import { LocationService } from '../../services/location.service';
 import { resolveHierarchyContext } from './location-hierarchy-context';
+import { LocationFormActionsComponent } from './location-form-actions.component';
+import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
 import {
   REGION_FIELD_GRID_CLASS,
   REGION_FORM_ENUM_OPTIONS,
@@ -44,11 +46,12 @@ import type { RegionDTO } from '@sms/common';
     CommonModule,
     ReactiveFormsModule,
     CardModule,
-    ButtonModule,
     InputTextModule,
     InputTextareaModule,
     InputNumberModule,
-    DropdownModule
+    DropdownModule,
+    LocationFormActionsComponent,
+    UiHelpTipComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './region-form.component.html'
@@ -59,6 +62,7 @@ export class RegionFormComponent implements OnChanges {
   readonly ctx = computed(() => resolveHierarchyContext(this.parentNode));
   private readonly location = inject(LocationService);
   private readonly fb = inject(FormBuilder);
+  private readonly notify = inject(NotificationService);
 
   readonly tabs: ReadonlyArray<RegionFormTabDef> = REGION_FORM_TABS;
   readonly activeTabId = signal<string>(REGION_FORM_TABS[0]?.id ?? 'general');
@@ -152,9 +156,11 @@ export class RegionFormComponent implements OnChanges {
       this.location.lastError.set(null);
       this.lastResetValue = this.form.getRawValue() as RegionFormValue;
       this.form.markAsPristine();
+      this.notify.success('Región guardada', `Se actualizaron los datos de "${dto.name}".`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error desconocido guardando región';
       this.location.lastError.set(msg);
+      this.notify.error('No se pudo guardar la región', msg);
     }
   }
 }

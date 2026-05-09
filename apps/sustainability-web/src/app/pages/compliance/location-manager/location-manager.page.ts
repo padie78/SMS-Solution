@@ -3,16 +3,48 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@a
 import { BreadcrumbModule } from 'primeng/breadcrumb';
 import type { MenuItem } from 'primeng/api';
 import { SplitterModule } from 'primeng/splitter';
+import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
+import type { CostCenterDTO } from '@sms/common';
 import { LocationMasterTreeComponent } from '../../../ui/organisms/location-master-tree/location-master-tree.component';
 import { LocationDetailExplorerComponent } from '../../../ui/organisms/location-detail-explorer/location-detail-explorer.component';
 import { LocationService } from '../../../features/location/services/location.service';
 import type { SmsLocationNode } from '../../../core/models/sms-location-node.model';
+import { OrganizationCostCenterRegistryService } from '../../../services/state/organization-cost-center-registry.service';
+import { OrganizationCostCenterFormDialogComponent } from '../../../features/location/ui/forms/organization-cost-center-form-dialog.component';
+import { NotificationService } from '../../../services/ui/notification.service';
+
+type QuickAction = 'openCostCenters' | 'openTariffs' | 'openAssetsInventory';
 
 @Component({
   selector: 'sms-location-manager-page',
   standalone: true,
-  imports: [CommonModule, SplitterModule, BreadcrumbModule, LocationMasterTreeComponent, LocationDetailExplorerComponent],
+  imports: [
+    CommonModule,
+    SplitterModule,
+    BreadcrumbModule,
+    DynamicDialogModule,
+    LocationMasterTreeComponent,
+    LocationDetailExplorerComponent
+  ],
+  providers: [DialogService],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: [
+    `
+      :host ::ng-deep .sms-location-splitter.p-splitter {
+        background: transparent;
+      }
+
+      /* Hace que el "Location Manager" se perciba como el módulo principal:
+         panel izquierdo más sólido, gutter más sutil, y mejor contraste. */
+      :host ::ng-deep .sms-location-splitter .p-splitter-gutter {
+        background: rgb(241 245 249); /* slate-100 */
+      }
+      :host ::ng-deep .sms-location-splitter .p-splitter-gutter .p-splitter-gutter-handle {
+        background: rgb(226 232 240); /* slate-200 */
+        border-radius: 999px;
+      }
+    `
+  ],
   template: `
     <div class="max-w-[1600px] mx-auto space-y-5 md:space-y-6 pb-12 min-w-0">
       <header class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -54,14 +86,17 @@ import type { SmsLocationNode } from '../../../core/models/sms-location-node.mod
       </section>
 
       <section class="rounded-2xl border border-slate-200 bg-white shadow-2 min-w-0 overflow-hidden">
-        <p-splitter [panelSizes]="[40, 60]" styleClass="min-h-[720px]">
+        <p-splitter [panelSizes]="[46, 54]" styleClass="min-h-[760px] sms-location-splitter">
           <ng-template pTemplate>
-            <div class="h-full p-4 md:p-5 border-r border-slate-200 bg-slate-50/40 min-w-0">
+            <div
+              class="h-full p-4 md:p-5 border-r border-slate-200 min-w-0 bg-gradient-to-b from-slate-50/70 via-white to-white"
+            >
               <sms-master-tree
                 [nodes]="location.tree()"
                 [loading]="location.loading()"
                 (selected)="onNodeSelected($event)"
                 (dropped)="onNodeDropped($event)"
+                (quickAction)="onQuickAction($event)"
                 (reload)="reload()"
               />
             </div>
@@ -78,6 +113,9 @@ import type { SmsLocationNode } from '../../../core/models/sms-location-node.mod
 })
 export class LocationManagerPage implements OnInit {
   readonly location = inject(LocationService);
+  private readonly dialog = inject(DialogService);
+  private readonly costCenterRegistry = inject(OrganizationCostCenterRegistryService);
+  private readonly notify = inject(NotificationService);
 
   readonly breadcrumbItems = computed<MenuItem[]>(() => {
     const nodes = this.location.breadcrumb();
@@ -105,8 +143,61 @@ export class LocationManagerPage implements OnInit {
     await this.location.updateParent(ev.nodeId, ev.newParentId);
   }
 
+  /**
+   * Acciones rápidas del menú contextual del árbol.
+   * - `openCostCenters` (sólo Organization): abre el modal de Cost Center,
+   *   persiste el resultado vía registry y recarga el árbol para reflejarlo
+   *   en el badge KPI / formulario sin cambiar de pantalla.
+   */
+  onQuickAction(ev: { node: SmsLocationNode; action: QuickAction }): void {
+    // Selecciono el nodo (el detail explorer también muestra el form correspondiente).
+    this.location.selectedNode.set(ev.node);
+
+    switch (ev.action) {
+      case 'openCostCenters':
+        if (ev.node.type === 'ORGANIZATION') {
+          this.openOrganizationCostCenterDialog(ev.node);
+        }
+        break;
+      case 'openTariffs':
+      case 'openAssetsInventory':
+        // Reservadas para cuando agreguemos modales directos para Branch / Building.
+        break;
+    }
+  }
+
   async reload(): Promise<void> {
     await this.location.loadRoots();
+  }
+
+  /** Abre el modal de creación de Cost Center y persiste al cerrar. */
+  private openOrganizationCostCenterDialog(orgNode: SmsLocationNode): void {
+    const ref = this.dialog.open(OrganizationCostCenterFormDialogComponent, {
+      header: `Nuevo centro de costo · ${orgNode.name}`,
+      width: '78vw',
+      style: { 'max-width': '920px' },
+      contentStyle: { padding: '1.5rem', overflow: 'auto', 'max-height': '85vh' },
+      modal: true,
+      dismissableMask: false,
+      closable: true,
+      styleClass: 'rounded-2xl',
+      data: { organizationId: orgNode.location_id, costCenter: null }
+    });
+
+    ref.onClose.subscribe(async (result: CostCenterDTO | null | undefined) => {
+      if (!result) return;
+      try {
+        await this.costCenterRegistry.addCostCenter(orgNode.location_id, result);
+        this.notify.success(
+          'Centro de costo creado',
+          `Se agregó "${result.name}" a "${orgNode.name}".`
+        );
+        await this.reload();
+      } catch (e: unknown) {
+        const msg = e instanceof Error ? e.message : 'Error desconocido al crear el centro de costo.';
+        this.notify.error('No se pudo crear el centro de costo', msg);
+      }
+    });
   }
 }
 

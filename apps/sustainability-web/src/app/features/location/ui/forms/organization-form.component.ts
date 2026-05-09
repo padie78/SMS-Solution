@@ -9,17 +9,22 @@ import {
   signal
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { CardModule } from 'primeng/card';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputTextareaModule } from 'primeng/inputtextarea';
-import type { OrganizationDTO } from '@sms/common';
-import type { SmsLocationNode } from '../../../../core/models/sms-location-node.model';
+import type { CostCenterDTO, OrganizationDTO } from '@sms/common';
+import type { SmsLocationNode, SmsLocationNodeMetadata } from '../../../../core/models/sms-location-node.model';
+import { ORG_COST_CENTERS_CUSTOM_KEY } from '../../../../services/state/organization-cost-center-registry.service';
+import { NotificationService } from '../../../../services/ui/notification.service';
 import { LocationService } from '../../services/location.service';
 import { resolveHierarchyContext } from './location-hierarchy-context';
+import { LocationFormActionsComponent } from './location-form-actions.component';
+import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
+import { OrganizationCostCenterTableComponent } from './organization-cost-center-table.component';
 import {
+  ORGANIZATION_COST_CENTERS_TAB_ID,
   ORGANIZATION_FIELD_GRID_CLASS,
   ORGANIZATION_FORM_ENUM_OPTIONS,
   ORGANIZATION_FORM_TABS,
@@ -44,11 +49,13 @@ import {
     CommonModule,
     ReactiveFormsModule,
     CardModule,
-    ButtonModule,
     InputTextModule,
     InputTextareaModule,
     InputNumberModule,
-    DropdownModule
+    DropdownModule,
+    OrganizationCostCenterTableComponent,
+    LocationFormActionsComponent,
+    UiHelpTipComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './organization-form.component.html'
@@ -59,9 +66,12 @@ export class OrganizationFormComponent implements OnChanges {
   readonly ctx = computed(() => resolveHierarchyContext(this.parentNode));
   private readonly location = inject(LocationService);
   private readonly fb = inject(FormBuilder);
+  private readonly notify = inject(NotificationService);
 
   readonly tabs: ReadonlyArray<OrganizationFormTabDef> = ORGANIZATION_FORM_TABS;
   readonly activeTabId = signal<string>(ORGANIZATION_FORM_TABS[0]?.id ?? 'general');
+  readonly costCentersTabId = ORGANIZATION_COST_CENTERS_TAB_ID;
+  readonly costCentersState = signal<CostCenterDTO[]>([]);
 
   readonly form: OrganizationFormGroup = buildOrganizationFormGroup(this.fb);
 
@@ -87,9 +97,16 @@ export class OrganizationFormComponent implements OnChanges {
       hydrateOrganizationFormFromPartial(this.form, meta, orgId);
     }
 
+    this.costCentersState.set(this.readCostCentersFromMetadata(this.parentNode.metadata));
+
     this.form.controls.orgId.disable({ emitEvent: false });
     this.lastResetValue = this.form.getRawValue() as OrganizationFormValue;
     this.form.markAsPristine();
+  }
+
+  onCostCentersChange(list: CostCenterDTO[]): void {
+    this.costCentersState.set(list);
+    this.form.markAsDirty();
   }
 
   gridClass(field: OrganizationFormFieldDef): string {
@@ -113,7 +130,14 @@ export class OrganizationFormComponent implements OnChanges {
 
   dtoPreview(): string {
     try {
-      return JSON.stringify(organizationFormRawValueToDTO(this.form.getRawValue() as OrganizationFormValue), null, 2);
+      return JSON.stringify(
+        {
+          ...organizationFormRawValueToDTO(this.form.getRawValue() as OrganizationFormValue),
+          costCenters: this.costCentersState()
+        },
+        null,
+        2
+      );
     } catch {
       return '{}';
     }
@@ -141,19 +165,57 @@ export class OrganizationFormComponent implements OnChanges {
   async save(): Promise<void> {
     if (this.form.invalid) return;
     const dto = organizationFormRawValueToDTO(this.form.getRawValue() as OrganizationFormValue);
+    const costCenters = this.costCentersState();
+
+    const previousCustom =
+      (this.parentNode.metadata?.custom ?? null) as Record<string, string> | null;
+    const nextCustom: Record<string, string> = {
+      ...(previousCustom ?? {}),
+      [ORG_COST_CENTERS_CUSTOM_KEY]: JSON.stringify(costCenters)
+    };
+
+    const nextMetadata: SmsLocationNodeMetadata = {
+      ...(this.parentNode.metadata ?? {}),
+      ...(dto as unknown as SmsLocationNodeMetadata),
+      custom: nextCustom
+    };
+
     this.location.lastError.set('Guardando organización…');
     try {
       await this.location.updateNode(this.parentNode.location_id, {
         name: dto.name,
         status: dto.status === 'ACTIVE' ? 'ACTIVE' : 'MAINTENANCE',
-        metadata: dto as unknown as Record<string, unknown>
+        metadata: nextMetadata
       });
       this.location.lastError.set(null);
+      this.costCentersState.set(costCenters);
       this.lastResetValue = this.form.getRawValue() as OrganizationFormValue;
       this.form.markAsPristine();
+      this.notify.success('Organización guardada', `Se actualizaron los datos de "${dto.name}".`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error desconocido guardando organización';
       this.location.lastError.set(msg);
+      this.notify.error('No se pudo guardar la organización', msg);
     }
+  }
+
+  private readCostCentersFromMetadata(meta: SmsLocationNodeMetadata | undefined): CostCenterDTO[] {
+    if (!meta || typeof meta !== 'object') return [];
+
+    // Formato canónico: serializado en `metadata.custom['costCenters']` (Record<string,string>).
+    const customRaw = (meta.custom ?? null) as Record<string, string> | null;
+    const serialized = customRaw?.[ORG_COST_CENTERS_CUSTOM_KEY];
+    if (typeof serialized === 'string' && serialized.length > 0) {
+      try {
+        const parsed = JSON.parse(serialized) as unknown;
+        if (Array.isArray(parsed)) return parsed as CostCenterDTO[];
+      } catch {
+        // Si está corrupto, caemos al formato legacy.
+      }
+    }
+
+    // Compat: implementaciones previas guardaban `metadata.costCenters` como array directo.
+    const legacy = (meta as unknown as { costCenters?: unknown }).costCenters;
+    return Array.isArray(legacy) ? (legacy as CostCenterDTO[]) : [];
   }
 }

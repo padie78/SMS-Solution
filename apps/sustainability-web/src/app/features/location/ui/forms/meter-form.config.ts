@@ -24,6 +24,7 @@ import {
   type MeterType,
   type MeterUnit
 } from '@sms/common';
+import { withHelp } from './form-help.util';
 
 export type MeterFormValue = {
   id: string;
@@ -111,6 +112,8 @@ export interface MeterFormFieldDef<K extends keyof MeterFormValue = keyof MeterF
   readonly min?: number;
   readonly max?: number;
   readonly step?: number;
+  /** Texto del icono de ayuda al lado del label (opcional). */
+  readonly help?: string;
 }
 
 export interface MeterFormTabDef {
@@ -141,7 +144,7 @@ export function meterFieldValidators(meta: MeterFormFieldDef): ValidatorFn[] {
   return v;
 }
 
-export const METER_FORM_TABS: ReadonlyArray<MeterFormTabDef> = Object.freeze([
+const METER_FORM_TABS_RAW: ReadonlyArray<MeterFormTabDef> = Object.freeze([
   {
     id: 'general',
     label: 'General',
@@ -152,14 +155,35 @@ export const METER_FORM_TABS: ReadonlyArray<MeterFormTabDef> = Object.freeze([
       { key: 'regionId', label: 'Region ID', kind: 'hidden', mdCols: 12, required: true },
       { key: 'branchId', label: 'Branch ID', kind: 'hidden', mdCols: 12, required: true },
       { key: 'buildingId', label: 'Building ID', kind: 'hidden', mdCols: 12, required: true },
-      { key: 'name', label: 'Nombre del medidor', kind: 'text', mdCols: 8, required: true },
-      { key: 'serialNumber', label: 'Número de serie', kind: 'text', mdCols: 4, required: true },
+      {
+        key: 'name',
+        label: 'Nombre del medidor',
+        kind: 'text',
+        mdCols: 8,
+        required: true,
+        help:
+          'Nombre legible del medidor para usuarios operativos. Se muestra en alertas, ' +
+          'dashboards y exports CSV (p. ej. "Medidor Principal Oficina A").'
+      },
+      {
+        key: 'serialNumber',
+        label: 'Número de serie',
+        kind: 'text',
+        mdCols: 4,
+        required: true,
+        help:
+          'Número de serie físico impreso en el medidor por el fabricante. ' +
+          'Se usa como identificador único para auditorías y reemplazos de equipo.'
+      },
       {
         key: 'internalTag',
         label: 'Etiqueta interna (legacy IoT name)',
         kind: 'text',
         mdCols: 4,
-        placeholder: '(opcional)'
+        placeholder: '(opcional)',
+        help:
+          'Identificador heredado del sistema IoT/SCADA. Mantener para retrocompatibilidad ' +
+          'durante la migración al nuevo modelo SMS.'
       },
       {
         key: 'meterType',
@@ -167,7 +191,10 @@ export const METER_FORM_TABS: ReadonlyArray<MeterFormTabDef> = Object.freeze([
         kind: 'select',
         mdCols: 4,
         enumKey: 'meterType',
-        required: true
+        required: true,
+        help:
+          'Tecnología del medidor: ELECTRIC (eléctrico), GAS, WATER, HEAT, FUEL, etc. ' +
+          'Determina factores de emisión y la unidad de lectura.'
       },
       {
         key: 'serviceType',
@@ -175,7 +202,10 @@ export const METER_FORM_TABS: ReadonlyArray<MeterFormTabDef> = Object.freeze([
         kind: 'select',
         mdCols: 4,
         enumKey: 'meterServiceType',
-        required: true
+        required: true,
+        help:
+          'Servicio que el medidor mide: SUPPLY (suministro), GENERATION, EXPORT, etc. ' +
+          'Necesario para diferenciar consumo de generación propia.'
       },
       {
         key: 'unit',
@@ -183,7 +213,10 @@ export const METER_FORM_TABS: ReadonlyArray<MeterFormTabDef> = Object.freeze([
         kind: 'select',
         mdCols: 4,
         enumKey: 'meterUnit',
-        required: true
+        required: true,
+        help:
+          'Unidad nativa de la lectura (kWh, m³, MJ, kg, etc.). Se usa para ' +
+          'conversiones a kWh y a kg CO₂e con el factor de emisión configurado.'
       },
       {
         key: 'accuracyClass',
@@ -215,7 +248,10 @@ export const METER_FORM_TABS: ReadonlyArray<MeterFormTabDef> = Object.freeze([
         mdCols: 4,
         required: true,
         min: 1e-6,
-        step: 0.000001
+        step: 0.000001,
+        help:
+          'Constante por la que se multiplica la lectura cruda para obtener el valor real ' +
+          '(útil con TCs/TPs en media tensión). Default: 1 si no hay transformador de medida.'
       },
       {
         key: 'loggingIntervalMinutes',
@@ -224,9 +260,21 @@ export const METER_FORM_TABS: ReadonlyArray<MeterFormTabDef> = Object.freeze([
         mdCols: 4,
         required: true,
         min: 1,
-        step: 1
+        step: 1,
+        help:
+          'Periodicidad con la que el medidor toma lectura (ej. 15 = lecturas cada 15 min). ' +
+          'Afecta la granularidad del análisis y la detección de leaks.'
       },
-      { key: 'timeZone', label: 'Zona horaria (IANA o etiqueta)', kind: 'text', mdCols: 4, required: true },
+      {
+        key: 'timeZone',
+        label: 'Zona horaria (IANA o etiqueta)',
+        kind: 'text',
+        mdCols: 4,
+        required: true,
+        help:
+          'Zona horaria de las lecturas en formato IANA (p. ej. "America/Argentina/Buenos_Aires"). ' +
+          'Crítica para tarifas con franjas horarias.'
+      },
       {
         key: 'meterLevel',
         label: 'Nivel jerárquico del medidor (1–99)',
@@ -235,10 +283,29 @@ export const METER_FORM_TABS: ReadonlyArray<MeterFormTabDef> = Object.freeze([
         required: true,
         min: 1,
         max: 99,
-        step: 1
+        step: 1,
+        help:
+          'Nivel del medidor dentro de la jerarquía metrológica: 1 = principal, 2 = sub-medidor, ' +
+          'etc. Permite reconciliar lecturas y calcular pérdidas.'
       },
-      { key: 'isMain', label: 'Medidor principal (isMain)', kind: 'checkbox', mdCols: 6 },
-      { key: 'isNetMetering', label: 'Net metering (isNetMetering)', kind: 'checkbox', mdCols: 6 }
+      {
+        key: 'isMain',
+        label: 'Medidor principal (isMain)',
+        kind: 'checkbox',
+        mdCols: 6,
+        help:
+          'Indica si este es el medidor principal de la instalación (el que factura el utility). ' +
+          'Sólo puede haber un principal por servicio.'
+      },
+      {
+        key: 'isNetMetering',
+        label: 'Net metering (isNetMetering)',
+        kind: 'checkbox',
+        mdCols: 6,
+        help:
+          'Marca el medidor como bidireccional (consumo + inyección a la red). ' +
+          'Necesario cuando hay generación renovable propia (FV, eólica).'
+      }
     ]
   },
   {
@@ -355,6 +422,63 @@ export const METER_FORM_TABS: ReadonlyArray<MeterFormTabDef> = Object.freeze([
     ]
   }
 ]);
+
+/**
+ * Texto de ayuda contextual por campo del formulario Meter.
+ * Algunos campos ya tienen `help` declarado inline; este mapa cubre el resto
+ * y se compone con `withHelp` (inline tiene prioridad).
+ */
+const METER_FIELD_HELP: Partial<Record<keyof MeterFormValue, string>> = {
+  accuracyClass:
+    'Clase de exactitud según norma metrológica (0.2, 0.5, 1.0, 2.0). Cuanto más baja ' +
+    'la clase, mejor el equipo. Para fiscal usualmente ≤ 0.5.',
+  status:
+    'Estado operativo: ACTIVE, INACTIVE, FAULT, REPLACED. FAULT genera alerta de ' +
+    'datos faltantes en los reportes.',
+  parentMeterId:
+    'ID del medidor padre en la jerarquía metrológica. Vacío si este es el principal. ' +
+    'Permite reconciliar lecturas y calcular pérdidas.',
+  assetId:
+    'ID del activo medido (si es un sub-medidor dedicado a un equipo específico). Opcional.',
+  communicationStatus:
+    'Estado de la comunicación: ONLINE, OFFLINE, DEGRADED. OFFLINE prolongado dispara ' +
+    'alertas de pérdida de telemetría.',
+  lastCalibrationDate:
+    'Fecha de la última calibración metrológica. Algunos países exigen recalibrar cada ' +
+    '5 años para medidores fiscales.',
+  nextCalibrationDate:
+    'Fecha planificada de la próxima calibración. Genera alerta predictiva si está vencida.',
+  monitorsPowerQuality:
+    'Indica si el medidor registra parámetros de calidad eléctrica (THD, sags, swells). ' +
+    'Habilita análisis avanzado de PQ.',
+  hasDataLogging:
+    'El medidor tiene memoria local para registrar lecturas en caso de pérdida de ' +
+    'comunicación con el gateway.',
+  metrologicalSealNumber:
+    'Número del sello/precinto metrológico oficial colocado por el fabricante o ' +
+    'autoridad reguladora. Opcional.',
+  protocol:
+    'Protocolo de comunicación: MQTT, MODBUS_TCP, MODBUS_RTU, OCPP, BACNET, etc. ' +
+    'Define la integración técnica.',
+  physicalAddress:
+    'Dirección física en el bus (ej. ID Modbus 1-247, IP MQTT). Opcional según protocolo.',
+  firmwareVersion: 'Versión actual del firmware del medidor. Útil para auditorías y troubleshooting.',
+  isVirtual:
+    'Marca el medidor como virtual: no es físico, sino una fórmula derivada de otros ' +
+    '(suma, diferencia, ponderación). Habilita el campo virtualFormula.',
+  virtualFormula:
+    'Expresión matemática para el medidor virtual (ej. "M01 + M02 - M03"). Sólo aplica ' +
+    'si isVirtual = true.',
+  tagsJson:
+    'Etiquetas clave→valor en JSON ({"line":"A","priority":"high"}). Filtros y agrupaciones.',
+  createdAt: 'Marca temporal RFC3339 de creación. Sólo lectura.',
+  updatedAt: 'Marca temporal RFC3339 de la última modificación. Sólo lectura.'
+};
+
+/** Tabs con `help` inyectado desde `METER_FIELD_HELP`. */
+export const METER_FORM_TABS: ReadonlyArray<MeterFormTabDef> = Object.freeze(
+  withHelp(METER_FORM_TABS_RAW, METER_FIELD_HELP as Record<string, string>)
+);
 
 export const METER_FIELD_GRID_CLASS: Record<MeterFormFieldDef['mdCols'], string> = {
   4: 'col-span-12 md:col-span-4',

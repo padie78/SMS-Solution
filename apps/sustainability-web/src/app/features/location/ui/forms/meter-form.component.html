@@ -38,104 +38,115 @@
           @for (field of tab.fields; track field.key) {
             @if (field.kind !== 'hidden') {
               <div [class]="gridClass(field)">
-                <label
-                  class="mb-2 block text-[11px] font-bold uppercase tracking-wider text-slate-500"
-                  [attr.for]="'meter-field-' + field.key"
-                >
-                  {{ field.label }}
-                  @if (field.required && !field.readonly && field.kind !== 'checkbox') {
-                    <span class="text-rose-600"> *</span>
-                  }
-                </label>
+                @if (field.kind === 'checkbox') {
+                  <ui-input-switch
+                    [inputId]="'meter-field-' + field.key"
+                    [formControlName]="field.key"
+                    [label]="field.label"
+                    [helpText]="field.help"
+                    [disabled]="field.readonly === true"
+                  />
+                } @else {
+                  <label
+                    class="mb-2 inline-flex items-center text-[11px] font-bold uppercase tracking-wider text-slate-500"
+                    [attr.for]="'meter-field-' + field.key"
+                  >
+                    <span>
+                      {{ field.label }}
+                      @if (field.required && !field.readonly) {
+                        <span class="text-rose-600"> *</span>
+                      }
+                    </span>
+                    @if (field.help) {
+                      <ui-help-tip [text]="field.help" position="right" [showDelay]="200" />
+                    }
+                  </label>
 
-                @switch (field.kind) {
-                  @case ('select') {
-                    <p-dropdown
-                      [inputId]="'meter-field-' + field.key"
-                      [formControlName]="field.key"
-                      [options]="enumOptions(field.enumKey)"
-                      optionLabel="label"
-                      optionValue="value"
-                      [placeholder]="field.placeholder ?? '—'"
-                      appendTo="body"
-                      styleClass="w-full border-round-xl"
-                      [readonly]="field.readonly === true"
-                    />
+                  @switch (field.kind) {
+                    @case ('select') {
+                      <p-dropdown
+                        [inputId]="'meter-field-' + field.key"
+                        [formControlName]="field.key"
+                        [options]="enumOptions(field.enumKey)"
+                        optionLabel="label"
+                        optionValue="value"
+                        [placeholder]="field.placeholder ?? '—'"
+                        appendTo="body"
+                        styleClass="w-full border-round-xl"
+                        [readonly]="field.readonly === true"
+                      />
+                    }
+                    @case ('integer') {
+                      <p-inputNumber
+                        class="w-full"
+                        [inputId]="'meter-field-' + field.key"
+                        [formControlName]="field.key"
+                        [min]="field.min"
+                        [max]="field.max"
+                        [step]="field.step ?? 1"
+                        [useGrouping]="false"
+                        [readonly]="field.readonly === true"
+                        styleClass="w-full"
+                      />
+                    }
+                    @case ('number') {
+                      <p-inputNumber
+                        class="w-full"
+                        [inputId]="'meter-field-' + field.key"
+                        [formControlName]="field.key"
+                        [min]="field.min"
+                        [max]="field.max"
+                        [step]="field.step ?? 0.01"
+                        [readonly]="field.readonly === true"
+                        styleClass="w-full"
+                      />
+                    }
+                    @case ('textarea') {
+                      <textarea
+                        [id]="'meter-field-' + field.key"
+                        pInputTextarea
+                        rows="3"
+                        class="w-full rounded-xl border border-slate-200"
+                        [formControlName]="field.key"
+                        [readonly]="field.readonly === true"
+                        [placeholder]="field.placeholder ?? ''"
+                      ></textarea>
+                    }
+                    @case ('date') {
+                      <p-calendar
+                        [inputId]="'meter-field-' + field.key"
+                        [formControlName]="field.key"
+                        appendTo="body"
+                        dateFormat="yy-mm-dd"
+                        [showIcon]="true"
+                        [showButtonBar]="true"
+                        styleClass="w-full"
+                        [readonlyInput]="field.readonly === true"
+                      />
+                    }
+                    @default {
+                      <input
+                        pInputText
+                        type="text"
+                        class="w-full"
+                        [id]="'meter-field-' + field.key"
+                        [formControlName]="field.key"
+                        [readonly]="field.readonly === true"
+                        [placeholder]="field.placeholder ?? ''"
+                      />
+                    }
                   }
-                  @case ('integer') {
-                    <p-inputNumber
-                      class="w-full"
-                      [inputId]="'meter-field-' + field.key"
-                      [formControlName]="field.key"
-                      [min]="field.min"
-                      [max]="field.max"
-                      [step]="field.step ?? 1"
-                      [useGrouping]="false"
-                      [readonly]="field.readonly === true"
-                      styleClass="w-full"
-                    />
-                  }
-                  @case ('number') {
-                    <p-inputNumber
-                      class="w-full"
-                      [inputId]="'meter-field-' + field.key"
-                      [formControlName]="field.key"
-                      [min]="field.min"
-                      [max]="field.max"
-                      [step]="field.step ?? 0.01"
-                      [readonly]="field.readonly === true"
-                      styleClass="w-full"
-                    />
-                  }
-                  @case ('textarea') {
-                    <textarea
-                      [id]="'meter-field-' + field.key"
-                      pInputTextarea
-                      rows="3"
-                      class="w-full rounded-xl border border-slate-200"
-                      [formControlName]="field.key"
-                      [readonly]="field.readonly === true"
-                      [placeholder]="field.placeholder ?? ''"
-                    ></textarea>
-                  }
-                  @case ('checkbox') {
-                    <p-checkbox [binary]="true" [inputId]="'meter-field-' + field.key" [formControlName]="field.key" />
-                  }
-                  @case ('date') {
-                    <p-calendar
-                      [inputId]="'meter-field-' + field.key"
-                      [formControlName]="field.key"
-                      appendTo="body"
-                      dateFormat="yy-mm-dd"
-                      [showIcon]="true"
-                      [showButtonBar]="true"
-                      styleClass="w-full"
-                      [readonlyInput]="field.readonly === true"
-                    />
-                  }
-                  @default {
-                    <input
-                      pInputText
-                      type="text"
-                      class="w-full"
-                      [id]="'meter-field-' + field.key"
-                      [formControlName]="field.key"
-                      [readonly]="field.readonly === true"
-                      [placeholder]="field.placeholder ?? ''"
-                    />
-                  }
-                }
 
-                @if (
-                  controls[field.key].invalid &&
-                  controls[field.key].touched &&
-                  !field.readonly &&
-                  field.kind !== 'checkbox' &&
-                  field.kind !== 'date'
-                ) {
-                  <small class="mt-1 block text-[11px] text-rose-700">
-                    {{ errorMessage(field.key) ?? 'Valor inválido' }}
-                  </small>
+                  @if (
+                    controls[field.key].invalid &&
+                    controls[field.key].touched &&
+                    !field.readonly &&
+                    field.kind !== 'date'
+                  ) {
+                    <small class="mt-1 block text-[11px] text-rose-700">
+                      {{ errorMessage(field.key) ?? 'Valor inválido' }}
+                    </small>
+                  }
                 }
               </div>
             }
@@ -145,33 +156,27 @@
     }
   }
 
-  <div class="flex w-full flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
-    <button
-      pButton
-      type="button"
-      label="Reset"
-      icon="pi pi-refresh"
-      severity="secondary"
-      (click)="reset()"
-      [disabled]="!form.dirty"
-    ></button>
-    <button
-      pButton
-      type="button"
-      label="Guardar"
-      icon="pi pi-save"
-      (click)="save()"
-      [disabled]="form.invalid || !form.dirty"
-    ></button>
-    <button
-      pButton
-      type="button"
-      label="DTO preview"
-      icon="pi pi-code"
-      severity="secondary"
-      (click)="togglePreview()"
-    ></button>
-  </div>
+  <p-card styleClass="w-full overflow-hidden rounded-2xl border border-slate-200/80 shadow-md [&_.p-card]:w-full [&_.p-card-body]:w-full [&_.p-card-body]:max-w-none box-border">
+    <ng-template pTemplate="title">
+      <span class="text-base font-bold text-slate-800">Relación transversal</span>
+    </ng-template>
+    <sms-node-cost-center-multi-picker
+      [organizationId]="organizationIdForCC()"
+      [value]="selectedCostCenterIds()"
+      label="Centros de costo asignados"
+      helpText="Multi-asignación: se persiste como metadata.custom.costCenterIds del medidor (no forma parte de MeterDTO)."
+      inputId="meter-cost-center-picker"
+      (valueChange)="onCostCenterIdsChange($event)"
+    />
+  </p-card>
+
+  <sms-location-form-actions
+    [dirty]="form.dirty"
+    [invalid]="form.invalid"
+    (resetRequested)="reset()"
+    (saveRequested)="save()"
+    (previewRequested)="togglePreview()"
+  />
 
   @if (preview()) {
     <pre class="w-full overflow-auto rounded-xl border border-slate-800 bg-slate-950 p-3 text-xs text-slate-100">{{ dtoPreview() }}</pre>

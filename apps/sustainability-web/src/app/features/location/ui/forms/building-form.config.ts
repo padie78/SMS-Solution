@@ -7,6 +7,7 @@ import { Validators } from '@angular/forms';
 import type { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 
 import type { BuildingDTO } from '@sms/common';
+import { withHelp } from './form-help.util';
 import {
   BuildingDataGranularitySchema,
   BuildingInsulationQualitySchema,
@@ -135,6 +136,8 @@ export interface BuildingFormFieldDef<K extends keyof BuildingFormValue = keyof 
   readonly min?: number;
   readonly max?: number;
   readonly step?: number;
+  /** Texto del icono de ayuda al lado del label (opcional). */
+  readonly help?: string;
 }
 
 export interface BuildingFormTabDef {
@@ -165,7 +168,7 @@ export function buildingFieldValidators(meta: BuildingFormFieldDef): ValidatorFn
   return v;
 }
 
-export const BUILDING_FORM_TABS: ReadonlyArray<BuildingFormTabDef> = Object.freeze([
+const BUILDING_FORM_TABS_RAW: ReadonlyArray<BuildingFormTabDef> = Object.freeze([
   {
     id: 'general',
     label: 'General',
@@ -490,6 +493,108 @@ export const BUILDING_FORM_TABS: ReadonlyArray<BuildingFormTabDef> = Object.free
     ]
   }
 ]);
+
+/**
+ * Texto de ayuda contextual por campo del formulario Building.
+ * Foco: explicar el rol del dato en eficiencia energética y certificaciones.
+ */
+const BUILDING_FIELD_HELP: Partial<Record<keyof BuildingFormValue, string>> = {
+  name:
+    'Nombre legible del edificio (ej. "Torre Norte", "Nave 3"). Debe ser único ' +
+    'dentro de la sucursal.',
+  status:
+    'Estado operativo: OPERATIONAL, UNDER_CONSTRUCTION, CLOSED, etc. ' +
+    'Edificios no-OPERATIONAL no consolidan en KPIs de desempeño actual.',
+  usageTypeEnum:
+    'Categoría principal de uso (OFFICE, INDUSTRIAL, RETAIL, RESIDENTIAL…). ' +
+    'Define los benchmarks y los estándares aplicables (ASHRAE 90.1, etc.).',
+  usageType:
+    'Sub-uso libre (ej. "data_center_tier_3", "cold_storage"). Opcional, complementa ' +
+    'al enum estándar.',
+  m2Surface:
+    'Superficie útil construida del edificio (m²). Denominador clave de intensidades ' +
+    'energéticas y de carbono.',
+  m3Volume:
+    'Volumen total interior del edificio (m³). Material para HVAC sizing y consumo ' +
+    'esperado de calefacción/refrigeración.',
+  footprintM2:
+    'Superficie de huella en planta (footprint en m²). Útil para evaluar potencial ' +
+    'de generación FV en cubierta. Opcional.',
+  floorsCount:
+    'Cantidad total de plantas/pisos (incluye sótanos). Afecta consumo de ascensores ' +
+    'y bombeo de agua.',
+  yearBuilt:
+    'Año de construcción original. Determina la antigüedad de la envolvente y los ' +
+    'estándares de eficiencia vigentes en el momento.',
+  renovationYear: 'Último año de renovación mayor (envolvente, HVAC, eficiencia). Opcional.',
+  insulationQuality:
+    'Calidad de aislamiento térmico de la envolvente (POOR/MEDIUM/GOOD/EXCELLENT). ' +
+    'Crítica para baselines de calefacción/refrigeración.',
+  windowWallRatio:
+    'Ratio Window-to-Wall (0–1, fracción de superficie vidriada en fachada). ' +
+    'Alto = más ganancias solares y pérdidas térmicas.',
+  roofType:
+    'Tipo de cubierta: FLAT, PITCHED, GREEN, COOL, etc. Afecta potencial de FV en techo ' +
+    'y pérdidas térmicas.',
+  lat: 'Latitud del centroide del edificio (decimal). Permite ubicación precisa en mapas.',
+  lng: 'Longitud del centroide del edificio (decimal).',
+  hvacType:
+    'Tipo de sistema HVAC principal: VRF, CHILLED_WATER, SPLIT, NONE… Determina ' +
+    'eficiencia esperada y oportunidades de optimización.',
+  hvacAgeYears:
+    'Antigüedad en años del sistema HVAC. Equipos > 15 años suelen ser candidatos ' +
+    'fuertes a reemplazo (ROI corto).',
+  hvacEfficiencyRating:
+    'COP/EER del HVAC. Valores típicos: HVAC eficiente ≥ 3.5; obsoleto < 2.5.',
+  maintenanceStatus:
+    'Estado de mantenimiento del HVAC y servicios: GOOD, FAIR, POOR. Afecta ' +
+    'el factor de degradación aplicado a la eficiencia nominal.',
+  lastEnergyAuditDate:
+    'Fecha de la última auditoría energética (ISO 50001 o equivalente). ' +
+    'ISO 50001 exige re-auditoría cada 4 años.',
+  mainFuelType:
+    'Combustible principal para calefacción/proceso: GAS, OIL, ELECTRICITY, DISTRICT… ' +
+    'Determina el factor de emisión Scope 1 dominante.',
+  lightingTechnology:
+    'Tecnología principal de iluminación: LED, CFL, FLUORESCENT, HALOGEN. ' +
+    'LED suele consumir 60-80% menos que halógeno.',
+  lightingPowerDensity:
+    'Densidad de potencia de iluminación (W/m²). Benchmark típico oficina LED: 8 W/m². Opcional.',
+  hasBms: 'Hay un Building Management System instalado (BMS/BAS).',
+  bmsVendor: 'Proveedor del BMS (Siemens, Honeywell, Schneider, JCI…). Opcional.',
+  bmsProtocolsText:
+    'Protocolos soportados por el BMS, separados por comas (BACnet, Modbus, KNX). ' +
+    'Define la viabilidad de integraciones IoT.',
+  hasSmartMetering: 'El edificio cuenta con medición inteligente (lecturas remotas en intervalos cortos).',
+  dataGranularity:
+    'Granularidad mínima de los datos disponibles: MONTHLY (factura), DAILY, HOURLY, ' +
+    '15MIN. Determina qué análisis se pueden ejecutar.',
+  submeteringTopology:
+    'Topología de submedición: NONE, BY_FLOOR, BY_USE, BY_TENANT. Cuanto más granular, ' +
+    'mejor atribución del consumo y ROI de acciones.',
+  buildingCertificationsText:
+    'Certificaciones edilicias (LEED Gold, BREEAM Excellent, ISO 50001…) separadas ' +
+    'por comas.',
+  epcRating:
+    'Energy Performance Certificate (A-G). Obligatorio en EU para ciertos usos. Opcional.',
+  onsiteGenerationCapacityKw:
+    'Capacidad instalada de generación local renovable (FV, eólica) en kW. Opcional.',
+  airQualitySensors:
+    'Hay sensores de calidad de aire interior (CO₂, COVs, PM2.5). Material CSRD social ' +
+    'y bienestar laboral.',
+  waterRecyclingSystem:
+    'Hay sistema de reciclaje/recuperación de aguas grises o pluviales. Reduce huella hídrica.',
+  evChargingPoints:
+    'Cantidad de puntos de carga de vehículos eléctricos en el edificio. Cambia el ' +
+    'patrón de demanda y puede requerir tarifa específica.',
+  createdAt: 'Marca temporal RFC3339 de creación. Sólo lectura.',
+  updatedAt: 'Marca temporal RFC3339 de la última modificación. Sólo lectura.'
+};
+
+/** Tabs con `help` inyectado desde `BUILDING_FIELD_HELP`. */
+export const BUILDING_FORM_TABS: ReadonlyArray<BuildingFormTabDef> = Object.freeze(
+  withHelp(BUILDING_FORM_TABS_RAW, BUILDING_FIELD_HELP as Record<string, string>)
+);
 
 export const BUILDING_FIELD_GRID_CLASS: Record<BuildingFormFieldDef['mdCols'], string> = {
   4: 'col-span-12 md:col-span-4',

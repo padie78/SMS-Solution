@@ -11,10 +11,8 @@ import {
   signal
 } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
-import { ButtonModule } from 'primeng/button';
 import { CalendarModule } from 'primeng/calendar';
 import { CardModule } from 'primeng/card';
-import { CheckboxModule } from 'primeng/checkbox';
 import { DropdownModule } from 'primeng/dropdown';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
@@ -26,7 +24,16 @@ import type {
   SmsNodeStatus
 } from '../../../../core/models/sms-location-node.model';
 import { LocationService } from '../../services/location.service';
-import { CostCenterAutocompleteComponent } from './cost-center-autocomplete.component';
+import { NotificationService } from '../../../../services/ui/notification.service';
+import { LocationFormActionsComponent } from './location-form-actions.component';
+import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
+import { UiInputSwitchComponent } from '../../../../ui/atoms/ui-input-switch/ui-input-switch.component';
+import { NodeCostCenterMultiPickerComponent } from './node-cost-center-multi-picker.component';
+import {
+  readNodeCostCenterIds,
+  sanitizeIds,
+  writeNodeCostCenterIdsCustom
+} from './node-cost-center-metadata.util';
 import { resolveHierarchyContext } from './location-hierarchy-context';
 import {
   BUILDING_FIELD_GRID_CLASS,
@@ -58,14 +65,15 @@ function operationalStatusToSmsNodeStatus(s: OperationalStatus): SmsNodeStatus {
     CommonModule,
     ReactiveFormsModule,
     CardModule,
-    ButtonModule,
     InputTextModule,
     InputTextareaModule,
     InputNumberModule,
     DropdownModule,
-    CheckboxModule,
     CalendarModule,
-    CostCenterAutocompleteComponent
+    NodeCostCenterMultiPickerComponent,
+    LocationFormActionsComponent,
+    UiHelpTipComponent,
+    UiInputSwitchComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './building-form.component.html'
@@ -74,18 +82,22 @@ export class BuildingFormComponent implements OnChanges {
   @Input({ required: true }) parentNode!: SmsLocationNode;
 
   @Output() dto = new EventEmitter<BuildingDTO>();
-  @Output() costCenterSelected = new EventEmitter<string | null>();
+  @Output() costCentersSelected = new EventEmitter<string[]>();
 
   readonly ctx = computed(() => resolveHierarchyContext(this.parentNode));
 
   readonly preview = signal(false);
-  readonly selectedCostCenterId = signal<string | null>(null);
+  /** Lista de Cost Centers asignados (multi). Se persiste en `metadata.custom.costCenterIds`. */
+  readonly selectedCostCenterIds = signal<string[]>([]);
+  /** Mantiene en signal el orgId resuelto vía ctx jerárquico para alimentar el picker. */
+  readonly organizationIdForCC = signal<string>('');
 
   readonly tabs: ReadonlyArray<BuildingFormTabDef> = BUILDING_FORM_TABS;
   readonly activeTabId = signal<string>(BUILDING_FORM_TABS[0]?.id ?? 'general');
 
   private readonly location = inject(LocationService);
   private readonly fb = inject(FormBuilder);
+  private readonly notify = inject(NotificationService);
 
   readonly form: BuildingFormGroup = buildBuildingFormGroup(this.fb);
   private lastResetValue: BuildingFormValue | null = null;
@@ -128,10 +140,16 @@ export class BuildingFormComponent implements OnChanges {
     this.form.controls.branchId.disable({ emitEvent: false });
     this.form.controls.id.disable({ emitEvent: false });
 
-    this.selectedCostCenterId.set(null);
+    this.organizationIdForCC.set(String(orgId));
+    this.selectedCostCenterIds.set(readNodeCostCenterIds(this.parentNode.metadata));
 
     this.lastResetValue = this.form.getRawValue() as BuildingFormValue;
     this.form.markAsPristine();
+  }
+
+  onCostCenterIdsChange(ids: string[]): void {
+    this.selectedCostCenterIds.set(sanitizeIds(ids));
+    this.form.markAsDirty();
   }
 
   gridClass(field: BuildingFormFieldDef): string {
@@ -149,11 +167,6 @@ export class BuildingFormComponent implements OnChanges {
 
   togglePreview(): void {
     this.preview.update((x) => !x);
-  }
-
-  onCostCenterChange(id: string | null): void {
-    this.selectedCostCenterId.set(id);
-    this.form.markAsDirty();
   }
 
   dtoPreview(): string {
@@ -189,21 +202,32 @@ export class BuildingFormComponent implements OnChanges {
   async save(): Promise<void> {
     if (this.form.invalid) return;
     const dto = buildingFormRawValueToDTO(this.form.getRawValue() as BuildingFormValue);
+    const ccIds = this.selectedCostCenterIds();
+
+    const nextCustom = writeNodeCostCenterIdsCustom(this.parentNode.metadata?.custom, ccIds);
+    const nextMetadata: SmsLocationNodeMetadata = {
+      ...(this.parentNode.metadata ?? {}),
+      ...(dto as unknown as SmsLocationNodeMetadata),
+      custom: nextCustom
+    };
+
     this.location.lastError.set('Guardando edificio…');
     try {
       await this.location.updateNode(this.parentNode.location_id, {
         name: dto.name,
         status: operationalStatusToSmsNodeStatus(dto.status),
-        metadata: dto as unknown as SmsLocationNodeMetadata
+        metadata: nextMetadata
       });
       this.location.lastError.set(null);
       this.dto.emit(dto);
-      this.costCenterSelected.emit(this.selectedCostCenterId());
+      this.costCentersSelected.emit(ccIds);
       this.lastResetValue = this.form.getRawValue() as BuildingFormValue;
       this.form.markAsPristine();
+      this.notify.success('Edificio guardado', `Se actualizaron los datos de "${dto.name}".`);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error desconocido guardando edificio';
       this.location.lastError.set(msg);
+      this.notify.error('No se pudo guardar el edificio', msg);
     }
   }
 }
