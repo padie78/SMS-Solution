@@ -1,10 +1,12 @@
 ## Invoca APILambdaDS inyectando holdingId desde Cognito claims (multi-tenant).
-## Prioridad: custom:holding_id → custom:organization_id (compatibilidad con tenant actual).
-#set($claimHolding = $ctx.identity.claims["custom:holding_id"])
-#set($claimOrg = $ctx.identity.claims["custom:organization_id"])
-#set($hid = $claimHolding)
+## Prioridad: custom:holding_id → custom:organization_id → identity.sub (no claims["sub"]).
+## Con User Pools, `$ctx.identity.sub` está garantizado antes del resolver cuando el JWT es válido.
+#set($hid = $ctx.identity.claims["custom:holding_id"])
 #if($util.isNullOrBlank($hid))
-  #set($hid = $claimOrg)
+  #set($hid = $ctx.identity.claims["custom:organization_id"])
+#end
+#if($util.isNullOrBlank($hid))
+  #set($hid = $ctx.identity.sub)
 #end
 #if($util.isNullOrBlank($hid))
   $util.unauthorized()

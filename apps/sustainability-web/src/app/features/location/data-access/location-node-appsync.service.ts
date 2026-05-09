@@ -73,13 +73,14 @@ const ON_NODE_CHANGED = /* GraphQL */ `
 
 @Injectable({ providedIn: 'root' })
 export class LocationNodeAppSyncService {
-  private readonly client = generateClient();
+  /** authMode por defecto alinea con amplify-config.ts (userPool); evita modo implícito `iam`. */
+  private readonly client = generateClient({ authMode: 'userPool' });
 
   private async executeGraphql<TResult>(query: string, variables?: Record<string, unknown>): Promise<TResult> {
     const raw: unknown =
       variables === undefined
-        ? await this.client.graphql({ query, authMode: 'userPool' })
-        : await this.client.graphql({ query, variables, authMode: 'userPool' });
+        ? await this.client.graphql({ query })
+        : await this.client.graphql({ query, variables });
     const response = raw as QueryResult<TResult>;
     if (!response.data) {
       throw new Error('GraphQL no devolvió datos');
@@ -170,8 +171,7 @@ export class LocationNodeAppSyncService {
    */
   onNodeChanges(): Observable<LocationMutationResponse> {
     const stream = this.client.graphql({
-      query: ON_NODE_CHANGED,
-      authMode: 'userPool'
+      query: ON_NODE_CHANGED
     }) as Observable<{ data?: { onNodeChanged?: LocationMutationResponse } }>;
 
     return stream.pipe(
