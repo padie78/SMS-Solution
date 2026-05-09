@@ -106,7 +106,13 @@ input SaveNodeInput {
   parentId: ID!         # 'ROOT' para el nivel superior
   nodeType: NodeType!
   name: String!
-  metadata: AWSJSON     # Aquí metes los campos que antes tenías en 10 inputs diferentes
+  metadata: AWSJSON     
+}
+
+# Nuevo input para actualizaciones parciales
+input UpdateNodeInput {
+  name: String
+  metadata: AWSJSON
 }
 
 input CreateInvoiceInput {
@@ -143,8 +149,14 @@ type Query {
 # --- 6. ACCIONES (MUTATIONS) ---
 
 type Mutation {
-  # Esta única mutación reemplaza a las 10 anteriores (saveBuilding, saveMeter, etc.)
+  # Crea o reemplaza un nodo (con validación de jerarquía)
   saveNode(input: SaveNodeInput!): MutationResponse @aws_cognito_user_pools
+
+  # Actualiza solo campos específicos sin requerir parentId
+  updateNode(id: ID!, input: UpdateNodeInput!): MutationResponse @aws_cognito_user_pools
+
+  # Elimina un nodo (y opcionalmente gestiona huérfanos)
+  deleteNode(id: ID!): MutationResponse @aws_cognito_user_pools
   
   # Mover una rama entera del árbol
   moveNode(id: ID!, newParentId: ID!): MutationResponse @aws_cognito_user_pools
@@ -169,6 +181,10 @@ type Subscription {
     @aws_api_key @aws_cognito_user_pools
     
   onNodeChanged(parentId: ID): Node
-    @aws_subscribe(mutations: ["saveNode", "moveNode"])
+    @aws_subscribe(mutations: ["saveNode", "moveNode", "updateNode"])
+    @aws_cognito_user_pools
+
+  onNodeDeleted: ID
+    @aws_subscribe(mutations: ["deleteNode"])
     @aws_cognito_user_pools
 }
