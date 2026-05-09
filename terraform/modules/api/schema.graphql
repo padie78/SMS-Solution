@@ -4,29 +4,11 @@ schema {
   subscription: Subscription
 }
 
-# --- 0. ENUMS ---
+# --- ENUMS ---
+enum NodeType { ORGANIZATION; REGION; BRANCH; BUILDING; ASSET; METER; COST_CENTER }
+enum InvoiceStatus { UPLOADED; PROCESSING; READY_FOR_REVIEW; FAILED; CONFIRMED; POSTED }
 
-enum NodeType {
-  ORGANIZATION
-  REGION
-  BRANCH
-  BUILDING
-  ASSET
-  METER
-  COST_CENTER
-}
-
-enum InvoiceStatus {
-  UPLOADED
-  PROCESSING
-  READY_FOR_REVIEW
-  FAILED
-  CONFIRMED
-  POSTED
-}
-
-# --- 1. RESPUESTAS UNIFICADAS ---
-
+# --- TIPOS DE RESPUESTA (Autorización Unificada) ---
 type MutationResponse @aws_api_key @aws_cognito_user_pools {
   success: Boolean!
   message: String
@@ -35,44 +17,6 @@ type MutationResponse @aws_api_key @aws_cognito_user_pools {
   entity: AWSJSON
 }
 
-type ActionResponse @aws_api_key @aws_cognito_user_pools {
-  success: Boolean!
-  message: String
-  id: String
-}
-
-type PresignedUrlResponse @aws_cognito_user_pools {
-  uploadURL: String!
-  key: String!
-  invoiceId: String!
-  userId: String!
-}
-
-# --- 2. NÚCLEO ANALÍTICO ---
-
-type AnalyticsResponse @aws_cognito_user_pools {
-  id: ID!
-  metadata: AnalyticsMetadata
-  financials_total_spend: Float
-  ghg_total_co2e_ton: Float
-  energy_intensity_per_m2: Float
-  consumption_elec_val: Float
-  consumption_gas_val: Float
-  advanced_analytics: AWSJSON
-  predictive_engine: AWSJSON
-  sourceData: AWSJSON 
-}
-
-type AnalyticsMetadata @aws_cognito_user_pools {
-  entityId: ID
-  nodeType: NodeType
-  year: String
-  month: String
-  granularity: String
-}
-
-# --- 3. ENTIDADES ---
-
 type Node @aws_api_key @aws_cognito_user_pools {
   id: ID!
   parentId: ID
@@ -80,89 +24,44 @@ type Node @aws_api_key @aws_cognito_user_pools {
   nodeType: NodeType!
   name: String!
   metadata: AWSJSON
-  createdAt: String
-  updatedAt: String
 }
 
 type Invoice @aws_api_key @aws_cognito_user_pools {
   id: ID!
-  vendor: String
-  invoiceDate: String
-  totalAmount: Float
-  emissionsKg: Float
-  consumptionVal: Float
-  serviceType: String
-  pdfUrl: String
   status: InvoiceStatus
-  storageKey: String
-  extractedData: AWSJSON
-  nodeId: ID
+  vendor: String
+  totalAmount: Float
 }
 
-# --- 4. INPUTS ---
+# --- INPUTS ---
+input SaveNodeInput { id: ID; parentId: ID!; nodeType: NodeType!; name: String!; metadata: AWSJSON }
+input UpdateNodeInput { name: String; metadata: AWSJSON }
 
-input SaveNodeInput {
-  id: ID
-  parentId: ID!
-  nodeType: NodeType!
-  name: String!
-  metadata: AWSJSON     
-}
-
-input UpdateNodeInput {
-  name: String
-  metadata: AWSJSON
-}
-
-input CreateInvoiceInput {
-  storageKey: String!
-  serviceType: String!
-  nodeId: ID
-  internalNote: String
-}
-
-# --- 5. CONSULTAS ---
-
+# --- CONSULTAS ---
 type Query {
   getTree(rootNodeId: ID): [Node] @aws_cognito_user_pools
   getNode(id: ID!): Node @aws_cognito_user_pools
   getInvoice(id: ID!): Invoice @aws_cognito_user_pools
-  getConsumptionAnalytics(
-    entityId: ID!, 
-    startDate: String!, 
-    endDate: String!
-  ): AnalyticsResponse @aws_cognito_user_pools
 }
 
-# --- 6. ACCIONES ---
-
+# --- ACCIONES ---
 type Mutation {
+  # Todas las mutaciones de nodo devuelven MutationResponse
   saveNode(input: SaveNodeInput!): MutationResponse @aws_cognito_user_pools
   updateNode(id: ID!, input: UpdateNodeInput!): MutationResponse @aws_cognito_user_pools
   deleteNode(id: ID!): MutationResponse @aws_cognito_user_pools
-  moveNode(id: ID!, newParentId: ID!): MutationResponse @aws_cognito_user_pools
-  createInvoice(input: CreateInvoiceInput!): Invoice @aws_cognito_user_pools
-  updateInvoiceStatus(
-    id: ID!, 
-    status: InvoiceStatus!, 
-    extractedData: AWSJSON, 
-    message: String
-  ): Invoice @aws_api_key @aws_cognito_user_pools
-  getPresignedUrl(fileName: String!, fileType: String!, invoiceId: String!): PresignedUrlResponse @aws_cognito_user_pools
+  
+  updateInvoiceStatus(id: ID!, status: InvoiceStatus!): Invoice 
+    @aws_api_key @aws_cognito_user_pools
 }
 
-# --- 7. SUSCRIPCIONES (CORREGIDAS) ---
-
+# --- SUSCRIPCIONES (Sin argumentos para evitar errores de validación) ---
 type Subscription {
-  onInvoiceUpdated(id: ID!): Invoice
+  onInvoiceUpdated: Invoice
     @aws_subscribe(mutations: ["updateInvoiceStatus"])
     @aws_api_key @aws_cognito_user_pools
     
-  onNodeChanged: Node
-    @aws_subscribe(mutations: ["saveNode", "moveNode", "updateNode"])
-    @aws_api_key @aws_cognito_user_pools
-
-  onNodeDeleted: MutationResponse
-    @aws_subscribe(mutations: ["deleteNode"])
+  onNodeChanged: MutationResponse
+    @aws_subscribe(mutations: ["saveNode", "updateNode", "deleteNode"])
     @aws_api_key @aws_cognito_user_pools
 }
