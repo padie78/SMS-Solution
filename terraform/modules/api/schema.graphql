@@ -6,6 +6,16 @@ schema {
 
 # --- 0. ENUMS ---
 
+enum NodeType {
+  ORGANIZATION
+  REGION
+  BRANCH
+  BUILDING
+  ASSET
+  METER
+  COST_CENTER
+}
+
 enum InvoiceStatus @aws_api_key @aws_cognito_user_pools {
   UPLOADED
   PROCESSING
@@ -15,21 +25,13 @@ enum InvoiceStatus @aws_api_key @aws_cognito_user_pools {
   POSTED
 }
 
-# --- 1. RESPUESTAS Y CONTROL ---
+# --- 1. RESPUESTAS UNIFICADAS ---
 
 type MutationResponse {
   success: Boolean!
   message: String
-  orgId: ID
-  branchId: ID
-  buildingId: ID
-  ccId: ID
-  assetId: ID
-  meterId: ID
-  tariffId: ID
-  logKey: ID
-  factorKey: ID
-  service: String
+  id: ID
+  path: String
   entity: AWSJSON
 }
 
@@ -46,19 +48,6 @@ type PresignedUrlResponse {
   userId: String!
 }
 
-type InvoiceIAProcessingResponse {
-  success: Boolean!
-  message: String
-  vendor: String
-  date: String
-  total: Float
-  consumption: Float
-  co2e: Float
-  currency: String
-  category: String
-  confidence: Float
-}
-
 # --- 2. NÚCLEO ANALÍTICO ---
 
 type AnalyticsResponse {
@@ -66,65 +55,34 @@ type AnalyticsResponse {
   metadata: AnalyticsMetadata
   financials_total_spend: Float
   ghg_total_co2e_ton: Float
-  ghg_total_co2e_kg: Float
-  cost_per_m2: Float
-  trazabilidad_total_invoices: Int
-  last_updated: String
-  budget_deviation_pct: Float
-  target_deviation_pct: Float
   energy_intensity_per_m2: Float
-  consumption_gas_val: Float
   consumption_elec_val: Float
-  energy_intensity_index: Float
-  phantom_load_kwh: Float
-  advanced_analytics: AdvancedAnalytics
-  predictive_engine: PredictiveEngine
-  management_reporting: ManagementReporting
-  regulatory_compliance: RegulatoryCompliance
+  consumption_gas_val: Float
+  advanced_analytics: AWSJSON
+  predictive_engine: AWSJSON
   sourceData: AWSJSON 
 }
 
 type AnalyticsMetadata {
-  orgId: ID
+  entityId: ID
+  nodeType: NodeType
   year: String
-  quarter: String
   month: String
-  week: String
-  day: String
   granularity: String
-  lastUpdated: String
-}
-
-type AdvancedAnalytics {
-  data_quality_score: String
-  emission_factor_source: String
-  energy_intensity_index: Float
-  renewable_energy_mix_pct: Float
-  transition_risk_scoring: AWSJSON
-  energy_source_mix: AWSJSON
-  data_reliability_pct: Float
-}
-
-type PredictiveEngine {
-  current_vs_target_pct: Float
-  financial_risk_exposure: Float
-  forecast_year_end_co2: Float
-  target_annual_limit: Float
-  projected_gap_vs_target: Float
-}
-
-type ManagementReporting {
-  carbon_intensity_revenue: Float
-  reporting_period_status: String
-}
-
-type RegulatoryCompliance {
-  methodology: String
-  reporting_standard: String
-  scope_category: String
 }
 
 # --- 3. ENTIDADES ---
+
+type Node @aws_cognito_user_pools {
+  id: ID!
+  parentId: ID
+  path: String!  # Formato: #ROOT#BRANCH_ID#BUILDING_ID#
+  nodeType: NodeType!
+  name: String!
+  metadata: AWSJSON # Aquí viven los campos específicos (m2, serialNumber, etc.)
+  createdAt: String
+  updatedAt: String
+}
 
 type Invoice @aws_api_key @aws_cognito_user_pools {
   id: ID!
@@ -138,239 +96,61 @@ type Invoice @aws_api_key @aws_cognito_user_pools {
   status: InvoiceStatus
   storageKey: String
   extractedData: AWSJSON
-  aiThoughtProcess: String
-  lastUpdated: String
-  buildingId: ID
-  meterId: ID
-  costCenterId: ID
+  nodeId: ID # El ID del nodo (Building/Meter) al que pertenece
 }
 
-type NormalizationKPIs {
-  intensity_per_revenue: Float
-  intensity_per_sqm: Float
-  intensity_per_production_unit: Float 
-}
+# --- 4. INPUTS COMPACTOS ---
 
-# --- 4. INPUTS ---
+input SaveNodeInput {
+  id: ID                # Si viene, es Update. Si no, Create.
+  parentId: ID!         # 'ROOT' para el nivel superior
+  nodeType: NodeType!
+  name: String!
+  metadata: AWSJSON     # Aquí metes los campos que antes tenías en 10 inputs diferentes
+}
 
 input CreateInvoiceInput {
   storageKey: String!
   serviceType: String!
-  buildingId: ID
-  meterId: ID
-  costCenterId: ID
+  nodeId: ID
   internalNote: String
-  status: InvoiceStatus
-}
-
-input BillingPeriodInput {
-  start: String!
-  end: String!
 }
 
 input ConfirmInvoiceInput {
   status: InvoiceStatus!
   extracted_data: AWSJSON!
-  regionId: ID
-  branchId: ID
-  buildingId: ID
-  assetId: ID
-  meterId: ID
-  costCenterId: ID
+  nodeId: ID
   serviceType: String
-  notes: String
-}
-
-input ResolveInvoiceAssignmentInput {
-  cups: String
-  meterSerialNumber: String
-  contractReference: String
-  holderTaxId: String
-  supplyAddress: String
-}
-
-type InvoiceAssignmentResolution {
-  matched: Boolean!
-  matchTier: String!
-  regionId: ID
-  branchId: ID
-  buildingId: ID
-  assetId: ID
-  meterId: ID
-  costCenterId: ID
-}
-
-input LinkAssetExternalIdentifierInput {
-  cups: String
-  meterSerialNumber: String
-  contractReference: String
-  holderTaxId: String
-  supplyAddress: String
-}
-
-# --- Master data / configuración global (ConfigService — setting-organization.sh) ---
-
-input SaveOrgConfigInput {
-  name: String
-  taxId: String
-  hqAddress: String
-  totalGlobalM2: Float
-  industrySector: String
-  currency: String
-  reportingCurrency: String
-  minConfidence: Float
-  baselineYear: Int
-  reductionTarget: Float
-  targetYear: Int
-  subscriptionPlan: String
-  status: String
-  createdAt: String
-  updatedAt: String
-}
-
-input CreateBranchInput {
-  branchId: String
-  organizationId: ID
-  regionId: ID
-  name: String
-  m2Surface: Float
-  facilityType: String
-  timezone: String
-  region: String
-  energyTarget: Float
-  isHeadquarters: Boolean
-  address: AWSJSON
-  status: String
-}
-
-input SaveBuildingInput {
-  name: String
-  organizationId: ID
-  regionId: ID
-  usageType: String
-  usageTypeEnum: String
-  status: String
-  yearBuilt: Int
-  m2Surface: Float
-  m3Volume: Float
-  hvacType: String
-  hasBms: Boolean
-  bmsVendor: String
-  mainFuelType: String
-  coordinatesLat: Float
-  coordinatesLng: Float
-}
-
-input SaveCostCenterInput {
-  id: String
-  organizationId: ID
-  name: String
-  branchId: String
-  buildingId: String
-  method: String
-  allocationMethod: String
-  percentage: Float
-  annualBudget: Float
-  currency: String
-  fiscalYear: Int
-  externalId: String
-  status: String
-}
-
-input SaveAssetInput {
-  name: String
-  category: String
-  organizationId: ID
-  regionId: ID
-  status: String
-  nominalPower: Float
-  meterId: String
-  branchId: String
-  buildingId: String
-  costCenterId: String
-  tags: AWSJSON
-}
-
-input SaveMeterInput {
-  name: String
-  serialNumber: String
-  iotName: String
-  protocol: String
-  type: String
-  isMain: Boolean
-  buildingId: String
-  orgId: ID
-  regionId: ID
-  assetId: ID
-  parentMeterId: ID
-  status: String
-}
-
-input SaveTariffInput {
-  id: ID
-  buildingId: ID
-  providerName: String
-  contractId: String
-  pricingModel: String
-  baseRate: Float
-  validFrom: String
-  validTo: String
-  currency: String
-  status: String
-}
-
-input SaveAlertRuleInput {
-  name: String
-  status: String
-  priority: String
-  threshold: Float
-  operator: String
-}
-
-input SaveUserInput {
-  fullName: String
-  email: String
-  role: String
-  language: String
-}
-
-input SaveProductionLogInput {
-  units: Float
-  unitType: String
-  shiftMode: String
-  efficiency: Float
-  activeLines: Int
-}
-
-input SaveEmissionFactorInput {
-  name: String
-  year: Int
-  regionCode: String
-  activityType: String
-  unit: String
-  value: Float
-  scope: String
 }
 
 # --- 5. CONSULTAS (QUERIES) ---
 
 type Query {
+  # Obtener el árbol o una rama completa usando el GSI de Path
+  getTree(rootNodeId: ID): [Node] @aws_cognito_user_pools
+  
+  getNode(id: ID!): Node @aws_cognito_user_pools
+  
   getInvoice(id: ID!): Invoice @aws_cognito_user_pools
-  getPrecalculatedKPI(year: String!, quarter: String, month: String, week: String, day: String): AnalyticsResponse @aws_cognito_user_pools
-  getConsumptionAnalytics(entityId: ID!, type: String!, startDate: String!, endDate: String!): AnalyticsResponse @aws_cognito_user_pools
-  getInvoicesByPeriod(year: String!, month: String): [Invoice] @aws_cognito_user_pools
-  getCostCenters: [AWSJSON] @aws_cognito_user_pools
-  getTariffsByBranch(branchId: ID!): [AWSJSON] @aws_cognito_user_pools
-  getIntensityReport(year: String!): NormalizationKPIs @aws_cognito_user_pools
-  resolveInvoiceAssignment(input: ResolveInvoiceAssignmentInput!): InvoiceAssignmentResolution @aws_cognito_user_pools
+  
+  getConsumptionAnalytics(
+    entityId: ID!, 
+    startDate: String!, 
+    endDate: String!
+  ): AnalyticsResponse @aws_cognito_user_pools
 }
 
 # --- 6. ACCIONES (MUTATIONS) ---
 
 type Mutation {
-  createInvoice(input: CreateInvoiceInput!): Invoice @aws_cognito_user_pools
+  # Esta única mutación reemplaza a las 10 anteriores (saveBuilding, saveMeter, etc.)
+  saveNode(input: SaveNodeInput!): MutationResponse @aws_cognito_user_pools
+  
+  # Mover una rama entera del árbol
+  moveNode(id: ID!, newParentId: ID!): MutationResponse @aws_cognito_user_pools
 
-  # Mutación clave para el Worker (Lambda) y el Front
+  createInvoice(input: CreateInvoiceInput!): Invoice @aws_cognito_user_pools
+  
   updateInvoiceStatus(
     id: ID!, 
     status: InvoiceStatus!, 
@@ -379,28 +159,16 @@ type Mutation {
   ): Invoice @aws_api_key @aws_cognito_user_pools
 
   getPresignedUrl(fileName: String!, fileType: String!, invoiceId: String!): PresignedUrlResponse @aws_cognito_user_pools
-  confirmInvoice(id: ID!, input: ConfirmInvoiceInput!): ActionResponse! @aws_cognito_user_pools
-  approveInvoice(invoiceId: ID!): Invoice @aws_cognito_user_pools
-  linkAssetExternalIdentifier(assetId: ID!, input: LinkAssetExternalIdentifierInput!): ActionResponse! @aws_cognito_user_pools
-
-  saveOrgConfig(orgId: ID, input: SaveOrgConfigInput!): MutationResponse @aws_cognito_user_pools
-  createBranch(orgId: ID, input: CreateBranchInput!): MutationResponse @aws_cognito_user_pools
-  saveBuilding(orgId: ID, branchId: ID!, buildingId: ID!, input: SaveBuildingInput!): MutationResponse @aws_cognito_user_pools
-  saveCostCenter(orgId: ID, input: SaveCostCenterInput!): MutationResponse @aws_cognito_user_pools
-  saveAsset(orgId: ID, assetId: ID!, input: SaveAssetInput!): MutationResponse @aws_cognito_user_pools
-  saveMeter(orgId: ID, branchId: ID!, meterId: ID!, input: SaveMeterInput!): MutationResponse @aws_cognito_user_pools
-  saveTariff(orgId: ID, branchId: ID!, serviceType: String!, input: SaveTariffInput!): MutationResponse @aws_cognito_user_pools
-  saveAlertRule(orgId: ID, branchId: ID!, entityId: ID!, alertType: String!, input: SaveAlertRuleInput!): MutationResponse @aws_cognito_user_pools
-  saveUser(orgId: ID, userId: ID!, input: SaveUserInput!): MutationResponse @aws_cognito_user_pools
-  saveProductionLog(orgId: ID, branchId: ID!, period: String!, input: SaveProductionLogInput!): MutationResponse @aws_cognito_user_pools
-  saveEmissionFactor(input: SaveEmissionFactorInput!): MutationResponse @aws_cognito_user_pools
 }
 
-# --- 7. TIEMPO REAL (SUBSCRIPTIONS) ---
+# --- 7. TIEMPO REAL ---
 
 type Subscription {
-  # El Front se suscribe para recibir el cambio de status de la IA
   onInvoiceUpdated(id: ID!): Invoice
     @aws_subscribe(mutations: ["updateInvoiceStatus"])
     @aws_api_key @aws_cognito_user_pools
+    
+  onNodeChanged(parentId: ID): Node
+    @aws_subscribe(mutations: ["saveNode", "moveNode"])
+    @aws_cognito_user_pools
 }

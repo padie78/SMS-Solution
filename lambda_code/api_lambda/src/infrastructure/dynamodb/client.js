@@ -7,4 +7,7 @@ export const ddb = DynamoDBDocumentClient.from(client, {
     marshallOptions: { removeUndefinedValues: true, convertEmptyValues: true }
 });
 
-export const TABLE_NAME = "sms-platform-dev-emissions";
+export const TABLE_NAME =
+    process.env.DATABASE_NAME ||
+    process.env.DYNAMO_TABLE ||
+    "sms-platform-dev-emissions";
