@@ -146,6 +146,10 @@ export class HandleAppSyncRequest {
         return items.map(mapItemToGraphqlNode).filter(Boolean);
       }
 
+      case "getInvoice":
+        // Stub: exponer cuando exista modelo SK/payload de facturas en Dynamo.
+        return null;
+
       default:
         throw new ValidationError(`Resolver "${methodName}" no implementado en el backend.`);
     }

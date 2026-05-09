@@ -78,23 +78,9 @@ resource "aws_appsync_datasource" "analytics_lambda_ds" {
 # ==============================================================================
 # 4. RESOLVERS
 # ==============================================================================
+# Solo campos presentes en schema.graphql (Mutation). Amplía el set si añades mutaciones al schema.
 resource "aws_appsync_resolver" "mutation_resolvers" {
   for_each = toset([
-    "createInvoice",
-    "confirmInvoice",
-    "approveInvoice",
-    "linkAssetExternalIdentifier",
-    "saveOrgConfig",
-    "createBranch",
-    "saveBuilding",
-    "saveCostCenter",
-    "saveAsset",
-    "saveMeter",
-    "saveTariff",
-    "saveAlertRule",
-    "saveUser",
-    "saveProductionLog",
-    "saveEmissionFactor",
     "saveNode",
     "updateNode",
     "deleteNode"
@@ -116,31 +102,13 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
   ]
 }
 
-resource "aws_appsync_resolver" "kpi_resolvers" {
-  for_each = toset([
-    "getPrecalculatedKPI", "getConsumptionAnalytics", "getIntensityReport",
-    "getInvoicesByPeriod", "getCostCenters"
-  ])
+# KPI / analytics: descomenta y alinea con schema.graphql cuando expongas esas Queries.
+# resource "aws_appsync_resolver" "kpi_resolvers" { ... }
 
-  api_id      = aws_appsync_graphql_api.api.id
-  type        = "Query"
-  field       = each.key
-  data_source = aws_appsync_datasource.analytics_lambda_ds.name
-
-  depends_on = [aws_appsync_datasource.analytics_lambda_ds, aws_iam_role_policy.appsync_access_policy]
-}
-
-resource "aws_appsync_resolver" "get_url_resolver" {
-  api_id      = aws_appsync_graphql_api.api.id
-  type        = "Mutation"
-  field       = "getPresignedUrl"
-  data_source = aws_appsync_datasource.signer_lambda_ds.name
-
-  depends_on = [aws_appsync_datasource.signer_lambda_ds, aws_iam_role_policy.appsync_access_policy]
-}
+# getPresignedUrl: añade el campo al schema si lo necesitas; entonces enlaza Signer Lambda aquí.
 
 resource "aws_appsync_resolver" "api_lambda_queries" {
-  for_each = toset(["resolveInvoiceAssignment", "getTree", "getNode"])
+  for_each = toset(["getTree", "getNode", "getInvoice"])
 
   api_id      = aws_appsync_graphql_api.api.id
   type        = "Query"
