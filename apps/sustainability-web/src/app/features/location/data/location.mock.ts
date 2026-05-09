@@ -23,10 +23,10 @@ export interface ParentPatchRequest {
 export const LOCATION_API_BASE_URL = '/locations';
 
 /**
- * Mock mode: permite usar Location Manager sin backend.
- * Cambiar a `false` cuando estén los endpoints (API Gateway) listos.
+ * - `false` (recomendado): persiste en AppSync (`getTree`, `saveNode`, …). No escribe en localStorage.
+ * - `true`: árbol solo en memoria + `localStorage` (`sms.location.manager.mock.v1`) para desarrollo sin API.
  */
-export const LOCATION_USE_MOCK = true;
+export const LOCATION_USE_MOCK = false;
 
 export const LOCATION_MOCK_STORAGE_KEY = 'sms.location.manager.mock.v1';
 

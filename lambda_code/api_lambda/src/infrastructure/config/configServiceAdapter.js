@@ -1,17 +1,19 @@
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { 
-  DynamoDBDocumentClient, 
-  PutCommand, 
-  GetCommand, 
-  QueryCommand, 
-  UpdateCommand 
+import {
+  DynamoDBDocumentClient,
+  PutCommand,
+  GetCommand,
+  QueryCommand,
+  UpdateCommand,
+  DeleteCommand
 } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
 import { appendSegmentToLocationPath, normalizeSegmentId } from "../dynamodb/nodePathModel.js";
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = process.env.DATABASE_NAME || "sms-platform-dev-emissions";
+const TABLE_NAME =
+  process.env.DYNAMO_TABLE || process.env.DATABASE_NAME || "sms-platform-dev-emissions";
 
 export class ConfigServiceAdapter {
   
@@ -44,20 +46,33 @@ export class ConfigServiceAdapter {
     // Resolución de PATH
     let finalPath = appendSegmentToLocationPath(undefined, cleanId);
     if (parentId && parentId !== "ROOT") {
-      const parentNode = await configServiceAdapter.getNode(orgId, parentId);
+      const parentNode = await this.getNode(orgId, parentId);
       if (parentNode?.path) {
         finalPath = appendSegmentToLocationPath(parentNode.path, cleanId);
       }
     }
 
+    let metaObj = metadata;
+    if (typeof metaObj === "string") {
+      try {
+        metaObj = metaObj.trim() ? JSON.parse(metaObj) : {};
+      } catch {
+        metaObj = {};
+      }
+    }
+    if (metaObj == null || typeof metaObj !== "object") {
+      metaObj = {};
+    }
+
     const item = {
       PK: `ORG#${orgId}`,
       SK: sk,
+      holdingId: orgId,
       path: finalPath,
       nodeType,
       name,
       parentId: parentId || "ROOT",
-      metadata: typeof metadata === 'string' ? JSON.parse(metadata) : metadata,
+      metadata: metaObj,
       last_updated: timestamp,
       entity_type: "NODE_CONFIG"
     };
@@ -132,26 +147,46 @@ export class ConfigServiceAdapter {
    */
   async listNodes(orgId, filter) {
     const { underPath, nodeType } = filter || {};
-    
-    const params = {
-      TableName: TABLE_NAME,
-      KeyConditionExpression: "PK = :pk",
-      ExpressionAttributeValues: { ":pk": `ORG#${orgId}` }
+    const entityFilter = "entity_type = :et";
+    const baseEav = {
+      ":et": "NODE_CONFIG"
     };
 
-    if (underPath) {
-      params.KeyConditionExpression += " AND begins_with(path, :p)";
-      params.ExpressionAttributeValues[":p"] = underPath;
-    }
-
     try {
-      const res = await docClient.send(new QueryCommand(params));
-      let items = res.Items || [];
-
-      if (nodeType) {
-        items = items.filter(i => i.nodeType === nodeType);
+      let res;
+      if (underPath) {
+        res = await docClient.send(
+          new QueryCommand({
+            TableName: TABLE_NAME,
+            IndexName: "GSI_NodePath",
+            KeyConditionExpression: "holdingId = :hid AND begins_with(#pth, :pref)",
+            ExpressionAttributeNames: { "#pth": "path" },
+            ExpressionAttributeValues: {
+              ...baseEav,
+              ":hid": orgId,
+              ":pref": underPath
+            },
+            FilterExpression: entityFilter
+          })
+        );
+      } else {
+        res = await docClient.send(
+          new QueryCommand({
+            TableName: TABLE_NAME,
+            KeyConditionExpression: "PK = :pk",
+            ExpressionAttributeValues: {
+              ...baseEav,
+              ":pk": `ORG#${orgId}`
+            },
+            FilterExpression: entityFilter
+          })
+        );
       }
 
+      let items = res.Items || [];
+      if (nodeType) {
+        items = items.filter((i) => i.nodeType === nodeType);
+      }
       return items;
     } catch (error) {
       console.error("Error en listNodes:", error);

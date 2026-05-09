@@ -1,5 +1,5 @@
 import type { TreeNode } from 'primeng/api';
-import type { SmsLocationNode, SmsLocationNodeType } from '../../../core/models/sms-location-node.model';
+import type { SmsLocationNode, SmsLocationNodeMetadata, SmsLocationNodeType } from '../../../core/models/sms-location-node.model';
 import { toTreeNodeIdentity } from '../../../core/models/sms-location-node.model';
 
 const TYPE_ORDER: ReadonlyArray<SmsLocationNodeType> = [
@@ -47,4 +47,71 @@ export function sortNodes(nodes: SmsLocationNode[]): SmsLocationNode[] {
     return String(a.name).localeCompare(String(b.name));
   });
 }
+
+/** Nodo flat devuelto por `getTree` antes de aplicar hooks UI. */
+export interface LocationGraphFlatDto {
+  readonly id: string;
+  readonly parentId?: string | null;
+  readonly nodeType: SmsLocationNodeType;
+  readonly name: string;
+  readonly metadata?: unknown;
+}
+
+/**
+ * Construye jerarquía PrimeNG desde lista plana (parentId → hijos).
+ * Excluye `COST_CENTER` del árbol físico (mismo criterio que mock / HTTP anterior).
+ */
+export function hierarchicalSmsRootsFromFlatDtos(
+  flat: ReadonlyArray<LocationGraphFlatDto>,
+  parseMetadata: (meta: unknown) => SmsLocationNodeMetadata | undefined
+): SmsLocationNode[] {
+  const scoped = flat.filter((n) => n.nodeType !== 'COST_CENTER');
+  const byId = new Map(scoped.map((n) => [n.id, n]));
+
+  function sortPhysicalRows(rows: LocationGraphFlatDto[]): LocationGraphFlatDto[] {
+    return [...rows].sort((a, b) => {
+      if (a.nodeType !== b.nodeType) return String(a.nodeType).localeCompare(String(b.nodeType));
+      return String(a.name).localeCompare(String(b.name));
+    });
+  }
+
+  function assemble(row: LocationGraphFlatDto, parent?: TreeNode): SmsLocationNode {
+    const childRows = sortPhysicalRows(scoped.filter((c) => (c.parentId ?? null) === row.id));
+
+    const shell: SmsLocationNode = {
+      location_id: row.id,
+      parent_id: row.parentId ?? null,
+      type: row.nodeType,
+      name: row.name,
+      status: 'ACTIVE',
+      metadata: parseMetadata(row.metadata),
+      hasChildren: childRows.length > 0,
+      leaf: childRows.length === 0,
+      children: []
+    };
+
+    const self = withPrimeTreeFields(shell, parent);
+    const children = childRows.map((cRow) => assemble(cRow, self));
+    self.children = children as SmsLocationNode[];
+    self.leaf = children.length === 0;
+    self.hasChildren = children.length > 0;
+    const data = self.data as SmsLocationNode;
+    if (data) {
+      data.hasChildren = children.length > 0;
+    }
+    for (const ch of children) {
+      ch.parent = self;
+    }
+    return self;
+  }
+
+  const orphanOrRoots = scoped.filter((n) => {
+    const pid = n.parentId ?? null;
+    if (pid == null) return true;
+    return !byId.has(pid);
+  });
+
+  return sortPhysicalRows(orphanOrRoots).map((row) => assemble(row));
+}
+
 

@@ -94,7 +94,10 @@ resource "aws_appsync_resolver" "mutation_resolvers" {
     "saveAlertRule",
     "saveUser",
     "saveProductionLog",
-    "saveEmissionFactor"
+    "saveEmissionFactor",
+    "saveNode",
+    "updateNode",
+    "deleteNode"
   ])
 
   api_id      = aws_appsync_graphql_api.api.id
@@ -137,7 +140,7 @@ resource "aws_appsync_resolver" "get_url_resolver" {
 }
 
 resource "aws_appsync_resolver" "api_lambda_queries" {
-  for_each = toset(["resolveInvoiceAssignment"])
+  for_each = toset(["resolveInvoiceAssignment", "getTree", "getNode"])
 
   api_id      = aws_appsync_graphql_api.api.id
   type        = "Query"

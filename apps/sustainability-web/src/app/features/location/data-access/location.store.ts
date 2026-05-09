@@ -1,21 +1,38 @@
-import { Injectable, computed, effect, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, effect, inject, signal } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import type { TreeNode } from 'primeng/api';
-import { firstValueFrom } from 'rxjs';
+import { Subscription, firstValueFrom } from 'rxjs';
 import type { SmsLocationNode, SmsLocationNodeType } from '../../../core/models/sms-location-node.model';
 import { LOCATION_API_BASE_URL, LOCATION_MOCK_STORAGE_KEY, LOCATION_USE_MOCK } from '../data/location.mock';
-import { canDrop, sortNodes, withPrimeTreeFields } from '../lib/location-tree-helpers';
+import type { GraphqlNodeDto } from './location-api.models';
+import { LocationNodeAppSyncService } from './location-node-appsync.service';
+import {
+  canDrop,
+  hierarchicalSmsRootsFromFlatDtos,
+  sortNodes,
+  withPrimeTreeFields
+} from '../lib/location-tree-helpers';
 
 function nextId(prefix: string): string {
   const uuid = globalThis.crypto?.randomUUID?.();
   return `${prefix}_${uuid ?? Math.random().toString(16).slice(2)}`;
 }
 
+/** Valor estable que el resolver GraphQL debe aceptar como raíz lógica. */
+const GRAPHQL_ROOT_PARENT_ID = 'ROOT';
+
 @Injectable({ providedIn: 'root' })
 export class LocationService {
   private readonly http = inject(HttpClient);
+  private readonly nodeApi = inject(LocationNodeAppSyncService);
+  private readonly destroyRef = inject(DestroyRef);
 
   private mockRows: SmsLocationNode[] = [];
+
+  /** Caché plana desde `getTree` (solo modo AppSync). */
+  readonly remoteFlat = signal(new Map<string, GraphqlNodeDto>());
+
+  private nodeChangesSub?: Subscription;
 
   readonly tree = signal<SmsLocationNode[]>([]);
   readonly selectedNode = signal<SmsLocationNode | null>(null);
@@ -55,6 +72,7 @@ export class LocationService {
   });
 
   constructor() {
+    this.destroyRef.onDestroy(() => this.nodeChangesSub?.unsubscribe());
     this.loadMockFromStorage();
     effect(
       () => {
@@ -70,6 +88,78 @@ export class LocationService {
     );
   }
 
+  /**
+   * Escucha cambios desde `saveNode` / `updateNode` / `deleteNode` (App Sync).
+   * Invocar una vez después de Amplify configurado y usuario autenticado.
+   */
+  connectNodeChangeSubscription(): void {
+    if (LOCATION_USE_MOCK || this.nodeChangesSub) return;
+    this.nodeChangesSub = this.nodeApi.onNodeChanges().subscribe({
+      next: async () => {
+        try {
+          await this.softReloadRemoteTree();
+        } catch (err: unknown) {
+          this.lastError.set(this.describeGraphOrHttpError('Actualización automática jerarquía', err));
+        }
+      },
+      error: (err: unknown) => {
+        this.lastError.set(this.describeGraphOrHttpError('Suscripción onNodeChanged', err));
+      }
+    });
+  }
+
+  private mergeIntoRemoteIndex(rows: GraphqlNodeDto[], replaceAll: boolean): void {
+    const next = replaceAll ? new Map<string, GraphqlNodeDto>() : new Map(this.remoteFlat());
+    for (const r of rows) {
+      next.set(r.id, r);
+    }
+    this.remoteFlat.set(next);
+  }
+
+  private materializeTreeFromRemoteIndex(): void {
+    const list = [...this.remoteFlat().values()];
+    const roots = hierarchicalSmsRootsFromFlatDtos(list, (meta) =>
+      this.nodeApi.parseMetadata(meta as GraphqlNodeDto['metadata'])
+    );
+    const sortedRoots = sortNodes(roots);
+    this.tree.set(sortedRoots);
+    this.touchTree();
+  }
+
+  /** Refetch completo respetando expansiones conocidas actualmente en UI. */
+  private async softReloadRemoteTree(): Promise<void> {
+    const expandedBefore = this.collectExpandedIds();
+    try {
+      const rows = await this.nodeApi.getTree(null);
+      this.mergeIntoRemoteIndex(rows, true);
+      this.materializeTreeFromRemoteIndex();
+      await this.expandRestoredBranches(expandedBefore);
+    } finally {
+      this.touchTree();
+    }
+  }
+
+  private async expandRestoredBranches(expandedBefore: ReadonlySet<string>): Promise<void> {
+    const orgRoots = this.tree().filter((n) => n.type === 'ORGANIZATION');
+    for (const org of orgRoots) {
+      org.expanded = true;
+      await this.ensureChildrenLoaded(org);
+    }
+    const pending = new Set(expandedBefore);
+    for (let i = 0; i < 8 && pending.size > 0; i += 1) {
+      let progressed = false;
+      for (const id of Array.from(pending)) {
+        const node = this.findNodeById(id);
+        if (!node) continue;
+        node.expanded = true;
+        await this.ensureChildrenLoaded(node);
+        pending.delete(id);
+        progressed = true;
+      }
+      if (!progressed) break;
+    }
+  }
+
   async loadRoots(): Promise<void> {
     const expandedBefore = this.collectExpandedIds();
     this.loading.set(true);
@@ -82,46 +172,35 @@ export class LocationService {
           .map((n) => this.withMockComputedChildren(withPrimeTreeFields(n)));
         this.tree.set(sortNodes(roots));
       } else {
-        const resp = await firstValueFrom(this.http.get<{ items: SmsLocationNode[] }>(`${LOCATION_API_BASE_URL}/root`));
-        const roots = (resp.items ?? []).map((n) => withPrimeTreeFields(n));
-        this.tree.set(roots);
+        const rows = await this.nodeApi.getTree(null);
+        this.mergeIntoRemoteIndex(rows, true);
+        this.materializeTreeFromRemoteIndex();
       }
 
-      // UX: si la raíz es ORGANIZATION (nuevo modelo), expandimos y precargamos su primer nivel
-      // para que en un refresh (F5) no “desaparezcan” las regiones hasta que el usuario expanda.
       const orgRoots = this.tree().filter((n) => n.type === 'ORGANIZATION');
       for (const org of orgRoots) {
         org.expanded = true;
         await this.ensureChildrenLoaded(org);
       }
 
-      // En mock mode queremos que tras F5 se vea la jerarquía completa sin expandir manualmente.
-      // Precargamos recursivamente (lazy) varios niveles.
       if (LOCATION_USE_MOCK) {
         for (const org of orgRoots) {
           await this.preloadDescendants(org, 8);
         }
       }
 
-      // Rehidrata expansiones previas (lazy tree) para que no “desaparezcan” hijos tras refresh.
-      // Recorremos por niveles para asegurar que padres existan antes de buscar hijos.
-      const pending = new Set(expandedBefore);
-      for (let i = 0; i < 8 && pending.size > 0; i += 1) {
-        let progressed = false;
-        for (const id of Array.from(pending)) {
-          const node = this.findNodeById(id);
-          if (!node) continue;
-          node.expanded = true;
-          await this.ensureChildrenLoaded(node);
-          pending.delete(id);
-          progressed = true;
-        }
-        if (!progressed) break;
-      }
+      await this.expandRestoredBranches(expandedBefore);
     } catch (e: unknown) {
-      this.lastError.set(this.describeHttpError('Failed to load roots', e));
+      this.lastError.set(
+        LOCATION_USE_MOCK
+          ? this.describeHttpError('Failed to load roots', e)
+          : this.describeGraphOrHttpError('No se pudo cargar la jerarquía', e)
+      );
     } finally {
       this.loading.set(false);
+      if (!LOCATION_USE_MOCK) {
+        this.connectNodeChangeSubscription();
+      }
     }
   }
 
@@ -153,18 +232,24 @@ export class LocationService {
         parent.leaf = (parent.children ?? []).length === 0;
         this.touchTree();
       } else {
-        const resp = await firstValueFrom(
-          this.http.get<{ items: SmsLocationNode[] }>(
-            `${LOCATION_API_BASE_URL}/${encodeURIComponent(parent.location_id)}/children`
-          )
-        );
-        const children = (resp.items ?? []).map((n) => withPrimeTreeFields(n, parent));
-        parent.children = children;
-        parent.leaf = children.length === 0;
-        this.touchTree();
+        const expandedBefore = this.collectExpandedIds();
+        expandedBefore.add(parent.location_id);
+        const subtree = await this.nodeApi.getTree(parent.location_id);
+        this.mergeIntoRemoteIndex(subtree, false);
+        this.materializeTreeFromRemoteIndex();
+        await this.expandRestoredBranches(expandedBefore);
+
+        const fresh = this.findNodeById(parent.location_id);
+        if (fresh) {
+          fresh.expanded = true;
+        }
       }
     } catch (e: unknown) {
-      this.lastError.set(this.describeHttpError('Failed to load children', e));
+      this.lastError.set(
+        LOCATION_USE_MOCK
+          ? this.describeHttpError('Failed to load children', e)
+          : this.describeGraphOrHttpError('No se pudieron cargar los hijos', e)
+      );
     }
   }
 
@@ -210,13 +295,42 @@ export class LocationService {
         return createdNode;
       }
 
-      const created = await firstValueFrom(this.http.post<SmsLocationNode>(`${LOCATION_API_BASE_URL}`, request));
-      const createdNode = withPrimeTreeFields(created);
-      this.replaceNodeId(tmpId, createdNode);
+      const mutation = await this.nodeApi.saveNode({
+        parentId: request.parent_id ?? GRAPHQL_ROOT_PARENT_ID,
+        nodeType: request.type,
+        name: request.name,
+        metadata: LocationNodeAppSyncService.metadataToAwsJson(
+          request.metadata ? { ...(request.metadata as unknown as Record<string, unknown>) } : {}
+        )
+      });
+      this.nodeApi.assertSuccess(mutation, 'saveNode');
+      await this.softReloadRemoteTree();
+
+      let createdNode = mutation.id ? this.findNodeById(mutation.id) : null;
+      if (!createdNode) {
+        const wantNorm =
+          !request.parent_id || request.parent_id === GRAPHQL_ROOT_PARENT_ID
+            ? GRAPHQL_ROOT_PARENT_ID
+            : String(request.parent_id);
+        const guessed = [...this.remoteFlat().values()].find((n) => {
+          const nParentNorm =
+            !n.parentId || n.parentId === GRAPHQL_ROOT_PARENT_ID ? GRAPHQL_ROOT_PARENT_ID : String(n.parentId);
+          return n.nodeType === request.type && n.name === request.name && nParentNorm === wantNorm;
+        });
+        createdNode = guessed ? this.findNodeById(guessed.id) : null;
+      }
+
+      if (!createdNode) {
+        throw new Error(mutation.message || 'Guardado ejecutado pero el nodo no apareció tras refrescar desde AppSync.');
+      }
+      void this.replaceNodeId(tmpId, createdNode);
+
       return createdNode;
     } catch (e: unknown) {
       this.removeNodeById(tmpId);
-      const msg = this.describeHttpError('Failed to create node', e);
+      const msg = LOCATION_USE_MOCK
+        ? this.describeHttpError('Failed to create node', e)
+        : this.describeGraphOrHttpError('No se pudo crear el nodo', e);
       this.lastError.set(msg);
       throw new Error(msg);
     }
@@ -265,19 +379,53 @@ export class LocationService {
         return updatedNode;
       }
 
-      const updated = await firstValueFrom(
-        this.http.patch<SmsLocationNode>(`${LOCATION_API_BASE_URL}/${encodeURIComponent(id)}`, patch)
-      );
-      const updatedNode = withPrimeTreeFields(updated, target?.parent as TreeNode | undefined);
-      this.replaceNodeId(id, updatedNode);
-      this.touchTree();
+      if (!target || !prev) {
+        throw new Error('updateNode sin nodo en memoria');
+      }
+
+      const gqlInput: { name?: string | null; metadata?: string | null } = {};
+      if (patch.name !== undefined) gqlInput.name = patch.name;
+      const metaRecord: Record<string, unknown> = {
+        ...(((prev as SmsLocationNode).metadata ?? {}) as unknown as Record<string, unknown>)
+      };
+      if (patch.metadata !== undefined) Object.assign(metaRecord, patch.metadata as Record<string, unknown>);
+      if (patch.status !== undefined) metaRecord['operationalStatus'] = patch.status;
+      if (patch.consumption_data !== undefined) metaRecord['consumption_data'] = patch.consumption_data;
+      if (patch.environmental_impact !== undefined) metaRecord['environmental_impact'] = patch.environmental_impact;
+      if (
+        patch.metadata !== undefined ||
+        patch.status !== undefined ||
+        patch.consumption_data !== undefined ||
+        patch.environmental_impact !== undefined
+      ) {
+        gqlInput.metadata = LocationNodeAppSyncService.metadataToAwsJson(metaRecord);
+      }
+
+      const hasPayload = gqlInput.name !== undefined || gqlInput.metadata !== undefined;
+      if (!hasPayload) {
+        return target as SmsLocationNode;
+      }
+
+      const mutation = await this.nodeApi.updateNode(id, gqlInput);
+      this.nodeApi.assertSuccess(mutation, 'updateNode');
+      await this.softReloadRemoteTree();
+
+      const updatedNode = this.findNodeById(id);
+      if (!updatedNode) {
+        throw new Error(mutation.message || 'Actualización ejecutada pero el nodo desapareció del árbol.');
+      }
+
+      void this.replaceNodeId(id, updatedNode);
+
       return updatedNode;
     } catch (e: unknown) {
       if (target && prev) {
         Object.assign(target, withPrimeTreeFields(prev, target.parent as TreeNode));
         this.touchTree();
       }
-      const msg = this.describeHttpError('Failed to update node', e);
+      const msg = LOCATION_USE_MOCK
+        ? this.describeHttpError('Failed to update node', e)
+        : this.describeGraphOrHttpError('No se pudo actualizar el nodo', e);
       this.lastError.set(msg);
       throw new Error(msg);
     }
@@ -323,11 +471,21 @@ export class LocationService {
         this.mockRows = [...this.mockRows.slice(0, idx), updated, ...this.mockRows.slice(idx + 1)];
         this.persistMock();
       } else {
-        await firstValueFrom(
-          this.http.patch<void>(`${LOCATION_API_BASE_URL}/${encodeURIComponent(nodeId)}/parent`, {
-            parent_id: newParentId
-          } as { parent_id: string | null })
-        );
+        const sms = node.data as SmsLocationNode;
+        const mutation = await this.nodeApi.saveNode({
+          id: sms.location_id,
+          parentId: newParentId ?? GRAPHQL_ROOT_PARENT_ID,
+          nodeType: sms.type,
+          name: sms.name,
+          metadata: LocationNodeAppSyncService.metadataToAwsJson(
+            (sms.metadata ?? {}) as unknown as Record<string, unknown>
+          )
+        });
+        this.nodeApi.assertSuccess(mutation, 'reparent-saveNode');
+        await this.softReloadRemoteTree();
+
+        const reparented = this.findNodeById(nodeId);
+        if (!reparented) throw new Error('Reubicación ejecutada pero el nodo no está en árbol actualizado.');
       }
     } catch (e: unknown) {
       this.detachFromParent(node);
@@ -342,7 +500,9 @@ export class LocationService {
         (node.data as SmsLocationNode).parent_id = null;
         this.tree.set([...this.tree(), node]);
       }
-      const msg = this.describeHttpError('Failed to move node', e);
+      const msg = LOCATION_USE_MOCK
+        ? this.describeHttpError('Failed to move node', e)
+        : this.describeGraphOrHttpError('No se pudo mover el nodo', e);
       this.lastError.set(msg);
       throw new Error(msg);
     }
@@ -360,12 +520,16 @@ export class LocationService {
         this.mockRows = this.mockRows.filter((r) => !ids.has(r.location_id));
         this.persistMock();
       } else {
-        await firstValueFrom(this.http.delete<void>(`${LOCATION_API_BASE_URL}/${encodeURIComponent(id)}`));
+        const mutation = await this.nodeApi.deleteNode(id);
+        this.nodeApi.assertSuccess(mutation, 'deleteNode');
+        await this.softReloadRemoteTree();
       }
       if (this.selectedNode()?.location_id === id) this.selectedNode.set(null);
     } catch (e: unknown) {
       this.restoreSnapshot(snapshot);
-      const msg = this.describeHttpError('Failed to delete node', e);
+      const msg = LOCATION_USE_MOCK
+        ? this.describeHttpError('Failed to delete node', e)
+        : this.describeGraphOrHttpError('No se pudo eliminar el nodo', e);
       this.lastError.set(msg);
       throw new Error(msg);
     }
@@ -478,6 +642,19 @@ export class LocationService {
     } catch {
       // ignore
     }
+  }
+
+  private describeGraphOrHttpError(prefix: string, err: unknown): string {
+    if (err instanceof HttpErrorResponse) {
+      return this.describeHttpError(prefix, err);
+    }
+    if (typeof err === 'object' && err !== null && 'errors' in err) {
+      const gql = err as { errors?: ReadonlyArray<{ message?: string }> };
+      const first = gql.errors?.[0]?.message;
+      if (first) return `${prefix}: ${first}`;
+    }
+    if (err instanceof Error) return `${prefix}: ${err.message}`;
+    return `${prefix}: respuesta inválida`;
   }
 
   private describeHttpError(prefix: string, err: unknown): string {
