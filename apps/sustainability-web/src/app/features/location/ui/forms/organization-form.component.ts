@@ -18,7 +18,7 @@ import type { CostCenterDTO, OrganizationDTO } from '@sms/common';
 import type { SmsLocationNode, SmsLocationNodeMetadata } from '../../../../core/models/sms-location-node.model';
 import { ORG_COST_CENTERS_CUSTOM_KEY } from '../../../../services/state/organization-cost-center-registry.service';
 import { NotificationService } from '../../../../services/ui/notification.service';
-import { isSmsTreeDraftNode } from '../../lib/location-tree-helpers';
+import { isSmsTreeDraftNode, stripSmsLocalDraftFromMetadata } from '../../lib/location-tree-helpers';
 import { LocationService } from '../../services/location.service';
 import { resolveHierarchyContext } from './location-hierarchy-context';
 import { LocationFormActionsComponent } from './location-form-actions.component';
@@ -175,17 +175,17 @@ export class OrganizationFormComponent implements OnChanges {
       [ORG_COST_CENTERS_CUSTOM_KEY]: JSON.stringify(costCenters)
     };
 
-    const nextMetadata: SmsLocationNodeMetadata = {
+    const nextMetadata = stripSmsLocalDraftFromMetadata({
       ...(this.parentNode.metadata ?? {}),
       ...(dto as unknown as SmsLocationNodeMetadata),
       custom: nextCustom
-    };
+    });
 
     const wasDraft = isSmsTreeDraftNode(this.parentNode);
     this.location.lastError.set('Guardando organización…');
     try {
       if (wasDraft) {
-        await this.location.finalizeOrganizationDraft(this.parentNode.location_id, {
+        await this.location.finalizeLocationNodeDraft(this.parentNode.location_id, {
           name: dto.name,
           status: dto.status === 'ACTIVE' ? 'ACTIVE' : 'MAINTENANCE',
           metadata: nextMetadata

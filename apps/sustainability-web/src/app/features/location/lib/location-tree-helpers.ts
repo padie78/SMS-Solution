@@ -21,6 +21,16 @@ export function isSmsTreeDraftNode(node: Pick<SmsLocationNode, 'location_id'>): 
   return typeof id === 'string' && id.startsWith('tmp_');
 }
 
+/** Quita flags solo de UI antes de enviar metadata a AppSync / mockRows. */
+export function stripSmsLocalDraftFromMetadata(
+  meta: SmsLocationNodeMetadata | undefined
+): SmsLocationNodeMetadata {
+  if (!meta || typeof meta !== 'object') return {};
+  const next = { ...(meta as unknown as Record<string, unknown>) };
+  delete next['smsLocalDraft'];
+  return next as SmsLocationNodeMetadata;
+}
+
 export function canDrop(childType: SmsLocationNodeType, parentType: SmsLocationNodeType | null): boolean {
   const childRank = typeRank(childType);
   if (childRank < 0) return false;

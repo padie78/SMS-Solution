@@ -103,7 +103,7 @@ type QuickAction = 'openCostCenters' | 'openTariffs' | 'openAssetsInventory';
           </ng-template>
           <ng-template pTemplate>
             <div class="h-full p-4 md:p-6 overflow-auto min-w-0">
-              <sms-detail-explorer [node]="location.selectedNode" />
+              <sms-detail-explorer [node]="location.selectedNode()" />
             </div>
           </ng-template>
         </p-splitter>

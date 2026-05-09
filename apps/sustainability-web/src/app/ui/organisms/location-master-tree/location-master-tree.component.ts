@@ -1,5 +1,17 @@
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, EventEmitter, Input, Output, computed, inject, signal } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  ChangeDetectorRef,
+  Component,
+  EventEmitter,
+  Input,
+  OnChanges,
+  Output,
+  SimpleChanges,
+  computed,
+  inject,
+  signal
+} from '@angular/core';
 import type { MenuItem } from 'primeng/api';
 import { ConfirmationService } from 'primeng/api';
 import { TreeDragDropService } from 'primeng/api';
@@ -55,6 +67,10 @@ function labelForType(t: SmsLocationNodeType): string {
     default:
       return 'Nodo';
   }
+}
+
+function draftTreePlaceholderName(t: SmsLocationNodeType): string {
+  return `${labelForType(t)} · borrador`;
 }
 
 function iconForType(t: SmsLocationNodeType): string {
@@ -419,7 +435,7 @@ function decorateTreeNodeBadgeData(nodes: SmsLocationNode[]): SmsLocationNode[] 
     </div>
   `
 })
-export class LocationMasterTreeComponent {
+export class LocationMasterTreeComponent implements OnChanges {
   /**
    * TODO (arquitectura): este organismo no debería depender del feature store.
    * Se mantiene temporalmente para evitar cambios extensivos en una sola pasada.
@@ -427,6 +443,7 @@ export class LocationMasterTreeComponent {
   private readonly location = inject(LocationService);
   private readonly confirm = inject(ConfirmationService);
   private readonly notify = inject(NotificationService);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   treeNodes: SmsLocationNode[] = [];
 
@@ -456,6 +473,45 @@ export class LocationMasterTreeComponent {
   }>();
 
   selection: TreeNode | null = null;
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (!changes['nodes']) return;
+    queueMicrotask(() => this.syncSelectionWithStore());
+  }
+
+  /**
+   * Tras reemplazar el árbol (p.ej. `saveNode` + reload), PrimeNG suele mantener
+   * `selection` apuntando a instancias viejas; re-enlaza al TreeNode vivo del nuevo `[value]`.
+   */
+  private syncSelectionWithStore(): void {
+    const id = this.location.selectedNode()?.location_id ?? null;
+    if (!id) {
+      if (this.selection != null) {
+        this.selection = null;
+        this.cdr.markForCheck();
+      }
+      return;
+    }
+    const match = this.findTreeNodeByLocationId(this.treeNodes, id);
+    if (match !== this.selection) {
+      this.selection = match;
+      this.cdr.markForCheck();
+    }
+  }
+
+  private findTreeNodeByLocationId(nodes: readonly SmsLocationNode[], id: string): TreeNode | null {
+    for (const n of nodes) {
+      if (n.location_id === id) {
+        return n as TreeNode;
+      }
+      const kids = (n.children ?? []) as SmsLocationNode[];
+      if (kids.length > 0) {
+        const found = this.findTreeNodeByLocationId(kids, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
 
   /**
    * Texto del tooltip que el `<p-tooltip>` enlaza al nodo del árbol.
@@ -747,23 +803,30 @@ export class LocationMasterTreeComponent {
     if (isSmsTreeDraftNode(parent)) {
       this.notify.show(
         'warn',
-        'Organización pendiente',
-        'Guardá primero esta organización (formulario · Guardar) antes de crear una región.'
+        'Borrador pendiente',
+        `Guardá primero "${parent.name}" desde el formulario antes de crear una región debajo.`
       );
       return;
     }
     try {
-      const created = await this.location.createNodeOptimistic({
+      const draft = this.location.addLocationNodeDraftToTree({
         parent_id: parent.location_id,
         type: 'REGION',
-        name: 'Región · Nueva',
-        status: 'ACTIVE'
+        name: draftTreePlaceholderName('REGION')
       });
-      this.notify.success('Región creada', `Se creó "${created.name}" bajo "${parent.name}".`);
-      this.selected.emit(created);
+      parent.expanded = true;
+      parent.leaf = false;
+      parent.hasChildren = true;
+      this.location.lastError.set(null);
+      this.notify.show(
+        'info',
+        'Borrador en el árbol',
+        'Completá el formulario a la derecha y pulsá Guardar para registrar la región en el sistema.'
+      );
+      this.selected.emit(draft);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Error desconocido creando región';
-      this.notify.error('No se pudo crear la región', msg);
+      const msg = e instanceof Error ? e.message : 'Error desconocido preparando borrador de región';
+      this.notify.error('No se pudo añadir el borrador', msg);
       throw e;
     }
   }
@@ -772,22 +835,21 @@ export class LocationMasterTreeComponent {
     if (parent && isSmsTreeDraftNode(parent)) {
       this.notify.show(
         'warn',
-        'Organización pendiente',
-        'Guardá primero esta organización (formulario · Guardar) antes de agregar niveles jerárquicos.'
+        'Borrador pendiente',
+        `Guardá primero "${parent.name}" desde el formulario antes de agregar niveles jerárquicos debajo.`
       );
       return;
     }
-    const name = `${type} · New`;
     if (type === 'REGION') {
       await this.createRegion(parent);
       return;
     }
     try {
-      const created = await this.location.createNodeOptimistic({
+      const name = draftTreePlaceholderName(type);
+      const draft = this.location.addLocationNodeDraftToTree({
         parent_id: parent?.location_id ?? null,
         type,
-        name,
-        status: 'ACTIVE'
+        name
       });
       if (parent) {
         parent.expanded = true;
@@ -795,13 +857,16 @@ export class LocationMasterTreeComponent {
         parent.hasChildren = true;
       }
       const childLabel = labelForType(type);
-      const detail = parent
-        ? `Se creó "${created.name}" bajo "${parent.name}".`
-        : `Se creó "${created.name}".`;
-      this.notify.success(`${childLabel} creado`, detail);
+      this.location.lastError.set(null);
+      this.notify.show(
+        'info',
+        'Borrador en el árbol',
+        `Completá el formulario y pulsá Guardar para crear el ${childLabel.toLowerCase()} en el sistema.`
+      );
+      this.selected.emit(draft);
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : `Error desconocido creando ${labelForType(type)}`;
-      this.notify.error(`No se pudo crear el ${labelForType(type).toLowerCase()}`, msg);
+      const msg = e instanceof Error ? e.message : `Error desconocido creando borrador (${labelForType(type)})`;
+      this.notify.error(`No se pudo añadir el borrador (${labelForType(type)})`, msg);
       throw e;
     }
   }

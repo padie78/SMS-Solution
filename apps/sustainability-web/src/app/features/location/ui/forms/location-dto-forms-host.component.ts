@@ -1,4 +1,3 @@
-import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import type { SmsLocationNode } from '../../../../core/models/sms-location-node.model';
 import { OrganizationFormComponent } from './organization-form.component';
@@ -13,7 +12,6 @@ import { MeterFormComponent } from './meter-form.component';
   selector: 'sms-location-dto-forms-host',
   standalone: true,
   imports: [
-    CommonModule,
     OrganizationFormComponent,
     RegionFormComponent,
     BranchFormComponent,
@@ -24,15 +22,31 @@ import { MeterFormComponent } from './meter-form.component';
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <ng-container *ngIf="node as n">
-      <sms-organization-form *ngIf="n.type === 'ORGANIZATION'" [parentNode]="n" />
-      <sms-region-form *ngIf="n.type === 'REGION'" [parentNode]="n" />
-      <sms-branch-form *ngIf="n.type === 'BRANCH'" [parentNode]="n" />
-      <sms-building-form *ngIf="n.type === 'BUILDING'" [parentNode]="n" />
-      <sms-cost-center-form *ngIf="n.type === 'COST_CENTER'" [parentNode]="n" />
-      <sms-asset-form *ngIf="n.type === 'ASSET'" [parentNode]="n" />
-      <sms-meter-form *ngIf="n.type === 'METER'" [parentNode]="n" />
-    </ng-container>
+    @for (n of node ? [node] : []; track n.location_id) {
+      @switch (n.type) {
+        @case ('ORGANIZATION') {
+          <sms-organization-form [parentNode]="n" />
+        }
+        @case ('REGION') {
+          <sms-region-form [parentNode]="n" />
+        }
+        @case ('BRANCH') {
+          <sms-branch-form [parentNode]="n" />
+        }
+        @case ('BUILDING') {
+          <sms-building-form [parentNode]="n" />
+        }
+        @case ('COST_CENTER') {
+          <sms-cost-center-form [parentNode]="n" />
+        }
+        @case ('ASSET') {
+          <sms-asset-form [parentNode]="n" />
+        }
+        @case ('METER') {
+          <sms-meter-form [parentNode]="n" />
+        }
+      }
+    }
   `
 })
 export class LocationDtoFormsHostComponent {

@@ -14,8 +14,12 @@ import { DropdownModule } from 'primeng/dropdown';
 import { InputNumberModule } from 'primeng/inputnumber';
 import { InputTextModule } from 'primeng/inputtext';
 import { InputTextareaModule } from 'primeng/inputtextarea';
-import type { SmsLocationNode } from '../../../../core/models/sms-location-node.model';
+import type {
+  SmsLocationNode,
+  SmsLocationNodeMetadata
+} from '../../../../core/models/sms-location-node.model';
 import { NotificationService } from '../../../../services/ui/notification.service';
+import { isSmsTreeDraftNode, stripSmsLocalDraftFromMetadata } from '../../lib/location-tree-helpers';
 import { LocationService } from '../../services/location.service';
 import { resolveHierarchyContext } from './location-hierarchy-context';
 import { LocationFormActionsComponent } from './location-form-actions.component';
@@ -146,17 +150,33 @@ export class RegionFormComponent implements OnChanges {
   async save(): Promise<void> {
     if (this.form.invalid) return;
     const dto = regionFormRawValueToDTO(this.form.getRawValue() as RegionFormValue);
+    const nextMetadata = stripSmsLocalDraftFromMetadata({
+      ...(this.parentNode.metadata ?? {}),
+      ...(dto as unknown as SmsLocationNodeMetadata)
+    });
+    const wasDraft = isSmsTreeDraftNode(this.parentNode);
     this.location.lastError.set('Guardando región…');
     try {
-      await this.location.updateNode(this.parentNode.location_id, {
-        name: dto.name,
-        status: dto.status === 'ACTIVE' ? 'ACTIVE' : 'MAINTENANCE',
-        metadata: dto as unknown as Record<string, unknown>
-      });
+      if (wasDraft) {
+        await this.location.finalizeLocationNodeDraft(this.parentNode.location_id, {
+          name: dto.name,
+          status: dto.status === 'ACTIVE' ? 'ACTIVE' : 'MAINTENANCE',
+          metadata: nextMetadata
+        });
+      } else {
+        await this.location.updateNode(this.parentNode.location_id, {
+          name: dto.name,
+          status: dto.status === 'ACTIVE' ? 'ACTIVE' : 'MAINTENANCE',
+          metadata: nextMetadata
+        });
+      }
       this.location.lastError.set(null);
       this.lastResetValue = this.form.getRawValue() as RegionFormValue;
       this.form.markAsPristine();
-      this.notify.success('Región guardada', `Se actualizaron los datos de "${dto.name}".`);
+      this.notify.success(
+        wasDraft ? 'Región creada' : 'Región guardada',
+        wasDraft ? `"${dto.name}" quedó registrada en la jerarquía.` : `Se actualizaron los datos de "${dto.name}".`
+      );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error desconocido guardando región';
       this.location.lastError.set(msg);

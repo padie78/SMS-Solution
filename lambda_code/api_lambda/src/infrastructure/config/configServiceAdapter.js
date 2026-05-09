@@ -23,9 +23,11 @@ export class ConfigServiceAdapter {
    */
   async getNode(orgId, sk) {
     try {
+      const pk = tenantPartitionPk(orgId);
+      if (!pk || !sk) return null;
       const res = await docClient.send(new GetCommand({
         TableName: TABLE_NAME,
-        Key: { PK: `ORG#${orgId}`, SK: sk }
+        Key: { PK: pk, SK: sk }
       }));
       return res.Item;
     } catch (error) {

@@ -24,6 +24,7 @@ import type {
   SmsNodeStatus
 } from '../../../../core/models/sms-location-node.model';
 import { LocationService } from '../../services/location.service';
+import { isSmsTreeDraftNode, stripSmsLocalDraftFromMetadata } from '../../lib/location-tree-helpers';
 import { NotificationService } from '../../../../services/ui/notification.service';
 import { resolveHierarchyContext } from './location-hierarchy-context';
 import { LocationFormActionsComponent } from './location-form-actions.component';
@@ -209,25 +210,37 @@ export class MeterFormComponent implements OnChanges {
     const ccIds = this.selectedCostCenterIds();
 
     const nextCustom = writeNodeCostCenterIdsCustom(this.parentNode.metadata?.custom, ccIds);
-    const nextMetadata: SmsLocationNodeMetadata = {
+    const nextMetadata = stripSmsLocalDraftFromMetadata({
       ...(this.parentNode.metadata ?? {}),
       ...(dto as unknown as SmsLocationNodeMetadata),
       custom: nextCustom
-    };
+    });
 
+    const wasDraft = isSmsTreeDraftNode(this.parentNode);
     this.location.lastError.set('Guardando medidor…');
     try {
-      await this.location.updateNode(this.parentNode.location_id, {
-        name: dto.name,
-        status: meterOperationalStatusToSmsNodeStatus(dto.status),
-        metadata: nextMetadata
-      });
+      if (wasDraft) {
+        await this.location.finalizeLocationNodeDraft(this.parentNode.location_id, {
+          name: dto.name,
+          status: meterOperationalStatusToSmsNodeStatus(dto.status),
+          metadata: nextMetadata
+        });
+      } else {
+        await this.location.updateNode(this.parentNode.location_id, {
+          name: dto.name,
+          status: meterOperationalStatusToSmsNodeStatus(dto.status),
+          metadata: nextMetadata
+        });
+      }
       this.location.lastError.set(null);
       this.dto.emit(dto);
       this.costCentersSelected.emit(ccIds);
       this.lastResetValue = this.form.getRawValue() as MeterFormValue;
       this.form.markAsPristine();
-      this.notify.success('Medidor guardado', `Se actualizaron los datos de "${dto.name}".`);
+      this.notify.success(
+        wasDraft ? 'Medidor creado' : 'Medidor guardado',
+        wasDraft ? `"${dto.name}" quedó registrado en la jerarquía.` : `Se actualizaron los datos de "${dto.name}".`
+      );
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Error desconocido guardando medidor';
       this.location.lastError.set(msg);
