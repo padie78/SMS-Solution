@@ -16,7 +16,10 @@ import { InputTextModule } from 'primeng/inputtext';
 import { InputTextareaModule } from 'primeng/inputtextarea';
 import type { CostCenterDTO, OrganizationDTO } from '@sms/common';
 import type { SmsLocationNode, SmsLocationNodeMetadata } from '../../../../core/models/sms-location-node.model';
-import { ORG_COST_CENTERS_CUSTOM_KEY } from '../../../../services/state/organization-cost-center-registry.service';
+import {
+  ORG_COST_CENTERS_CUSTOM_KEY,
+  parseOrganizationCostCentersFromMetadata
+} from '../../../../services/state/organization-cost-center-registry.service';
 import { NotificationService } from '../../../../services/ui/notification.service';
 import { isSmsTreeDraftNode, stripSmsLocalDraftFromMetadata } from '../../lib/location-tree-helpers';
 import { LocationService } from '../../services/location.service';
@@ -98,7 +101,7 @@ export class OrganizationFormComponent implements OnChanges {
       hydrateOrganizationFormFromPartial(this.form, meta, orgId);
     }
 
-    this.costCentersState.set(this.readCostCentersFromMetadata(this.parentNode.metadata));
+    this.costCentersState.set(parseOrganizationCostCentersFromMetadata(this.parentNode.metadata));
 
     this.form.controls.orgId.disable({ emitEvent: false });
     this.lastResetValue = this.form.getRawValue() as OrganizationFormValue;
@@ -170,15 +173,16 @@ export class OrganizationFormComponent implements OnChanges {
 
     const previousCustom =
       (this.parentNode.metadata?.custom ?? null) as Record<string, string> | null;
-    const nextCustom: Record<string, string> = {
-      ...(previousCustom ?? {}),
-      [ORG_COST_CENTERS_CUSTOM_KEY]: JSON.stringify(costCenters)
-    };
+    const nextCustomRecord: Record<string, string> = { ...(previousCustom ?? {}) };
+    delete nextCustomRecord[ORG_COST_CENTERS_CUSTOM_KEY];
+    const nextCustom =
+      Object.keys(nextCustomRecord).length > 0 ? nextCustomRecord : null;
 
     const nextMetadata = stripSmsLocalDraftFromMetadata({
       ...(this.parentNode.metadata ?? {}),
       ...(dto as unknown as SmsLocationNodeMetadata),
-      custom: nextCustom
+      custom: nextCustom,
+      costCenters
     });
 
     const wasDraft = isSmsTreeDraftNode(this.parentNode);
@@ -209,25 +213,5 @@ export class OrganizationFormComponent implements OnChanges {
       this.location.lastError.set(msg);
       this.notify.error('No se pudo guardar la organización', msg);
     }
-  }
-
-  private readCostCentersFromMetadata(meta: SmsLocationNodeMetadata | undefined): CostCenterDTO[] {
-    if (!meta || typeof meta !== 'object') return [];
-
-    // Formato canónico: serializado en `metadata.custom['costCenters']` (Record<string,string>).
-    const customRaw = (meta.custom ?? null) as Record<string, string> | null;
-    const serialized = customRaw?.[ORG_COST_CENTERS_CUSTOM_KEY];
-    if (typeof serialized === 'string' && serialized.length > 0) {
-      try {
-        const parsed = JSON.parse(serialized) as unknown;
-        if (Array.isArray(parsed)) return parsed as CostCenterDTO[];
-      } catch {
-        // Si está corrupto, caemos al formato legacy.
-      }
-    }
-
-    // Compat: implementaciones previas guardaban `metadata.costCenters` como array directo.
-    const legacy = (meta as unknown as { costCenters?: unknown }).costCenters;
-    return Array.isArray(legacy) ? (legacy as CostCenterDTO[]) : [];
   }
 }

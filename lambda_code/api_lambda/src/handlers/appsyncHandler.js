@@ -1,7 +1,7 @@
 import { ConfigError, ValidationError } from "../domain/errors.js";
 import {
   normalizeAppSyncLambdaEvent,
-  resolveTrustedTenantId,
+  resolvePartitionContextFromEvent,
 } from "./appsyncEvent.util.js";
 
 /**
@@ -10,56 +10,58 @@ import {
  */
 export function buildAppSyncHandler(deps) {
   return async (event) => {
-    // 1. Normalización del evento (soporta diferentes versiones de AppSync)
     const ev = normalizeAppSyncLambdaEvent(event);
-    
+
     const requestId =
       ev?.requestContext?.requestId || event?.requestContext?.requestId || "internal";
 
-    // 2. Identificación del método (Mutation/Query de GraphQL)
     const methodName =
       ev?.info?.fieldName || event?.fieldName || ev?.methodName || "unknown";
 
-    // 3. Resolución de Identidad (Multi-tenancy seguro)
-    // Extrae el tenantId desde $context.identity.claims o $context.identity.sub
-    const tenantId = resolveTrustedTenantId(ev);
+    /** Multi-tenant: PK derivado de Cognito; nunca desde args de GraphQL. */
+    let partitionContext;
+    try {
+      partitionContext = resolvePartitionContextFromEvent(ev);
+    } catch (ctxErr) {
+      if (ctxErr instanceof ValidationError) {
+        return {
+          success: false,
+          message: ctxErr.message,
+          id: null,
+          path: null,
+          entity: null,
+        };
+      }
+      throw ctxErr;
+    }
 
-    /** 
-     * El orgId es nuestro scope principal en DynamoDB (PK: ORG#uuid)
-     * Usamos el tenantId resuelto de Cognito para garantizar aislamiento.
-     */
-    const orgId = tenantId;
-
-    // 4. Extracción de Argumentos
     const args = ev?.arguments ?? event?.arguments ?? {};
 
-    console.log(`[RESOLVER][START] Method: ${methodName} | Org: ${orgId} | Request: ${requestId}`);
+    console.log(
+      `[RESOLVER][START] Method: ${methodName} | tenantId=${partitionContext.tenantId} | orgScope=${partitionContext.organizationScopeId} | Request: ${requestId}`
+    );
 
     try {
-      // 5. Delegación al Orquestador (Usecase / HandleAppSyncRequest)
       const result = await deps.useCase.execute({
         requestId,
         methodName,
-        orgId,         // Identificador de la organización
-        tenantId,      // Alias para consistencia
-        holdingId: orgId,
-        args,          // Contiene el 'input' y otros argumentos de la query
+        partitionContext,
+        args,
       });
 
       console.log(`[RESOLVER][SUCCESS] Method: ${methodName}`);
       return result;
-
     } catch (error) {
-      // 6. Manejo de Errores Centralizado
       const msg = error?.message ? String(error.message) : "Unknown error";
       console.error(`[RESOLVER][FATAL ERROR] Method: ${methodName} | Message: ${msg}`);
 
-      // Mapeo de errores de dominio a respuestas de AppSync
       if (error instanceof ValidationError) {
-        return { 
-            success: false, 
-            message: `Validación fallida: ${msg}`,
-            errorType: "BadRequest"
+        return {
+          success: false,
+          message: `Validación fallida: ${msg}`,
+          id: null,
+          path: null,
+          entity: null,
         };
       }
 
@@ -67,15 +69,18 @@ export function buildAppSyncHandler(deps) {
         return {
           success: false,
           message: "Error de configuración interna del servidor.",
-          errorType: "InternalConfigError"
+          id: null,
+          path: null,
+          entity: null,
         };
       }
 
-      // Error genérico para no exponer detalles internos en producción
-      return { 
-          success: false, 
-          message: "Ocurrió un error inesperado en el procesamiento.",
-          errorType: "InternalError" 
+      return {
+        success: false,
+        message: "Ocurrió un error inesperado en el procesamiento.",
+        id: null,
+        path: null,
+        entity: null,
       };
     }
   };

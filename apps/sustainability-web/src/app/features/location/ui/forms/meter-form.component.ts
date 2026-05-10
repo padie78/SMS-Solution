@@ -32,9 +32,9 @@ import { NodeCostCenterMultiPickerComponent } from './node-cost-center-multi-pic
 import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
 import { UiInputSwitchComponent } from '../../../../ui/atoms/ui-input-switch/ui-input-switch.component';
 import {
+  patchNodeCostCenterIdsOnMetadata,
   readNodeCostCenterIds,
-  sanitizeIds,
-  writeNodeCostCenterIdsCustom
+  sanitizeIds
 } from './node-cost-center-metadata.util';
 import {
   METER_FIELD_GRID_CLASS,
@@ -88,7 +88,7 @@ export class MeterFormComponent implements OnChanges {
 
   readonly ctx = computed(() => resolveHierarchyContext(this.parentNode));
   readonly preview = signal(false);
-  /** Lista de Cost Centers asignados (multi). Se persiste en `metadata.custom.costCenterIds`. */
+  /** Lista de Cost Centers asignados (multi). Se persiste en `metadata.costCenterIds`. */
   readonly selectedCostCenterIds = signal<string[]>([]);
   /** Mantiene en signal el orgId resuelto vía ctx jerárquico para alimentar el picker. */
   readonly organizationIdForCC = signal<string>('');
@@ -209,11 +209,11 @@ export class MeterFormComponent implements OnChanges {
     const dto = meterFormRawValueToDTO(this.form.getRawValue() as MeterFormValue);
     const ccIds = this.selectedCostCenterIds();
 
-    const nextCustom = writeNodeCostCenterIdsCustom(this.parentNode.metadata?.custom, ccIds);
+    const ccPatch = patchNodeCostCenterIdsOnMetadata(this.parentNode.metadata, ccIds);
     const nextMetadata = stripSmsLocalDraftFromMetadata({
       ...(this.parentNode.metadata ?? {}),
       ...(dto as unknown as SmsLocationNodeMetadata),
-      custom: nextCustom
+      ...ccPatch
     });
 
     const wasDraft = isSmsTreeDraftNode(this.parentNode);

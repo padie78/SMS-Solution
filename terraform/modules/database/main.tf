@@ -2,7 +2,8 @@ resource "aws_dynamodb_table" "emissions_table" {
   name         = "${var.project_name}-${var.environment}-emissions"
   billing_mode = var.billing_mode
 
-  # PK: Siempre será "ORG#<UUID>"
+  # PK (single-table): preferir convención multi-tenant `TENANT#<tenant>#ORG#<orgScope>` (Lambda).
+  # Datos legacy pueden seguir usando ORG#<uuid> hasta migración.
   hash_key = "PK"
   # SK: Será "INV#..." para facturas o "STATS#..." para totales
   range_key = "SK"

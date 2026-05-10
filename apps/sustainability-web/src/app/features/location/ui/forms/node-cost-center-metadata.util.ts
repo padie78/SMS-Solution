@@ -1,8 +1,8 @@
 import type { SmsLocationNodeMetadata } from '../../../../core/models/sms-location-node.model';
 
 /**
- * Clave canónica para la lista multi de Cost Centers asignados a un nodo
- * (Branch / Building / Asset / Meter), persistida en `metadata.custom`.
+ * Legacy: IDs serializados en `metadata.custom['costCenterIds']` (string JSON).
+ * Canónico: `metadata.costCenterIds` (array nativo).
  */
 export const NODE_COST_CENTER_IDS_CUSTOM_KEY = 'costCenterIds' as const;
 
@@ -11,13 +11,17 @@ export const NODE_COST_CENTER_ID_LEGACY_CUSTOM_KEY = 'costCenterId' as const;
 
 /**
  * Lee los IDs de Cost Center asignados al nodo desde su metadata.
- * Estrategia de fallback (de canónico a legacy):
- *   1. `metadata.custom['costCenterIds']` como JSON string array.
- *   2. `metadata.custom['costCenterId']` (single asignación previa).
- *   3. `metadata.costCenterId` (DTO legacy embebido en metadata raíz).
+ * Orden: `metadata.costCenterIds` (nativo) → custom JSON string → legados.
  */
 export function readNodeCostCenterIds(meta: SmsLocationNodeMetadata | undefined): string[] {
   if (!meta || typeof meta !== 'object') return [];
+
+  const top = (meta as { costCenterIds?: unknown }).costCenterIds;
+  if (Array.isArray(top)) {
+    return top
+      .map((v) => (typeof v === 'string' ? v.trim() : ''))
+      .filter((v) => v.length > 0);
+  }
 
   const custom = (meta.custom ?? null) as Record<string, string> | null;
 
@@ -49,13 +53,26 @@ export function readNodeCostCenterIds(meta: SmsLocationNodeMetadata | undefined)
 }
 
 /**
- * Devuelve un `Record<string, string>` listo para asignarse a `metadata.custom`,
- * con los IDs del nodo serializados de forma canónica y limpiando claves legacy.
- *
- * - Si `ids` está vacío → elimina `costCenterIds` y `costCenterId` legacy del custom.
- * - Si `ids` tiene contenido → escribe `costCenterIds` (JSON) y limpia `costCenterId` legacy.
- *
- * Mantiene cualquier otra clave ad-hoc previa intacta.
+ * Persistencia canónica: escribe `metadata.costCenterIds` como array y elimina las claves
+ * legacy en `custom` que guardaban el mismo dato como string JSON.
+ */
+export function patchNodeCostCenterIdsOnMetadata(
+  previousMeta: SmsLocationNodeMetadata | undefined,
+  ids: readonly string[]
+): Pick<SmsLocationNodeMetadata, 'custom' | 'costCenterIds'> {
+  const cleaned = sanitizeIds(ids);
+  const previousCustom = (previousMeta?.custom ?? null) as Record<string, string> | null;
+  const nextCustom: Record<string, string> = { ...(previousCustom ?? {}) };
+  delete nextCustom[NODE_COST_CENTER_IDS_CUSTOM_KEY];
+  delete nextCustom[NODE_COST_CENTER_ID_LEGACY_CUSTOM_KEY];
+  return {
+    costCenterIds: cleaned,
+    custom: Object.keys(nextCustom).length > 0 ? nextCustom : null
+  };
+}
+
+/**
+ * @deprecated Usar `patchNodeCostCenterIdsOnMetadata` (array nativo en `metadata.costCenterIds`).
  */
 export function writeNodeCostCenterIdsCustom(
   previous: SmsLocationNodeMetadata['custom'] | undefined,

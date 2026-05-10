@@ -1,3 +1,4 @@
+import type { CostCenterDTO, TariffDTO } from '@sms/common';
 import type { TreeNode } from 'primeng/api';
 
 export type SmsLocationNodeType =
@@ -63,6 +64,10 @@ export interface SmsLocationNodeMetadata {
   buildingLongitude?: number | null;
   regionId?: string | null;
   branchOrganizationId?: string | null;
+  /** Branch / Building / Asset / Meter: IDs de centros de costo asignados (Dynamo: `L` de `S`). */
+  costCenterIds?: readonly string[] | null;
+  /** Tarifas/contratos energy ligados a la sucursal (Dynamo: `L` de mapas). */
+  tariffs?: readonly TariffDTO[] | null;
 
   /** CostCenterDTO */
   allocationMethod?: string | null;
@@ -95,6 +100,11 @@ export interface SmsLocationNodeMetadata {
   smsLocalDraft?: boolean | null;
   /** Ad-hoc properties to prototype without backend schema migrations. */
   custom?: Record<string, string> | null;
+  /**
+   * Catálogo de centros de costo definidos en la organización.
+   * Se persiste como **array nativo** en el objeto `metadata` (Dynamo: tipo `L`), no como JSON string en `custom`.
+   */
+  costCenters?: readonly CostCenterDTO[] | null;
 }
 
 /**

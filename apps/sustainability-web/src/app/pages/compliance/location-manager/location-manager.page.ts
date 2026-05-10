@@ -4,16 +4,28 @@ import { BreadcrumbModule } from 'primeng/breadcrumb';
 import type { MenuItem } from 'primeng/api';
 import { SplitterModule } from 'primeng/splitter';
 import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
-import type { CostCenterDTO } from '@sms/common';
+import type { CostCenterDTO, TariffDTO } from '@sms/common';
 import { LocationMasterTreeComponent } from '../../../ui/organisms/location-master-tree/location-master-tree.component';
 import { LocationDetailExplorerComponent } from '../../../ui/organisms/location-detail-explorer/location-detail-explorer.component';
 import { LocationService } from '../../../features/location/services/location.service';
 import type { SmsLocationNode } from '../../../core/models/sms-location-node.model';
 import { OrganizationCostCenterRegistryService } from '../../../services/state/organization-cost-center-registry.service';
 import { OrganizationCostCenterFormDialogComponent } from '../../../features/location/ui/forms/organization-cost-center-form-dialog.component';
+import { TariffFormDialogComponent } from '../../../features/location/ui/forms/tariff-form-dialog.component';
+import { resolveHierarchyContext } from '../../../features/location/ui/forms/location-hierarchy-context';
+import { isSmsTreeDraftNode } from '../../../features/location/lib/location-tree-helpers';
 import { NotificationService } from '../../../services/ui/notification.service';
 
 type QuickAction = 'openCostCenters' | 'openTariffs' | 'openAssetsInventory';
+
+const GRAPHQL_ROOT_PARENT_IDS = new Set(['', 'ROOT']);
+
+function smsNodeStableLocationId(node: SmsLocationNode): string {
+  const byField = typeof node.location_id === 'string' ? node.location_id.trim() : '';
+  if (byField) return byField;
+  const treeKey = (node as { key?: string }).key;
+  return typeof treeKey === 'string' ? treeKey.trim() : '';
+}
 
 @Component({
   selector: 'sms-location-manager-page',
@@ -146,25 +158,157 @@ export class LocationManagerPage implements OnInit {
 
   /**
    * Acciones rápidas del menú contextual del árbol.
-   * - `openCostCenters` (sólo Organization): abre el modal de Cost Center,
-   *   persiste el resultado vía registry y recarga el árbol para reflejarlo
-   *   en el badge KPI / formulario sin cambiar de pantalla.
+   * - `openCostCenters`: crea un Cost Center a nivel organización (desde org o desde
+   *   sucursal se resuelve la org por la jerarquía del árbol).
+   * - `openTariffs` (sucursal): modal de nueva tarifa y persistencia en `metadata.tariffs`.
    */
   onQuickAction(ev: { node: SmsLocationNode; action: QuickAction }): void {
     // Selecciono el nodo (el detail explorer también muestra el form correspondiente).
     this.location.selectedNode.set(ev.node);
 
     switch (ev.action) {
-      case 'openCostCenters':
-        if (ev.node.type === 'ORGANIZATION') {
-          this.openOrganizationCostCenterDialog(ev.node);
+      case 'openCostCenters': {
+        const orgNode =
+          ev.node.type === 'ORGANIZATION' ? ev.node : this.resolveOrganizationNode(ev.node);
+        if (orgNode) {
+          this.openOrganizationCostCenterDialog(orgNode);
+        } else {
+          this.notify.show(
+            'warn',
+            'Sin organización',
+            'No se pudo resolver la organización para abrir el centro de costo.'
+          );
         }
         break;
+      }
       case 'openTariffs':
+        if (ev.node.type === 'BRANCH') {
+          this.openBranchTariffCreateDialog(ev.node);
+        }
+        break;
       case 'openAssetsInventory':
-        // Reservadas para cuando agreguemos modales directos para Branch / Building.
         break;
     }
+  }
+
+  private findNodeByLocationId(nodes: readonly SmsLocationNode[], id: string): SmsLocationNode | null {
+    for (const n of nodes) {
+      if (n.location_id === id) return n;
+      const kids = n.children as SmsLocationNode[] | undefined;
+      if (kids?.length) {
+        const found = this.findNodeByLocationId(kids, id);
+        if (found) return found;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Resuelve el `location_id` de la organización: primero refs `parent` de PrimeNG,
+   * luego `metadata.organizationId` del DTO persistido y por último sube por `parent_id`
+   * en el modelo (útil cuando el árbol no enlazó `node.parent`).
+   */
+  private resolveOrganizationLocationId(from: SmsLocationNode): string | null {
+    const chain = resolveHierarchyContext(from).organizationId?.trim();
+    if (chain) return chain;
+
+    const metaOrg = from.metadata?.organizationId;
+    if (typeof metaOrg === 'string') {
+      const trimmed = metaOrg.trim();
+      if (trimmed) return trimmed;
+    }
+
+    const tree = this.location.tree();
+    const fromId = smsNodeStableLocationId(from);
+    let curId: string | undefined = fromId || undefined;
+
+    for (let depth = 0; depth < 40 && curId; depth++) {
+      const resolved = this.findNodeByLocationId(tree, curId);
+      const effective: SmsLocationNode | null = resolved ?? (curId === fromId ? from : null);
+      if (!effective) break;
+      if (effective.type === 'ORGANIZATION') return effective.location_id.trim();
+
+      const pid = typeof effective.parent_id === 'string' ? effective.parent_id.trim() : '';
+      if (!pid || GRAPHQL_ROOT_PARENT_IDS.has(pid)) break;
+      curId = pid;
+    }
+
+    /** Índice remoto (`getTree`): siempre contiene enlaces parentId incluso cuando el subtree visible no encuentra ancestors. */
+    return this.resolveOrganizationFromRemoteFlat(fromId);
+  }
+
+  private resolveOrganizationFromRemoteFlat(locationId: string): string | null {
+    const flat = this.location.remoteFlat();
+    let cur: string | undefined = locationId.trim() || undefined;
+    for (let d = 0; d < 40 && cur; d++) {
+      const row = flat.get(cur);
+      if (!row) break;
+      if (row.nodeType === 'ORGANIZATION') return row.id.trim();
+      const p = row.parentId;
+      const pid = typeof p === 'string' ? p.trim() : '';
+      if (!pid || GRAPHQL_ROOT_PARENT_IDS.has(pid)) break;
+      cur = pid;
+    }
+    return null;
+  }
+
+  private resolveOrganizationNode(from: SmsLocationNode): SmsLocationNode | null {
+    const orgId = this.resolveOrganizationLocationId(from);
+    if (!orgId) return null;
+    return this.findNodeByLocationId(this.location.tree(), orgId);
+  }
+
+  /** Modal de nueva tarifa (misma UX que la pestaña Tarifas del formulario de sucursal). */
+  private openBranchTariffCreateDialog(branchNode: SmsLocationNode): void {
+    if (isSmsTreeDraftNode(branchNode)) {
+      this.notify.show(
+        'warn',
+        'Sucursal pendiente',
+        'Guardá la sucursal en el panel derecho antes de registrar tarifas.'
+      );
+      return;
+    }
+    const orgId = (this.resolveOrganizationLocationId(branchNode) ?? '').trim();
+    const branchId = smsNodeStableLocationId(branchNode);
+    if (!orgId || !branchId) {
+      this.notify.error('No se puede abrir tarifas', 'Falta organización o ID de sucursal.');
+      return;
+    }
+
+    const ref = this.dialog.open(TariffFormDialogComponent, {
+      header: `Nueva tarifa · ${branchNode.name}`,
+      width: '85vw',
+      style: { 'max-width': '1100px' },
+      contentStyle: { padding: '1.5rem', overflow: 'auto', 'max-height': '85vh' },
+      modal: true,
+      dismissableMask: false,
+      closable: true,
+      styleClass: 'rounded-2xl',
+      data: { tariff: null, orgId, branchId }
+    });
+
+    ref.onClose.subscribe(async (result: TariffDTO | null | undefined) => {
+      if (!result) return;
+      try {
+        const meta = branchNode.metadata as { tariffs?: unknown } | Record<string, unknown> | undefined;
+        const prev = Array.isArray(meta?.tariffs)
+          ? ([...(meta.tariffs as TariffDTO[])])
+          : [];
+        const nextMeta = {
+          ...(branchNode.metadata ?? {}),
+          tariffs: [...prev, result]
+        };
+        await this.location.updateNode(branchId, {
+          metadata: nextMeta as NonNullable<SmsLocationNode['metadata']>
+        });
+        this.notify.success('Tarifa registrada', `Se agregó el contrato a "${branchNode.name}".`);
+        await this.reload();
+      } catch (e: unknown) {
+        const msg =
+          e instanceof Error ? e.message : 'No se pudo guardar la tarifa en la sucursal.';
+        this.notify.error('Error al guardar la tarifa', msg);
+      }
+    });
   }
 
   async reload(): Promise<void> {

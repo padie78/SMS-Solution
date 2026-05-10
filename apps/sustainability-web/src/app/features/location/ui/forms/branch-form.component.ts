@@ -28,9 +28,9 @@ import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip
 import { UiInputSwitchComponent } from '../../../../ui/atoms/ui-input-switch/ui-input-switch.component';
 import { NodeCostCenterMultiPickerComponent } from './node-cost-center-multi-picker.component';
 import {
+  patchNodeCostCenterIdsOnMetadata,
   readNodeCostCenterIds,
-  sanitizeIds,
-  writeNodeCostCenterIdsCustom
+  sanitizeIds
 } from './node-cost-center-metadata.util';
 import { BranchTariffTableComponent } from './branch-tariff-table.component';
 import {
@@ -98,7 +98,7 @@ export class BranchFormComponent implements OnChanges {
   /** Estado local de tarifas para que add/edit/delete se reflejen al instante en la grilla. */
   readonly tariffsState = signal<TariffDTO[]>([]);
 
-  /** Lista de Cost Centers asignados (multi). Se persiste en `metadata.custom.costCenterIds`. */
+  /** Lista de Cost Centers asignados (multi). Se persiste en `metadata.costCenterIds` (lista nativa). */
   readonly selectedCostCenterIds = signal<string[]>([]);
 
   private readonly location = inject(LocationService);
@@ -215,11 +215,12 @@ export class BranchFormComponent implements OnChanges {
     const dto = branchFormRawValueToDTO(this.form.getRawValue() as BranchFormValue);
     const ccIds = this.selectedCostCenterIds();
 
-    const nextCustom = writeNodeCostCenterIdsCustom(this.parentNode.metadata?.custom, ccIds);
+    const ccPatch = patchNodeCostCenterIdsOnMetadata(this.parentNode.metadata, ccIds);
     const nextMetadata = stripSmsLocalDraftFromMetadata({
       ...(this.parentNode.metadata ?? {}),
       ...(dto as unknown as SmsLocationNodeMetadata),
-      custom: nextCustom
+      ...ccPatch,
+      tariffs: this.tariffsState()
     });
 
     const wasDraft = isSmsTreeDraftNode(this.parentNode);

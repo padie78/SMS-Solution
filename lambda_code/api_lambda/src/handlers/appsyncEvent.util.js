@@ -1,3 +1,5 @@
+import { ValidationError } from "../domain/errors.js";
+
 /**
  * AppSync puede invocar la Lambda con el contexto completo o únicamente con el
  * JSON generado desde el mapping template (`holdingId`, `arguments`, `identity`, `info`).
@@ -34,35 +36,40 @@ export function normalizeAppSyncLambdaEvent(raw) {
 }
 
 /**
- * Tenant id de confianza: primero payload inyectado por AppSync (`holdingId`), luego claims.
+ * Contexto de partición Dynamo (multi-tenant). **No** tomar tenant desde argumentos GraphQL.
+ *
+ * - `tenantId`: obligatorio vía `identity.claims['custom:tenant_id']` (Cognito User Pools).
+ * - `organizationScopeId`: `custom:organization_id` o, si falta, el mismo valor que tenant
+ *   (tenant mono-organización).
+ *
+ * @throws {ValidationError} si falta `custom:tenant_id` (salvo ALLOW_ANON_TENANT_FALLBACK en dev)
+ * @returns {{ tenantId: string, organizationScopeId: string }}
  */
-export function resolveTrustedTenantId(event) {
+export function resolvePartitionContextFromEvent(event) {
   const claims = event?.identity?.claims ?? {};
-  const fromClaims =
-    (typeof claims["custom:holding_id"] === "string" && claims["custom:holding_id"]) ||
-    (typeof claims["custom:organization_id"] === "string" &&
-      claims["custom:organization_id"]) ||
-    (typeof claims["sub"] === "string" && claims["sub"]);
 
-  const injected =
-    typeof event?.holdingId === "string"
-      ? event.holdingId.trim()
-      : typeof event?.payload?.holdingId === "string"
-        ? event.payload.holdingId.trim()
-        : "";
+  const tenantId =
+    typeof claims["custom:tenant_id"] === "string" ? claims["custom:tenant_id"].trim() : "";
 
-  if (
-    injected &&
-    fromClaims &&
-    typeof claims["custom:organization_id"] === "string" &&
-    claims["custom:organization_id"] !== injected
-  ) {
-    console.warn(
-      "[SECURITY] holdingId JWT mismatch vs injected holdingId — using injector (AppSync)."
+  if (!tenantId) {
+    if (process.env.ALLOW_ANON_TENANT_FALLBACK === "true") {
+      const fb = (process.env.DEV_TENANT_ID || "").trim();
+      const org = (process.env.DEV_ORG_SCOPE_ID || fb).trim();
+      if (fb) {
+        return { tenantId: fb, organizationScopeId: org || fb };
+      }
+    }
+    throw new ValidationError(
+      "Multi-tenant: el token debe incluir el claim custom:tenant_id. No se admite tenant en argumentos de mutación."
     );
   }
 
-  const tenant = injected || fromClaims || "";
-  const devFallback = "f3d4f8a2-90c1-708c-a446-2c8592524d62";
-  return tenant || devFallback;
+  const organizationScopeIdRaw =
+    typeof claims["custom:organization_id"] === "string"
+      ? claims["custom:organization_id"].trim()
+      : "";
+
+  const organizationScopeId = organizationScopeIdRaw || tenantId;
+
+  return { tenantId, organizationScopeId };
 }

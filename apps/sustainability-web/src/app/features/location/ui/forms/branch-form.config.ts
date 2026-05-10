@@ -577,7 +577,7 @@ const BRANCH_FIELD_HELP: Partial<Record<keyof BranchFormValue, string>> = {
     'Se usa cuando un medidor no declara una tarifa propia.',
   costCenterId:
     'Centro de costo principal al que se imputa el gasto energético de la sucursal. ' +
-    'Es complementario a la asignación multi-CC vía metadata.custom.',
+    'Es complementario a la asignación multi-CC en metadata.costCenterIds.',
   annualEnergyBudget:
     'Presupuesto anual de energía (en moneda local). Se compara contra el gasto real ' +
     'para calcular budget burn y desvíos.',

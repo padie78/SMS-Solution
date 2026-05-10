@@ -334,7 +334,8 @@ function decorateTreeNodeBadgeData(nodes: SmsLocationNode[]): SmsLocationNode[] 
 
       <div class="flex-1 min-h-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-sm">
         <div class="h-full flex flex-column" *ngIf="(treeNodes?.length ?? 0) > 0; else emptyState">
-          @for (_epoch of [treeViewEpoch]; track _epoch) {
+          <!-- Remount explícito sin @for+track: así no dispara NG0956 (track que cambia borra el único ítem). -->
+          @if (pTreeMounted()) {
             <p-tree
               class="sms-tree h-full overflow-auto"
               [value]="treeNodes"
@@ -462,6 +463,9 @@ export class LocationMasterTreeComponent implements OnChanges {
   /** Se incrementa en el store al recargar o dar de alta; destruye y recrea el `p-tree` (lazy suele ignorar cambios en `[value]`). */
   @Input({ required: true }) treeViewEpoch = 0;
 
+  /** Desmontaje/monte del `p-tree` al subir la época, sin usar `@for`+`track` (evita NG0956). */
+  readonly pTreeMounted = signal(true);
+
   @Input() loading = false;
 
   @Output() selected = new EventEmitter<SmsLocationNode>();
@@ -481,6 +485,22 @@ export class LocationMasterTreeComponent implements OnChanges {
   selection: TreeNode | null = null;
 
   ngOnChanges(changes: SimpleChanges): void {
+    const epochCh = changes['treeViewEpoch'];
+    const epochBumped =
+      !!epochCh &&
+      epochCh.previousValue !== epochCh.currentValue &&
+      epochCh.previousValue !== undefined;
+
+    if (epochBumped) {
+      this.pTreeMounted.set(false);
+      queueMicrotask(() => {
+        this.pTreeMounted.set(true);
+        this.syncSelectionWithStore();
+        this.cdr.markForCheck();
+      });
+      return;
+    }
+
     if (!changes['nodes'] && !changes['treeViewEpoch']) return;
     queueMicrotask(() => this.syncSelectionWithStore());
   }
@@ -611,10 +631,21 @@ export class LocationMasterTreeComponent implements OnChanges {
           ];
         case 'BRANCH':
           return [
-            { label: 'Tarifas energéticas', icon: 'pi pi-bolt', command: () => this.selected.emit(target) },
             {
-              label: 'Centros de costo asignados',
+              label: 'Tarifas energéticas',
+              icon: 'pi pi-bolt',
+              command: () =>
+                void this.quickAction.emit({ node: target, action: 'openTariffs' })
+            },
+            {
+              label: 'Nuevo centro de costo…',
               icon: 'pi pi-wallet',
+              command: () =>
+                void this.quickAction.emit({ node: target, action: 'openCostCenters' })
+            },
+            {
+              label: 'Abrir detalle sucursal',
+              icon: 'pi pi-folder-open',
               command: () => this.selected.emit(target)
             }
           ];

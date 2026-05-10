@@ -8,7 +8,10 @@ import {
   DeleteCommand
 } from "@aws-sdk/lib-dynamodb";
 import { randomUUID } from "crypto";
-import { tenantPartitionPk } from "../dynamodb/tenantPartitionPk.js";
+import {
+  buildTenantOrgPartitionKey,
+  normalizeParentIdPointer
+} from "../dynamodb/tenantPartitionPk.js";
 import { appendSegmentToLocationPath, normalizeSegmentId } from "../dynamodb/nodePathModel.js";
 
 const client = new DynamoDBClient({});
@@ -16,14 +19,20 @@ const docClient = DynamoDBDocumentClient.from(client);
 const TABLE_NAME =
   process.env.DYNAMO_TABLE || process.env.DATABASE_NAME || "sms-platform-dev-emissions";
 
+/** @typedef {{ tenantId: string, organizationScopeId: string }} PartitionContext */
+
+function buildPk(ctx) {
+  return buildTenantOrgPartitionKey(ctx.tenantId, ctx.organizationScopeId);
+}
+
 export class ConfigServiceAdapter {
-  
   /**
-   * Obtiene un nodo por su PK y SK
+   * Obtiene un nodo por PK (tenant+org) y SK
+   * @param {PartitionContext} ctx
    */
-  async getNode(orgId, sk) {
+  async getNode(ctx, sk) {
     try {
-      const pk = tenantPartitionPk(orgId);
+      const pk = buildPk(ctx);
       if (!pk || !sk) return null;
       const res = await docClient.send(
         new GetCommand({
@@ -40,19 +49,21 @@ export class ConfigServiceAdapter {
   }
 
   /**
-   * Crea o reemplaza un nodo (Polimórfico)
+   * Crea un nodo (Put condicional — no sobreescribe si ya existe el par PK+SK).
+   * @param {PartitionContext} ctx
    */
-  async saveNode(orgId, input) {
+  async saveNode(ctx, input) {
     const timestamp = new Date().toISOString();
     const { id, parentId, nodeType, name, metadata = {} } = input;
 
-    const cleanId = id ? normalizeSegmentId(id) : randomUUID().split('-')[0].toUpperCase();
+    const cleanId = id ? normalizeSegmentId(id) : randomUUID().split("-")[0].toUpperCase();
     const sk = `${nodeType}#${cleanId}`;
 
-    // Resolución de PATH
+    const parentPointer = normalizeParentIdPointer(parentId);
+
     let finalPath = appendSegmentToLocationPath(undefined, cleanId);
-    if (parentId && parentId !== "ROOT") {
-      const parentNode = await this.getNode(orgId, parentId);
+    if (parentPointer && parentPointer !== "ROOT") {
+      const parentNode = await this.getNode(ctx, parentPointer);
       if (parentNode?.path) {
         finalPath = appendSegmentToLocationPath(parentNode.path, cleanId);
       }
@@ -70,33 +81,58 @@ export class ConfigServiceAdapter {
       metaObj = {};
     }
 
-    const pk = tenantPartitionPk(orgId);
+    const pk = buildPk(ctx);
+    if (!pk) {
+      return { success: false, message: "PK inválida: revisa tenant u organización en claims", item: null };
+    }
+
+    const nodeTypeStr = String(nodeType);
+
     const item = {
       PK: pk,
       SK: sk,
       holdingId: pk,
       path: finalPath,
-      nodeType,
+      nodeType: nodeTypeStr,
+      /** Tipo de entidad de negocio (mismo valor que nodeType; atributo explícito String en Dynamo). */
+      entityType: nodeTypeStr,
       name,
-      parentId: parentId || "ROOT",
+      parentId: parentPointer === "ROOT" ? "ROOT" : parentPointer,
       metadata: metaObj,
       last_updated: timestamp,
       entity_type: "NODE_CONFIG"
     };
 
-    await docClient.send(new PutCommand({ TableName: TABLE_NAME, Item: item }));
+    try {
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: item,
+          ConditionExpression: "attribute_not_exists(PK) AND attribute_not_exists(SK)"
+        })
+      );
+    } catch (error) {
+      if (error.name === "ConditionalCheckFailedException") {
+        return {
+          success: false,
+          message: `Ya existe un nodo con SK=${sk} en esta partición (duplicado de ID).`,
+          item: null
+        };
+      }
+      console.error("Error en saveNode Put:", error);
+      return { success: false, message: error.message, item: null };
+    }
+
     return { success: true, id: sk, path: finalPath, item };
   }
 
   /**
-   * UPDATE GENÉRICO
-   * Corregido: Se eliminó el casteo de tipo 'as const' y 'params: any'
+   * @param {PartitionContext} ctx
    */
-  async updateNode(orgId, sk, updateData) {
-    const pk = tenantPartitionPk(orgId);
+  async updateNode(ctx, sk, updateData) {
+    const pk = buildPk(ctx);
     const timestamp = new Date().toISOString();
-    
-    // Filtramos campos undefined y preparamos la actualización
+
     const entries = Object.entries(updateData).filter(([_, v]) => v !== undefined);
     if (entries.length === 0) return { success: false, message: "No fields to update" };
 
@@ -111,7 +147,7 @@ export class ConfigServiceAdapter {
       ExpressionAttributeNames: expressionAttributeNames,
       ExpressionAttributeValues: expressionAttributeValues,
       ReturnValues: "ALL_NEW",
-      ConditionExpression: "attribute_exists(PK)"
+      ConditionExpression: "attribute_exists(PK) AND attribute_exists(SK)"
     };
 
     try {
@@ -124,19 +160,17 @@ export class ConfigServiceAdapter {
   }
 
   /**
-   * Elimina un nodo específico.
-   * @param {string} orgId 
-   * @param {string} sk 
+   * @param {PartitionContext} ctx
    */
-  async deleteNode(orgId, sk) {
-    const pk = tenantPartitionPk(orgId);
+  async deleteNode(ctx, sk) {
+    const pk = buildPk(ctx);
     const params = {
       TableName: TABLE_NAME,
       Key: {
         PK: pk,
         SK: sk
       },
-      ConditionExpression: "attribute_exists(PK)" // Solo borra si existe
+      ConditionExpression: "attribute_exists(PK) AND attribute_exists(SK)"
     };
 
     try {
@@ -152,10 +186,10 @@ export class ConfigServiceAdapter {
   }
 
   /**
-   * Listar nodos (Jerarquía funcional)
+   * @param {PartitionContext} ctx
    */
-  async listNodes(orgId, filter) {
-    const pk = tenantPartitionPk(orgId);
+  async listNodes(ctx, filter) {
+    const pk = buildPk(ctx);
     const holdingKey = pk;
     const { underPath, nodeType } = filter || {};
     const entityFilter = "entity_type = :et";
@@ -190,7 +224,6 @@ export class ConfigServiceAdapter {
               ":pk": pk
             },
             FilterExpression: entityFilter,
-            // Tras saveNode + getTree(null) inmediato el read eventual puede omitir el ítem recién Put.
             ConsistentRead: true
           })
         );

@@ -3,23 +3,19 @@ import type { CostCenterDTO } from '@sms/common';
 import type { SmsLocationNode, SmsLocationNodeMetadata } from '../../core/models/sms-location-node.model';
 import { LocationService } from '../../features/location/services/location.service';
 
-/**
- * Clave estable para serializar la lista de Cost Centers dentro de
- * `SmsLocationNodeMetadata.custom` (fuente de verdad alimentada por
- * `OrganizationFormComponent` en la pestaña "Centros de Costo").
- */
+/** Clave legacy: lista serializada en `metadata.custom['costCenters']` (string JSON). */
 export const ORG_COST_CENTERS_CUSTOM_KEY = 'costCenters' as const;
 
 /**
  * L2 State service: Registro centralizado de Cost Centers indexado por organización.
  * Consume el árbol de `LocationService` (Single Source of Truth para estructura)
- * y expone los CCs persistidos en el nodo Organization (`metadata.custom['costCenters']` JSON).
+ * y expone los CCs persistidos en el nodo Organization (`metadata.costCenters` como lista).
  *
  * Uso:
  *   const list = registry.costCentersFor(orgId);
  *   const cc = registry.findById(orgId, ccId);
  *
- * Mantiene compat con datos legacy (`metadata.costCenters` como array directo).
+ * Compat: lectura si el registro histórico guardaba la lista en `custom` como string JSON.
  */
 @Injectable({ providedIn: 'root' })
 export class OrganizationCostCenterRegistryService {
@@ -37,7 +33,7 @@ export class OrganizationCostCenterRegistryService {
     if (!id) return [];
     const node = this.findOrganizationNode(id);
     if (!node) return [];
-    return parseCostCentersFromMetadata(node.metadata);
+    return parseOrganizationCostCentersFromMetadata(node.metadata);
   }
 
   /** Helper para encontrar un Cost Center concreto dentro de la organización. */
@@ -66,7 +62,7 @@ export class OrganizationCostCenterRegistryService {
    *
    * Único punto de escritura compartido entre el formulario de organización
    * y atajos como el menú contextual del árbol. Mantiene la convención
-   * `metadata.custom['costCenters']` (JSON) intacta.
+   * `metadata.costCenters` (array) y limpiando la clave legacy en custom.
    */
   async addCostCenter(orgId: string, dto: CostCenterDTO): Promise<void> {
     const id = (orgId ?? '').trim();
@@ -74,19 +70,14 @@ export class OrganizationCostCenterRegistryService {
     const node = this.findOrganizationNode(id);
     if (!node) throw new Error(`Organización ${id} no encontrada en el árbol.`);
 
-    const current = parseCostCentersFromMetadata(node.metadata);
+    const current = parseOrganizationCostCentersFromMetadata(node.metadata);
     const idx = current.findIndex((c) => c.id === dto.id);
     const next = idx >= 0 ? current.map((c, i) => (i === idx ? dto : c)) : [...current, dto];
 
-    const previousCustom = (node.metadata?.custom ?? null) as Record<string, string> | null;
-    const nextCustom: Record<string, string> = {
-      ...(previousCustom ?? {}),
-      [ORG_COST_CENTERS_CUSTOM_KEY]: JSON.stringify(next)
-    };
-
+    const { metaWithoutLegacyCustomCc } = stripLegacyCostCentersStringFromCustom(node.metadata ?? {});
     const nextMetadata: SmsLocationNodeMetadata = {
-      ...(node.metadata ?? {}),
-      custom: nextCustom
+      ...metaWithoutLegacyCustomCc,
+      costCenters: next
     };
 
     await this.location.updateNode(id, { metadata: nextMetadata });
@@ -100,18 +91,14 @@ export class OrganizationCostCenterRegistryService {
     const node = this.findOrganizationNode(id);
     if (!node) return;
 
-    const current = parseCostCentersFromMetadata(node.metadata);
+    const current = parseOrganizationCostCentersFromMetadata(node.metadata);
     if (!current.some((c) => c.id === ccId)) return;
 
     const next = current.filter((c) => c.id !== ccId);
-    const previousCustom = (node.metadata?.custom ?? null) as Record<string, string> | null;
-    const nextCustom: Record<string, string> = {
-      ...(previousCustom ?? {}),
-      [ORG_COST_CENTERS_CUSTOM_KEY]: JSON.stringify(next)
-    };
+    const { metaWithoutLegacyCustomCc } = stripLegacyCostCentersStringFromCustom(node.metadata ?? {});
     const nextMetadata: SmsLocationNodeMetadata = {
-      ...(node.metadata ?? {}),
-      custom: nextCustom
+      ...metaWithoutLegacyCustomCc,
+      costCenters: next
     };
     await this.location.updateNode(id, { metadata: nextMetadata });
   }
@@ -132,11 +119,18 @@ export class OrganizationCostCenterRegistryService {
 
 /**
  * Parsea la lista de Cost Centers de la metadata de un nodo Organization.
- * - Formato canónico: `metadata.custom['costCenters']` (JSON string).
- * - Compat legacy: `metadata.costCenters` como array directo.
+ * - **Canónico:** `metadata.costCenters` como array (Dynamo tipo `L`).
+ * - Compat: `metadata.custom['costCenters']` como string JSON (historial).
  */
-function parseCostCentersFromMetadata(meta: SmsLocationNodeMetadata | undefined): CostCenterDTO[] {
+export function parseOrganizationCostCentersFromMetadata(
+  meta: SmsLocationNodeMetadata | undefined
+): CostCenterDTO[] {
   if (!meta || typeof meta !== 'object') return [];
+
+  const rawTop = (meta as { costCenters?: unknown }).costCenters;
+  if (Array.isArray(rawTop)) {
+    return rawTop as CostCenterDTO[];
+  }
 
   const customRaw = (meta.custom ?? null) as Record<string, string> | null;
   const serialized = customRaw?.[ORG_COST_CENTERS_CUSTOM_KEY];
@@ -145,10 +139,28 @@ function parseCostCentersFromMetadata(meta: SmsLocationNodeMetadata | undefined)
       const parsed = JSON.parse(serialized) as unknown;
       if (Array.isArray(parsed)) return parsed as CostCenterDTO[];
     } catch {
-      // fall through al legacy
+      // fall through
     }
   }
 
-  const legacy = (meta as unknown as { costCenters?: unknown }).costCenters;
-  return Array.isArray(legacy) ? (legacy as CostCenterDTO[]) : [];
+  return [];
+}
+
+/**
+ * Quita la clave legacy `custom.costCenters` (string) sin tocar el resto de `custom`.
+ */
+function stripLegacyCostCentersStringFromCustom(meta: SmsLocationNodeMetadata): {
+  metaWithoutLegacyCustomCc: SmsLocationNodeMetadata;
+} {
+  const previousCustom = (meta.custom ?? null) as Record<string, string> | null;
+  if (!previousCustom || !(ORG_COST_CENTERS_CUSTOM_KEY in previousCustom)) {
+    return { metaWithoutLegacyCustomCc: { ...meta } };
+  }
+  const { [ORG_COST_CENTERS_CUSTOM_KEY]: _drop, ...rest } = previousCustom;
+  return {
+    metaWithoutLegacyCustomCc: {
+      ...meta,
+      custom: Object.keys(rest).length > 0 ? rest : null
+    }
+  };
 }

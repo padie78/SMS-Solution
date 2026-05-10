@@ -31,9 +31,9 @@ import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip
 import { UiInputSwitchComponent } from '../../../../ui/atoms/ui-input-switch/ui-input-switch.component';
 import { NodeCostCenterMultiPickerComponent } from './node-cost-center-multi-picker.component';
 import {
+  patchNodeCostCenterIdsOnMetadata,
   readNodeCostCenterIds,
-  sanitizeIds,
-  writeNodeCostCenterIdsCustom
+  sanitizeIds
 } from './node-cost-center-metadata.util';
 import { resolveHierarchyContext } from './location-hierarchy-context';
 import {
@@ -89,7 +89,7 @@ export class AssetFormComponent implements OnChanges {
   readonly tabs: ReadonlyArray<AssetFormTabDef> = ASSET_FORM_TABS;
   readonly activeTabId = signal<string>(ASSET_FORM_TABS[0]?.id ?? 'general');
 
-  /** Lista de Cost Centers asignados (multi). Se persiste en `metadata.custom.costCenterIds`. */
+  /** Lista de Cost Centers asignados (multi). Se persiste en `metadata.costCenterIds`. */
   readonly selectedCostCenterIds = signal<string[]>([]);
 
   private readonly location = inject(LocationService);
@@ -142,7 +142,7 @@ export class AssetFormComponent implements OnChanges {
     this.form.controls.buildingId.disable({ emitEvent: false });
     this.form.controls.id.disable({ emitEvent: false });
 
-    // Multi-asignación: prioridad a la lista canónica de metadata.custom.costCenterIds.
+    // Multi-asignación: prioridad a metadata.costCenterIds (nativo) y fallback a custom JSON legacy.
     // Fallback al costCenterId del DTO (`controls.costCenterId.value`) si la lista viene vacía.
     const fromMetadata = readNodeCostCenterIds(this.parentNode.metadata);
     if (fromMetadata.length > 0) {
@@ -219,11 +219,11 @@ export class AssetFormComponent implements OnChanges {
     const dto = assetFormRawValueToDTO(this.form.getRawValue() as AssetFormValue);
     const ccIds = this.selectedCostCenterIds();
 
-    const nextCustom = writeNodeCostCenterIdsCustom(this.parentNode.metadata?.custom, ccIds);
+    const ccPatch = patchNodeCostCenterIdsOnMetadata(this.parentNode.metadata, ccIds);
     const nextMetadata = stripSmsLocalDraftFromMetadata({
       ...(this.parentNode.metadata ?? {}),
       ...(dto as unknown as SmsLocationNodeMetadata),
-      custom: nextCustom
+      ...ccPatch
     });
 
     const wasDraft = isSmsTreeDraftNode(this.parentNode);

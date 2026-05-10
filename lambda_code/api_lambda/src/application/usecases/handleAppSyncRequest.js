@@ -56,21 +56,20 @@ export class HandleAppSyncRequest {
   }
 
   async execute(params) {
-    const { methodName, orgId, tenantId, holdingId, args } = params;
-
-    const orgScope = holdingId || orgId || tenantId;
+    const { methodName, partitionContext, args } = params;
+    const ctx = partitionContext;
 
     switch (methodName) {
       case "saveNode": {
         const inp = args?.input ?? {};
-        const raw = await this.deps.configService.saveNode(orgScope, {
+        const raw = await this.deps.configService.saveNode(ctx, {
           id: inp.id ?? undefined,
           parentId: inp.parentId,
           nodeType: inp.nodeType,
           name: inp.name,
           metadata: metadataFromInput(inp.metadata)
         });
-        if (!raw?.item) {
+        if (!raw?.success || !raw?.item) {
           return {
             success: false,
             message: raw?.message ?? "saveNode no devolvió un ítem",
@@ -84,13 +83,13 @@ export class HandleAppSyncRequest {
 
       case "updateNode": {
         if (!args.id) throw new ValidationError("El ID del nodo es requerido para actualizar");
-        const inp = args.input ?? {};
+        const inp = args?.input ?? {};
         const payload = {};
         if (inp.name !== undefined && inp.name !== null) payload.name = inp.name;
         if (inp.metadata !== undefined && inp.metadata !== null) {
           payload.metadata = metadataFromInput(inp.metadata);
         }
-        const r = await this.deps.configService.updateNode(orgScope, args.id, payload);
+        const r = await this.deps.configService.updateNode(ctx, args.id, payload);
         if (!r.success) {
           return {
             success: false,
@@ -105,7 +104,7 @@ export class HandleAppSyncRequest {
 
       case "deleteNode": {
         if (!args.id) throw new ValidationError("ID requerido para eliminar");
-        const r = await this.deps.configService.deleteNode(orgScope, args.id);
+        const r = await this.deps.configService.deleteNode(ctx, args.id);
         if (!r.success) {
           return {
             success: false,
@@ -126,21 +125,21 @@ export class HandleAppSyncRequest {
 
       case "getNode": {
         if (!args.id) throw new ValidationError("id es requerido");
-        const item = await this.deps.configService.getNode(orgScope, args.id);
+        const item = await this.deps.configService.getNode(ctx, args.id);
         return mapItemToGraphqlNode(item);
       }
 
       case "getTree": {
         let underPath;
         if (args.rootNodeId) {
-          const root = await this.deps.configService.getNode(orgScope, args.rootNodeId);
+          const root = await this.deps.configService.getNode(ctx, args.rootNodeId);
           underPath = root?.path ?? undefined;
           if (underPath === undefined) {
             return [];
           }
         }
         const items = await this.deps.configService.listNodes(
-          orgScope,
+          ctx,
           underPath ? { underPath } : {}
         );
         return items.map(mapItemToGraphqlNode).filter(Boolean);

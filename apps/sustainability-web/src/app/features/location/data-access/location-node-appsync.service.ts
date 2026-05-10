@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { Injectable, isDevMode } from '@angular/core';
 import { generateClient } from 'aws-amplify/api';
 import { Observable, filter, map } from 'rxjs';
 import type {
@@ -107,7 +107,16 @@ export class LocationNodeAppSyncService {
       const s = meta.trim();
       if (!s) return {};
       try {
-        return JSON.parse(s) as Record<string, unknown>;
+        let parsed: unknown = JSON.parse(s);
+        // Backend a veces devuelve JSON.stringify(JSON.stringify(obj)) → primer parse devuelve string JSON.
+        if (typeof parsed === 'string') {
+          const inner = parsed.trim();
+          if (inner) parsed = JSON.parse(inner);
+        }
+        if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+          return parsed as Record<string, unknown>;
+        }
+        return {};
       } catch {
         return {};
       }
@@ -123,7 +132,21 @@ export class LocationNodeAppSyncService {
       }
     );
     const list = data.getTree;
-    if (!Array.isArray(list)) return [];
+    if (!Array.isArray(list)) {
+      if (isDevMode()) {
+        console.warn('[SMS Location] getTree: campo getTree no es un array', {
+          rootNodeId: rootNodeId ?? null,
+          value: list
+        });
+      }
+      return [];
+    }
+    if (isDevMode()) {
+      console.debug(
+        `[SMS Location] getTree(rootNodeId=${rootNodeId ?? 'null'}): ${list.length} nodo(s)`,
+        list
+      );
+    }
     return list;
   }
 

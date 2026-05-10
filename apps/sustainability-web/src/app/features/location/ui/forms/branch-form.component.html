@@ -183,7 +183,7 @@
       [organizationId]="controls.organizationId.value"
       [value]="selectedCostCenterIds()"
       label="Centros de costo asignados"
-      helpText="Multi-asignación: el primero queda como costCenterId en BranchDTO; la lista completa se persiste en metadata.custom.costCenterIds."
+      helpText="Multi-asignación: el primero queda como costCenterId en BranchDTO; la lista completa se persiste en metadata.costCenterIds (lista nativa de IDs)."
       inputId="branch-cost-center-picker"
       (valueChange)="onCostCenterIdsChange($event)"
     />
