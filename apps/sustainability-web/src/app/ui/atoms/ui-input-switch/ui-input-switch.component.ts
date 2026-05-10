@@ -58,7 +58,11 @@ export class UiInputSwitchComponent implements ControlValueAccessor {
   @Input({ required: true }) label!: string;
   @Input() helpText: string | null | undefined = '';
   @Input() ariaLabel?: string;
-  @Input() disabled = false;
+  /**
+   * Deshabilita el switch visualmente. No uses el nombre `disabled` en el host junto a
+   * `formControlName`: Angular emite el aviso “disabled con reactive form directive”.
+   */
+  @Input() inputReadonly = false;
 
   value = false;
   private cvaDisabled = false;
@@ -66,7 +70,7 @@ export class UiInputSwitchComponent implements ControlValueAccessor {
   private onTouched: () => void = () => undefined;
 
   get isDisabled(): boolean {
-    return this.disabled || this.cvaDisabled;
+    return this.inputReadonly || this.cvaDisabled;
   }
 
   writeValue(value: unknown): void {
