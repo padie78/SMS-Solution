@@ -773,9 +773,13 @@ export class LocationService {
         return target as SmsLocationNode;
       }
 
-      const mutation = await this.nodeApi.updateNode(id, gqlInput);
+      const smsNode = target as SmsLocationNode;
+      const orgHint =
+        this.resolveOrganizationScopeForAppSync(smsNode) ?? this.nodeApi.getCachedOrganizationScope();
+
+      const mutation = await this.nodeApi.updateNode(id, gqlInput, orgHint ?? undefined);
       this.nodeApi.assertSuccess(mutation, 'updateNode');
-      await this.softReloadRemoteTree();
+      await this.softReloadRemoteTree(orgHint ? { orgId: orgHint } : {});
 
       const updatedNode = this.findNodeById(id);
       if (!updatedNode) {
@@ -895,6 +899,9 @@ export class LocationService {
       return;
     }
     const snapshot = this.snapshotSubtree(node);
+    const smsForOrg = node.data as SmsLocationNode;
+    const deleteOrgHint =
+      this.resolveOrganizationScopeForAppSync(smsForOrg) ?? this.nodeApi.getCachedOrganizationScope();
     this.removeNodeById(id);
     try {
       if (LOCATION_USE_MOCK) {
@@ -902,9 +909,9 @@ export class LocationService {
         this.mockRows = this.mockRows.filter((r) => !ids.has(r.location_id));
         this.persistMock();
       } else {
-        const mutation = await this.nodeApi.deleteNode(id);
+        const mutation = await this.nodeApi.deleteNode(id, deleteOrgHint ?? undefined);
         this.nodeApi.assertSuccess(mutation, 'deleteNode');
-        await this.softReloadRemoteTree();
+        await this.softReloadRemoteTree(deleteOrgHint ? { orgId: deleteOrgHint } : {});
       }
       if (this.selectedNode()?.location_id === id) this.selectedNode.set(null);
     } catch (e: unknown) {
@@ -1083,8 +1090,15 @@ export class LocationService {
   private resolveOrganizationScopeForAppSync(node: SmsLocationNode): string | null {
     let current: SmsLocationNode | null = node;
     for (let depth = 0; depth < 32 && current != null; depth++) {
-      const fromMeta = current.metadata?.organizationId;
-      if (typeof fromMeta === 'string' && fromMeta.trim()) {
+      const meta = current.metadata as Record<string, unknown> | undefined;
+      const fromMeta =
+        (typeof meta?.['organizationId'] === 'string' && meta['organizationId'].trim()
+          ? String(meta['organizationId'])
+          : '') ||
+        (typeof meta?.['branchOrganizationId'] === 'string' && meta['branchOrganizationId'].trim()
+          ? String(meta['branchOrganizationId'])
+          : '');
+      if (fromMeta.trim()) {
         return fromMeta.trim().toUpperCase().replace(/\s+/g, '-');
       }
       if (current.type === 'ORGANIZATION') {

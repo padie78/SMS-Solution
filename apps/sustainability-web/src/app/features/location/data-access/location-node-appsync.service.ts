@@ -38,8 +38,8 @@ const SAVE_NODE = /* GraphQL */ `
 `;
 
 const UPDATE_NODE = /* GraphQL */ `
-  mutation UpdateNodeMutation($id: ID!, $input: UpdateNodeInput!) {
-    updateNode(id: $id, input: $input) {
+  mutation UpdateNodeMutation($id: ID!, $orgId: ID, $input: UpdateNodeInput!) {
+    updateNode(id: $id, orgId: $orgId, input: $input) {
       success
       message
       id
@@ -50,8 +50,8 @@ const UPDATE_NODE = /* GraphQL */ `
 `;
 
 const DELETE_NODE = /* GraphQL */ `
-  mutation DeleteNodeMutation($id: ID!) {
-    deleteNode(id: $id) {
+  mutation DeleteNodeMutation($id: ID!, $orgId: ID) {
+    deleteNode(id: $id, orgId: $orgId) {
       success
       message
       id
@@ -118,6 +118,11 @@ export class LocationNodeAppSyncService {
     } catch {
       return null;
     }
+  }
+
+  /** Para mutaciones cuando `resolveOrganizationScopeForAppSync` no puede subir hasta ORGANIZATION (p. ej. sin padre cargado). */
+  getCachedOrganizationScope(): string | null {
+    return this.readStoredOrgScope();
   }
 
   private inferOrgFromMutationResponse(res: LocationMutationResponse): void {
@@ -264,9 +269,21 @@ export class LocationNodeAppSyncService {
     return data.saveNode;
   }
 
-  async updateNode(id: string, input: UpdateNodeGraphqlInput): Promise<LocationMutationResponse> {
+  /**
+   * `orgId` = segmento ORG# de la PK (sin TENANT#…); obligatorio para la Lambda si el token no trae `custom:organization_id`.
+   */
+  async updateNode(
+    id: string,
+    input: UpdateNodeGraphqlInput,
+    orgId?: string | null
+  ): Promise<LocationMutationResponse> {
+    const o = orgId ? normalizeOrgScopeSegment(String(orgId)) : '';
+    if (o) {
+      this.rememberOrganizationScope(o);
+    }
     const data = await this.executeGraphql<{ updateNode: LocationMutationResponse }>(UPDATE_NODE, {
       id,
+      orgId: o || null,
       input: {
         name: input.name ?? null,
         metadata: input.metadata ?? null
@@ -278,8 +295,15 @@ export class LocationNodeAppSyncService {
     return data.updateNode;
   }
 
-  async deleteNode(id: string): Promise<LocationMutationResponse> {
-    const data = await this.executeGraphql<{ deleteNode: LocationMutationResponse }>(DELETE_NODE, { id });
+  async deleteNode(id: string, orgId?: string | null): Promise<LocationMutationResponse> {
+    const o = orgId ? normalizeOrgScopeSegment(String(orgId)) : '';
+    if (o) {
+      this.rememberOrganizationScope(o);
+    }
+    const data = await this.executeGraphql<{ deleteNode: LocationMutationResponse }>(DELETE_NODE, {
+      id,
+      orgId: o || null
+    });
     if (!data.deleteNode) {
       throw new Error('deleteNode devolvió vacío');
     }
