@@ -76,14 +76,33 @@ function pickClaim(claims, key) {
   return "";
 }
 
+/** Segmento ORG# de la PK solo desde env si no hay claims ni `orgId` en GraphQL. Sin valor sintético fijo. */
+function envOrganizationScopeFallback() {
+  return (process.env.DEFAULT_ORGAN_SCOPE_ID || "").trim();
+}
+
 /**
- * Segmento `ORG#` de la PK cuando no hay `custom:organization_id` ni `custom:holding_id`.
- * Env **DEFAULT_ORGAN_SCOPE_ID** (p. ej. alineación con datos legacy); por defecto **ROOT-001**.
- * PK resultante típica: `TENANT#<uuid>#ORG#ROOT-001`.
+ * Prioridad del ID real de organización: `input.orgId` → `args.orgId` → claims → **DEFAULT_ORGAN_SCOPE_ID**.
+ * @param {{ tenantId: string, organizationScopeId: string }} baseCtx
+ * @param {Record<string, unknown> | null | undefined} args argumentos GraphQL (puede incluir `input` anidado)
  */
-function defaultOrganizationScopeFallback() {
-  const v = (process.env.DEFAULT_ORGAN_SCOPE_ID || "").trim();
-  return v || "ROOT-001";
+export function mergePartitionContextFromGraphQLArgs(baseCtx, args) {
+  if (!baseCtx || typeof baseCtx !== "object") {
+    return baseCtx;
+  }
+  const inp = args?.input;
+  const fromInput =
+    inp != null && typeof inp === "object"
+      ? String(
+          /** @type {Record<string, unknown>} */ (inp).orgId ??
+            /** @type {Record<string, unknown>} */ (inp).organizationId ??
+            ""
+        ).trim()
+      : "";
+  const fromRoot = String(args?.orgId ?? args?.organizationId ?? "").trim();
+  const mergedOrg =
+    fromInput || fromRoot || String(baseCtx.organizationScopeId ?? "").trim() || envOrganizationScopeFallback();
+  return { ...baseCtx, organizationScopeId: mergedOrg };
 }
 
 /**
@@ -93,7 +112,7 @@ function defaultOrganizationScopeFallback() {
  * custom:tenant_id → custom:holding_id → custom:organization_id → sub → cognito:username
  *
  * Override emergencia (misma Lambda, sin tocar Cognito): **LAMBDA_DEFAULT_TENANT_ID** o **DEV_TENANT_ID**
- * (útil hasta redeploy + claims). **DEFAULT_ORGAN_SCOPE_ID** fuerza el segmento ORG# si no hay claims de org.
+ * (útil hasta redeploy + claims). **DEFAULT_ORGAN_SCOPE_ID** fuerza el segmento ORG# si no hay claims ni `orgId` en GraphQL.
  * **ALLOW_ANON_TENANT_FALLBACK** sigue soportado.
  *
  * @throws {ValidationError}
@@ -127,7 +146,7 @@ export function resolvePartitionContextFromEvent(event) {
       ""
     ).trim();
     if (envDefault) {
-      const org = (process.env.DEV_ORG_SCOPE_ID || defaultOrganizationScopeFallback()).trim();
+      const org = (process.env.DEV_ORG_SCOPE_ID || envOrganizationScopeFallback()).trim();
       console.warn(
         "[MULTI_TENANT] Usando LAMBDA_DEFAULT_TENANT_ID / DEV_TENANT_ID: el token no aportó tenant usable."
       );
@@ -135,7 +154,7 @@ export function resolvePartitionContextFromEvent(event) {
     }
     if (process.env.ALLOW_ANON_TENANT_FALLBACK === "true") {
       const fb = (process.env.DEV_TENANT_ID || "").trim();
-      const org = (process.env.DEV_ORG_SCOPE_ID || defaultOrganizationScopeFallback()).trim();
+      const org = (process.env.DEV_ORG_SCOPE_ID || envOrganizationScopeFallback()).trim();
       if (fb) {
         return { tenantId: fb, organizationScopeId: org };
       }
@@ -148,7 +167,7 @@ export function resolvePartitionContextFromEvent(event) {
     );
   }
 
-  const organizationScopeId = organizationId || holdingId || defaultOrganizationScopeFallback();
+  const organizationScopeId = organizationId || holdingId || envOrganizationScopeFallback();
 
   return { tenantId, organizationScopeId };
 }

@@ -10,6 +10,7 @@ import {
 import { randomUUID } from "crypto";
 import {
   buildTenantOrgPartitionKey,
+  normalizeOrgScopeSegment,
   normalizeParentIdPointer
 } from "../dynamodb/tenantPartitionPk.js";
 import { appendSegmentToLocationPath, normalizeSegmentId } from "../dynamodb/nodePathModel.js";
@@ -23,6 +24,13 @@ const TABLE_NAME =
 
 function buildPk(ctx) {
   return buildTenantOrgPartitionKey(ctx.tenantId, ctx.organizationScopeId);
+}
+
+/** @param {string | undefined} nodeType from GraphQL / client */
+function mapIncomingEntityType(nodeType) {
+  const s = String(nodeType ?? "").trim().toUpperCase();
+  if (s === "ORG") return "ORGANIZATION";
+  return s;
 }
 
 export class ConfigServiceAdapter {
@@ -56,8 +64,34 @@ export class ConfigServiceAdapter {
     const timestamp = new Date().toISOString();
     const { id, parentId, nodeType, name, metadata = {} } = input;
 
-    const cleanId = id ? normalizeSegmentId(id) : randomUUID().split("-")[0].toUpperCase();
-    const sk = `${nodeType}#${cleanId}`;
+    const entityType = mapIncomingEntityType(nodeType);
+    const orgSegmentRaw = normalizeOrgScopeSegment(ctx.organizationScopeId);
+
+    let cleanId;
+    if (entityType === "ORGANIZATION") {
+      cleanId = normalizeSegmentId(
+        id ?? /** @type {{ orgId?: string }} */ (input).orgId ?? orgSegmentRaw
+      );
+      if (!orgSegmentRaw) {
+        return {
+          success: false,
+          message: "PK: falta el ID real de organización (orgId, custom:organization_id o DEFAULT_ORGAN_SCOPE_ID).",
+          item: null
+        };
+      }
+      if (cleanId !== normalizeSegmentId(orgSegmentRaw)) {
+        return {
+          success: false,
+          message:
+            `Nodo ORGANIZATION: id debe coincidir con el segmento ORG de la partición (${normalizeSegmentId(orgSegmentRaw)}).`,
+          item: null
+        };
+      }
+    } else {
+      cleanId = id ? normalizeSegmentId(id) : randomUUID().split("-")[0].toUpperCase();
+    }
+
+    const sk = `${entityType}#${cleanId}`;
 
     const parentPointer = normalizeParentIdPointer(parentId);
 
@@ -83,24 +117,19 @@ export class ConfigServiceAdapter {
 
     const pk = buildPk(ctx);
     if (!pk) {
-      return { success: false, message: "PK inválida: revisa tenant u organización en claims", item: null };
+      return { success: false, message: "PK inválida: revisa tenant u organización (tenantId + ID org real).", item: null };
     }
-
-    const nodeTypeStr = String(nodeType);
 
     const item = {
       PK: pk,
       SK: sk,
       holdingId: pk,
       path: finalPath,
-      nodeType: nodeTypeStr,
-      /** Tipo de entidad de negocio (mismo valor que nodeType; atributo explícito String en Dynamo). */
-      entityType: nodeTypeStr,
+      entityType,
       name,
       parentId: parentPointer === "ROOT" ? "ROOT" : parentPointer,
       metadata: metaObj,
-      last_updated: timestamp,
-      entity_type: "NODE_CONFIG"
+      last_updated: timestamp
     };
 
     try {
@@ -192,9 +221,10 @@ export class ConfigServiceAdapter {
     const pk = buildPk(ctx);
     const holdingKey = pk;
     const { underPath, nodeType } = filter || {};
-    const entityFilter = "entity_type = :et";
+    const legacyOrEntityFilter =
+      "(attribute_exists(#etype)) OR (entity_type = :legacy)";
     const baseEav = {
-      ":et": "NODE_CONFIG"
+      ":legacy": "NODE_CONFIG"
     };
 
     try {
@@ -205,13 +235,13 @@ export class ConfigServiceAdapter {
             TableName: TABLE_NAME,
             IndexName: "GSI_NodePath",
             KeyConditionExpression: "holdingId = :hid AND begins_with(#pth, :pref)",
-            ExpressionAttributeNames: { "#pth": "path" },
+            ExpressionAttributeNames: { "#pth": "path", "#etype": "entityType" },
             ExpressionAttributeValues: {
               ...baseEav,
               ":hid": holdingKey,
               ":pref": underPath
             },
-            FilterExpression: entityFilter
+            FilterExpression: legacyOrEntityFilter
           })
         );
       } else {
@@ -219,11 +249,12 @@ export class ConfigServiceAdapter {
           new QueryCommand({
             TableName: TABLE_NAME,
             KeyConditionExpression: "PK = :pk",
+            ExpressionAttributeNames: { "#etype": "entityType" },
             ExpressionAttributeValues: {
               ...baseEav,
               ":pk": pk
             },
-            FilterExpression: entityFilter,
+            FilterExpression: legacyOrEntityFilter,
             ConsistentRead: true
           })
         );
@@ -231,7 +262,12 @@ export class ConfigServiceAdapter {
 
       let items = res.Items || [];
       if (nodeType) {
-        items = items.filter((i) => i.nodeType === nodeType);
+        const want = String(nodeType).toUpperCase();
+        items = items.filter(
+          (i) =>
+            (i.entityType && String(i.entityType).toUpperCase() === want) ||
+            (i.nodeType && String(i.nodeType).toUpperCase() === want)
+        );
       }
       return items;
     } catch (error) {

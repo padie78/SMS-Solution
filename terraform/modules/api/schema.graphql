@@ -34,10 +34,11 @@ type Invoice @aws_api_key @aws_cognito_user_pools {
 }
 
 # --- INPUTS (sin tenantId: el aislamiento multi-tenant viene de Cognito) ---
-# Claims requeridos en User Pools: custom:tenant_id, opcional custom:organization_id
-# para formar la partición Dynamo (single-table).
+# Claims: custom:tenant_id; opcional custom:organization_id.
+# orgId en input fuerza el segmento ORG# de la PK al ID real de organización (p. ej. CB7647AC).
 input SaveNodeInput {
   id: ID
+  orgId: ID
   parentId: ID!
   nodeType: NodeType!
   name: String!
@@ -51,16 +52,16 @@ input UpdateNodeInput {
 
 # --- CONSULTAS ---
 type Query {
-  getTree(rootNodeId: ID): [Node] @aws_cognito_user_pools
-  getNode(id: ID!): Node @aws_cognito_user_pools
+  getTree(rootNodeId: ID, orgId: ID): [Node] @aws_cognito_user_pools
+  getNode(id: ID!, orgId: ID): Node @aws_cognito_user_pools
   getInvoice(id: ID!): Invoice @aws_cognito_user_pools
 }
 
 # --- ACCIONES ---
 type Mutation {
   saveNode(input: SaveNodeInput!): MutationResponse @aws_cognito_user_pools
-  updateNode(id: ID!, input: UpdateNodeInput!): MutationResponse @aws_cognito_user_pools
-  deleteNode(id: ID!): MutationResponse @aws_cognito_user_pools
+  updateNode(id: ID!, orgId: ID, input: UpdateNodeInput!): MutationResponse @aws_cognito_user_pools
+  deleteNode(id: ID!, orgId: ID): MutationResponse @aws_cognito_user_pools
   
   updateInvoiceStatus(id: ID!, status: InvoiceStatus!): Invoice 
     @aws_api_key @aws_cognito_user_pools

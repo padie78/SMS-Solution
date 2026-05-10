@@ -1,7 +1,8 @@
 import { ConfigError, ValidationError } from "../domain/errors.js";
 import {
+  mergePartitionContextFromGraphQLArgs,
   normalizeAppSyncLambdaEvent,
-  resolvePartitionContextFromEvent,
+  resolvePartitionContextFromEvent
 } from "./appsyncEvent.util.js";
 
 /**
@@ -18,10 +19,13 @@ export function buildAppSyncHandler(deps) {
     const methodName =
       ev?.info?.fieldName || event?.fieldName || ev?.methodName || "unknown";
 
-    /** Multi-tenant: PK derivado de Cognito; nunca desde args de GraphQL. */
+    const args = ev?.arguments ?? event?.arguments ?? {};
+
+    /** Multi-tenant: tenant desde Cognito; segmento ORG desde claims, `orgId` en GraphQL o env. */
     let partitionContext;
     try {
       partitionContext = resolvePartitionContextFromEvent(ev);
+      partitionContext = mergePartitionContextFromGraphQLArgs(partitionContext, args);
     } catch (ctxErr) {
       if (ctxErr instanceof ValidationError) {
         return {
@@ -34,8 +38,6 @@ export function buildAppSyncHandler(deps) {
       }
       throw ctxErr;
     }
-
-    const args = ev?.arguments ?? event?.arguments ?? {};
 
     console.log(
       `[RESOLVER][START] Method: ${methodName} | tenantId=${partitionContext.tenantId} | orgScope=${partitionContext.organizationScopeId} | Request: ${requestId}`

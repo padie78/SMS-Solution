@@ -25,7 +25,7 @@ function mapItemToGraphqlNode(item) {
     id: item.SK,
     parentId: item.parentId ?? null,
     path: item.path,
-    nodeType: item.nodeType,
+    nodeType: item.entityType ?? item.nodeType,
     name: item.name,
     metadata: meta ?? null
   };
@@ -62,8 +62,14 @@ export class HandleAppSyncRequest {
     switch (methodName) {
       case "saveNode": {
         const inp = args?.input ?? {};
+        if (!String(ctx.organizationScopeId ?? "").trim()) {
+          throw new ValidationError(
+            "orgId en SaveNodeInput, custom:organization_id en el token o DEFAULT_ORGAN_SCOPE_ID en la Lambda es requerido para la PK."
+          );
+        }
         const raw = await this.deps.configService.saveNode(ctx, {
           id: inp.id ?? undefined,
+          orgId: inp.orgId,
           parentId: inp.parentId,
           nodeType: inp.nodeType,
           name: inp.name,
@@ -82,6 +88,11 @@ export class HandleAppSyncRequest {
       }
 
       case "updateNode": {
+        if (!String(ctx.organizationScopeId ?? "").trim()) {
+          throw new ValidationError(
+            "orgId en la mutación, claims de organización o DEFAULT_ORGAN_SCOPE_ID requerido para la PK."
+          );
+        }
         if (!args.id) throw new ValidationError("El ID del nodo es requerido para actualizar");
         const inp = args?.input ?? {};
         const payload = {};
@@ -103,6 +114,11 @@ export class HandleAppSyncRequest {
       }
 
       case "deleteNode": {
+        if (!String(ctx.organizationScopeId ?? "").trim()) {
+          throw new ValidationError(
+            "orgId en la mutación, claims de organización o DEFAULT_ORGAN_SCOPE_ID requerido para la PK."
+          );
+        }
         if (!args.id) throw new ValidationError("ID requerido para eliminar");
         const r = await this.deps.configService.deleteNode(ctx, args.id);
         if (!r.success) {
@@ -124,12 +140,22 @@ export class HandleAppSyncRequest {
       }
 
       case "getNode": {
+        if (!String(ctx.organizationScopeId ?? "").trim()) {
+          throw new ValidationError(
+            "orgId en la query, custom:organization_id en el token o DEFAULT_ORGAN_SCOPE_ID requerido para la PK."
+          );
+        }
         if (!args.id) throw new ValidationError("id es requerido");
         const item = await this.deps.configService.getNode(ctx, args.id);
         return mapItemToGraphqlNode(item);
       }
 
       case "getTree": {
+        if (!String(ctx.organizationScopeId ?? "").trim()) {
+          throw new ValidationError(
+            "orgId en la query, claims de organización o DEFAULT_ORGAN_SCOPE_ID requerido para la PK."
+          );
+        }
         let underPath;
         if (args.rootNodeId) {
           const root = await this.deps.configService.getNode(ctx, args.rootNodeId);
