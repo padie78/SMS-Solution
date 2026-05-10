@@ -142,7 +142,8 @@ export class HandleAppSyncRequest {
       case "getNode": {
         if (!String(ctx.organizationScopeId ?? "").trim()) {
           throw new ValidationError(
-            "orgId en la query, custom:organization_id en el token o DEFAULT_ORGAN_SCOPE_ID requerido para la PK."
+            "Falta el segmento ORG de la PK: pasá orgId en la query, custom:organization_id en el token, " +
+              "DEFAULT_ORGAN_SCOPE_ID en Lambda, o usá id con formato ORGANIZATION#<ID_REAL>."
           );
         }
         if (!args.id) throw new ValidationError("id es requerido");
@@ -153,7 +154,8 @@ export class HandleAppSyncRequest {
       case "getTree": {
         if (!String(ctx.organizationScopeId ?? "").trim()) {
           throw new ValidationError(
-            "orgId en la query, claims de organización o DEFAULT_ORGAN_SCOPE_ID requerido para la PK."
+            "Falta el segmento ORG de la PK: pasá orgId, custom:organization_id, DEFAULT_ORGAN_SCOPE_ID en Lambda, " +
+              "o rootNodeId con formato ORGANIZATION#<ID_REAL> (el árbol infiere la org desde el SK raíz)."
           );
         }
         let underPath;

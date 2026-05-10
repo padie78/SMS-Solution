@@ -82,7 +82,20 @@ function envOrganizationScopeFallback() {
 }
 
 /**
- * Prioridad del ID real de organización: `input.orgId` → `args.orgId` → claims → **DEFAULT_ORGAN_SCOPE_ID**.
+ * Si el cliente envía el SK del nodo raíz (`ORGANIZATION#CB7647AC`), el segmento tras `#` es el ID real de
+ * partición; permite `getTree`/`getNode` sin `orgId` en la query ni claim `custom:organization_id`.
+ * @param {string | undefined | null} skLike p. ej. args.rootNodeId o args.id
+ * @returns {string}
+ */
+export function inferOrganizationScopeFromNodeSk(skLike) {
+  const s = String(skLike ?? "").trim();
+  const m = /^ORGANIZATION#(.+)$/i.exec(s);
+  if (!m) return "";
+  return m[1].trim().toUpperCase().replace(/\s+/g, "-");
+}
+
+/**
+ * Prioridad del ID real de organización: `input.orgId` → `args.orgId` → claims → **rootNodeId/id** si es `ORGANIZATION#…` → **DEFAULT_ORGAN_SCOPE_ID**.
  * @param {{ tenantId: string, organizationScopeId: string }} baseCtx
  * @param {Record<string, unknown> | null | undefined} args argumentos GraphQL (puede incluir `input` anidado)
  */
@@ -100,8 +113,19 @@ export function mergePartitionContextFromGraphQLArgs(baseCtx, args) {
         ).trim()
       : "";
   const fromRoot = String(args?.orgId ?? args?.organizationId ?? "").trim();
+  const fromSkHint =
+    inferOrganizationScopeFromNodeSk(
+      /** @type {string | undefined} */ (args?.rootNodeId)
+    ) ||
+    inferOrganizationScopeFromNodeSk(
+      /** @type {string | undefined} */ (args?.id)
+    );
   const mergedOrg =
-    fromInput || fromRoot || String(baseCtx.organizationScopeId ?? "").trim() || envOrganizationScopeFallback();
+    fromInput ||
+    fromRoot ||
+    String(baseCtx.organizationScopeId ?? "").trim() ||
+    fromSkHint ||
+    envOrganizationScopeFallback();
   return { ...baseCtx, organizationScopeId: mergedOrg };
 }
 
