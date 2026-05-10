@@ -6,6 +6,31 @@ import {
 } from "./appsyncEvent.util.js";
 
 /**
+ * AppSync espera el tipo GraphQL del campo: getTree → LIST (array), getNode → Node|null, mutaciones → MutationResponse.
+ * @param {string} methodName
+ * @param {string} message
+ * @returns {unknown}
+ */
+function errorPayloadForFieldName(methodName, message) {
+  if (methodName === "getTree") {
+    console.warn(`[RESOLVER][${methodName}] ${message} (retornando [] para cumplir tipo LIST)`);
+    return [];
+  }
+  if (methodName === "getNode" || methodName === "getInvoice") {
+    console.warn(`[RESOLVER][${methodName}] ${message} (retornando null)`);
+    return null;
+  }
+  return {
+    success: false,
+    message,
+    id: null,
+    nodeId: null,
+    path: null,
+    entity: null
+  };
+}
+
+/**
  * Factory que construye el handler inyectando sus dependencias.
  * @param {{ useCase: { execute: Function } }} deps - Dependencias (normalmente HandleAppSyncRequest)
  */
@@ -28,14 +53,7 @@ export function buildAppSyncHandler(deps) {
       partitionContext = mergePartitionContextFromGraphQLArgs(partitionContext, args);
     } catch (ctxErr) {
       if (ctxErr instanceof ValidationError) {
-        return {
-          success: false,
-          message: ctxErr.message,
-          id: null,
-          nodeId: null,
-          path: null,
-          entity: null,
-        };
+        return errorPayloadForFieldName(methodName, ctxErr.message);
       }
       throw ctxErr;
     }
@@ -59,35 +77,17 @@ export function buildAppSyncHandler(deps) {
       console.error(`[RESOLVER][FATAL ERROR] Method: ${methodName} | Message: ${msg}`);
 
       if (error instanceof ValidationError) {
-        return {
-          success: false,
-          message: `Validación fallida: ${msg}`,
-          id: null,
-          nodeId: null,
-          path: null,
-          entity: null,
-        };
+        return errorPayloadForFieldName(methodName, `Validación fallida: ${msg}`);
       }
 
       if (error instanceof ConfigError) {
-        return {
-          success: false,
-          message: "Error de configuración interna del servidor.",
-          id: null,
-          nodeId: null,
-          path: null,
-          entity: null,
-        };
+        return errorPayloadForFieldName(
+          methodName,
+          "Error de configuración interna del servidor."
+        );
       }
 
-      return {
-        success: false,
-        message: "Ocurrió un error inesperado en el procesamiento.",
-        id: null,
-        nodeId: null,
-        path: null,
-        entity: null,
-      };
+      return errorPayloadForFieldName(methodName, "Ocurrió un error inesperado en el procesamiento.");
     }
   };
 }

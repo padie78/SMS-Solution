@@ -57,6 +57,11 @@ resource "aws_cognito_user_pool" "main" {
     Name        = "${var.project_name}-user-pool"
     Environment = var.environment
   }
+
+  # Asigna custom:tenant_id vía Lambda tras confirmar el email (véase post_confirmation.tf).
+  lambda_config {
+    post_confirmation = aws_lambda_function.cognito_post_confirmation.arn
+  }
 }
 
 # 2. El Client (Lo que usa Angular para autenticar)

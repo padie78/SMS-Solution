@@ -1,0 +1,13 @@
+{
+  "name": "sms-cognito-post-confirmation",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Asigna custom:tenant_id tras confirmar registro en Cognito",
+  "main": "src/index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.500.0"
+  }
+}
