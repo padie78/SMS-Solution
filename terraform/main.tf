@@ -79,6 +79,8 @@ module "compute" {
   emissions_api_url   = var.emissions_api_url
   emissions_api_key   = var.emissions_api_key
   lambda_architecture = var.lambda_architecture
+
+  allow_tenant_fallback_from_sub = var.api_lambda_allow_tenant_fallback_from_sub != null ? var.api_lambda_allow_tenant_fallback_from_sub : contains(["dev", "development", "local"], lower(var.environment))
 }
 
 # ==============================================================================

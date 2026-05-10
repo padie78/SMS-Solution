@@ -135,6 +135,13 @@ resource "aws_lambda_function" "signer" {
   source_code_hash = data.archive_file.signer_zip.output_base64sha256
 }
 
+locals {
+  api_lambda_env = merge(
+    { DYNAMO_TABLE = var.dynamo_table_name },
+    var.allow_tenant_fallback_from_sub ? { ALLOW_TENANT_FALLBACK_FROM_SUB = "true" } : {}
+  )
+}
+
 # --- API: CRUD de GraphQL/AppSync ---
 resource "aws_lambda_function" "api_lambda" {
   function_name = "${var.project_name}-api-${var.environment}"
@@ -147,9 +154,7 @@ resource "aws_lambda_function" "api_lambda" {
   architectures = [var.lambda_architecture]
 
   environment {
-    variables = {
-      DYNAMO_TABLE = var.dynamo_table_name
-    }
+    variables = local.api_lambda_env
   }
   source_code_hash = data.archive_file.api_lambda_zip.output_base64sha256
 }

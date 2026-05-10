@@ -65,6 +65,12 @@ variable "lambda_architecture" {
   default = "arm64"
 }
 
+variable "allow_tenant_fallback_from_sub" {
+  type        = bool
+  description = "Si true, la Lambda API define ALLOW_TENANT_FALLBACK_FROM_SUB=true (tenant provisional = sub)."
+  default     = false
+}
+
 # ==============================================================================
 # 4. INTELIGENCIA ARTIFICIAL Y APIS EXTERNAS
 # ==============================================================================
