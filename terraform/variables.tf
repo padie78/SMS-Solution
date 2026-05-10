@@ -18,6 +18,13 @@ variable "environment" {
   default     = "dev"
 }
 
+# Post Confirmation Cognito: org por defecto en el Id Token (single-tenant / dev). Vacío en multi-org prod.
+variable "post_confirmation_default_organization_id" {
+  type        = string
+  description = "Segmento ORG de la PK; se inyecta en custom:organization_id al confirmar registro si la Lambda está configurada."
+  default     = ""
+}
+
 # --- Configuración de Red y Seguridad (CORS) ---
 variable "cors_origins" {
   type        = list(string)

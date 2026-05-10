@@ -18,3 +18,11 @@ variable "post_confirmation_tenant_strategy" {
     error_message = "post_confirmation_tenant_strategy debe ser sub o uuid."
   }
 }
+
+# Segmento ORG# de la PK (mismo formato que nodeId raíz), p. ej. org creada una vez en dev.
+# Vacío = no tocar custom:organization_id en post-confirmation (lo asigna tu flujo vía Admin API / app).
+variable "post_confirmation_default_organization_id" {
+  type        = string
+  description = "Opcional: rellena custom:organization_id tras sign-up si aún no existe (single-tenant / dev). Debe coincidir con el ID de org en Dynamo."
+  default     = ""
+}

@@ -62,7 +62,8 @@ resource "aws_lambda_function" "cognito_post_confirmation" {
 
   environment {
     variables = {
-      TENANT_ID_STRATEGY = var.post_confirmation_tenant_strategy
+      TENANT_ID_STRATEGY               = var.post_confirmation_tenant_strategy
+      DEFAULT_ORGANIZATION_SCOPE_ID    = var.post_confirmation_default_organization_id
     }
   }
 

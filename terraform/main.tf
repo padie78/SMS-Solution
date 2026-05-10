@@ -13,9 +13,10 @@ module "iam" {
 }
 
 module "auth" {
-  source       = "./modules/auth"
-  project_name = var.project_name
-  environment  = var.environment
+  source                                  = "./modules/auth"
+  project_name                            = var.project_name
+  environment                             = var.environment
+  post_confirmation_default_organization_id = var.post_confirmation_default_organization_id
 }
 
 # ==============================================================================
