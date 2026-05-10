@@ -4,7 +4,7 @@ import type { TreeNode } from 'primeng/api';
 import { Subscription, firstValueFrom } from 'rxjs';
 import type { SmsLocationNode, SmsLocationNodeMetadata, SmsLocationNodeType } from '../../../core/models/sms-location-node.model';
 import { LOCATION_API_BASE_URL, LOCATION_MOCK_STORAGE_KEY, LOCATION_USE_MOCK } from '../data/location.mock';
-import type { GraphqlNodeDto } from './location-api.models';
+import type { GraphqlNodeDto, LocationMutationResponse } from './location-api.models';
 import { LocationNodeAppSyncService } from './location-node-appsync.service';
 import {
   canDrop,
@@ -117,7 +117,9 @@ export class LocationService {
     this.nodeChangesSub = this.nodeApi.onNodeChanges().subscribe({
       next: async () => {
         try {
-          await this.softReloadRemoteTree();
+          const sel = this.selectedNode();
+          const orgFromSelection = sel ? this.resolveOrganizationScopeForAppSync(sel) : null;
+          await this.softReloadRemoteTree(orgFromSelection ? { orgId: orgFromSelection } : {});
         } catch (err: unknown) {
           this.lastError.set(this.describeGraphOrHttpError('Actualización automática jerarquía', err));
         }
@@ -210,6 +212,40 @@ export class LocationService {
   private graphqlParentNormalizer(pid: string | null | undefined): string {
     if (pid == null || pid === '' || pid === GRAPHQL_ROOT_PARENT_ID) return GRAPHQL_ROOT_PARENT_ID;
     return String(pid);
+  }
+
+  /**
+   * Segmento ORG# de la PK backend a partir del padre AppSync (p. ej. ORGANIZATION#… o ascendiente en árbol).
+   * Sin esto, `getTree(null)` solo usa el claim JWT y puede consultar otra partición que la del guardado.
+   */
+  private inferOrgScopeFromParentPointer(parentId: string | null | undefined): string | null {
+    if (parentId == null || parentId === '' || parentId === GRAPHQL_ROOT_PARENT_ID) {
+      return null;
+    }
+    const s = String(parentId).trim();
+    const orgSk = /^ORGANIZATION#(.+)$/i.exec(s);
+    if (orgSk) {
+      return orgSk[1].trim().toUpperCase().replace(/\s+/g, '-');
+    }
+    const parentNode = this.findNodeById(s);
+    if (parentNode) {
+      return this.resolveOrganizationScopeForAppSync(parentNode);
+    }
+    return null;
+  }
+
+  /** Tras saveNode: nueva org devuelve `nodeId`; hijos deben alinear refetch con el padre. */
+  private resolveOrgScopeForReloadAfterMutation(
+    mutation: LocationMutationResponse,
+    parentPointer: string
+  ): string | null {
+    const nid = mutation.nodeId;
+    if (nid != null && String(nid).trim() !== '') {
+      return String(nid).trim().toUpperCase().replace(/\s+/g, '-');
+    }
+    return this.inferOrgScopeFromParentPointer(
+      parentPointer === GRAPHQL_ROOT_PARENT_ID ? null : parentPointer
+    );
   }
 
   private removeSubtreeUiRoot(tempId: string): void {
@@ -368,11 +404,15 @@ export class LocationService {
         return createdNode;
       }
 
+      const orgForSave = this.inferOrgScopeFromParentPointer(
+        parentSaveId === GRAPHQL_ROOT_PARENT_ID ? null : parentSaveId
+      );
       const mutation = await this.nodeApi.saveNode({
         parentId: parentSaveId,
         nodeType: draftSms.type,
         name: payload.name,
-        metadata: metadataJson
+        metadata: metadataJson,
+        ...(orgForSave ? { orgId: orgForSave } : {})
       });
       this.nodeApi.assertSuccess(mutation, 'saveNode');
       const newId = mutation.id;
@@ -382,7 +422,11 @@ export class LocationService {
 
       this.removeSubtreeUiRoot(tempId);
 
-      await this.softReloadRemoteTree({ bumpEpoch: false });
+      const reloadOrg = this.resolveOrgScopeForReloadAfterMutation(mutation, parentSaveId);
+      await this.softReloadRemoteTree({
+        bumpEpoch: false,
+        ...(reloadOrg ? { orgId: reloadOrg } : {})
+      });
 
       const remappedNested = nestedDrafts.map((s) => ({
         ...s,
@@ -422,11 +466,11 @@ export class LocationService {
   }
 
   /** Refetch completo respetando expansiones conocidas actualmente en UI. */
-  private async softReloadRemoteTree(opts?: { bumpEpoch?: boolean }): Promise<void> {
+  private async softReloadRemoteTree(opts?: { bumpEpoch?: boolean; orgId?: string | null }): Promise<void> {
     const bumpEpoch = opts?.bumpEpoch !== false;
     const expandedBefore = this.collectExpandedIds();
     try {
-      const rows = await this.nodeApi.getTree(null);
+      const rows = await this.nodeApi.getTree(null, opts?.orgId);
       this.mergeIntoRemoteIndex(rows, true);
       this.materializeTreeFromRemoteIndex();
       await this.expandRestoredBranches(expandedBefore);
@@ -604,16 +648,22 @@ export class LocationService {
         return createdNode;
       }
 
+      const parentPtr = request.parent_id ?? GRAPHQL_ROOT_PARENT_ID;
+      const orgForSave = this.inferOrgScopeFromParentPointer(
+        parentPtr === GRAPHQL_ROOT_PARENT_ID ? null : parentPtr
+      );
       const mutation = await this.nodeApi.saveNode({
-        parentId: request.parent_id ?? GRAPHQL_ROOT_PARENT_ID,
+        parentId: parentPtr,
         nodeType: request.type,
         name: request.name,
         metadata: LocationNodeAppSyncService.metadataToAwsJson(
           request.metadata ? { ...(request.metadata as unknown as Record<string, unknown>) } : {}
-        )
+        ),
+        ...(orgForSave ? { orgId: orgForSave } : {})
       });
       this.nodeApi.assertSuccess(mutation, 'saveNode');
-      await this.softReloadRemoteTree();
+      const reloadOrg = this.resolveOrgScopeForReloadAfterMutation(mutation, parentPtr);
+      await this.softReloadRemoteTree(reloadOrg ? { orgId: reloadOrg } : {});
 
       let createdNode = mutation.id ? this.findNodeById(mutation.id) : null;
       if (!createdNode) {
@@ -786,6 +836,7 @@ export class LocationService {
         this.persistMock();
       } else {
         const sms = node.data as SmsLocationNode;
+        const orgHint = this.resolveOrganizationScopeForAppSync(sms);
         const mutation = await this.nodeApi.saveNode({
           id: sms.location_id,
           parentId: newParentId ?? GRAPHQL_ROOT_PARENT_ID,
@@ -793,10 +844,11 @@ export class LocationService {
           name: sms.name,
           metadata: LocationNodeAppSyncService.metadataToAwsJson(
             (sms.metadata ?? {}) as unknown as Record<string, unknown>
-          )
+          ),
+          ...(orgHint ? { orgId: orgHint } : {})
         });
         this.nodeApi.assertSuccess(mutation, 'reparent-saveNode');
-        await this.softReloadRemoteTree();
+        await this.softReloadRemoteTree(orgHint ? { orgId: orgHint } : {});
 
         const reparented = this.findNodeById(nodeId);
         if (!reparented) throw new Error('Reubicación ejecutada pero el nodo no está en árbol actualizado.');
