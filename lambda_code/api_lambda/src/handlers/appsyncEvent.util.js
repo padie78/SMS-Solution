@@ -35,21 +35,43 @@ export function normalizeAppSyncLambdaEvent(raw) {
   return raw;
 }
 
+/** @param {Record<string, unknown>} claims @param {string} key */
+function pickClaim(claims, key) {
+  const v = claims[key];
+  return typeof v === "string" ? v.trim() : "";
+}
+
 /**
  * Contexto de partición Dynamo (multi-tenant). **No** tomar tenant desde argumentos GraphQL.
  *
- * - `tenantId`: obligatorio vía `identity.claims['custom:tenant_id']` (Cognito User Pools).
- * - `organizationScopeId`: `custom:organization_id` o, si falta, el mismo valor que tenant
- *   (tenant mono-organización).
+ * Resolución de `tenantId` (primer valor no vacío):
+ * 1. `custom:tenant_id` (recomendado producción)
+ * 2. Si `STRICT_TENANT_CLAIM_ONLY` ≠ `true`: `custom:holding_id`, `custom:organization_id`, `sub`
  *
- * @throws {ValidationError} si falta `custom:tenant_id` (salvo ALLOW_ANON_TENANT_FALLBACK en dev)
+ * `organizationScopeId`: `custom:organization_id` → `custom:holding_id` → igual que `tenantId`.
+ *
+ * @throws {ValidationError} si no hay ningún identificador usable
  * @returns {{ tenantId: string, organizationScopeId: string }}
  */
 export function resolvePartitionContextFromEvent(event) {
   const claims = event?.identity?.claims ?? {};
+  const strict = process.env.STRICT_TENANT_CLAIM_ONLY === "true";
 
-  const tenantId =
-    typeof claims["custom:tenant_id"] === "string" ? claims["custom:tenant_id"].trim() : "";
+  const customTenantId = pickClaim(claims, "custom:tenant_id");
+  const holdingId = pickClaim(claims, "custom:holding_id");
+  const organizationId = pickClaim(claims, "custom:organization_id");
+  const sub = pickClaim(claims, "sub");
+
+  let tenantId = customTenantId;
+  if (!tenantId && !strict) {
+    tenantId = holdingId || organizationId || sub;
+    if (tenantId && !customTenantId) {
+      console.warn(
+        "[MULTI_TENANT] Resolviendo tenant sin custom:tenant_id; usar holding_id / organization_id / sub. " +
+          "Definí custom:tenant_id en Cognito y/o STRICT_TENANT_CLAIM_ONLY=true en prod."
+      );
+    }
+  }
 
   if (!tenantId) {
     if (process.env.ALLOW_ANON_TENANT_FALLBACK === "true") {
@@ -60,16 +82,14 @@ export function resolvePartitionContextFromEvent(event) {
       }
     }
     throw new ValidationError(
-      "Multi-tenant: el token debe incluir el claim custom:tenant_id. No se admite tenant en argumentos de mutación."
+      "Multi-tenant: el JWT no incluye un identificador de tenant. " +
+        "Agregá en Cognito el claim custom:tenant_id (recomendado), o custom:holding_id / custom:organization_id, " +
+        "o en desarrollo ALLOW_ANON_TENANT_FALLBACK=true y DEV_TENANT_ID. " +
+        "Modo estricto solo custom:tenant_id: STRICT_TENANT_CLAIM_ONLY=true."
     );
   }
 
-  const organizationScopeIdRaw =
-    typeof claims["custom:organization_id"] === "string"
-      ? claims["custom:organization_id"].trim()
-      : "";
-
-  const organizationScopeId = organizationScopeIdRaw || tenantId;
+  const organizationScopeId = organizationId || holdingId || tenantId;
 
   return { tenantId, organizationScopeId };
 }
