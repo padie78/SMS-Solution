@@ -35,45 +35,93 @@ export function normalizeAppSyncLambdaEvent(raw) {
   return raw;
 }
 
+/**
+ * Claims efectivos: AppSync suele poner `sub` en `identity.sub`; el objeto `claims` a veces llega vacío o sin `sub`.
+ * @param {unknown} event
+ * @returns {Record<string, unknown>}
+ */
+function buildEffectiveClaims(event) {
+  const identity = event?.identity;
+  if (!identity || typeof identity !== "object") {
+    return {};
+  }
+
+  const base =
+    identity.claims && typeof identity.claims === "object" && !Array.isArray(identity.claims)
+      ? { ...identity.claims }
+      : {};
+
+  // Cognito: sub a nivel identity
+  if (typeof identity.sub === "string" && identity.sub.trim()) {
+    if (base.sub == null || String(base.sub).trim() === "") {
+      base.sub = identity.sub.trim();
+    }
+  }
+
+  if (typeof identity.username === "string" && identity.username.trim()) {
+    if (base["cognito:username"] == null || String(base["cognito:username"]).trim() === "") {
+      base["cognito:username"] = identity.username.trim();
+    }
+  }
+
+  return base;
+}
+
 /** @param {Record<string, unknown>} claims @param {string} key */
 function pickClaim(claims, key) {
   const v = claims[key];
-  return typeof v === "string" ? v.trim() : "";
+  if (v == null) return "";
+  if (typeof v === "string") return v.trim();
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  return "";
 }
 
 /**
  * Contexto de partición Dynamo (multi-tenant). **No** tomar tenant desde argumentos GraphQL.
  *
- * Resolución de `tenantId` (primer valor no vacío):
- * 1. `custom:tenant_id` (recomendado producción)
- * 2. Si `STRICT_TENANT_CLAIM_ONLY` ≠ `true`: `custom:holding_id`, `custom:organization_id`, `sub`
+ * Orden de `tenantId` (si STRICT_TENANT_CLAIM_ONLY ≠ true):
+ * custom:tenant_id → custom:holding_id → custom:organization_id → sub → cognito:username
  *
- * `organizationScopeId`: `custom:organization_id` → `custom:holding_id` → igual que `tenantId`.
+ * Override emergencia (misma Lambda, sin tocar Cognito): **LAMBDA_DEFAULT_TENANT_ID** o **DEV_TENANT_ID**
+ * (útil hasta redeploy + claims). **ALLOW_ANON_TENANT_FALLBACK** sigue soportado.
  *
- * @throws {ValidationError} si no hay ningún identificador usable
+ * @throws {ValidationError}
  * @returns {{ tenantId: string, organizationScopeId: string }}
  */
 export function resolvePartitionContextFromEvent(event) {
-  const claims = event?.identity?.claims ?? {};
+  const claims = buildEffectiveClaims(event);
   const strict = process.env.STRICT_TENANT_CLAIM_ONLY === "true";
 
   const customTenantId = pickClaim(claims, "custom:tenant_id");
   const holdingId = pickClaim(claims, "custom:holding_id");
   const organizationId = pickClaim(claims, "custom:organization_id");
   const sub = pickClaim(claims, "sub");
+  const username = pickClaim(claims, "cognito:username");
 
   let tenantId = customTenantId;
   if (!tenantId && !strict) {
-    tenantId = holdingId || organizationId || sub;
+    tenantId = holdingId || organizationId || sub || username;
     if (tenantId && !customTenantId) {
       console.warn(
-        "[MULTI_TENANT] Resolviendo tenant sin custom:tenant_id; usar holding_id / organization_id / sub. " +
-          "Definí custom:tenant_id en Cognito y/o STRICT_TENANT_CLAIM_ONLY=true en prod."
+        "[MULTI_TENANT] Tenant resuelto sin custom:tenant_id (holding/organization/sub/username). " +
+          "Configurá custom:tenant_id en Cognito y STRICT_TENANT_CLAIM_ONLY=true en producción."
       );
     }
   }
 
   if (!tenantId) {
+    const envDefault = (
+      process.env.LAMBDA_DEFAULT_TENANT_ID ||
+      process.env.DEV_TENANT_ID ||
+      ""
+    ).trim();
+    if (envDefault) {
+      const org = (process.env.DEV_ORG_SCOPE_ID || envDefault).trim();
+      console.warn(
+        "[MULTI_TENANT] Usando LAMBDA_DEFAULT_TENANT_ID / DEV_TENANT_ID: el token no aportó tenant usable."
+      );
+      return { tenantId: envDefault, organizationScopeId: org };
+    }
     if (process.env.ALLOW_ANON_TENANT_FALLBACK === "true") {
       const fb = (process.env.DEV_TENANT_ID || "").trim();
       const org = (process.env.DEV_ORG_SCOPE_ID || fb).trim();
@@ -82,10 +130,10 @@ export function resolvePartitionContextFromEvent(event) {
       }
     }
     throw new ValidationError(
-      "Multi-tenant: el JWT no incluye un identificador de tenant. " +
-        "Agregá en Cognito el claim custom:tenant_id (recomendado), o custom:holding_id / custom:organization_id, " +
-        "o en desarrollo ALLOW_ANON_TENANT_FALLBACK=true y DEV_TENANT_ID. " +
-        "Modo estricto solo custom:tenant_id: STRICT_TENANT_CLAIM_ONLY=true."
+      "Multi-tenant: el token no aporta identificador de tenant (custom:tenant_id, holding, organization_id o sub). " +
+        "Opciones: (1) claims en Cognito, (2) variable LAMBDA_DEFAULT_TENANT_ID en la Lambda, " +
+        "(3) redeploy con la última versión del resolver. " +
+        "Si el texto del error sólo menciona custom:tenant_id, la Lambda desplegada está desactualizada."
     );
   }
 
