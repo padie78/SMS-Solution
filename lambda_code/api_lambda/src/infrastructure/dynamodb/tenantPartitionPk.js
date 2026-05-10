@@ -11,15 +11,26 @@
  * @param {string | undefined | null} raw
  * @returns {string} segmento alfanumérico sin prefijos ORG#/ORGANIZATION#
  */
+/** Segmentos de PK/SK en MAYÚSCULAS (evita misses en query). */
+export function normalizePartitionSegment(raw) {
+  return String(raw ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "-");
+}
+
 export function normalizeOrgScopeSegment(raw) {
   const s = String(raw ?? "").trim();
   if (!s) return "";
+  let seg;
   if (s.includes("#")) {
     const parts = s.split("#").filter(Boolean);
     const last = parts[parts.length - 1];
-    return last ? last.trim() : "";
+    seg = last ? last.trim() : "";
+  } else {
+    seg = s;
   }
-  return s;
+  return normalizePartitionSegment(seg);
 }
 
 /**
@@ -28,7 +39,7 @@ export function normalizeOrgScopeSegment(raw) {
  * @returns {string} PK DynamoDB para todos los nodos de esa organización en el tenant
  */
 export function buildTenantOrgPartitionKey(tenantId, organizationScopeId) {
-  const t = String(tenantId ?? "").trim();
+  const t = normalizePartitionSegment(tenantId);
   const o = normalizeOrgScopeSegment(organizationScopeId);
   if (!t || !o) return "";
   return `TENANT#${t}#ORG#${o}`;

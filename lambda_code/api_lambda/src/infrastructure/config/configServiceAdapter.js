@@ -11,7 +11,8 @@ import { randomUUID } from "crypto";
 import {
   buildTenantOrgPartitionKey,
   normalizeOrgScopeSegment,
-  normalizeParentIdPointer
+  normalizeParentIdPointer,
+  normalizePartitionSegment
 } from "../dynamodb/tenantPartitionPk.js";
 import { appendSegmentToLocationPath, normalizeSegmentId } from "../dynamodb/nodePathModel.js";
 
@@ -34,6 +35,89 @@ function mapIncomingEntityType(nodeType) {
 }
 
 export class ConfigServiceAdapter {
+  /**
+   * Alta de empresa (raíz ORGANIZATION): `nodeId` único por org, nunca igual a `tenantId`.
+   * PK TENANT#…#ORG#nodeId, SK ORGANIZATION#nodeId, path #nodeId#, parentId ROOT.
+   * @param {string} tenantId solo desde custom:tenant_id (pasado por contexto)
+   * @param {{ id?: string, nodeId?: string, name: string, metadata?: unknown }} input
+   */
+  async saveOrganizationRootNode(tenantId, input) {
+    const timestamp = new Date().toISOString();
+    const raw = input.id ?? input.nodeId;
+    const generated = raw ? normalizeSegmentId(raw) : randomUUID().toUpperCase();
+    const tSeg = normalizePartitionSegment(tenantId);
+    const nSeg = normalizeSegmentId(generated);
+    if (!nSeg || !tSeg) {
+      return { success: false, message: "tenantId o nodeId inválido", item: null };
+    }
+    if (nSeg === tSeg) {
+      return {
+        success: false,
+        message: "nodeId de organización no puede ser igual al tenantId (holding).",
+        item: null
+      };
+    }
+
+    const pk = buildTenantOrgPartitionKey(tenantId, nSeg);
+    if (!pk) {
+      return { success: false, message: "PK inválida", item: null };
+    }
+
+    const sk = `ORGANIZATION#${nSeg}`;
+    const path = `#${nSeg}#`;
+
+    let metaObj = input.metadata;
+    if (typeof metaObj === "string") {
+      try {
+        metaObj = metaObj.trim() ? JSON.parse(metaObj) : {};
+      } catch {
+        metaObj = {};
+      }
+    }
+    if (metaObj == null || typeof metaObj !== "object") {
+      metaObj = {};
+    }
+
+    const item = {
+      PK: pk,
+      SK: sk,
+      holdingId: pk,
+      path,
+      entityType: "ORGANIZATION",
+      name: input.name,
+      parentId: "ROOT",
+      metadata: metaObj,
+      last_updated: timestamp
+    };
+
+    try {
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: item,
+          ConditionExpression: "attribute_not_exists(PK) AND attribute_not_exists(SK)"
+        })
+      );
+    } catch (error) {
+      if (error.name === "ConditionalCheckFailedException") {
+        return {
+          success: false,
+          message: `Colisión: ya existe PK/SK para nodeId=${nSeg}.`,
+          item: null
+        };
+      }
+      console.error("Error en saveOrganizationRootNode Put:", error);
+      return { success: false, message: error.message, item: null };
+    }
+
+    return {
+      success: true,
+      nodeId: nSeg,
+      path,
+      item
+    };
+  }
+
   /**
    * Obtiene un nodo por PK (tenant+org) y SK
    * @param {PartitionContext} ctx
@@ -65,31 +149,25 @@ export class ConfigServiceAdapter {
     const { id, parentId, nodeType, name, metadata = {} } = input;
 
     const entityType = mapIncomingEntityType(nodeType);
-    const orgSegmentRaw = normalizeOrgScopeSegment(ctx.organizationScopeId);
-
-    let cleanId;
     if (entityType === "ORGANIZATION") {
-      cleanId = normalizeSegmentId(
-        id ?? /** @type {{ orgId?: string }} */ (input).orgId ?? orgSegmentRaw
-      );
-      if (!orgSegmentRaw) {
-        return {
-          success: false,
-          message: "PK: falta el ID real de organización (orgId, custom:organization_id o DEFAULT_ORGAN_SCOPE_ID).",
-          item: null
-        };
-      }
-      if (cleanId !== normalizeSegmentId(orgSegmentRaw)) {
-        return {
-          success: false,
-          message:
-            `Nodo ORGANIZATION: id debe coincidir con el segmento ORG de la partición (${normalizeSegmentId(orgSegmentRaw)}).`,
-          item: null
-        };
-      }
-    } else {
-      cleanId = id ? normalizeSegmentId(id) : randomUUID().split("-")[0].toUpperCase();
+      return {
+        success: false,
+        message:
+          "Nodo raíz ORGANIZATION: el resolver debe usar saveOrganizationRootNode (nodeId distinto del tenant).",
+        item: null
+      };
     }
+
+    const orgSegmentRaw = normalizeOrgScopeSegment(ctx.organizationScopeId);
+    if (!orgSegmentRaw) {
+      return {
+        success: false,
+        message: "PK: falta orgId en contexto (custom:organization_id, SaveNodeInput.orgId o inferencia).",
+        item: null
+      };
+    }
+
+    const cleanId = id ? normalizeSegmentId(id) : randomUUID().split("-")[0].toUpperCase();
 
     const sk = `${entityType}#${cleanId}`;
 

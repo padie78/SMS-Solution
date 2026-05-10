@@ -51,7 +51,6 @@ function buildEffectiveClaims(event) {
       ? { ...identity.claims }
       : {};
 
-  // Cognito: sub a nivel identity
   if (typeof identity.sub === "string" && identity.sub.trim()) {
     if (base.sub == null || String(base.sub).trim() === "") {
       base.sub = identity.sub.trim();
@@ -76,15 +75,14 @@ function pickClaim(claims, key) {
   return "";
 }
 
-/** Segmento ORG# de la PK solo desde env si no hay claims ni `orgId` en GraphQL. Sin valor sintético fijo. */
+/** Segmento ORG# desde env si no hay claims ni `orgId` en GraphQL */
 function envOrganizationScopeFallback() {
   return (process.env.DEFAULT_ORGAN_SCOPE_ID || "").trim();
 }
 
 /**
- * Si el cliente envía el SK del nodo raíz (`ORGANIZATION#CB7647AC`), el segmento tras `#` es el ID real de
- * partición; permite `getTree`/`getNode` sin `orgId` en la query ni claim `custom:organization_id`.
- * @param {string | undefined | null} skLike p. ej. args.rootNodeId o args.id
+ * Si el cliente envía el SK del nodo raíz (`ORGANIZATION#<nodeId>`), extrae <nodeId> para la partición.
+ * @param {string | undefined | null} skLike
  * @returns {string}
  */
 export function inferOrganizationScopeFromNodeSk(skLike) {
@@ -95,9 +93,9 @@ export function inferOrganizationScopeFromNodeSk(skLike) {
 }
 
 /**
- * Prioridad del ID real de organización: `input.orgId` → `args.orgId` → claims → **rootNodeId/id** si es `ORGANIZATION#…` → **DEFAULT_ORGAN_SCOPE_ID**.
+ * Prioridad del ID de partición org: `input.orgId` → `args.orgId` → claims → SK `ORGANIZATION#…` → env.
  * @param {{ tenantId: string, organizationScopeId: string }} baseCtx
- * @param {Record<string, unknown> | null | undefined} args argumentos GraphQL (puede incluir `input` anidado)
+ * @param {Record<string, unknown> | null | undefined} args
  */
 export function mergePartitionContextFromGraphQLArgs(baseCtx, args) {
   if (!baseCtx || typeof baseCtx !== "object") {
@@ -130,39 +128,19 @@ export function mergePartitionContextFromGraphQLArgs(baseCtx, args) {
 }
 
 /**
- * Contexto de partición Dynamo (multi-tenant). **No** tomar tenant desde argumentos GraphQL.
+ * **tenantId** sólo desde `custom:tenant_id` (holding/dueño) — prefijo TENANT# de la PK.
+ * **Sin** usar sub/username como tenant salvo variables de entorno de desarrollo.
  *
- * Orden de `tenantId` (si STRICT_TENANT_CLAIM_ONLY ≠ true):
- * custom:tenant_id → custom:holding_id → custom:organization_id → sub → cognito:username
- *
- * Override emergencia (misma Lambda, sin tocar Cognito): **LAMBDA_DEFAULT_TENANT_ID** o **DEV_TENANT_ID**
- * (útil hasta redeploy + claims). **DEFAULT_ORGAN_SCOPE_ID** fuerza el segmento ORG# si no hay claims ni `orgId` en GraphQL.
- * Si sigue vacío, se usa **el mismo `tenantId`** como segmento ORG (1 org por tenant) hasta que exista `custom:organization_id`.
- * **ALLOW_ANON_TENANT_FALLBACK** sigue soportado.
+ * **organizationScopeId**: id de partición de una organización (no el tenant). Viene de claims,
+ * `orgId` en GraphQL (merge) o inferencia de SK; nunca se iguala automáticamente al tenant.
  *
  * @throws {ValidationError}
  * @returns {{ tenantId: string, organizationScopeId: string }}
  */
 export function resolvePartitionContextFromEvent(event) {
   const claims = buildEffectiveClaims(event);
-  const strict = process.env.STRICT_TENANT_CLAIM_ONLY === "true";
 
-  const customTenantId = pickClaim(claims, "custom:tenant_id");
-  const holdingId = pickClaim(claims, "custom:holding_id");
-  const organizationId = pickClaim(claims, "custom:organization_id");
-  const sub = pickClaim(claims, "sub");
-  const username = pickClaim(claims, "cognito:username");
-
-  let tenantId = customTenantId;
-  if (!tenantId && !strict) {
-    tenantId = holdingId || organizationId || sub || username;
-    if (tenantId && !customTenantId) {
-      console.warn(
-        "[MULTI_TENANT] Tenant resuelto sin custom:tenant_id (holding/organization/sub/username). " +
-          "Configurá custom:tenant_id en Cognito y STRICT_TENANT_CLAIM_ONLY=true en producción."
-      );
-    }
-  }
+  let tenantId = pickClaim(claims, "custom:tenant_id");
 
   if (!tenantId) {
     const envDefault = (
@@ -171,38 +149,28 @@ export function resolvePartitionContextFromEvent(event) {
       ""
     ).trim();
     if (envDefault) {
-      const org = (process.env.DEV_ORG_SCOPE_ID || envOrganizationScopeFallback()).trim();
       console.warn(
-        "[MULTI_TENANT] Usando LAMBDA_DEFAULT_TENANT_ID / DEV_TENANT_ID: el token no aportó tenant usable."
+        "[MULTI_TENANT] custom:tenant_id ausente; usando LAMBDA_DEFAULT_TENANT_ID / DEV_TENANT_ID (solo desarrollo)."
       );
-      return { tenantId: envDefault, organizationScopeId: org };
-    }
-    if (process.env.ALLOW_ANON_TENANT_FALLBACK === "true") {
+      tenantId = envDefault;
+    } else if (process.env.ALLOW_ANON_TENANT_FALLBACK === "true") {
       const fb = (process.env.DEV_TENANT_ID || "").trim();
-      const org = (process.env.DEV_ORG_SCOPE_ID || envOrganizationScopeFallback()).trim();
       if (fb) {
-        return { tenantId: fb, organizationScopeId: org };
+        tenantId = fb;
       }
     }
+  }
+
+  if (!tenantId) {
     throw new ValidationError(
-      "Multi-tenant: el token no aporta identificador de tenant (custom:tenant_id, holding, organization_id o sub). " +
-        "Opciones: (1) claims en Cognito, (2) variable LAMBDA_DEFAULT_TENANT_ID en la Lambda, " +
-        "(3) redeploy con la última versión del resolver. " +
-        "Si el texto del error sólo menciona custom:tenant_id, la Lambda desplegada está desactualizada."
+      "Aislamiento: se requiere claim custom:tenant_id en el Id Token. " +
+        "En desarrollo: LAMBDA_DEFAULT_TENANT_ID o DEV_TENANT_ID en la Lambda."
     );
   }
 
-  let organizationScopeId = organizationId || holdingId || envOrganizationScopeFallback();
-
-  // 1 tenant ⇄ 1 org por defecto: si no hay claim de org, el segmento ORG# no puede quedar vacío
-  // (getTree / PK). Quien use un id org distinto al tenant (p. ej. CB7647AC) debe setear custom:organization_id.
-  if (!organizationScopeId && tenantId) {
-    organizationScopeId = tenantId;
-    console.warn(
-      "[PARTITION] Sin custom:organization_id (ni DEV_ORG/DEFAULT_ORG en env); usando tenantId como segmento ORG#. " +
-        "Si tu PK en Dynamo usa otro id, definí custom:organization_id en Cognito o pasá orgId en GraphQL."
-    );
-  }
+  const organizationId = pickClaim(claims, "custom:organization_id");
+  const holdingId = pickClaim(claims, "custom:holding_id");
+  const organizationScopeId = organizationId || holdingId || envOrganizationScopeFallback();
 
   return { tenantId, organizationScopeId };
 }

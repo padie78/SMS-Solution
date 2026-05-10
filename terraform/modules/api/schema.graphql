@@ -13,6 +13,8 @@ type MutationResponse @aws_api_key @aws_cognito_user_pools {
   success: Boolean!
   message: String
   id: ID
+  """SK segment id (sin prefijo ORGANIZATION#); útil para redirigir tras crear empresa."""
+  nodeId: ID
   path: String
   entity: AWSJSON
 }
@@ -34,12 +36,14 @@ type Invoice @aws_api_key @aws_cognito_user_pools {
 }
 
 # --- INPUTS (sin tenantId: el aislamiento multi-tenant viene de Cognito) ---
-# Claims: custom:tenant_id; opcional custom:organization_id.
-# orgId en input fuerza el segmento ORG# de la PK al ID real de organización (p. ej. CB7647AC).
+# tenantId sólo desde custom:tenant_id.
+# ORGANIZATION raíz: opcional id / nodeId (UUID/nombre de id); si ausente la Lambda genera uno. No usar tenant como nodeId.
+# orgId en el resto de nodos: partición ORG# bajo la que cuelga el nodo.
 input SaveNodeInput {
   id: ID
+  nodeId: ID
   orgId: ID
-  parentId: ID!
+  parentId: ID
   nodeType: NodeType!
   name: String!
   metadata: AWSJSON

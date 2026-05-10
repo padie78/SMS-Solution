@@ -32,6 +32,7 @@ export function buildAppSyncHandler(deps) {
           success: false,
           message: ctxErr.message,
           id: null,
+          nodeId: null,
           path: null,
           entity: null,
         };
@@ -62,6 +63,7 @@ export function buildAppSyncHandler(deps) {
           success: false,
           message: `Validación fallida: ${msg}`,
           id: null,
+          nodeId: null,
           path: null,
           entity: null,
         };
@@ -72,6 +74,7 @@ export function buildAppSyncHandler(deps) {
           success: false,
           message: "Error de configuración interna del servidor.",
           id: null,
+          nodeId: null,
           path: null,
           entity: null,
         };
@@ -81,6 +84,7 @@ export function buildAppSyncHandler(deps) {
         success: false,
         message: "Ocurrió un error inesperado en el procesamiento.",
         id: null,
+        nodeId: null,
         path: null,
         entity: null,
       };

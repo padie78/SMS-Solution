@@ -37,6 +37,7 @@ function mutationResponseFromItem(item) {
       success: false,
       message: "Operación no produjo resultado",
       id: null,
+      nodeId: null,
       path: null,
       entity: null
     };
@@ -45,7 +46,31 @@ function mutationResponseFromItem(item) {
     success: true,
     message: null,
     id: item.SK ?? null,
+    nodeId: null,
     path: item.path ?? null,
+    entity: JSON.stringify(item)
+  };
+}
+
+/** Respuesta alta ORGANIZATION: incluye nodeId limpio para redirección en Angular. */
+function mutationResponseFromOrganizationSave(result) {
+  if (!result?.success || !result.item) {
+    return {
+      success: false,
+      message: result?.message ?? "saveOrganization no devolvió un ítem",
+      id: null,
+      nodeId: null,
+      path: null,
+      entity: null
+    };
+  }
+  const item = result.item;
+  return {
+    success: true,
+    message: null,
+    id: item.SK ?? null,
+    nodeId: result.nodeId ?? null,
+    path: result.path ?? item.path ?? null,
     entity: JSON.stringify(item)
   };
 }
@@ -62,15 +87,38 @@ export class HandleAppSyncRequest {
     switch (methodName) {
       case "saveNode": {
         const inp = args?.input ?? {};
+        const nodeTypeUpper = String(inp.nodeType ?? "").toUpperCase();
+
+        if (nodeTypeUpper === "ORGANIZATION") {
+          const parentRaw = String(inp.parentId ?? "ROOT").trim().toUpperCase();
+          if (parentRaw && parentRaw !== "ROOT") {
+            throw new ValidationError("La raíz ORGANIZATION exige parentId = ROOT (u omitir el campo).");
+          }
+          if (!String(ctx.tenantId ?? "").trim()) {
+            throw new ValidationError("custom:tenant_id es requerido para crear una organización.");
+          }
+          const orgResult = await this.deps.configService.saveOrganizationRootNode(ctx.tenantId, {
+            id: inp.id ?? undefined,
+            nodeId: inp.nodeId,
+            name: inp.name,
+            metadata: metadataFromInput(inp.metadata)
+          });
+          return mutationResponseFromOrganizationSave(orgResult);
+        }
+
         if (!String(ctx.organizationScopeId ?? "").trim()) {
           throw new ValidationError(
             "orgId en SaveNodeInput, custom:organization_id en el token o DEFAULT_ORGAN_SCOPE_ID en la Lambda es requerido para la PK."
           );
         }
+        const parentId = inp.parentId;
+        if (parentId == null || String(parentId).trim() === "") {
+          throw new ValidationError("parentId es requerido para nodos distintos de ORGANIZATION.");
+        }
         const raw = await this.deps.configService.saveNode(ctx, {
           id: inp.id ?? undefined,
           orgId: inp.orgId,
-          parentId: inp.parentId,
+          parentId,
           nodeType: inp.nodeType,
           name: inp.name,
           metadata: metadataFromInput(inp.metadata)
@@ -80,6 +128,7 @@ export class HandleAppSyncRequest {
             success: false,
             message: raw?.message ?? "saveNode no devolvió un ítem",
             id: null,
+            nodeId: null,
             path: null,
             entity: null
           };
@@ -106,6 +155,7 @@ export class HandleAppSyncRequest {
             success: false,
             message: r.message ?? "No se pudo actualizar el nodo",
             id: args.id,
+            nodeId: null,
             path: null,
             entity: null
           };
@@ -126,6 +176,7 @@ export class HandleAppSyncRequest {
             success: false,
             message: r.message ?? "No se pudo eliminar el nodo",
             id: args.id,
+            nodeId: null,
             path: null,
             entity: null
           };
@@ -134,6 +185,7 @@ export class HandleAppSyncRequest {
           success: true,
           message: r.message ?? null,
           id: args.id,
+          nodeId: null,
           path: null,
           entity: null
         };

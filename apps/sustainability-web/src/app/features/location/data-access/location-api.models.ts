@@ -17,13 +17,18 @@ export interface LocationMutationResponse {
   readonly success: boolean;
   readonly message?: string | null;
   readonly id?: string | null;
+  /** Segmento id de org (sin prefijo ORGANIZATION#) tras crear empresa. */
+  readonly nodeId?: string | null;
   readonly path?: string | null;
   readonly entity?: string | Record<string, unknown> | null;
 }
 
 export interface SaveNodeGraphqlInput {
   readonly id?: string | null;
-  readonly parentId: string;
+  /** Opcional; si falta en ORGANIZATION la Lambda genera UUID (no usar tenant). */
+  readonly nodeId?: string | null;
+  readonly orgId?: string | null;
+  readonly parentId?: string | null;
   readonly nodeType: GraphqlNodeType;
   readonly name: string;
   /** Enviar siempre serializado (AWSJSON). */

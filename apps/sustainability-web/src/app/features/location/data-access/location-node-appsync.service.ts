@@ -168,7 +168,9 @@ export class LocationNodeAppSyncService {
     const data = await this.executeGraphql<{ saveNode: LocationMutationResponse }>(SAVE_NODE, {
       input: {
         id: input.id ?? null,
-        parentId: input.parentId,
+        nodeId: input.nodeId ?? null,
+        orgId: input.orgId ?? null,
+        parentId: input.parentId ?? null,
         nodeType: input.nodeType,
         name: input.name,
         metadata: input.metadata
