@@ -71,6 +71,12 @@ variable "allow_tenant_fallback_from_sub" {
   default     = false
 }
 
+variable "default_organization_scope_id" {
+  type        = string
+  description = "Opcional: DEFAULT_ORGAN_SCOPE_ID en la Lambda API (getTree/getNode sin orgId ni claim). Misma convención que post_confirmation_default_organization_id."
+  default     = ""
+}
+
 # ==============================================================================
 # 4. INTELIGENCIA ARTIFICIAL Y APIS EXTERNAS
 # ==============================================================================

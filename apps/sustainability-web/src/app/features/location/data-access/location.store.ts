@@ -243,6 +243,11 @@ export class LocationService {
     if (nid != null && String(nid).trim() !== '') {
       return String(nid).trim().toUpperCase().replace(/\s+/g, '-');
     }
+    const sk = mutation.id != null ? String(mutation.id).trim() : '';
+    const fromOrgSk = /^ORGANIZATION#(.+)$/i.exec(sk);
+    if (fromOrgSk) {
+      return fromOrgSk[1].trim().toUpperCase().replace(/\s+/g, '-');
+    }
     return this.inferOrgScopeFromParentPointer(
       parentPointer === GRAPHQL_ROOT_PARENT_ID ? null : parentPointer
     );

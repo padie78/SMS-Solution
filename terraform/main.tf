@@ -13,9 +13,9 @@ module "iam" {
 }
 
 module "auth" {
-  source                                  = "./modules/auth"
-  project_name                            = var.project_name
-  environment                             = var.environment
+  source                                    = "./modules/auth"
+  project_name                              = var.project_name
+  environment                               = var.environment
   post_confirmation_default_organization_id = var.post_confirmation_default_organization_id
 }
 
@@ -82,6 +82,8 @@ module "compute" {
   lambda_architecture = var.lambda_architecture
 
   allow_tenant_fallback_from_sub = var.api_lambda_allow_tenant_fallback_from_sub != null ? var.api_lambda_allow_tenant_fallback_from_sub : contains(["dev", "development", "local"], lower(var.environment))
+
+  default_organization_scope_id = var.post_confirmation_default_organization_id
 }
 
 # ==============================================================================

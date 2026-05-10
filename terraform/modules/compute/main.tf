@@ -138,7 +138,8 @@ resource "aws_lambda_function" "signer" {
 locals {
   api_lambda_env = merge(
     { DYNAMO_TABLE = var.dynamo_table_name },
-    var.allow_tenant_fallback_from_sub ? { ALLOW_TENANT_FALLBACK_FROM_SUB = "true" } : {}
+    var.allow_tenant_fallback_from_sub ? { ALLOW_TENANT_FALLBACK_FROM_SUB = "true" } : {},
+    trimspace(var.default_organization_scope_id) != "" ? { DEFAULT_ORGAN_SCOPE_ID = trimspace(var.default_organization_scope_id) } : {}
   )
 }
 

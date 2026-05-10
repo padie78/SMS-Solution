@@ -70,9 +70,9 @@ variable "lambda_architecture" {
 
 # --- Lambda API (AppSync): claims multi-tenant ---
 variable "api_lambda_allow_tenant_fallback_from_sub" {
-  type     = bool
-  nullable = true
-  default  = null
+  type        = bool
+  nullable    = true
+  default     = null
   description = <<-EOT
     Si true, la Lambda usa el sub de Cognito como tenantId cuando falta custom:tenant_id.
     null = automático: true solo si var.environment es dev, development o local; false en stg/prod.

@@ -30,6 +30,7 @@ const SAVE_NODE = /* GraphQL */ `
       success
       message
       id
+      nodeId
       path
       entity
     }
