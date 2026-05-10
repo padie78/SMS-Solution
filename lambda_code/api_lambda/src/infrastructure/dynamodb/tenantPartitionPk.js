@@ -7,16 +7,30 @@
  *   proviene de claims, `orgId` en GraphQL o **DEFAULT_ORGAN_SCOPE_ID** en Lambda.
  *
  * Todos los SK (p. ej. ORGANIZATION#..., REGION#...) comparten el mismo PK dentro de esa org.
- *
- * @param {string | undefined | null} raw
- * @returns {string} segmento alfanumérico sin prefijos ORG#/ORGANIZATION#
  */
+
+/**
+ * Si el segmento es un UUID (con o sin guiones), lo normaliza al formato con guiones en
+ * posiciones estándar. Así `custom:tenant_id` / `orgId` en GraphQL coinciden con la PK
+ * guardada en Dynamo aunque vengan como 32 hex pegados.
+ * @param {string} s ya en mayúsculas / trimmed
+ * @returns {string}
+ */
+function canonicalizeUuidLikeSegment(s) {
+  const hex = s.replace(/-/g, "");
+  if (!/^[0-9A-F]{32}$/.test(hex)) {
+    return s;
+  }
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
+
 /** Segmentos de PK/SK en MAYÚSCULAS (evita misses en query). */
 export function normalizePartitionSegment(raw) {
-  return String(raw ?? "")
+  let s = String(raw ?? "")
     .trim()
     .toUpperCase()
     .replace(/\s+/g, "-");
+  return canonicalizeUuidLikeSegment(s);
 }
 
 export function normalizeOrgScopeSegment(raw) {

@@ -300,9 +300,14 @@ export class ConfigServiceAdapter {
     const holdingKey = pk;
     const { underPath, nodeType } = filter || {};
     const legacyOrEntityFilter =
-      "(attribute_exists(#etype)) OR (entity_type = :legacy)";
+      "(attribute_exists(#etype)) OR (attribute_exists(#ntype)) OR (#elegacy = :legacy)";
     const baseEav = {
       ":legacy": "NODE_CONFIG"
+    };
+    const exprNamesEntity = {
+      "#etype": "entityType",
+      "#ntype": "nodeType",
+      "#elegacy": "entity_type"
     };
 
     try {
@@ -313,7 +318,7 @@ export class ConfigServiceAdapter {
             TableName: TABLE_NAME,
             IndexName: "GSI_NodePath",
             KeyConditionExpression: "holdingId = :hid AND begins_with(#pth, :pref)",
-            ExpressionAttributeNames: { "#pth": "path", "#etype": "entityType" },
+            ExpressionAttributeNames: { "#pth": "path", ...exprNamesEntity },
             ExpressionAttributeValues: {
               ...baseEav,
               ":hid": holdingKey,
@@ -327,7 +332,7 @@ export class ConfigServiceAdapter {
           new QueryCommand({
             TableName: TABLE_NAME,
             KeyConditionExpression: "PK = :pk",
-            ExpressionAttributeNames: { "#etype": "entityType" },
+            ExpressionAttributeNames: exprNamesEntity,
             ExpressionAttributeValues: {
               ...baseEav,
               ":pk": pk
@@ -339,6 +344,9 @@ export class ConfigServiceAdapter {
       }
 
       let items = res.Items || [];
+      console.log(
+        `[listNodes] PK=${pk} underPath=${underPath ?? "(none)"} rawCount=${items.length} table=${TABLE_NAME}`
+      );
       if (nodeType) {
         const want = String(nodeType).toUpperCase();
         items = items.filter(

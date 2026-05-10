@@ -1,4 +1,8 @@
 import { ValidationError } from "../domain/errors.js";
+import {
+  normalizeOrgScopeSegment,
+  normalizePartitionSegment
+} from "../infrastructure/dynamodb/tenantPartitionPk.js";
 
 /**
  * AppSync puede invocar la Lambda con el contexto completo o únicamente con el
@@ -89,7 +93,7 @@ export function inferOrganizationScopeFromNodeSk(skLike) {
   const s = String(skLike ?? "").trim();
   const m = /^ORGANIZATION#(.+)$/i.exec(s);
   if (!m) return "";
-  return m[1].trim().toUpperCase().replace(/\s+/g, "-");
+  return normalizePartitionSegment(m[1].trim());
 }
 
 /**
@@ -124,7 +128,8 @@ export function mergePartitionContextFromGraphQLArgs(baseCtx, args) {
     String(baseCtx.organizationScopeId ?? "").trim() ||
     fromSkHint ||
     envOrganizationScopeFallback();
-  return { ...baseCtx, organizationScopeId: mergedOrg };
+  const organizationScopeId = mergedOrg ? normalizeOrgScopeSegment(mergedOrg) : "";
+  return { ...baseCtx, organizationScopeId };
 }
 
 /**
@@ -179,7 +184,10 @@ export function resolvePartitionContextFromEvent(event) {
 
   const organizationId = pickClaim(claims, "custom:organization_id");
   const holdingId = pickClaim(claims, "custom:holding_id");
-  const organizationScopeId = organizationId || holdingId || envOrganizationScopeFallback();
+  const rawOrgScope = organizationId || holdingId || envOrganizationScopeFallback();
 
-  return { tenantId, organizationScopeId };
+  return {
+    tenantId: normalizePartitionSegment(tenantId),
+    organizationScopeId: rawOrgScope ? normalizeOrgScopeSegment(rawOrgScope) : ""
+  };
 }
