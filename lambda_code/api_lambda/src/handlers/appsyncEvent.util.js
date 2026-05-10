@@ -137,6 +137,7 @@ export function mergePartitionContextFromGraphQLArgs(baseCtx, args) {
  *
  * Override emergencia (misma Lambda, sin tocar Cognito): **LAMBDA_DEFAULT_TENANT_ID** o **DEV_TENANT_ID**
  * (útil hasta redeploy + claims). **DEFAULT_ORGAN_SCOPE_ID** fuerza el segmento ORG# si no hay claims ni `orgId` en GraphQL.
+ * Si sigue vacío, se usa **el mismo `tenantId`** como segmento ORG (1 org por tenant) hasta que exista `custom:organization_id`.
  * **ALLOW_ANON_TENANT_FALLBACK** sigue soportado.
  *
  * @throws {ValidationError}
@@ -191,7 +192,17 @@ export function resolvePartitionContextFromEvent(event) {
     );
   }
 
-  const organizationScopeId = organizationId || holdingId || envOrganizationScopeFallback();
+  let organizationScopeId = organizationId || holdingId || envOrganizationScopeFallback();
+
+  // 1 tenant ⇄ 1 org por defecto: si no hay claim de org, el segmento ORG# no puede quedar vacío
+  // (getTree / PK). Quien use un id org distinto al tenant (p. ej. CB7647AC) debe setear custom:organization_id.
+  if (!organizationScopeId && tenantId) {
+    organizationScopeId = tenantId;
+    console.warn(
+      "[PARTITION] Sin custom:organization_id (ni DEV_ORG/DEFAULT_ORG en env); usando tenantId como segmento ORG#. " +
+        "Si tu PK en Dynamo usa otro id, definí custom:organization_id en Cognito o pasá orgId en GraphQL."
+    );
+  }
 
   return { tenantId, organizationScopeId };
 }

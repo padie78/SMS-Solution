@@ -27,6 +27,32 @@ resource "aws_cognito_user_pool" "main" {
     mutable             = true
   }
 
+  # Claims consumidos por AppSync/Lambda para la PK `TENANT#…#ORG#…` (sin env ni hardcode).
+  # En el Id Token aparecen como `custom:tenant_id` y `custom:organization_id`.
+  schema {
+    attribute_data_type      = "String"
+    name                     = "tenant_id"
+    developer_only_attribute = false
+    mutable                  = true
+    required                 = false
+    string_attribute_constraints {
+      min_length = 1
+      max_length = 128
+    }
+  }
+
+  schema {
+    attribute_data_type      = "String"
+    name                     = "organization_id"
+    developer_only_attribute = false
+    mutable                  = true
+    required                 = false
+    string_attribute_constraints {
+      min_length = 1
+      max_length = 128
+    }
+  }
+
   tags = {
     Name        = "${var.project_name}-user-pool"
     Environment = var.environment
