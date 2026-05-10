@@ -73,11 +73,65 @@ const ON_NODE_CHANGED = /* GraphQL */ `
   }
 `;
 
+const ORG_SCOPE_SESSION_KEY = 'sms_location_org_scope_segment';
+
+function normalizeOrgScopeSegment(raw: string): string {
+  return String(raw ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '-');
+}
+
 @Injectable({ providedIn: 'root' })
 export class LocationNodeAppSyncService {
   /** authMode por defecto alinea con amplify-config.ts (userPool); evita modo implícito `iam`. */
   private readonly client = generateClient({ authMode: 'userPool' });
   private readonly auth = inject(AuthService);
+
+  /**
+   * Segmento ORG# de la PK (mismo valor que en Dynamo). Persiste en sessionStorage para que
+   * `getTree` siga funcionando cuando el Id Token no trae `custom:organization_id`.
+   */
+  rememberOrganizationScope(segment: string | null | undefined): void {
+    const s = segment ? normalizeOrgScopeSegment(segment) : '';
+    try {
+      if (s) {
+        globalThis.sessionStorage?.setItem(ORG_SCOPE_SESSION_KEY, s);
+      }
+    } catch {
+      /* SSR / privacy mode */
+    }
+  }
+
+  clearOrganizationScopeHint(): void {
+    try {
+      globalThis.sessionStorage?.removeItem(ORG_SCOPE_SESSION_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  private readStoredOrgScope(): string | null {
+    try {
+      const v = globalThis.sessionStorage?.getItem(ORG_SCOPE_SESSION_KEY)?.trim();
+      return v ? normalizeOrgScopeSegment(v) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  private inferOrgFromMutationResponse(res: LocationMutationResponse): void {
+    const fromNodeId = res.nodeId ? normalizeOrgScopeSegment(String(res.nodeId)) : '';
+    if (fromNodeId) {
+      this.rememberOrganizationScope(fromNodeId);
+      return;
+    }
+    const id = res.id != null ? String(res.id).trim() : '';
+    const m = /^ORGANIZATION#(.+)$/i.exec(id);
+    if (m) {
+      this.rememberOrganizationScope(m[1]);
+    }
+  }
 
   private async executeGraphql<TResult>(query: string, variables?: Record<string, unknown>): Promise<TResult> {
     const raw: unknown =
@@ -128,17 +182,21 @@ export class LocationNodeAppSyncService {
   }
 
   /**
-   * Resuelve `orgId` para la PK backend: parámetro explícito → claim Cognito → SK `ORGANIZATION#<ID>`.
+   * Resuelve `orgId` para la PK backend:
+   * argumento explícito → session (último guardado) → claim Cognito → rootNodeId `ORGANIZATION#…`.
    */
   async getTree(rootNodeId?: string | null, orgId?: string | null): Promise<GraphqlNodeDto[]> {
     let resolvedOrg = (orgId ?? '').trim() || null;
+    if (!resolvedOrg) {
+      resolvedOrg = this.readStoredOrgScope();
+    }
     if (!resolvedOrg) {
       resolvedOrg = await this.auth.getOrganizationIdClaim();
     }
     if (!resolvedOrg && rootNodeId) {
       const m = /^ORGANIZATION#(.+)$/i.exec(String(rootNodeId).trim());
       if (m) {
-        resolvedOrg = m[1].trim().toUpperCase().replace(/\s+/g, '-');
+        resolvedOrg = normalizeOrgScopeSegment(m[1]);
       }
     }
 
@@ -156,6 +214,22 @@ export class LocationNodeAppSyncService {
       }
       return [];
     }
+    if (list.length > 0) {
+      if (resolvedOrg) {
+        this.rememberOrganizationScope(resolvedOrg);
+      } else {
+        const rootOrgRow = list.find(
+          (n) =>
+            String(n.nodeType ?? '').toUpperCase() === 'ORGANIZATION' ||
+            /^ORGANIZATION#/i.test(String(n.id ?? ''))
+        );
+        const sk = rootOrgRow?.id != null ? String(rootOrgRow.id).trim() : '';
+        const om = /^ORGANIZATION#(.+)$/i.exec(sk);
+        if (om) {
+          this.rememberOrganizationScope(om[1]);
+        }
+      }
+    }
     if (isDevMode()) {
       console.debug(
         `[SMS Location] getTree(rootNodeId=${rootNodeId ?? 'null'}, orgId=${resolvedOrg ?? 'null'}): ${list.length} nodo(s)`,
@@ -166,6 +240,10 @@ export class LocationNodeAppSyncService {
   }
 
   async saveNode(input: SaveNodeGraphqlInput): Promise<LocationMutationResponse> {
+    const orgHint = input.orgId ? normalizeOrgScopeSegment(String(input.orgId)) : '';
+    if (orgHint) {
+      this.rememberOrganizationScope(orgHint);
+    }
     const data = await this.executeGraphql<{ saveNode: LocationMutationResponse }>(SAVE_NODE, {
       input: {
         id: input.id ?? null,
@@ -179,6 +257,9 @@ export class LocationNodeAppSyncService {
     });
     if (!data.saveNode) {
       throw new Error('saveNode devolvió vacío');
+    }
+    if (data.saveNode.success === true) {
+      this.inferOrgFromMutationResponse(data.saveNode);
     }
     return data.saveNode;
   }

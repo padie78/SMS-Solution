@@ -82,7 +82,9 @@ export function hierarchicalSmsRootsFromFlatDtos(
   parseMetadata: (meta: unknown) => SmsLocationNodeMetadata | undefined
 ): SmsLocationNode[] {
   const scoped = flat.filter((n) => n.nodeType !== 'COST_CENTER');
-  const byId = new Map(scoped.map((n) => [n.id, n]));
+  /** Igual que Dynamo SK: empareja aunque AppSync devuelva mezcla de mayúsculas. */
+  const pkKey = (id: string) => String(id).trim().toUpperCase();
+  const byId = new Map(scoped.map((n) => [pkKey(n.id), n]));
 
   function sortPhysicalRows(rows: LocationGraphFlatDto[]): LocationGraphFlatDto[] {
     return [...rows].sort((a, b) => {
@@ -92,7 +94,13 @@ export function hierarchicalSmsRootsFromFlatDtos(
   }
 
   function assemble(row: LocationGraphFlatDto, parent?: TreeNode): SmsLocationNode {
-    const childRows = sortPhysicalRows(scoped.filter((c) => (c.parentId ?? null) === row.id));
+    const rowKey = pkKey(row.id);
+    const childRows = sortPhysicalRows(
+      scoped.filter((c) => {
+        const p = c.parentId ?? null;
+        return p != null && pkKey(String(p)) === rowKey;
+      })
+    );
 
     const shell: SmsLocationNode = {
       location_id: row.id,
@@ -124,7 +132,7 @@ export function hierarchicalSmsRootsFromFlatDtos(
   const orphanOrRoots = scoped.filter((n) => {
     const pid = n.parentId ?? null;
     if (pid == null) return true;
-    return !byId.has(pid);
+    return !byId.has(pkKey(String(pid)));
   });
 
   return sortPhysicalRows(orphanOrRoots).map((row) => assemble(row));

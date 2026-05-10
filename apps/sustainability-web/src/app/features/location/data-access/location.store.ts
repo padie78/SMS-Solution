@@ -688,6 +688,9 @@ export class LocationService {
         throw new Error(mutation.message || 'Guardado ejecutado pero el nodo no apareció tras refrescar desde AppSync.');
       }
       void this.replaceNodeId(tmpId, createdNode);
+      // p-tree lazy ignora cambios in-place en `[value]`; el remount fuerza pintar el sustituto del tmp.
+      this.touchTree();
+      this.bumpTreeViewEpoch();
 
       return createdNode;
     } catch (e: unknown) {
@@ -780,6 +783,8 @@ export class LocationService {
       }
 
       void this.replaceNodeId(id, updatedNode);
+      this.touchTree();
+      this.bumpTreeViewEpoch();
 
       return updatedNode;
     } catch (e: unknown) {
