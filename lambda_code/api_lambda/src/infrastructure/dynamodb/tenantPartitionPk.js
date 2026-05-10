@@ -3,8 +3,9 @@
  * Formato: `TENANT#<tenantId>#ORG#<organizationScopeId>`
  *
  * - `tenantId`: claim obligatorio `custom:tenant_id` (UUID o identificador estable).
- * - `organizationScopeId`: clave de partición lógica de la org (claim `custom:organization_id`
- *   sin prefijo, o el mismo tenant en tenants de una sola organización).
+ * - `organizationScopeId`: clave de partición lógica de la org (claims `custom:organization_id` /
+ *   `custom:holding_id`, o fallback **ROOT-001** vía `resolvePartitionContextFromEvent` salvo
+ *   **DEFAULT_ORGAN_SCOPE_ID** en Lambda).
  *
  * Todos los SK (p. ej. ORGANIZATION#..., REGION#...) comparten el mismo PK dentro de esa org.
  *

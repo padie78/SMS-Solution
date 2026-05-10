@@ -77,13 +77,24 @@ function pickClaim(claims, key) {
 }
 
 /**
+ * Segmento `ORG#` de la PK cuando no hay `custom:organization_id` ni `custom:holding_id`.
+ * Env **DEFAULT_ORGAN_SCOPE_ID** (p. ej. alineación con datos legacy); por defecto **ROOT-001**.
+ * PK resultante típica: `TENANT#<uuid>#ORG#ROOT-001`.
+ */
+function defaultOrganizationScopeFallback() {
+  const v = (process.env.DEFAULT_ORGAN_SCOPE_ID || "").trim();
+  return v || "ROOT-001";
+}
+
+/**
  * Contexto de partición Dynamo (multi-tenant). **No** tomar tenant desde argumentos GraphQL.
  *
  * Orden de `tenantId` (si STRICT_TENANT_CLAIM_ONLY ≠ true):
  * custom:tenant_id → custom:holding_id → custom:organization_id → sub → cognito:username
  *
  * Override emergencia (misma Lambda, sin tocar Cognito): **LAMBDA_DEFAULT_TENANT_ID** o **DEV_TENANT_ID**
- * (útil hasta redeploy + claims). **ALLOW_ANON_TENANT_FALLBACK** sigue soportado.
+ * (útil hasta redeploy + claims). **DEFAULT_ORGAN_SCOPE_ID** fuerza el segmento ORG# si no hay claims de org.
+ * **ALLOW_ANON_TENANT_FALLBACK** sigue soportado.
  *
  * @throws {ValidationError}
  * @returns {{ tenantId: string, organizationScopeId: string }}
@@ -116,7 +127,7 @@ export function resolvePartitionContextFromEvent(event) {
       ""
     ).trim();
     if (envDefault) {
-      const org = (process.env.DEV_ORG_SCOPE_ID || envDefault).trim();
+      const org = (process.env.DEV_ORG_SCOPE_ID || defaultOrganizationScopeFallback()).trim();
       console.warn(
         "[MULTI_TENANT] Usando LAMBDA_DEFAULT_TENANT_ID / DEV_TENANT_ID: el token no aportó tenant usable."
       );
@@ -124,9 +135,9 @@ export function resolvePartitionContextFromEvent(event) {
     }
     if (process.env.ALLOW_ANON_TENANT_FALLBACK === "true") {
       const fb = (process.env.DEV_TENANT_ID || "").trim();
-      const org = (process.env.DEV_ORG_SCOPE_ID || fb).trim();
+      const org = (process.env.DEV_ORG_SCOPE_ID || defaultOrganizationScopeFallback()).trim();
       if (fb) {
-        return { tenantId: fb, organizationScopeId: org || fb };
+        return { tenantId: fb, organizationScopeId: org };
       }
     }
     throw new ValidationError(
@@ -137,7 +148,7 @@ export function resolvePartitionContextFromEvent(event) {
     );
   }
 
-  const organizationScopeId = organizationId || holdingId || tenantId;
+  const organizationScopeId = organizationId || holdingId || defaultOrganizationScopeFallback();
 
   return { tenantId, organizationScopeId };
 }
