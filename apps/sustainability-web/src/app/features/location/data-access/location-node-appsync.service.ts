@@ -1,6 +1,7 @@
-import { Injectable, isDevMode } from '@angular/core';
+import { Injectable, inject, isDevMode } from '@angular/core';
 import { generateClient } from 'aws-amplify/api';
 import { Observable, filter, map } from 'rxjs';
+import { AuthService } from '../../../services/infrastructure/auth.service';
 import type {
   GraphqlNodeDto,
   LocationMutationResponse,
@@ -11,8 +12,8 @@ import type {
 type QueryResult<T> = { data?: T };
 
 const GET_TREE = /* GraphQL */ `
-  query GetTree($rootNodeId: ID) {
-    getTree(rootNodeId: $rootNodeId) {
+  query GetTree($rootNodeId: ID, $orgId: ID) {
+    getTree(rootNodeId: $rootNodeId, orgId: $orgId) {
       id
       parentId
       path
@@ -75,6 +76,7 @@ const ON_NODE_CHANGED = /* GraphQL */ `
 export class LocationNodeAppSyncService {
   /** authMode por defecto alinea con amplify-config.ts (userPool); evita modo implícito `iam`. */
   private readonly client = generateClient({ authMode: 'userPool' });
+  private readonly auth = inject(AuthService);
 
   private async executeGraphql<TResult>(query: string, variables?: Record<string, unknown>): Promise<TResult> {
     const raw: unknown =
@@ -124,13 +126,25 @@ export class LocationNodeAppSyncService {
     return {};
   }
 
-  async getTree(rootNodeId?: string | null): Promise<GraphqlNodeDto[]> {
-    const data = await this.executeGraphql<{ getTree: GraphqlNodeDto[] | null }>(
-      GET_TREE,
-      {
-        rootNodeId: rootNodeId ?? null
+  /**
+   * Resuelve `orgId` para la PK backend: parámetro explícito → claim Cognito → SK `ORGANIZATION#<ID>`.
+   */
+  async getTree(rootNodeId?: string | null, orgId?: string | null): Promise<GraphqlNodeDto[]> {
+    let resolvedOrg = (orgId ?? '').trim() || null;
+    if (!resolvedOrg) {
+      resolvedOrg = await this.auth.getOrganizationIdClaim();
+    }
+    if (!resolvedOrg && rootNodeId) {
+      const m = /^ORGANIZATION#(.+)$/i.exec(String(rootNodeId).trim());
+      if (m) {
+        resolvedOrg = m[1].trim().toUpperCase().replace(/\s+/g, '-');
       }
-    );
+    }
+
+    const data = await this.executeGraphql<{ getTree: GraphqlNodeDto[] | null }>(GET_TREE, {
+      rootNodeId: rootNodeId ?? null,
+      orgId: resolvedOrg ?? null
+    });
     const list = data.getTree;
     if (!Array.isArray(list)) {
       if (isDevMode()) {
@@ -143,7 +157,7 @@ export class LocationNodeAppSyncService {
     }
     if (isDevMode()) {
       console.debug(
-        `[SMS Location] getTree(rootNodeId=${rootNodeId ?? 'null'}): ${list.length} nodo(s)`,
+        `[SMS Location] getTree(rootNodeId=${rootNodeId ?? 'null'}, orgId=${resolvedOrg ?? 'null'}): ${list.length} nodo(s)`,
         list
       );
     }

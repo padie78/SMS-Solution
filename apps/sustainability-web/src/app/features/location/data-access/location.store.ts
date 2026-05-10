@@ -540,7 +540,10 @@ export class LocationService {
       } else {
         const expandedBefore = this.collectExpandedIds();
         expandedBefore.add(parent.location_id);
-        const subtree = await this.nodeApi.getTree(parent.location_id);
+        const subtree = await this.nodeApi.getTree(
+          parent.location_id,
+          this.resolveOrganizationScopeForAppSync(parent)
+        );
         this.mergeIntoRemoteIndex(subtree, false);
         this.materializeTreeFromRemoteIndex();
         await this.expandRestoredBranches(expandedBefore);
@@ -1009,6 +1012,32 @@ export class LocationService {
       return null;
     };
     return walk(this.tree());
+  }
+
+  /**
+   * Subárbol bajo un nodo (p. ej. REGION#…): la PK backend necesita el mismo segmento ORG que el árbol.
+   * Sube por `parent_id` hasta ORGANIZATION / `metadata.organizationId`.
+   */
+  private resolveOrganizationScopeForAppSync(node: SmsLocationNode): string | null {
+    let current: SmsLocationNode | null = node;
+    for (let depth = 0; depth < 32 && current != null; depth++) {
+      const fromMeta = current.metadata?.organizationId;
+      if (typeof fromMeta === 'string' && fromMeta.trim()) {
+        return fromMeta.trim().toUpperCase().replace(/\s+/g, '-');
+      }
+      if (current.type === 'ORGANIZATION') {
+        const m = /^ORGANIZATION#(.+)$/i.exec(current.location_id);
+        if (m) {
+          return m[1].trim().toUpperCase().replace(/\s+/g, '-');
+        }
+      }
+      const nextParentId = current.parent_id;
+      if (nextParentId == null || nextParentId === '') {
+        break;
+      }
+      current = this.findNodeById(nextParentId);
+    }
+    return null;
   }
 
   private insertOptimistic(node: SmsLocationNode): void {
