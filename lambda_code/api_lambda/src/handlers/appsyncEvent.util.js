@@ -128,11 +128,12 @@ export function mergePartitionContextFromGraphQLArgs(baseCtx, args) {
 }
 
 /**
- * **tenantId** sólo desde `custom:tenant_id` (holding/dueño) — prefijo TENANT# de la PK.
- * **Sin** usar sub/username como tenant salvo variables de entorno de desarrollo.
+ * **tenantId** preferentemente desde `custom:tenant_id` (holding/dueño).
  *
- * **organizationScopeId**: id de partición de una organización (no el tenant). Viene de claims,
- * `orgId` en GraphQL (merge) o inferencia de SK; nunca se iguala automáticamente al tenant.
+ * Desarrollo sin claim en Cognito: **LAMBDA_DEFAULT_TENANT_ID** / **DEV_TENANT_ID**, o
+ * **ALLOW_TENANT_FALLBACK_FROM_SUB=true** (usa `sub` del Id Token como tenant provisional).
+ *
+ * **organizationScopeId**: partición org (claims, `orgId` GraphQL o env).
  *
  * @throws {ValidationError}
  * @returns {{ tenantId: string, organizationScopeId: string }}
@@ -158,13 +159,21 @@ export function resolvePartitionContextFromEvent(event) {
       if (fb) {
         tenantId = fb;
       }
+    } else if (process.env.ALLOW_TENANT_FALLBACK_FROM_SUB === "true") {
+      tenantId = pickClaim(claims, "sub");
+      if (tenantId) {
+        console.warn(
+          "[MULTI_TENANT] ALLOW_TENANT_FALLBACK_FROM_SUB: usando `sub` como tenantId (configurá custom:tenant_id en Cognito para producción)."
+        );
+      }
     }
   }
 
   if (!tenantId) {
     throw new ValidationError(
-      "Aislamiento: se requiere claim custom:tenant_id en el Id Token. " +
-        "En desarrollo: LAMBDA_DEFAULT_TENANT_ID o DEV_TENANT_ID en la Lambda."
+      "Aislamiento: falta el claim custom:tenant_id en el Id Token. Opciones: (1) Definir el atributo en Cognito y asignarlo al usuario, " +
+        "(2) Variables LAMBDA_DEFAULT_TENANT_ID o DEV_TENANT_ID en la Lambda, " +
+        "(3) En desarrollo: ALLOW_TENANT_FALLBACK_FROM_SUB=true para usar el sub de Cognito como tenant provisional."
     );
   }
 
