@@ -7,10 +7,8 @@ const MONTH_REGEX = /^(\d{4})-(\d{2})$/;
 export const DateUtils = Object.freeze({
   /**
    * Valida cadena ISO8601 parseable (instant o fecha).
-   * @param {string} isoString
-   * @returns {boolean}
    */
-  isValidIsoDateTime(isoString) {
+  isValidIsoDateTime(isoString: string): boolean {
     if (typeof isoString !== 'string' || isoString.length < 4) return false;
     const t = Date.parse(isoString);
     return Number.isFinite(t);
@@ -18,10 +16,8 @@ export const DateUtils = Object.freeze({
 
   /**
    * Formato auxiliar YYYY-MM para etiquetas de periodo de factura (no timezone-aware billing window).
-   * @param {Date} date
-   * @returns {string}
    */
-  formatBillingMonth(date) {
+  formatBillingMonth(date: Date): string {
     if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
       throw new Error('DateUtils.formatBillingMonth: invalid Date');
     }
@@ -32,10 +28,8 @@ export const DateUtils = Object.freeze({
 
   /**
    * Valida string tipo periodo mensual YYYY-MM.
-   * @param {string} period
-   * @returns {boolean}
    */
-  isValidBillingMonthPeriod(period) {
+  isValidBillingMonthPeriod(period: string): boolean {
     if (typeof period !== 'string') return false;
     const m = MONTH_REGEX.exec(period.trim());
     if (!m) return false;
@@ -45,14 +39,12 @@ export const DateUtils = Object.freeze({
 
   /**
    * Primera instant UTC del mes (YYYY-MM) como ISO string.
-   * @param {string} yyyyMm
-   * @returns {string}
    */
-  billingMonthStartIso(yyyyMm) {
+  billingMonthStartIso(this: typeof DateUtils, yyyyMm: string): string {
     if (!this.isValidBillingMonthPeriod(yyyyMm)) {
       throw new Error(`Invalid billing month period: ${yyyyMm}`);
     }
-    const [y, mo] = yyyyMm.trim().split('-').map(Number);
+    const [y, mo] = yyyyMm.trim().split('-').map(Number) as [number, number];
     const d = new Date(Date.UTC(y, mo - 1, 1, 0, 0, 0, 0));
     return d.toISOString();
   }

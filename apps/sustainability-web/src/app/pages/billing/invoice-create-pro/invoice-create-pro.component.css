@@ -1,0 +1,155 @@
+/* Billing Pro Wizard: alineado visualmente con `invoice-create` legacy. */
+
+:host {
+  display: block;
+  min-width: 0;
+}
+
+/* Split en CSS Grid puro: la columna del visor tiene ancho controlado
+   y la del form rellena con `minmax(0, 1fr)` (evita overflow). */
+.invoice-pro__split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) clamp(320px, 36%, 460px);
+  align-items: start;
+  gap: 1.25rem;
+  container-type: inline-size;
+  container-name: invoice-pro-split;
+}
+
+@container invoice-pro-split (max-width: 880px) {
+  .invoice-pro__split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Fallback para navegadores sin container queries: apila < 1024px viewport. */
+@media (max-width: 1023.98px) {
+  .invoice-pro__split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.invoice-pro__form-col {
+  min-width: 0;
+}
+
+.invoice-pro__viewer-col {
+  position: sticky;
+  top: 1rem;
+  align-self: start;
+  z-index: 1;
+  min-width: 0;
+}
+
+@media (max-width: 1023.98px) {
+  .invoice-pro__viewer-col {
+    position: relative;
+    top: auto;
+  }
+}
+
+.invoice-pro__viewer {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid rgb(226 232 240);
+  border-radius: 0.75rem;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  overflow: hidden;
+  height: clamp(480px, calc(100vh - 13rem), 880px);
+  min-height: 480px;
+}
+
+.invoice-pro__viewer-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgb(226 232 240);
+  background: rgb(248 250 252); /* slate-50 */
+  color: rgb(51 65 85); /* slate-700 */
+}
+
+.invoice-pro__viewer-body {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: stretch;
+  justify-content: stretch;
+  background: rgb(241 245 249); /* slate-100 */
+}
+
+.invoice-pro__viewer-frame {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.invoice-pro__viewer-empty {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  text-align: center;
+  color: rgb(100 116 139);
+}
+
+.invoice-pro__section-title {
+  margin: 0 0 0.35rem 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: rgb(71 85 105);
+}
+
+.invoice-pro__json {
+  margin: 0;
+  padding: 0.875rem 1rem;
+  background: rgb(15 23 42); /* slate-900 */
+  color: rgb(226 232 240);
+  border-radius: 0.75rem;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre;
+}
+
+.invoice-pro__actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.25rem;
+  border-top: 1px solid rgb(226 232 240);
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 0 0 0.75rem 0.75rem;
+}
+
+.invoice-pro__spinner {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+:host ::ng-deep .invoice-pro__steps .p-steps-item .p-menuitem-link {
+  background: transparent;
+}
+
+:host ::ng-deep .invoice-pro__steps .p-steps-number {
+  border-color: rgb(209 250 229);
+  color: rgb(5 150 105);
+}
+
+:host ::ng-deep .invoice-pro__steps .p-highlight .p-steps-number {
+  background: rgb(16 185 129);
+  color: #fff;
+}
+
+:host ::ng-deep .invoice-pro__steps .p-steps-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: rgb(71 85 105);
+}

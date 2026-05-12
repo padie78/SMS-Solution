@@ -19,6 +19,7 @@ import {
   type LifecycleStatus
 } from '@sms/common';
 import { withHelp } from './form-help.util';
+import { buildLocationFormGroup } from './location-form-shared';
 
 export type CostCenterFormValue = {
   id: string;
@@ -568,22 +569,13 @@ const NULLABLE_FIELDS = new Set<keyof CostCenterFormValue>([
 ]);
 
 export function buildCostCenterFormGroup(fb: FormBuilder): CostCenterFormGroup {
-  const defaults = COST_CENTER_FORM_DEFAULT_VALUE;
-  const fbnn = fb.nonNullable;
-  const controls = {} as Record<keyof CostCenterFormValue, FormControl | unknown>;
-
-  for (const meta of allFieldDefs()) {
-    const key = meta.key;
-    const initial = defaults[key];
-    const validators = costCenterFieldValidators(meta);
-    if (NULLABLE_FIELDS.has(key)) {
-      controls[key] = fb.control(initial as never, validators);
-      continue;
-    }
-    controls[key] = fbnn.control(initial as never, validators);
-  }
-
-  return fb.group(controls as never) as unknown as CostCenterFormGroup;
+  return buildLocationFormGroup({
+    fb,
+    fieldDefs: allFieldDefs(),
+    defaults: COST_CENTER_FORM_DEFAULT_VALUE as unknown as Record<string, unknown>,
+    nullableFields: NULLABLE_FIELDS as unknown as ReadonlySet<string>,
+    getValidators: costCenterFieldValidators
+  }) as unknown as CostCenterFormGroup;
 }
 
 function toIsoLike(d: Date): string {

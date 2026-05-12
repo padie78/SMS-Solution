@@ -9,6 +9,7 @@ import type { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 
 import type { RegionDTO } from '@sms/common';
 import { withHelp } from './form-help.util';
+import { buildLocationFormGroup } from './location-form-shared';
 import {
   CarbonMarketTypeSchema,
   ClimateZoneSchema,
@@ -539,20 +540,13 @@ function allFieldDefs(): ReadonlyArray<RegionFormFieldDef> {
 }
 
 export function buildRegionFormGroup(fb: FormBuilder): RegionFormGroup {
-  const defaults = REGION_FORM_DEFAULT_VALUE;
-  const fbnn = fb.nonNullable;
-  const controls = {} as Record<keyof RegionFormValue, FormControl | unknown>;
-  for (const meta of allFieldDefs()) {
-    const key = meta.key;
-    const initial = defaults[key];
-    const validators = regionFieldValidators(meta);
-    if (NULLABLE_FIELDS.has(key)) {
-      controls[key] = fb.control(initial as never, validators);
-      continue;
-    }
-    controls[key] = fbnn.control(initial as never, validators);
-  }
-  return fb.group(controls as never) as unknown as RegionFormGroup;
+  return buildLocationFormGroup({
+    fb,
+    fieldDefs: allFieldDefs(),
+    defaults: REGION_FORM_DEFAULT_VALUE as unknown as Record<string, unknown>,
+    nullableFields: NULLABLE_FIELDS as unknown as ReadonlySet<string>,
+    getValidators: regionFieldValidators
+  }) as unknown as RegionFormGroup;
 }
 
 export function regionFormRawValueToDTO(v: RegionFormValue): RegionDTO {

@@ -1,0 +1,102 @@
+{
+  "ENTITIES": {
+    "ORGANIZATION": "Organization",
+    "BRANCH": "Branch",
+    "BUILDING": "Building",
+    "METER": "Meter"
+  },
+  "ENERGY_SERVICE_TYPE": {
+    "ELECTRICITY": "Electricity",
+    "GAS": "Gas",
+    "WATER": "Water",
+    "STEAM": "Steam"
+  },
+  "ENTITY_PICKER": {
+    "TITLE": "Entity Picker",
+    "LABEL": "Entity type",
+    "PLACEHOLDER": "Select an entity type…",
+    "REQUIRED": "Entity type is required.",
+    "SUBMIT": "Save",
+    "SELECTED_VALUE": "Technical value to persist"
+  },
+  "INVOICE_WIZARD": {
+    "TITLE": "New invoice",
+    "SUBTITLE": "Four-step guided flow. Everything stays in memory until you confirm submission.",
+    "STEPS": {
+      "INGEST": "Ingest",
+      "EXTRACT": "Extract",
+      "CLASSIFY": "Classify",
+      "REVIEW": "Review"
+    },
+    "INGEST": {
+      "HEADLINE": "Upload PDF",
+      "DESCRIPTION": "Drag or select the document. It stays in memory; nothing is uploaded yet.",
+      "CHOOSE": "Choose file",
+      "SELECTED": "File in memory",
+      "REQUIRED": "A PDF file is required to continue.",
+      "ONLY_PDF": "Only PDF files are accepted.",
+      "MAX_SIZE": "Maximum size: 25 MB."
+    },
+    "EXTRACT": {
+      "HEADLINE": "AI-extracted data",
+      "DESCRIPTION": "Review and adjust what the OCR detected. Edits are kept locally.",
+      "VENDOR": "Vendor",
+      "VENDOR_TAX_ID": "Vendor tax ID",
+      "INVOICE_NUMBER": "Invoice number",
+      "INVOICE_DATE": "Issue date",
+      "BILLING_START": "Period start",
+      "BILLING_END": "Period end",
+      "TOTAL_AMOUNT": "Total amount",
+      "CONSUMPTION_VALUE": "Consumption",
+      "CONSUMPTION_UNIT": "Unit",
+      "STATE": {
+        "UPLOADING": "Uploading PDF to S3…",
+        "AWAITING_AI": "Waiting for AI extraction…",
+        "READY": "Data extracted — please validate and adjust",
+        "FAILED": "Extraction failed. You can fill in the data manually.",
+        "AI_HINT": "The AI will prefill the fields once the response is received. You can edit them before continuing."
+      }
+    },
+    "CLASSIFY": {
+      "HEADLINE": "Accounting classification",
+      "DESCRIPTION": "Assign the target asset and consumption type. These technical values are language-independent.",
+      "TARGET_ENTITY": "Target asset",
+      "TARGET_ENTITY_HINT": "Does the invoice affect a Building or a specific Meter?",
+      "ASSET_ID": "Asset identifier",
+      "ASSET_ID_PLACEHOLDER": "e.g. ES003100009876543210GZ",
+      "SERVICE_TYPE": "Consumption type",
+      "PERIOD_YEAR": "Period year",
+      "PERIOD_MONTH": "Period month"
+    },
+    "REVIEW": {
+      "HEADLINE": "Final review",
+      "DESCRIPTION": "Confirm the data before uploading the document and persisting the invoice.",
+      "FILE": "Document",
+      "EXTRACTED": "Extracted data",
+      "CLASSIFICATION": "Classification",
+      "ANALYTICS_DIMENSIONS": "Analytics dimensions",
+      "DYNAMO_PREVIEW": "DynamoDB item preview"
+    },
+    "ACTIONS": {
+      "BACK": "Back",
+      "NEXT": "Continue",
+      "CANCEL": "Cancel",
+      "SUBMIT": "Submit & register",
+      "SUBMITTING": "Processing…"
+    },
+    "VIEWER": {
+      "TITLE": "Original document",
+      "EMPTY": "No PDF has been loaded yet."
+    },
+    "ERRORS": {
+      "MISSING_FILE": "The PDF file is gone. Go back to the ingest step.",
+      "UPLOAD_FAILED": "Failed to upload the document to S3.",
+      "CONFIRM_FAILED": "Failed to register the invoice.",
+      "FORM_INVALID": "Fix the required fields before continuing."
+    },
+    "SUCCESS": {
+      "TITLE": "Invoice registered",
+      "BODY": "The document was uploaded to S3 and the metadata was stored in the database."
+    }
+  }
+}

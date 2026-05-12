@@ -210,14 +210,22 @@ function decorateTreeNodeBadgeData(nodes: SmsLocationNode[]): SmsLocationNode[] 
         margin: 0.045rem 0;
       }
 
+      /* Ancho INTRÍNSECO: dejamos que cada nodo (con su ícono + label +
+         badge) determine su ancho natural. El panel padre (location-manager)
+         se ajusta a \`max-content\` con un cap defensivo. Así el árbol se
+         lee completo sin recortar nombres. \`min-width: 100%\` garantiza
+         que cuando el contenido es más corto que el panel, igual ocupe
+         todo el ancho (hover/selección bonitos). */
       :host ::ng-deep .sms-tree .p-treenode {
-        width: 100%;
-        max-width: 100%;
+        width: max-content;
+        min-width: 100%;
+        max-width: none;
       }
 
       :host ::ng-deep .sms-tree .p-treenode-content {
-        width: 100%;
-        max-width: 100%;
+        width: max-content;
+        min-width: 100%;
+        max-width: none;
         flex-wrap: nowrap;
         padding: 0.05rem 0.2rem;
         gap: 0.35rem;
@@ -268,8 +276,9 @@ function decorateTreeNodeBadgeData(nodes: SmsLocationNode[]): SmsLocationNode[] 
       }
 
       :host ::ng-deep .sms-tree .p-treenode-content .p-treenode-label {
-        flex: 1 1 auto;
-        min-width: 0;
+        flex: 0 0 auto;
+        width: auto;
+        white-space: nowrap;
       }
 
       /* Drag & drop affordance */
@@ -299,21 +308,26 @@ function decorateTreeNodeBadgeData(nodes: SmsLocationNode[]): SmsLocationNode[] 
     `
   ],
   template: `
-    <div class="flex flex-column h-full gap-3">
-      <div class="flex flex-wrap gap-2 align-items-start justify-content-between">
+    <div class="flex h-full flex-col gap-3 md:gap-4">
+      <div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-start sm:justify-between">
         <div class="min-w-0">
-          <div class="flex flex-wrap align-items-center gap-2">
-            <div class="text-xs font-black uppercase tracking-wider text-slate-600">Organización</div>
+          <div class="flex flex-wrap items-center gap-2">
+            <div class="text-xs font-black uppercase tracking-wider text-slate-600">
+              Organización
+            </div>
           </div>
-          <div class="text-[11px] text-slate-500 mt-1">
-            Creá nodos desde el menú contextual y movelos con drag &amp; drop respetando la jerarquía.
+          <div class="mt-1 text-[11px] leading-relaxed text-slate-500">
+            Creá nodos desde el menú contextual y movelos con drag &amp; drop respetando la
+            jerarquía.
           </div>
         </div>
-        <div class="flex flex-wrap gap-2 align-items-center justify-content-end shrink-0">
+        <div
+          class="flex w-full flex-wrap items-center gap-2 sm:w-auto sm:shrink-0 sm:justify-end"
+        >
           <button
             pButton
             type="button"
-            class="p-button-outlined border-round-xl text-xs font-bold"
+            class="p-button-outlined border-round-xl flex-1 text-xs font-bold sm:flex-none"
             icon="pi pi-plus"
             label="Crear organización"
             (click)="createOrganization()"
@@ -333,7 +347,33 @@ function decorateTreeNodeBadgeData(nodes: SmsLocationNode[]): SmsLocationNode[] 
       <p-confirmDialog />
 
       <div class="flex-1 min-h-0 overflow-hidden rounded-2xl border border-slate-200/80 bg-white/95 shadow-sm">
-        <div class="h-full flex flex-column" *ngIf="(treeNodes?.length ?? 0) > 0; else emptyState">
+        <ng-template #emptyState>
+          <div class="h-full flex flex-column align-items-center justify-content-center gap-3 p-6 text-center">
+            <div class="inline-flex align-items-center justify-content-center w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200">
+              <i class="pi pi-sitemap text-indigo-700 text-xl" aria-hidden="true"></i>
+            </div>
+            <div class="max-w-md">
+              <div class="text-sm font-black text-slate-900">Todavía no hay nodos en tu jerarquía</div>
+              <div class="text-[12px] text-slate-500 mt-1 leading-relaxed">
+                Empezá creando una <span class="font-semibold text-slate-700">Organización</span>. Luego vas a poder agregar
+                regiones y el resto de niveles.
+              </div>
+              <div class="text-[11px] text-slate-400 mt-2" data-testid="location-tree-empty">
+                Tip: si esto aparece y esperabas ver datos, revisá la carga de raíces ("loadRoots") o el mock storage.
+              </div>
+            </div>
+            <button
+              pButton
+              type="button"
+              class="p-button border-round-xl text-xs font-bold"
+              icon="pi pi-plus"
+              label="Crear organización"
+              (click)="createOrganization()"
+            ></button>
+          </div>
+        </ng-template>
+
+        <div class="h-full flex flex-column" *ngIf="(treeNodes?.length ?? 0) > 0; else noTreeOrLoading">
           <!-- Remount explícito sin @for+track: así no dispara NG0956 (track que cambia borra el único ítem). -->
           @if (pTreeMounted()) {
             <p-tree
@@ -409,30 +449,22 @@ function decorateTreeNodeBadgeData(nodes: SmsLocationNode[]): SmsLocationNode[] 
           </ng-template>
         </div>
 
-        <ng-template #emptyState>
-          <div class="h-full flex flex-column align-items-center justify-content-center gap-3 p-6 text-center">
-            <div class="inline-flex align-items-center justify-content-center w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-200">
-              <i class="pi pi-sitemap text-indigo-700 text-xl" aria-hidden="true"></i>
+        <ng-template #noTreeOrLoading>
+          <div
+            *ngIf="loading && treeNodes.length === 0"
+            class="h-full flex flex-column align-items-center justify-content-center gap-3 p-8 text-center min-h-[280px]"
+            role="status"
+            aria-live="polite"
+          >
+            <i class="pi pi-spin pi-spinner text-3xl text-emerald-600" aria-hidden="true"></i>
+            <div class="text-sm font-semibold text-slate-800">Cargando jerarquía…</div>
+            <div class="text-[12px] text-slate-500 max-w-xs leading-relaxed">
+              Sincronizando con el árbol de ubicaciones.
             </div>
-            <div class="max-w-md">
-              <div class="text-sm font-black text-slate-900">Todavía no hay nodos en tu jerarquía</div>
-              <div class="text-[12px] text-slate-500 mt-1 leading-relaxed">
-                Empezá creando una <span class="font-semibold text-slate-700">Organización</span>. Luego vas a poder agregar
-                regiones y el resto de niveles.
-              </div>
-              <div class="text-[11px] text-slate-400 mt-2" data-testid="location-tree-empty">
-                Tip: si esto aparece y esperabas ver datos, revisá la carga de raíces ("loadRoots") o el mock storage.
-              </div>
-            </div>
-            <button
-              pButton
-              type="button"
-              class="p-button border-round-xl text-xs font-bold"
-              icon="pi pi-plus"
-              label="Crear organización"
-              (click)="createOrganization()"
-            ></button>
           </div>
+          <ng-container *ngIf="!loading && treeNodes.length === 0">
+            <ng-container *ngTemplateOutlet="emptyState"></ng-container>
+          </ng-container>
         </ng-template>
       </div>
     </div>

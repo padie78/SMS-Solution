@@ -8,12 +8,8 @@ import {
   inject,
   signal
 } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { CardModule } from 'primeng/card';
-import { DropdownModule } from 'primeng/dropdown';
-import { InputNumberModule } from 'primeng/inputnumber';
-import { InputTextModule } from 'primeng/inputtext';
-import { InputTextareaModule } from 'primeng/inputtextarea';
 import type { CostCenterDTO, OrganizationDTO } from '@sms/common';
 import type { SmsLocationNode, SmsLocationNodeMetadata } from '../../../../core/models/sms-location-node.model';
 import {
@@ -25,17 +21,15 @@ import { isSmsTreeDraftNode, stripSmsLocalDraftFromMetadata } from '../../lib/lo
 import { LocationService } from '../../services/location.service';
 import { resolveHierarchyContext } from './location-hierarchy-context';
 import { LocationFormActionsComponent } from './location-form-actions.component';
-import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
+import { LocationFormFieldComponent } from './location-form-field.component';
 import { OrganizationCostCenterTableComponent } from './organization-cost-center-table.component';
 import {
   ORGANIZATION_COST_CENTERS_TAB_ID,
-  ORGANIZATION_FIELD_GRID_CLASS,
   ORGANIZATION_FORM_ENUM_OPTIONS,
   ORGANIZATION_FORM_TABS,
   buildOrganizationFormGroup,
   hydrateOrganizationFormFromPartial,
   organizationFormRawValueToDTO,
-  type OrganizationFormFieldDef,
   type OrganizationFormGroup,
   type OrganizationFormShape,
   type OrganizationFormTabDef,
@@ -53,13 +47,9 @@ import {
     CommonModule,
     ReactiveFormsModule,
     CardModule,
-    InputTextModule,
-    InputTextareaModule,
-    InputNumberModule,
-    DropdownModule,
     OrganizationCostCenterTableComponent,
     LocationFormActionsComponent,
-    UiHelpTipComponent
+    LocationFormFieldComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './organization-form.component.html'
@@ -113,10 +103,6 @@ export class OrganizationFormComponent implements OnChanges {
     this.form.markAsDirty();
   }
 
-  gridClass(field: OrganizationFormFieldDef): string {
-    return ORGANIZATION_FIELD_GRID_CLASS[field.mdCols];
-  }
-
   enumOptions(
     key: keyof typeof ORGANIZATION_FORM_ENUM_OPTIONS | undefined
   ): Array<SelectOption<string>> {
@@ -145,18 +131,6 @@ export class OrganizationFormComponent implements OnChanges {
     } catch {
       return '{}';
     }
-  }
-
-  errorMessage<K extends keyof OrganizationFormValue>(key: K): string | null {
-    const c = this.form.controls[key];
-    const errs = c.errors as ValidationErrors | null;
-    if (!errs) return null;
-    if (errs['required']) return 'Campo obligatorio.';
-    if (errs['email']) return 'Introduce un email válido.';
-    if (errs['pattern']) return 'El formato del valor no es válido.';
-    if (errs['min']) return `Valor mínimo: ${errs['min'].min}.`;
-    if (errs['max']) return `Valor máximo: ${errs['max'].max}.`;
-    return null;
   }
 
   reset(): void {

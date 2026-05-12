@@ -1,0 +1,167 @@
+<div class="gdesg-root invoice-create-flow invoice-pro w-full max-w-[1600px] mx-auto space-y-6 pb-12 min-w-0">
+  <header class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <div class="min-w-0 pr-2">
+      <p class="text-xs font-bold text-emerald-700 m-0">SMS · Billing &amp; Compliance</p>
+      <h1 class="text-3xl font-black text-slate-900 tracking-tight mt-1 m-0">
+        {{ 'INVOICE_WIZARD.TITLE' | translate }}
+      </h1>
+      <p class="text-slate-500 text-sm max-w-3xl leading-relaxed mt-2 m-0">
+        {{ 'INVOICE_WIZARD.SUBTITLE' | translate }}
+      </p>
+    </div>
+  </header>
+
+  <section
+    class="rounded-2xl border border-slate-200 bg-white shadow-sm min-w-0 overflow-hidden"
+    aria-label="Asistente profesional de alta de factura"
+  >
+    <div class="px-5 pt-5 md:px-6 md:pt-6">
+      <p-steps
+        [model]="stepperItems()"
+        [readonly]="true"
+        [activeIndex]="activeStepIndex()"
+        styleClass="invoice-pro__steps"
+      />
+    </div>
+
+    @if (errors().length > 0) {
+      <div class="px-5 pt-4 md:px-6">
+        <p-messages [value]="errors()" [enableService]="false" />
+      </div>
+    }
+
+    <div class="p-5 md:p-6">
+      <div class="invoice-pro__split">
+        <div class="invoice-pro__form-col">
+          <form [formGroup]="form" (ngSubmit)="$event.preventDefault()" class="flex flex-col gap-4">
+            @if (activeStepIndex() === 0) {
+              <app-invoice-ingest-step
+                [file]="form.controls.ingest.value"
+                (fileSelected)="onFileSelect($event)"
+                (fileRemoved)="onFileRemove()"
+              />
+            }
+
+            @if (activeStepIndex() === 1) {
+              <app-invoice-extract-step
+                [form]="form.controls.extract"
+                [state]="extractState()"
+              />
+            }
+
+            @if (activeStepIndex() === 2) {
+              <app-invoice-classify-step
+                [form]="form.controls.classify"
+                [targetEntityOptions]="targetEntityOptions"
+                [serviceTypeOptions]="serviceTypeOptions"
+              />
+            }
+
+            @if (activeStepIndex() === 3) {
+              <app-invoice-review-step
+                [file]="form.controls.ingest.value"
+                [dynamoPreviewJson]="dynamoPreviewJson()"
+              />
+            }
+
+            <div class="invoice-pro__actions">
+              <p-button
+                type="button"
+                [label]="'INVOICE_WIZARD.ACTIONS.CANCEL' | translate"
+                icon="pi pi-times"
+                severity="secondary"
+                styleClass="p-button-text p-button-secondary text-xs font-bold rounded-xl"
+                (onClick)="cancel()"
+                [disabled]="submitting()"
+              />
+
+              <div class="flex items-center gap-2">
+                @if (activeStepIndex() > 0) {
+                  <p-button
+                    type="button"
+                    [label]="'INVOICE_WIZARD.ACTIONS.BACK' | translate"
+                    icon="pi pi-arrow-left"
+                    styleClass="p-button-text p-button-secondary text-xs font-bold rounded-xl"
+                    (onClick)="prev()"
+                    [disabled]="submitting()"
+                  />
+                }
+
+                @if (activeStepIndex() < 3) {
+                  <p-button
+                    type="button"
+                    [label]="
+                      activeStepIndex() === 1 && (extractState() === 'uploading' || extractState() === 'awaiting_ai')
+                        ? ('INVOICE_WIZARD.ACTIONS.SUBMITTING' | translate)
+                        : ('INVOICE_WIZARD.ACTIONS.NEXT' | translate)
+                    "
+                    icon="pi pi-angle-right"
+                    iconPos="right"
+                    styleClass="p-button-emerald rounded-xl text-xs font-bold px-6 h-11 shadow-sm"
+                    (onClick)="next()"
+                    [disabled]="
+                      activeStepIndex() === 1 && (extractState() === 'uploading' || extractState() === 'awaiting_ai')
+                    "
+                  />
+                } @else {
+                  <p-button
+                    type="button"
+                    [label]="
+                      submitting()
+                        ? ('INVOICE_WIZARD.ACTIONS.SUBMITTING' | translate)
+                        : ('INVOICE_WIZARD.ACTIONS.SUBMIT' | translate)
+                    "
+                    icon="pi pi-cloud-upload"
+                    iconPos="right"
+                    styleClass="p-button-emerald rounded-xl text-xs font-bold px-6 h-11 shadow-sm"
+                    (onClick)="submit()"
+                    [disabled]="submitting() || form.invalid"
+                  />
+                  @if (submitting()) {
+                    <p-progressSpinner
+                      styleClass="invoice-pro__spinner"
+                      strokeWidth="3"
+                      animationDuration=".75s"
+                    />
+                  }
+                }
+              </div>
+            </div>
+          </form>
+        </div>
+
+        <aside class="invoice-pro__viewer-col">
+          <div class="invoice-pro__viewer">
+            <header class="invoice-pro__viewer-header">
+              <i class="pi pi-file-pdf"></i>
+              <span class="font-bold text-sm">
+                {{ 'INVOICE_WIZARD.VIEWER.TITLE' | translate }}
+              </span>
+              @if (form.controls.ingest.value; as f) {
+                <p-tag [value]="f.name" severity="success" styleClass="ml-auto max-w-full truncate" />
+              }
+            </header>
+
+            <div class="invoice-pro__viewer-body">
+              @if (pdfSafeUrl(); as src) {
+                <iframe
+                  [src]="src"
+                  title="invoice PDF"
+                  class="invoice-pro__viewer-frame"
+                  loading="lazy"
+                ></iframe>
+              } @else {
+                <div class="invoice-pro__viewer-empty">
+                  <i class="pi pi-file-pdf text-4xl mb-3 opacity-40" aria-hidden="true"></i>
+                  <p class="m-0 text-sm text-slate-500">
+                    {{ 'INVOICE_WIZARD.VIEWER.EMPTY' | translate }}
+                  </p>
+                </div>
+              }
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+</div>

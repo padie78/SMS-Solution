@@ -1,0 +1,63 @@
+<section class="entity-picker">
+  <header class="entity-picker__header">
+    <h2>{{ 'ENTITY_PICKER.TITLE' | translate }}</h2>
+
+    <div class="entity-picker__lang-switch" role="group" aria-label="Language switcher">
+      <button
+        *ngFor="let lang of supportedLanguages"
+        type="button"
+        pButton
+        [outlined]="true"
+        [label]="lang.toUpperCase()"
+        (click)="switchLanguage(lang)"
+      ></button>
+    </div>
+  </header>
+
+  <form [formGroup]="form" (ngSubmit)="onSubmit()" class="entity-picker__form">
+    <label for="entityType" class="entity-picker__label">
+      {{ 'ENTITY_PICKER.LABEL' | translate }}
+    </label>
+
+    <p-dropdown
+      inputId="entityType"
+      formControlName="entityType"
+      [options]="entityTypeOptions"
+      optionValue="value"
+      optionLabel="labelKey"
+      [placeholder]="'ENTITY_PICKER.PLACEHOLDER' | translate"
+      [showClear]="true"
+      appendTo="body"
+    >
+      <ng-template let-option pTemplate="item">
+        <span>{{ option.labelKey | translate }}</span>
+      </ng-template>
+
+      <ng-template let-selected pTemplate="selectedItem">
+        <span *ngIf="selected">{{ selected.labelKey | translate }}</span>
+      </ng-template>
+    </p-dropdown>
+
+    <small
+      *ngIf="form.controls.entityType.invalid && form.controls.entityType.touched"
+      class="entity-picker__error"
+    >
+      {{ 'ENTITY_PICKER.REQUIRED' | translate }}
+    </small>
+
+    <button
+      type="submit"
+      pButton
+      [label]="'ENTITY_PICKER.SUBMIT' | translate"
+      [disabled]="form.invalid"
+    ></button>
+  </form>
+
+  <pre
+    *ngIf="form.controls.entityType.value as picked"
+    class="entity-picker__debug"
+    aria-live="polite"
+  >
+{{ 'ENTITY_PICKER.SELECTED_VALUE' | translate }}: <strong>{{ picked }}</strong>
+  </pre>
+</section>

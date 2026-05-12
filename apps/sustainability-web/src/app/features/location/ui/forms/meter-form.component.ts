@@ -10,13 +10,8 @@ import {
   inject,
   signal
 } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
-import { CalendarModule } from 'primeng/calendar';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { CardModule } from 'primeng/card';
-import { DropdownModule } from 'primeng/dropdown';
-import { InputNumberModule } from 'primeng/inputnumber';
-import { InputTextModule } from 'primeng/inputtext';
-import { InputTextareaModule } from 'primeng/inputtextarea';
 import type { MeterDTO, MeterOperationalStatus } from '@sms/common';
 import type {
   SmsLocationNode,
@@ -28,22 +23,19 @@ import { isSmsTreeDraftNode, stripSmsLocalDraftFromMetadata } from '../../lib/lo
 import { NotificationService } from '../../../../services/ui/notification.service';
 import { resolveHierarchyContext } from './location-hierarchy-context';
 import { LocationFormActionsComponent } from './location-form-actions.component';
+import { LocationFormFieldComponent } from './location-form-field.component';
 import { NodeCostCenterMultiPickerComponent } from './node-cost-center-multi-picker.component';
-import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
-import { UiInputSwitchComponent } from '../../../../ui/atoms/ui-input-switch/ui-input-switch.component';
 import {
   patchNodeCostCenterIdsOnMetadata,
   readNodeCostCenterIds,
   sanitizeIds
 } from './node-cost-center-metadata.util';
 import {
-  METER_FIELD_GRID_CLASS,
   METER_FORM_ENUM_OPTIONS,
   METER_FORM_TABS,
   buildMeterFormGroup,
   hydrateMeterFormFromPartial,
   meterFormRawValueToDTO,
-  type MeterFormFieldDef,
   type MeterFormGroup,
   type MeterFormShape,
   type MeterFormTabDef,
@@ -68,15 +60,9 @@ function meterOperationalStatusToSmsNodeStatus(status: MeterOperationalStatus): 
     CommonModule,
     ReactiveFormsModule,
     CardModule,
-    InputTextModule,
-    InputTextareaModule,
-    InputNumberModule,
-    DropdownModule,
-    CalendarModule,
     NodeCostCenterMultiPickerComponent,
     LocationFormActionsComponent,
-    UiHelpTipComponent,
-    UiInputSwitchComponent
+    LocationFormFieldComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './meter-form.component.html'
@@ -158,10 +144,6 @@ export class MeterFormComponent implements OnChanges {
     this.form.markAsDirty();
   }
 
-  gridClass(field: MeterFormFieldDef): string {
-    return METER_FIELD_GRID_CLASS[field.mdCols];
-  }
-
   enumOptions(key: keyof typeof METER_FORM_ENUM_OPTIONS | undefined): Array<SelectOption<string>> {
     if (!key) return [];
     return [...METER_FORM_ENUM_OPTIONS[key]] as SelectOption<string>[];
@@ -181,16 +163,6 @@ export class MeterFormComponent implements OnChanges {
     } catch {
       return '{}';
     }
-  }
-
-  errorMessage<K extends keyof MeterFormValue>(key: K): string | null {
-    const c = this.form.controls[key];
-    const errs = c.errors as ValidationErrors | null;
-    if (!errs) return null;
-    if (errs['required']) return 'Campo obligatorio.';
-    if (errs['min']) return `Valor mínimo: ${errs['min'].min}.`;
-    if (errs['max']) return `Valor máximo: ${errs['max'].max}.`;
-    return null;
   }
 
   reset(): void {

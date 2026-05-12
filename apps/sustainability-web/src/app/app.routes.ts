@@ -171,6 +171,14 @@ export const routes: Routes = [
           ),
         title: 'SMS - New Invoice'
       },
+      {
+        path: 'invoices/new-pro',
+        loadComponent: () =>
+          import('./pages/billing/invoice-create-pro/invoice-create-pro.component').then(
+            (m) => m.InvoiceCreateProComponent
+          ),
+        title: 'SMS - New Invoice (Pro Wizard)'
+      },
       navPlaceholder(
         'reporting',
         'Reporting Factory',

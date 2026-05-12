@@ -10,22 +10,20 @@ import {
   inject,
   signal
 } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
-import { CalendarModule } from 'primeng/calendar';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { CardModule } from 'primeng/card';
-import { DropdownModule } from 'primeng/dropdown';
-import { InputNumberModule } from 'primeng/inputnumber';
-import { InputTextModule } from 'primeng/inputtext';
-import { InputTextareaModule } from 'primeng/inputtextarea';
-import type { BranchDTO, BranchStatus, TariffDTO } from '@sms/common';
+import type { BranchDTO, BranchStatus, TariffDTO, EntityType } from '@sms/common';
+import {
+  EntityTypePickerComponent,
+  type EntityPickerSubmitPayload
+} from '../../../entity-picker/entity-type-picker.component';
 import type { SmsLocationNode, SmsLocationNodeMetadata, SmsNodeStatus } from '../../../../core/models/sms-location-node.model';
 import { LocationService } from '../../services/location.service';
 import { isSmsTreeDraftNode, stripSmsLocalDraftFromMetadata } from '../../lib/location-tree-helpers';
 import { NotificationService } from '../../../../services/ui/notification.service';
 import { resolveHierarchyContext } from './location-hierarchy-context';
 import { LocationFormActionsComponent } from './location-form-actions.component';
-import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
-import { UiInputSwitchComponent } from '../../../../ui/atoms/ui-input-switch/ui-input-switch.component';
+import { LocationFormFieldComponent } from './location-form-field.component';
 import { NodeCostCenterMultiPickerComponent } from './node-cost-center-multi-picker.component';
 import {
   patchNodeCostCenterIdsOnMetadata,
@@ -34,14 +32,12 @@ import {
 } from './node-cost-center-metadata.util';
 import { BranchTariffTableComponent } from './branch-tariff-table.component';
 import {
-  BRANCH_FIELD_GRID_CLASS,
   BRANCH_FORM_ENUM_OPTIONS,
   BRANCH_FORM_TABS,
   BRANCH_TARIFFS_TAB_ID,
   branchFormRawValueToDTO,
   buildBranchFormGroup,
   hydrateBranchFormFromPartial,
-  type BranchFormFieldDef,
   type BranchFormGroup,
   type BranchFormShape,
   type BranchFormTabDef,
@@ -64,16 +60,11 @@ function branchStatusToSmsNodeStatus(status: BranchStatus): SmsNodeStatus {
     CommonModule,
     ReactiveFormsModule,
     CardModule,
-    InputTextModule,
-    InputTextareaModule,
-    InputNumberModule,
-    DropdownModule,
-    CalendarModule,
     NodeCostCenterMultiPickerComponent,
     BranchTariffTableComponent,
     LocationFormActionsComponent,
-    UiHelpTipComponent,
-    UiInputSwitchComponent
+    LocationFormFieldComponent,
+    EntityTypePickerComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './branch-form.component.html'
@@ -108,6 +99,17 @@ export class BranchFormComponent implements OnChanges {
   readonly form: BranchFormGroup = buildBranchFormGroup(this.fb);
   private lastResetValue: BranchFormValue | null = null;
   readonly controls = this.form.controls as BranchFormShape;
+
+  /** Demo i18n: último `EntityType` capturado por `sms-entity-type-picker`. */
+  readonly pickedEntityType = signal<EntityType | null>(null);
+
+  onEntityTypePicked(payload: EntityPickerSubmitPayload): void {
+    this.pickedEntityType.set(payload.entityType);
+    this.notify.success(
+      'EntityType capturado',
+      `Valor técnico enviado a la API: ${payload.entityType}`
+    );
+  }
 
   ngOnChanges(): void {
     const ctx = this.ctx();
@@ -156,10 +158,6 @@ export class BranchFormComponent implements OnChanges {
     this.form.markAsDirty();
   }
 
-  gridClass(field: BranchFormFieldDef): string {
-    return BRANCH_FIELD_GRID_CLASS[field.mdCols];
-  }
-
   enumOptions(key: keyof typeof BRANCH_FORM_ENUM_OPTIONS | undefined): Array<SelectOption<string>> {
     if (!key) return [];
     return [...BRANCH_FORM_ENUM_OPTIONS[key]] as SelectOption<string>[];
@@ -187,18 +185,6 @@ export class BranchFormComponent implements OnChanges {
     } catch {
       return '{}';
     }
-  }
-
-  errorMessage<K extends keyof BranchFormValue>(key: K): string | null {
-    const c = this.form.controls[key];
-    const errs = c.errors as ValidationErrors | null;
-    if (!errs) return null;
-    if (errs['required']) return 'Campo obligatorio.';
-    if (errs['email']) return 'Introduce un email válido.';
-    if (errs['pattern']) return 'El formato del valor no es válido.';
-    if (errs['min']) return `Valor mínimo: ${errs['min'].min}.`;
-    if (errs['max']) return `Valor máximo: ${errs['max'].max}.`;
-    return null;
   }
 
   reset(): void {

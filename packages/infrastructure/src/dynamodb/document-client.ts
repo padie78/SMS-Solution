@@ -1,15 +1,13 @@
+import type { DynamoDBClientConfig } from '@aws-sdk/client-dynamodb';
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
-/** @type {DynamoDBDocumentClient | null} */
-let documentClientSingleton = null;
+let documentClientSingleton: DynamoDBDocumentClient | null = null;
 
 /**
  * DocumentClient singleton (marshall optimizado para Lambdas).
- * @param {import('@aws-sdk/client-dynamodb').DynamoDBClientConfig} [clientConfig]
- * @returns {DynamoDBDocumentClient}
  */
-export const getDocumentClient = (clientConfig = {}) => {
+export const getDocumentClient = (clientConfig: DynamoDBClientConfig = {}): DynamoDBDocumentClient => {
   if (!documentClientSingleton) {
     const lowLevel = new DynamoDBClient(clientConfig);
     documentClientSingleton = DynamoDBDocumentClient.from(lowLevel, {
@@ -26,6 +24,6 @@ export const getDocumentClient = (clientConfig = {}) => {
 };
 
 /** Solo tests o reseed de cliente entre invocaciones aisladas. */
-export const resetDocumentClientSingleton = () => {
+export const resetDocumentClientSingleton = (): void => {
   documentClientSingleton = null;
 };

@@ -8,6 +8,7 @@ import type { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 
 import type { AssetDTO } from '@sms/common';
 import { withHelp } from './form-help.util';
+import { buildLocationFormGroup } from './location-form-shared';
 import {
   AssetLifecycleStatusSchema,
   AssetCriticalitySchema,
@@ -714,22 +715,13 @@ function allFieldDefs(): ReadonlyArray<AssetFormFieldDef> {
 }
 
 export function buildAssetFormGroup(fb: FormBuilder): AssetFormGroup {
-  const defaults = ASSET_FORM_DEFAULT_VALUE;
-  const fbnn = fb.nonNullable;
-  const controls = {} as Record<keyof AssetFormValue, FormControl | unknown>;
-
-  for (const meta of allFieldDefs()) {
-    const key = meta.key;
-    const initial = defaults[key];
-    const validators = assetFieldValidators(meta);
-    if (NULLABLE_FIELDS.has(key)) {
-      controls[key] = fb.control(initial as never, validators);
-      continue;
-    }
-    controls[key] = fbnn.control(initial as never, validators);
-  }
-
-  return fb.group(controls as never) as unknown as AssetFormGroup;
+  return buildLocationFormGroup({
+    fb,
+    fieldDefs: allFieldDefs(),
+    defaults: ASSET_FORM_DEFAULT_VALUE as unknown as Record<string, unknown>,
+    nullableFields: NULLABLE_FIELDS as unknown as ReadonlySet<string>,
+    getValidators: assetFieldValidators
+  }) as unknown as AssetFormGroup;
 }
 
 function toIsoLike(d: Date): string {

@@ -1,5 +1,18 @@
 /** Contratos Zod, entidades de dominio y mappers SMS (sin AWS). */
 
+export {
+  EntityType,
+  EntityTypeSchema,
+  ENTITY_TYPE_VALUES,
+  isEntityType,
+  ENTITY_TYPE_I18N,
+  getEntityTypeI18nKey,
+  ENERGY_SERVICE_TYPE_I18N,
+  getEnergyServiceTypeI18nKey,
+  type EntityTypeI18nKey,
+  type EnergyServiceTypeI18nKey
+} from './shared/i18n/index.js';
+
 export { SmsIdSchema, type SmsId } from './shared/sms-id.schema.js';
 
 export type { SmsEntityTag } from './shared/sms-entity-tag.js';
@@ -179,7 +192,44 @@ export {
   InvoiceProcessingSkeletonSchema,
   buildInvoiceProcessingSkeleton,
   type InvoiceProcessingSkeleton,
-  type BuildInvoiceProcessingSkeletonParams
+  type BuildInvoiceProcessingSkeletonParams,
+  InvoiceLifecycleStatusSchema,
+  InvoiceCalculationMethodSchema,
+  InvoiceBillingPeriodSchema,
+  InvoiceExtractedDataSchema,
+  InvoiceThoughtProcessSchema,
+  InvoiceAiAnalysisSchema,
+  InvoiceAnalyticsDimensionsSchema,
+  InvoiceClimatiqResultSchema,
+  InvoiceMetadataSchema,
+  InvoiceDdbItemSchema,
+  InvoiceConfirmPayloadSchema,
+  parseInvoiceDdbItem,
+  safeParseInvoiceDdbItem,
+  parseInvoiceConfirmPayload,
+  safeParseInvoiceConfirmPayload,
+  type InvoiceLifecycleStatus,
+  type InvoiceCalculationMethod,
+  type InvoiceBillingPeriod,
+  type InvoiceExtractedData,
+  type InvoiceThoughtProcess,
+  type InvoiceAiAnalysis,
+  type InvoiceAnalyticsDimensions,
+  type InvoiceClimatiqResult,
+  type InvoiceMetadata,
+  type InvoiceDdbItem,
+  type InvoiceConfirmPayload,
+  InvoiceAuditActorSchema,
+  InvoiceAuditActionSchema,
+  InvoiceAuditSourceSchema,
+  InvoiceAuditEntrySchema,
+  InvoiceAuditTrailSchema,
+  buildInitialAuditEntry,
+  type InvoiceAuditActor,
+  type InvoiceAuditAction,
+  type InvoiceAuditSource,
+  type InvoiceAuditEntry,
+  type InvoiceAuditTrail
 } from './invoice/index.js';
 
 export {

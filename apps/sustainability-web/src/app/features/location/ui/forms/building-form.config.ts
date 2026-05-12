@@ -8,6 +8,7 @@ import type { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 
 import type { BuildingDTO } from '@sms/common';
 import { withHelp } from './form-help.util';
+import { buildLocationFormGroup } from './location-form-shared';
 import {
   BuildingDataGranularitySchema,
   BuildingInsulationQualitySchema,
@@ -670,20 +671,13 @@ function allFieldDefs(): ReadonlyArray<BuildingFormFieldDef> {
 }
 
 export function buildBuildingFormGroup(fb: FormBuilder): BuildingFormGroup {
-  const defaults = BUILDING_FORM_DEFAULT_VALUE;
-  const fbnn = fb.nonNullable;
-  const controls = {} as Record<keyof BuildingFormValue, FormControl | unknown>;
-  for (const meta of allFieldDefs()) {
-    const key = meta.key;
-    const initial = defaults[key];
-    const validators = buildingFieldValidators(meta);
-    if (NULLABLE_FIELDS.has(key)) {
-      controls[key] = fb.control(initial as never, validators);
-      continue;
-    }
-    controls[key] = fbnn.control(initial as never, validators);
-  }
-  return fb.group(controls as never) as unknown as BuildingFormGroup;
+  return buildLocationFormGroup({
+    fb,
+    fieldDefs: allFieldDefs(),
+    defaults: BUILDING_FORM_DEFAULT_VALUE as unknown as Record<string, unknown>,
+    nullableFields: NULLABLE_FIELDS as unknown as ReadonlySet<string>,
+    getValidators: buildingFieldValidators
+  }) as unknown as BuildingFormGroup;
 }
 
 function splitList(s: string): string[] {

@@ -8,6 +8,7 @@ import type { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 
 import type { BranchDTO } from '@sms/common';
 import { withHelp } from './form-help.util';
+import { buildLocationFormGroup } from './location-form-shared';
 import {
   BackupPowerTypeSchema,
   BranchStatusSchema,
@@ -740,20 +741,13 @@ function allFieldDefs(): ReadonlyArray<BranchFormFieldDef> {
 }
 
 export function buildBranchFormGroup(fb: FormBuilder): BranchFormGroup {
-  const defaults = BRANCH_FORM_DEFAULT_VALUE;
-  const fbnn = fb.nonNullable;
-  const controls = {} as Record<keyof BranchFormValue, FormControl | unknown>;
-  for (const meta of allFieldDefs()) {
-    const key = meta.key;
-    const initial = defaults[key];
-    const validators = branchFieldValidators(meta);
-    if (NULLABLE_FIELDS.has(key)) {
-      controls[key] = fb.control(initial as never, validators);
-      continue;
-    }
-    controls[key] = fbnn.control(initial as never, validators);
-  }
-  return fb.group(controls as never) as unknown as BranchFormGroup;
+  return buildLocationFormGroup({
+    fb,
+    fieldDefs: allFieldDefs(),
+    defaults: BRANCH_FORM_DEFAULT_VALUE as unknown as Record<string, unknown>,
+    nullableFields: NULLABLE_FIELDS as unknown as ReadonlySet<string>,
+    getValidators: branchFieldValidators
+  }) as unknown as BranchFormGroup;
 }
 
 function splitList(s: string): string[] {

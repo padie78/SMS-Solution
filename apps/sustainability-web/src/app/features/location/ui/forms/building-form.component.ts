@@ -10,13 +10,8 @@ import {
   inject,
   signal
 } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
-import { CalendarModule } from 'primeng/calendar';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { CardModule } from 'primeng/card';
-import { DropdownModule } from 'primeng/dropdown';
-import { InputNumberModule } from 'primeng/inputnumber';
-import { InputTextModule } from 'primeng/inputtext';
-import { InputTextareaModule } from 'primeng/inputtextarea';
 import type { BuildingDTO, OperationalStatus } from '@sms/common';
 import type {
   SmsLocationNode,
@@ -27,8 +22,7 @@ import { LocationService } from '../../services/location.service';
 import { isSmsTreeDraftNode, stripSmsLocalDraftFromMetadata } from '../../lib/location-tree-helpers';
 import { NotificationService } from '../../../../services/ui/notification.service';
 import { LocationFormActionsComponent } from './location-form-actions.component';
-import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
-import { UiInputSwitchComponent } from '../../../../ui/atoms/ui-input-switch/ui-input-switch.component';
+import { LocationFormFieldComponent } from './location-form-field.component';
 import { NodeCostCenterMultiPickerComponent } from './node-cost-center-multi-picker.component';
 import {
   patchNodeCostCenterIdsOnMetadata,
@@ -37,13 +31,11 @@ import {
 } from './node-cost-center-metadata.util';
 import { resolveHierarchyContext } from './location-hierarchy-context';
 import {
-  BUILDING_FIELD_GRID_CLASS,
   BUILDING_FORM_ENUM_OPTIONS,
   BUILDING_FORM_TABS,
   buildBuildingFormGroup,
   buildingFormRawValueToDTO,
   hydrateBuildingFormFromPartial,
-  type BuildingFormFieldDef,
   type BuildingFormGroup,
   type BuildingFormShape,
   type BuildingFormTabDef,
@@ -66,15 +58,9 @@ function operationalStatusToSmsNodeStatus(s: OperationalStatus): SmsNodeStatus {
     CommonModule,
     ReactiveFormsModule,
     CardModule,
-    InputTextModule,
-    InputTextareaModule,
-    InputNumberModule,
-    DropdownModule,
-    CalendarModule,
     NodeCostCenterMultiPickerComponent,
     LocationFormActionsComponent,
-    UiHelpTipComponent,
-    UiInputSwitchComponent
+    LocationFormFieldComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './building-form.component.html'
@@ -153,10 +139,6 @@ export class BuildingFormComponent implements OnChanges {
     this.form.markAsDirty();
   }
 
-  gridClass(field: BuildingFormFieldDef): string {
-    return BUILDING_FIELD_GRID_CLASS[field.mdCols];
-  }
-
   enumOptions(key: keyof typeof BUILDING_FORM_ENUM_OPTIONS | undefined): Array<SelectOption<string>> {
     if (!key) return [];
     return [...BUILDING_FORM_ENUM_OPTIONS[key]] as SelectOption<string>[];
@@ -176,18 +158,6 @@ export class BuildingFormComponent implements OnChanges {
     } catch {
       return '{}';
     }
-  }
-
-  errorMessage<K extends keyof BuildingFormValue>(key: K): string | null {
-    const c = this.form.controls[key];
-    const errs = c.errors as ValidationErrors | null;
-    if (!errs) return null;
-    if (errs['required']) return 'Campo obligatorio.';
-    if (errs['email']) return 'Introduce un email válido.';
-    if (errs['pattern']) return 'El formato del valor no es válido.';
-    if (errs['min']) return `Valor mínimo: ${errs['min'].min}.`;
-    if (errs['max']) return `Valor máximo: ${errs['max'].max}.`;
-    return null;
   }
 
   reset(): void {

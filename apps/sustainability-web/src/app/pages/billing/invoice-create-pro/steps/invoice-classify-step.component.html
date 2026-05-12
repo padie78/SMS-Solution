@@ -1,0 +1,105 @@
+<div class="rounded-xl border border-slate-200 bg-slate-50/80 min-w-0 overflow-hidden">
+  <form [formGroup]="form" class="flex flex-col gap-3 p-5 md:p-6 h-full overflow-auto">
+    <div class="flex items-start justify-between gap-3 border-b border-slate-200 pb-3">
+      <div class="min-w-0">
+        <p class="text-xs font-bold text-slate-500 uppercase tracking-wider m-0">
+          {{ 'INVOICE_WIZARD.CLASSIFY.HEADLINE' | translate }}
+        </p>
+        <p class="text-sm text-slate-500 m-0 mt-2 leading-relaxed">
+          {{ 'INVOICE_WIZARD.CLASSIFY.DESCRIPTION' | translate }}
+        </p>
+      </div>
+      <p-tag value="Enum + i18n" severity="success" [rounded]="true" styleClass="text-xs shrink-0" />
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4 mt-2">
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-bold text-slate-600 uppercase" for="pro-target-entity">
+          {{ 'INVOICE_WIZARD.CLASSIFY.TARGET_ENTITY' | translate }}
+        </label>
+        <p-dropdown
+          inputId="pro-target-entity"
+          formControlName="targetEntity"
+          [options]="targetEntityOptions"
+          optionValue="value"
+          optionLabel="labelKey"
+          appendTo="body"
+          styleClass="w-full"
+          [placeholder]="'INVOICE_WIZARD.CLASSIFY.TARGET_ENTITY_HINT' | translate"
+        >
+          <ng-template let-opt pTemplate="item">
+            {{ opt.labelKey | translate }}
+          </ng-template>
+          <ng-template let-opt pTemplate="selectedItem">
+            @if (opt) {
+              {{ opt.labelKey | translate }}
+            }
+          </ng-template>
+        </p-dropdown>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-bold text-slate-600 uppercase" for="pro-service-type">
+          {{ 'INVOICE_WIZARD.CLASSIFY.SERVICE_TYPE' | translate }}
+        </label>
+        <p-dropdown
+          inputId="pro-service-type"
+          formControlName="serviceType"
+          [options]="serviceTypeOptions"
+          optionValue="value"
+          optionLabel="labelKey"
+          appendTo="body"
+          styleClass="w-full"
+        >
+          <ng-template let-opt pTemplate="item">
+            {{ opt.labelKey | translate }}
+          </ng-template>
+          <ng-template let-opt pTemplate="selectedItem">
+            @if (opt) {
+              {{ opt.labelKey | translate }}
+            }
+          </ng-template>
+        </p-dropdown>
+      </div>
+
+      <div class="flex flex-col gap-1 md:col-span-2">
+        <label class="text-xs font-bold text-slate-600 uppercase" for="pro-asset-id">
+          {{ 'INVOICE_WIZARD.CLASSIFY.ASSET_ID' | translate }}
+        </label>
+        <input
+          pInputText
+          id="pro-asset-id"
+          formControlName="assetId"
+          class="w-full"
+          [placeholder]="'INVOICE_WIZARD.CLASSIFY.ASSET_ID_PLACEHOLDER' | translate"
+        />
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-bold text-slate-600 uppercase" for="pro-period-year">
+          {{ 'INVOICE_WIZARD.CLASSIFY.PERIOD_YEAR' | translate }}
+        </label>
+        <p-inputNumber
+          inputId="pro-period-year"
+          formControlName="periodYear"
+          [useGrouping]="false"
+          styleClass="w-full"
+        />
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-bold text-slate-600 uppercase" for="pro-period-month">
+          {{ 'INVOICE_WIZARD.CLASSIFY.PERIOD_MONTH' | translate }}
+        </label>
+        <p-inputNumber
+          inputId="pro-period-month"
+          formControlName="periodMonth"
+          [min]="1"
+          [max]="12"
+          [useGrouping]="false"
+          styleClass="w-full"
+        />
+      </div>
+    </div>
+  </form>
+</div>

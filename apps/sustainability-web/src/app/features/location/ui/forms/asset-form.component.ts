@@ -10,13 +10,8 @@ import {
   inject,
   signal
 } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
-import { CalendarModule } from 'primeng/calendar';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { CardModule } from 'primeng/card';
-import { DropdownModule } from 'primeng/dropdown';
-import { InputNumberModule } from 'primeng/inputnumber';
-import { InputTextModule } from 'primeng/inputtext';
-import { InputTextareaModule } from 'primeng/inputtextarea';
 import type { AssetDTO, AssetLifecycleStatus } from '@sms/common';
 import type {
   SmsLocationNode,
@@ -27,8 +22,7 @@ import { LocationService } from '../../services/location.service';
 import { isSmsTreeDraftNode, stripSmsLocalDraftFromMetadata } from '../../lib/location-tree-helpers';
 import { NotificationService } from '../../../../services/ui/notification.service';
 import { LocationFormActionsComponent } from './location-form-actions.component';
-import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
-import { UiInputSwitchComponent } from '../../../../ui/atoms/ui-input-switch/ui-input-switch.component';
+import { LocationFormFieldComponent } from './location-form-field.component';
 import { NodeCostCenterMultiPickerComponent } from './node-cost-center-multi-picker.component';
 import {
   patchNodeCostCenterIdsOnMetadata,
@@ -37,13 +31,11 @@ import {
 } from './node-cost-center-metadata.util';
 import { resolveHierarchyContext } from './location-hierarchy-context';
 import {
-  ASSET_FIELD_GRID_CLASS,
   ASSET_FORM_ENUM_OPTIONS,
   ASSET_FORM_TABS,
   assetFormRawValueToDTO,
   buildAssetFormGroup,
   hydrateAssetFormFromPartial,
-  type AssetFormFieldDef,
   type AssetFormGroup,
   type AssetFormShape,
   type AssetFormTabDef,
@@ -66,15 +58,9 @@ function assetLifecycleStatusToSmsNodeStatus(s: AssetLifecycleStatus): SmsNodeSt
     CommonModule,
     ReactiveFormsModule,
     CardModule,
-    InputTextModule,
-    InputTextareaModule,
-    InputNumberModule,
-    DropdownModule,
-    CalendarModule,
     NodeCostCenterMultiPickerComponent,
     LocationFormActionsComponent,
-    UiHelpTipComponent,
-    UiInputSwitchComponent
+    LocationFormFieldComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './asset-form.component.html'
@@ -158,10 +144,6 @@ export class AssetFormComponent implements OnChanges {
     this.form.markAsPristine();
   }
 
-  gridClass(field: AssetFormFieldDef): string {
-    return ASSET_FIELD_GRID_CLASS[field.mdCols];
-  }
-
   enumOptions(key: keyof typeof ASSET_FORM_ENUM_OPTIONS | undefined): Array<SelectOption<string>> {
     if (!key) return [];
     return [...ASSET_FORM_ENUM_OPTIONS[key]] as SelectOption<string>[];
@@ -191,16 +173,6 @@ export class AssetFormComponent implements OnChanges {
     } catch {
       return '{}';
     }
-  }
-
-  errorMessage<K extends keyof AssetFormValue>(key: K): string | null {
-    const c = this.form.controls[key];
-    const errs = c.errors as ValidationErrors | null;
-    if (!errs) return null;
-    if (errs['required']) return 'Campo obligatorio.';
-    if (errs['min']) return `Valor mínimo: ${errs['min'].min}.`;
-    if (errs['max']) return `Valor máximo: ${errs['max'].max}.`;
-    return null;
   }
 
   reset(): void {

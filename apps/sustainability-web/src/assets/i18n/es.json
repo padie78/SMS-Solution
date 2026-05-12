@@ -1,0 +1,102 @@
+{
+  "ENTITIES": {
+    "ORGANIZATION": "Organización",
+    "BRANCH": "Sucursal",
+    "BUILDING": "Edificio",
+    "METER": "Medidor"
+  },
+  "ENERGY_SERVICE_TYPE": {
+    "ELECTRICITY": "Electricidad",
+    "GAS": "Gas",
+    "WATER": "Agua",
+    "STEAM": "Vapor"
+  },
+  "ENTITY_PICKER": {
+    "TITLE": "Selector de Entidad",
+    "LABEL": "Tipo de entidad",
+    "PLACEHOLDER": "Selecciona un tipo de entidad…",
+    "REQUIRED": "El tipo de entidad es obligatorio.",
+    "SUBMIT": "Guardar",
+    "SELECTED_VALUE": "Valor técnico a persistir"
+  },
+  "INVOICE_WIZARD": {
+    "TITLE": "Nueva factura",
+    "SUBTITLE": "Flujo guiado en cuatro pasos. Todo en memoria hasta que confirmes el envío.",
+    "STEPS": {
+      "INGEST": "Ingesta",
+      "EXTRACT": "Extracción",
+      "CLASSIFY": "Clasificación",
+      "REVIEW": "Revisión"
+    },
+    "INGEST": {
+      "HEADLINE": "Cargar PDF",
+      "DESCRIPTION": "Arrastra o selecciona el documento. Se mantiene en memoria, no se sube todavía.",
+      "CHOOSE": "Seleccionar archivo",
+      "SELECTED": "Archivo en memoria",
+      "REQUIRED": "Debes seleccionar un PDF para continuar.",
+      "ONLY_PDF": "Solo se aceptan archivos PDF.",
+      "MAX_SIZE": "Tamaño máximo 25 MB."
+    },
+    "EXTRACT": {
+      "HEADLINE": "Datos extraídos por IA",
+      "DESCRIPTION": "Revisa y corrige lo que el OCR detectó. Los cambios se guardan localmente.",
+      "VENDOR": "Proveedor",
+      "VENDOR_TAX_ID": "CIF/NIF del proveedor",
+      "INVOICE_NUMBER": "Nº de factura",
+      "INVOICE_DATE": "Fecha de emisión",
+      "BILLING_START": "Inicio periodo",
+      "BILLING_END": "Fin periodo",
+      "TOTAL_AMOUNT": "Importe total",
+      "CONSUMPTION_VALUE": "Consumo",
+      "CONSUMPTION_UNIT": "Unidad",
+      "STATE": {
+        "UPLOADING": "Subiendo PDF a S3…",
+        "AWAITING_AI": "Esperando extracción de la IA…",
+        "READY": "Datos extraídos — valida y corrige",
+        "FAILED": "La extracción falló. Puedes completar los datos manualmente.",
+        "AI_HINT": "La IA prellena los campos al recibir la respuesta. Puedes editarlos antes de continuar."
+      }
+    },
+    "CLASSIFY": {
+      "HEADLINE": "Clasificación contable",
+      "DESCRIPTION": "Asigna el activo y el tipo de consumo. Estos valores son técnicos e independientes del idioma.",
+      "TARGET_ENTITY": "Activo objetivo",
+      "TARGET_ENTITY_HINT": "¿La factura impacta a un Edificio o a un Medidor concreto?",
+      "ASSET_ID": "Identificador del activo",
+      "ASSET_ID_PLACEHOLDER": "ej. ES003100009876543210GZ",
+      "SERVICE_TYPE": "Tipo de consumo",
+      "PERIOD_YEAR": "Año del periodo",
+      "PERIOD_MONTH": "Mes del periodo"
+    },
+    "REVIEW": {
+      "HEADLINE": "Revisión final",
+      "DESCRIPTION": "Confirma los datos antes de subir el documento y registrar la factura.",
+      "FILE": "Documento",
+      "EXTRACTED": "Datos extraídos",
+      "CLASSIFICATION": "Clasificación",
+      "ANALYTICS_DIMENSIONS": "Dimensiones analíticas",
+      "DYNAMO_PREVIEW": "Vista previa del item DynamoDB"
+    },
+    "ACTIONS": {
+      "BACK": "Atrás",
+      "NEXT": "Continuar",
+      "CANCEL": "Cancelar",
+      "SUBMIT": "Enviar y registrar",
+      "SUBMITTING": "Procesando…"
+    },
+    "VIEWER": {
+      "TITLE": "Documento original",
+      "EMPTY": "Aún no se ha cargado ningún PDF."
+    },
+    "ERRORS": {
+      "MISSING_FILE": "El archivo PDF se ha perdido. Vuelve al paso de ingesta.",
+      "UPLOAD_FAILED": "No se pudo subir el documento a S3.",
+      "CONFIRM_FAILED": "No se pudo registrar la factura.",
+      "FORM_INVALID": "Corrige los campos obligatorios antes de continuar."
+    },
+    "SUCCESS": {
+      "TITLE": "Factura registrada",
+      "BODY": "El documento se subió a S3 y los metadatos se guardaron en la base de datos."
+    }
+  }
+}

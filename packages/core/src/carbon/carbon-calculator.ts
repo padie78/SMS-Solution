@@ -3,8 +3,10 @@
  * Factor inyectado para tests y configuración por tenant/región.
  */
 export class CarbonCalculator {
+  private readonly emissionFactorKgCo2ePerKwh: number;
+
   /**
-   * @param {number} [emissionFactorKgCo2ePerKwh=0.45] Intensidad kg CO2e / kWh
+   * @param emissionFactorKgCo2ePerKwh Intensidad kg CO2e / kWh
    */
   constructor(emissionFactorKgCo2ePerKwh = 0.45) {
     if (!Number.isFinite(emissionFactorKgCo2ePerKwh) || emissionFactorKgCo2ePerKwh < 0) {
@@ -13,12 +15,8 @@ export class CarbonCalculator {
     this.emissionFactorKgCo2ePerKwh = emissionFactorKgCo2ePerKwh;
   }
 
-  /**
-   * Emisiones estimadas en kg CO2e.
-   * @param {number} kwh
-   * @returns {number}
-   */
-  calculate(kwh) {
+  /** Emisiones estimadas en kg CO2e. */
+  calculate(kwh: number): number {
     const k = Number(kwh);
     if (!Number.isFinite(k) || k < 0) {
       throw new Error('kwh must be a non-negative finite number');
@@ -27,7 +25,7 @@ export class CarbonCalculator {
   }
 
   /** Factor actual (útil para telemetría / auditoría). */
-  getFactor() {
+  getFactor(): number {
     return this.emissionFactorKgCo2ePerKwh;
   }
 }

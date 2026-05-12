@@ -20,6 +20,7 @@ import {
   type TariffPricingModel
 } from '@sms/common';
 import { withHelp } from './form-help.util';
+import { buildLocationFormGroup } from './location-form-shared';
 
 export type TariffFormValue = {
   id: string;
@@ -618,22 +619,13 @@ const NULLABLE_FIELDS = new Set<keyof TariffFormValue>([
 ]);
 
 export function buildTariffFormGroup(fb: FormBuilder): TariffFormGroup {
-  const defaults = TARIFF_FORM_DEFAULT_VALUE;
-  const fbnn = fb.nonNullable;
-  const controls = {} as Record<keyof TariffFormValue, FormControl | unknown>;
-
-  for (const meta of allFieldDefs()) {
-    const key = meta.key;
-    const initial = defaults[key];
-    const validators = tariffFieldValidators(meta);
-    if (NULLABLE_FIELDS.has(key)) {
-      controls[key] = fb.control(initial as never, validators);
-      continue;
-    }
-    controls[key] = fbnn.control(initial as never, validators);
-  }
-
-  return fb.group(controls as never) as unknown as TariffFormGroup;
+  return buildLocationFormGroup({
+    fb,
+    fieldDefs: allFieldDefs(),
+    defaults: TARIFF_FORM_DEFAULT_VALUE as unknown as Record<string, unknown>,
+    nullableFields: NULLABLE_FIELDS as unknown as ReadonlySet<string>,
+    getValidators: tariffFieldValidators
+  }) as unknown as TariffFormGroup;
 }
 
 function toIsoLike(d: Date): string {

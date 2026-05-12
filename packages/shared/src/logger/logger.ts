@@ -3,7 +3,7 @@
  * Sin niveles dinámicos de librerías pesadas (Lambdas cold-start friendly).
  */
 
-const serialize = (meta) => {
+const serialize = (meta: unknown): string => {
   try {
     return JSON.stringify(meta ?? {});
   } catch {
@@ -12,11 +12,7 @@ const serialize = (meta) => {
 };
 
 export const Logger = Object.freeze({
-  /**
-   * @param {string} message
-   * @param {Record<string, unknown>} [meta]
-   */
-  info(message, meta) {
+  info(message: string, meta?: Record<string, unknown>): void {
     console.log(
       serialize({
         level: 'INFO',
@@ -27,7 +23,7 @@ export const Logger = Object.freeze({
     );
   },
 
-  warn(message, meta) {
+  warn(message: string, meta?: Record<string, unknown>): void {
     console.warn(
       serialize({
         level: 'WARN',
@@ -38,7 +34,7 @@ export const Logger = Object.freeze({
     );
   },
 
-  error(message, meta) {
+  error(message: string, meta?: Record<string, unknown>): void {
     console.error(
       serialize({
         level: 'ERROR',
@@ -49,7 +45,7 @@ export const Logger = Object.freeze({
     );
   },
 
-  debug(message, meta) {
+  debug(message: string, meta?: Record<string, unknown>): void {
     if (process.env.DEBUG_SMS === '1' || process.env.DEBUG === '1') {
       console.debug(
         serialize({

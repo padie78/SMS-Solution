@@ -1,0 +1,87 @@
+<div class="rounded-xl border border-slate-200 bg-slate-50/80 min-w-0 overflow-hidden">
+  <div class="p-5 md:p-6 min-w-0 w-full max-w-5xl mx-auto">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-5 w-full min-w-0">
+      <div class="flex flex-col gap-3 min-w-0">
+        <div class="flex w-full min-w-0 flex-row items-start gap-3 border-b border-slate-200 pb-3">
+          <div
+            class="flex-none w-8 h-8 rounded-lg bg-white text-emerald-600 flex flex-row items-center justify-center border border-slate-200"
+          >
+            <i class="pi pi-upload text-sm" aria-hidden="true"></i>
+          </div>
+          <div class="min-w-0 flex-1">
+            <h3 class="text-xs font-bold uppercase tracking-wider text-slate-600 m-0">
+              {{ 'INVOICE_WIZARD.INGEST.HEADLINE' | translate }}
+            </h3>
+            <p class="text-xs text-slate-500 mt-2 m-0 leading-relaxed">
+              {{ 'INVOICE_WIZARD.INGEST.DESCRIPTION' | translate }}
+            </p>
+          </div>
+        </div>
+        <p class="text-xs text-slate-400 italic m-0 leading-relaxed">
+          Validación por excepción: el documento queda sólo en memoria hasta el envío final.
+        </p>
+        <div class="flex flex-row gap-2 flex-wrap">
+          <ui-badge tone="warning">No S3</ui-badge>
+          <ui-badge tone="success">Blob/File in-memory</ui-badge>
+        </div>
+      </div>
+
+      <div class="flex flex-col gap-3 min-w-0">
+        <div class="flex w-full min-w-0 flex-row items-center gap-3 border-b border-slate-200 pb-3">
+          <div
+            class="flex-none w-8 h-8 rounded-lg bg-white text-slate-600 flex flex-row items-center justify-center border border-slate-200"
+          >
+            <i class="pi pi-file-pdf text-sm" aria-hidden="true"></i>
+          </div>
+          <h3 class="min-w-0 flex-1 text-xs font-bold uppercase tracking-wider text-slate-600 m-0">
+            Documento PDF
+          </h3>
+        </div>
+
+        <div
+          class="drop-zone flex-1 flex flex-col items-center justify-center p-6 md:p-8 transition-all cursor-pointer rounded-xl border border-dashed border-slate-200 bg-white/80"
+        >
+          <div
+            class="w-14 h-14 md:w-16 md:h-16 bg-slate-50 rounded-full flex items-center justify-center border border-slate-100 mb-4"
+          >
+            <i class="pi pi-cloud-upload text-xl md:text-2xl text-slate-400" aria-hidden="true"></i>
+          </div>
+
+          <p-fileUpload
+            mode="basic"
+            name="invoiceFile"
+            accept="application/pdf"
+            [auto]="true"
+            [customUpload]="true"
+            (uploadHandler)="fileSelected.emit($event)"
+            [chooseLabel]="'INVOICE_WIZARD.INGEST.CHOOSE' | translate"
+            styleClass="p-button-rounded p-button-secondary p-button-text text-sm"
+          />
+
+          @if (file) {
+            <div
+              class="mt-4 flex items-center gap-3 text-xs font-bold text-emerald-700 bg-emerald-50 px-4 py-2.5 rounded-xl border border-emerald-200 max-w-full"
+            >
+              <i class="pi pi-check-circle shrink-0" aria-hidden="true"></i>
+              <div class="min-w-0 flex-1">
+                <p class="m-0 truncate">{{ file.name }}</p>
+                <p class="m-0 text-[11px] text-emerald-700/70">{{ formatBytes(file.size) }}</p>
+              </div>
+              <p-button
+                icon="pi pi-times"
+                [text]="true"
+                severity="danger"
+                styleClass="p-button-sm"
+                (onClick)="fileRemoved.emit()"
+              />
+            </div>
+          } @else {
+            <p class="text-xs text-slate-400 italic m-0 mt-3">
+              {{ 'INVOICE_WIZARD.INGEST.MAX_SIZE' | translate }}
+            </p>
+          }
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

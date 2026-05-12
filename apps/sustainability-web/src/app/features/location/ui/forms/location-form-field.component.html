@@ -1,0 +1,152 @@
+@if (isVisible()) {
+  <div
+    class="sms-form-field"
+    [class.sms-form-field--invalid]="labelInvalid()"
+  >
+    @if (field.kind === 'checkbox') {
+      <ui-input-switch
+        [inputId]="inputId()"
+        [formControlName]="field.key"
+        [label]="field.label"
+        [helpText]="field.help"
+        [inputReadonly]="field.readonly === true"
+      />
+    } @else {
+      <label
+        class="sms-form-field__label"
+        [class.sms-form-field__label--invalid]="labelInvalid()"
+        [attr.for]="inputId()"
+      >
+        <span>
+          {{ field.label }}
+          @if (field.required && !field.readonly) {
+            <span class="sms-form-field__required" aria-hidden="true">*</span>
+          }
+        </span>
+        @if (field.help) {
+          <ui-help-tip [text]="field.help" position="right" [showDelay]="200" />
+        }
+      </label>
+
+      @switch (field.kind) {
+        @case ('select') {
+          <p-dropdown
+            [inputId]="inputId()"
+            [formControlName]="field.key"
+            [options]="dropdownOptions"
+            optionLabel="label"
+            optionValue="value"
+            [placeholder]="effectivePlaceholder()"
+            appendTo="body"
+            styleClass="w-full"
+            [readonly]="field.readonly === true"
+            [showClear]="!field.required && !field.readonly"
+            (onChange)="refresh()"
+            (onBlur)="refresh()"
+          />
+        }
+        @case ('integer') {
+          <p-inputNumber
+            class="w-full"
+            [inputId]="inputId()"
+            [formControlName]="field.key"
+            [min]="field.min ?? null"
+            [max]="field.max ?? null"
+            [step]="field.step ?? 1"
+            [useGrouping]="false"
+            [readonly]="field.readonly === true"
+            styleClass="w-full"
+            (onBlur)="refresh()"
+          />
+        }
+        @case ('number') {
+          <p-inputNumber
+            class="w-full"
+            [inputId]="inputId()"
+            [formControlName]="field.key"
+            [min]="field.min ?? null"
+            [max]="field.max ?? null"
+            [step]="field.step ?? 0.01"
+            [readonly]="field.readonly === true"
+            styleClass="w-full"
+            (onBlur)="refresh()"
+          />
+        }
+        @case ('textarea') {
+          <textarea
+            class="sms-form-field__textarea"
+            [id]="inputId()"
+            pInputTextarea
+            rows="3"
+            [formControlName]="field.key"
+            [readonly]="field.readonly === true"
+            [placeholder]="effectivePlaceholder()"
+            (blur)="refresh()"
+          ></textarea>
+        }
+        @case ('email') {
+          <input
+            pInputText
+            type="email"
+            class="sms-form-field__input"
+            [id]="inputId()"
+            [formControlName]="field.key"
+            [readonly]="field.readonly === true"
+            autocomplete="email"
+            [placeholder]="effectivePlaceholder()"
+            (blur)="refresh()"
+          />
+        }
+        @case ('url') {
+          <input
+            pInputText
+            type="url"
+            class="sms-form-field__input"
+            [id]="inputId()"
+            [formControlName]="field.key"
+            [readonly]="field.readonly === true"
+            [placeholder]="effectivePlaceholder()"
+            (blur)="refresh()"
+          />
+        }
+        @case ('date') {
+          <p-calendar
+            [inputId]="inputId()"
+            [formControlName]="field.key"
+            appendTo="body"
+            dateFormat="yy-mm-dd"
+            [showIcon]="true"
+            [showButtonBar]="true"
+            styleClass="w-full"
+            [readonlyInput]="field.readonly === true"
+            (onBlur)="refresh()"
+            (onSelect)="refresh()"
+            (onClearClick)="refresh()"
+          />
+        }
+        @default {
+          <input
+            pInputText
+            type="text"
+            class="sms-form-field__input"
+            [id]="inputId()"
+            [formControlName]="field.key"
+            [readonly]="field.readonly === true"
+            [placeholder]="effectivePlaceholder()"
+            (blur)="refresh()"
+          />
+        }
+      }
+
+      @if (errorText() !== null) {
+        <small class="sms-form-field__error" role="alert">
+          <i class="pi pi-exclamation-circle" aria-hidden="true"></i>
+          <span>{{ errorText() }}</span>
+        </small>
+        @if (showPatternHint() && field.patternHint) {
+          <small class="sms-form-field__hint">{{ field.patternHint }}</small>
+        }
+      }
+    }
+  </div>
+}

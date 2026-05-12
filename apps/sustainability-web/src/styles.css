@@ -167,61 +167,682 @@ textarea.p-inputtextarea:focus {
   outline: none;
 }
 
-/* PrimeNG dropdown vertical centering */
-.p-dropdown {
-  height: var(--sms-control-height);
-  border-radius: 8px !important;
-  display: inline-flex;
-  align-items: center;
-  box-sizing: border-box;
-  overflow: hidden; /* avoid inner borders showing */
-  border: 1px solid #d1d5db; /* single border */
+/* =========================
+   Location Manager forms · grid responsivo por CONTAINER
+   ------------------------------------------------------------
+   El panel derecho del Location Manager cambia de ancho según
+   cuánto se expanda el árbol (~700–1300px). Usar breakpoints
+   por viewport (Tailwind \`md:col-span-X\`) era frágil porque
+   md=768px del viewport ≠ ancho real del panel del form.
+
+   Container queries (soportadas por todos los navegadores
+   modernos desde 2023) permiten que el grid se adapte al ancho
+   del contenedor. La regla declara el form como container y
+   los \`sms-col-span-N\` cambian su \`grid-column\` según
+   thresholds en pixels del PANEL, no del viewport.
+
+   Thresholds elegidos:
+   - <520px  → todo a 12 (1 columna).
+   - 520-719 → 6/6 para “6” y “8” (2 columnas).
+   - 720-959 → 6 para “4” (2 columnas), 8 para “8”.
+   - ≥960px  → 4 para “4” (3 columnas).
+   ========================= */
+.sms-form-grid {
+  container-type: inline-size;
+  container-name: sms-form;
+  /* Gap container-aware: pisa cualquier gap-x/gap-y de Tailwind
+     para que el espaciado entre campos escale con el ancho real
+     del panel, no con el viewport. */
+  column-gap: 1rem;
+  row-gap: 1.25rem;
 }
 
-/* Remove Lara theme focus ring/box-shadow that looks like a second border */
+.sms-form-grid > .sms-col-span-4,
+.sms-form-grid > .sms-col-span-6,
+.sms-form-grid > .sms-col-span-8,
+.sms-form-grid > .sms-col-span-12 {
+  grid-column: span 12 / span 12;
+}
+
+@container sms-form (min-width: 520px) {
+  .sms-form-grid {
+    column-gap: 1.25rem;
+    row-gap: 1.5rem;
+  }
+  .sms-form-grid > .sms-col-span-6 {
+    grid-column: span 6 / span 6;
+  }
+  .sms-form-grid > .sms-col-span-8 {
+    grid-column: span 8 / span 8;
+  }
+}
+
+@container sms-form (min-width: 720px) {
+  .sms-form-grid {
+    column-gap: 1.5rem;
+    row-gap: 1.65rem;
+  }
+  .sms-form-grid > .sms-col-span-4 {
+    grid-column: span 6 / span 6;
+  }
+}
+
+@container sms-form (min-width: 960px) {
+  .sms-form-grid {
+    column-gap: 1.75rem;
+    row-gap: 1.85rem;
+  }
+  .sms-form-grid > .sms-col-span-4 {
+    grid-column: span 4 / span 4;
+  }
+}
+
+/* =========================
+   Location Manager forms · p-card padding (container-aware)
+   ------------------------------------------------------------
+   PrimeNG Lara aplica padding 1.25rem al .p-card-body. En los
+   formularios del Location Manager — con grids densos de 12
+   columnas y árbol que cambia el ancho del panel — un padding
+   fijo viewport-based queda apretado o desperdicia ancho según
+   cuánto haya expandido el árbol.
+
+   Solución: el body es CONTAINER (`sms-card-body`) y el padding
+   escala según su PROPIO ancho — no el del viewport. Resultado:
+   el form respira proporcional al espacio disponible.
+
+   Escalado por ancho del card:
+   - <520px   → 20px (1.25rem) compacto
+   - ≥520px   → 24px / 28px
+   - ≥760px   → 28px / 36px
+   - ≥1100px  → 32px / 44px (panel ancho, máxima respiración)
+   ========================= */
+
+sms-organization-form .p-card .p-card-body,
+sms-region-form .p-card .p-card-body,
+sms-branch-form .p-card .p-card-body,
+sms-building-form .p-card .p-card-body,
+sms-asset-form .p-card .p-card-body,
+sms-meter-form .p-card .p-card-body,
+sms-cost-center-form .p-card .p-card-body {
+  padding: 1.25rem !important;
+  display: block !important;
+  gap: 0 !important;
+  container-type: inline-size;
+  container-name: sms-card-body;
+}
+
+/* Padding container-aware: escala según el ancho REAL del card
+   (no del viewport), así el panel del form respira proporcional
+   a cuánto espacio quede tras el árbol. */
+@container sms-card-body (min-width: 520px) {
+  sms-organization-form .p-card .p-card-body,
+  sms-region-form .p-card .p-card-body,
+  sms-branch-form .p-card .p-card-body,
+  sms-building-form .p-card .p-card-body,
+  sms-asset-form .p-card .p-card-body,
+  sms-meter-form .p-card .p-card-body,
+  sms-cost-center-form .p-card .p-card-body {
+    padding: 1.5rem 1.75rem !important;
+  }
+}
+
+@container sms-card-body (min-width: 760px) {
+  sms-organization-form .p-card .p-card-body,
+  sms-region-form .p-card .p-card-body,
+  sms-branch-form .p-card .p-card-body,
+  sms-building-form .p-card .p-card-body,
+  sms-asset-form .p-card .p-card-body,
+  sms-meter-form .p-card .p-card-body,
+  sms-cost-center-form .p-card .p-card-body {
+    padding: 1.75rem 2.25rem !important;
+  }
+}
+
+@container sms-card-body (min-width: 1100px) {
+  sms-organization-form .p-card .p-card-body,
+  sms-region-form .p-card .p-card-body,
+  sms-branch-form .p-card .p-card-body,
+  sms-building-form .p-card .p-card-body,
+  sms-asset-form .p-card .p-card-body,
+  sms-meter-form .p-card .p-card-body,
+  sms-cost-center-form .p-card .p-card-body {
+    padding: 2rem 2.75rem !important;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Containment horizontal · forms del Location Manager
+   ------------------------------------------------------------
+   Red de seguridad para que NADA del contenido (inputs, dropdowns,
+   numbers, calendars, textarea, etc.) sobresalga lateralmente del
+   `.p-card-body`. Causas históricas:
+     1. `p-inputNumber` / `p-calendar` envuelven el input en un
+        `<span>` `inline-flex` sin `width: 100%` real — el input
+        interno fuerza su min-width y rebalsa la celda del grid.
+     2. Inputs sin `box-sizing: border-box` con `width: 100%` +
+        padding terminan más anchos que el cell.
+     3. El propio `.p-card-body` sin `box-sizing: border-box`
+        suma el padding por fuera del width inline.
+   Solución: forzar `box-sizing: border-box` + `min-width: 0` +
+   `max-width: 100%` en toda la cadena, y como red última usar
+   `overflow-x: clip` (los dropdowns y calendars usan
+   `appendTo="body"` así que no se clipan los paneles flotantes). */
+
+sms-organization-form .p-card .p-card-body,
+sms-region-form .p-card .p-card-body,
+sms-branch-form .p-card .p-card-body,
+sms-building-form .p-card .p-card-body,
+sms-asset-form .p-card .p-card-body,
+sms-meter-form .p-card .p-card-body,
+sms-cost-center-form .p-card .p-card-body {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+}
+
+/* Grid: cinturón de seguridad para que el grid no se pase del body. */
+sms-organization-form .sms-form-grid,
+sms-region-form .sms-form-grid,
+sms-branch-form .sms-form-grid,
+sms-building-form .sms-form-grid,
+sms-asset-form .sms-form-grid,
+sms-meter-form .sms-form-grid,
+sms-cost-center-form .sms-form-grid {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Cada celda (host del field) debe poder achicarse: sin `min-width: 0`
+   las celdas del grid heredan `min-width: auto` y si su contenido
+   tiene un min-content más grande que la columna → overflow horizontal. */
+sms-organization-form .sms-form-grid > *,
+sms-region-form .sms-form-grid > *,
+sms-branch-form .sms-form-grid > *,
+sms-building-form .sms-form-grid > *,
+sms-asset-form .sms-form-grid > *,
+sms-meter-form .sms-form-grid > *,
+sms-cost-center-form .sms-form-grid > * {
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* PrimeNG wrappers de InputNumber + Calendar — los más problemáticos.
+   Por defecto son `inline-flex` y su input interno tiene `min-width`
+   propio. Forzamos a comportarse como un control de bloque que
+   respeta el ancho de la celda. */
+sms-organization-form .p-card-body .p-inputnumber,
+sms-region-form .p-card-body .p-inputnumber,
+sms-branch-form .p-card-body .p-inputnumber,
+sms-building-form .p-card-body .p-inputnumber,
+sms-asset-form .p-card-body .p-inputnumber,
+sms-meter-form .p-card-body .p-inputnumber,
+sms-cost-center-form .p-card-body .p-inputnumber,
+sms-organization-form .p-card-body .p-calendar,
+sms-region-form .p-card-body .p-calendar,
+sms-branch-form .p-card-body .p-calendar,
+sms-building-form .p-card-body .p-calendar,
+sms-asset-form .p-card-body .p-calendar,
+sms-meter-form .p-card-body .p-calendar,
+sms-cost-center-form .p-card-body .p-calendar {
+  display: flex !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+
+/* Inputs internos: width 100% + border-box + min-width 0 para que
+   el padding/border NO se sume al width inline (típico desborde). */
+sms-organization-form .p-card-body .p-inputnumber-input,
+sms-region-form .p-card-body .p-inputnumber-input,
+sms-branch-form .p-card-body .p-inputnumber-input,
+sms-building-form .p-card-body .p-inputnumber-input,
+sms-asset-form .p-card-body .p-inputnumber-input,
+sms-meter-form .p-card-body .p-inputnumber-input,
+sms-cost-center-form .p-card-body .p-inputnumber-input,
+sms-organization-form .p-card-body .p-calendar > input,
+sms-region-form .p-card-body .p-calendar > input,
+sms-branch-form .p-card-body .p-calendar > input,
+sms-building-form .p-card-body .p-calendar > input,
+sms-asset-form .p-card-body .p-calendar > input,
+sms-meter-form .p-card-body .p-calendar > input,
+sms-cost-center-form .p-card-body .p-calendar > input,
+sms-organization-form .p-card-body .sms-form-field__input,
+sms-region-form .p-card-body .sms-form-field__input,
+sms-branch-form .p-card-body .sms-form-field__input,
+sms-building-form .p-card-body .sms-form-field__input,
+sms-asset-form .p-card-body .sms-form-field__input,
+sms-meter-form .p-card-body .sms-form-field__input,
+sms-cost-center-form .p-card-body .sms-form-field__input,
+sms-organization-form .p-card-body .sms-form-field__textarea,
+sms-region-form .p-card-body .sms-form-field__textarea,
+sms-branch-form .p-card-body .sms-form-field__textarea,
+sms-building-form .p-card-body .sms-form-field__textarea,
+sms-asset-form .p-card-body .sms-form-field__textarea,
+sms-meter-form .p-card-body .sms-form-field__textarea,
+sms-cost-center-form .p-card-body .sms-form-field__textarea {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  box-sizing: border-box;
+}
+
+/* `pInputText` añade `.p-inputtext`; el global `input.p-inputtext` y Lara
+   pueden ganar por orden de hoja y dejar un padding distinto al del
+   componente encapsulado → el texto del input queda desalineado respecto
+   del título y del label. Forzamos padding y márgenes en el árbol real
+   del DOM (`sms-location-form-field`). */
+sms-organization-form .p-card-body sms-location-form-field input.sms-form-field__input.p-inputtext,
+sms-region-form .p-card-body sms-location-form-field input.sms-form-field__input.p-inputtext,
+sms-branch-form .p-card-body sms-location-form-field input.sms-form-field__input.p-inputtext,
+sms-building-form .p-card-body sms-location-form-field input.sms-form-field__input.p-inputtext,
+sms-asset-form .p-card-body sms-location-form-field input.sms-form-field__input.p-inputtext,
+sms-meter-form .p-card-body sms-location-form-field input.sms-form-field__input.p-inputtext,
+sms-cost-center-form .p-card-body sms-location-form-field input.sms-form-field__input.p-inputtext,
+sms-tariff-form .p-card-body sms-location-form-field input.sms-form-field__input.p-inputtext {
+  padding: 0 0.75rem !important;
+  margin: 0 !important;
+  text-align: left !important;
+}
+
+sms-organization-form .p-card-body sms-location-form-field textarea.sms-form-field__textarea.p-inputtextarea,
+sms-region-form .p-card-body sms-location-form-field textarea.sms-form-field__textarea.p-inputtextarea,
+sms-branch-form .p-card-body sms-location-form-field textarea.sms-form-field__textarea.p-inputtextarea,
+sms-building-form .p-card-body sms-location-form-field textarea.sms-form-field__textarea.p-inputtextarea,
+sms-asset-form .p-card-body sms-location-form-field textarea.sms-form-field__textarea.p-inputtextarea,
+sms-meter-form .p-card-body sms-location-form-field textarea.sms-form-field__textarea.p-inputtextarea,
+sms-cost-center-form .p-card-body sms-location-form-field textarea.sms-form-field__textarea.p-inputtextarea,
+sms-tariff-form .p-card-body sms-location-form-field textarea.sms-form-field__textarea.p-inputtextarea {
+  padding-left: 0.75rem !important;
+  padding-right: 0.75rem !important;
+  margin: 0 !important;
+  text-align: left !important;
+}
+
+/* ---------------------------------------------------------------
+   Espaciado título ↔ contenido (única fuente de verdad)
+   ------------------------------------------------------------
+   PrimeNG Lara aplica padding-top a `.p-card-content` (1.25rem 0)
+   Y margin-bottom a `.p-card-title` (~0.5rem). Sin control, los
+   dos se suman y el gap es impredecible entre forms.
+
+   Estrategia: aplastamos `.p-card-content` a padding/margin 0 y
+   el gap se controla SÓLO desde el `margin-bottom` de `.p-card-title`.
+   Valor container-aware: panel angosto → más compacto, panel ancho
+   → más respiración (jerarquía visual clara entre headline y form). */
+sms-organization-form .p-card .p-card-content,
+sms-region-form .p-card .p-card-content,
+sms-branch-form .p-card .p-card-content,
+sms-building-form .p-card .p-card-content,
+sms-asset-form .p-card .p-card-content,
+sms-meter-form .p-card .p-card-content,
+sms-cost-center-form .p-card .p-card-content {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+sms-organization-form .p-card .p-card-title,
+sms-region-form .p-card .p-card-title,
+sms-branch-form .p-card .p-card-title,
+sms-building-form .p-card .p-card-title,
+sms-asset-form .p-card .p-card-title,
+sms-meter-form .p-card .p-card-title,
+sms-cost-center-form .p-card .p-card-title {
+  margin: 0 0 2rem 0 !important;
+  padding: 0 !important;
+  line-height: 1.35 !important;
+  font-size: 1rem !important;
+  /* Garantiza alineación X con los labels/inputs del grid:
+     el título arranca exactamente en el padding-left del card-body. */
+  display: block !important;
+  text-align: left !important;
+  text-indent: 0 !important;
+}
+
+/* PrimeNG en algunas versiones envuelve el título en `.p-card-caption`.
+   Si existe, neutralizamos su padding/margin para que no introduzca
+   un offset extra que desalinearía el título respecto del content. */
+sms-organization-form .p-card .p-card-caption,
+sms-region-form .p-card .p-card-caption,
+sms-branch-form .p-card .p-card-caption,
+sms-building-form .p-card .p-card-caption,
+sms-asset-form .p-card .p-card-caption,
+sms-meter-form .p-card .p-card-caption,
+sms-cost-center-form .p-card .p-card-caption {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+/* Container-aware: cuando el card crece, el gap entre título y el
+   primer campo crece con él (mantiene proporción visual). */
+@container sms-card-body (min-width: 520px) {
+  sms-organization-form .p-card .p-card-title,
+  sms-region-form .p-card .p-card-title,
+  sms-branch-form .p-card .p-card-title,
+  sms-building-form .p-card .p-card-title,
+  sms-asset-form .p-card .p-card-title,
+  sms-meter-form .p-card .p-card-title,
+  sms-cost-center-form .p-card .p-card-title {
+    margin-bottom: 2.25rem !important;
+    font-size: 1.05rem !important;
+  }
+}
+
+@container sms-card-body (min-width: 760px) {
+  sms-organization-form .p-card .p-card-title,
+  sms-region-form .p-card .p-card-title,
+  sms-branch-form .p-card .p-card-title,
+  sms-building-form .p-card .p-card-title,
+  sms-asset-form .p-card .p-card-title,
+  sms-meter-form .p-card .p-card-title,
+  sms-cost-center-form .p-card .p-card-title {
+    margin-bottom: 3rem !important;
+    font-size: 1.1rem !important;
+  }
+}
+
+@container sms-card-body (min-width: 1100px) {
+  sms-organization-form .p-card .p-card-title,
+  sms-region-form .p-card .p-card-title,
+  sms-branch-form .p-card .p-card-title,
+  sms-building-form .p-card .p-card-title,
+  sms-asset-form .p-card .p-card-title,
+  sms-meter-form .p-card .p-card-title,
+  sms-cost-center-form .p-card .p-card-title {
+    margin-bottom: 3.5rem !important;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Eje X COMPARTIDO · alineación pixel-perfect
+   ------------------------------------------------------------
+   Asegura que el TÍTULO del card, el TEXTO del label y el BORDE
+   izquierdo del input arranquen exactamente en la misma coordenada
+   X (= `padding-left` del `.p-card-body`).
+
+   Lo hacemos forzando padding/margin/text-indent a 0 en TODA la
+   cadena de contenedores entre el body y el primer caracter del
+   título / label / input:
+
+      `.p-card-body`
+        └ `.p-card-caption`     ← reset
+            └ `.p-card-title`   ← reset + text-align:left + text-indent:0
+                └ `<span>`      ← reset (font-size: inherit del title)
+        └ `.p-card-content`     ← reset
+            └ `.sms-form-grid`  ← reset
+                └ `<sms-location-form-field>` ← reset (host)
+                    └ `.sms-form-field`        ← reset (flex column)
+                        └ `.sms-form-field__label` ← reset
+                        └ `input` / `p-dropdown` / etc. ← width 100% + border-box
+
+   Cada paso intermedio puede aportar un offset propio; esta regla
+   los nulifica con `!important` para garantizar la alineación. */
+sms-organization-form .p-card .p-card-caption,
+sms-region-form .p-card .p-card-caption,
+sms-branch-form .p-card .p-card-caption,
+sms-building-form .p-card .p-card-caption,
+sms-asset-form .p-card .p-card-caption,
+sms-meter-form .p-card .p-card-caption,
+sms-cost-center-form .p-card .p-card-caption,
+sms-organization-form .p-card .p-card-content,
+sms-region-form .p-card .p-card-content,
+sms-branch-form .p-card .p-card-content,
+sms-building-form .p-card .p-card-content,
+sms-asset-form .p-card .p-card-content,
+sms-meter-form .p-card .p-card-content,
+sms-cost-center-form .p-card .p-card-content,
+sms-organization-form .sms-form-grid,
+sms-region-form .sms-form-grid,
+sms-branch-form .sms-form-grid,
+sms-building-form .sms-form-grid,
+sms-asset-form .sms-form-grid,
+sms-meter-form .sms-form-grid,
+sms-cost-center-form .sms-form-grid,
+sms-organization-form .sms-form-field-host,
+sms-region-form .sms-form-field-host,
+sms-branch-form .sms-form-field-host,
+sms-building-form .sms-form-field-host,
+sms-asset-form .sms-form-field-host,
+sms-meter-form .sms-form-field-host,
+sms-cost-center-form .sms-form-field-host,
+sms-organization-form .sms-form-field,
+sms-region-form .sms-form-field,
+sms-branch-form .sms-form-field,
+sms-building-form .sms-form-field,
+sms-asset-form .sms-form-field,
+sms-meter-form .sms-form-field,
+sms-cost-center-form .sms-form-field,
+sms-organization-form .sms-form-field__label,
+sms-region-form .sms-form-field__label,
+sms-branch-form .sms-form-field__label,
+sms-building-form .sms-form-field__label,
+sms-asset-form .sms-form-field__label,
+sms-meter-form .sms-form-field__label,
+sms-cost-center-form .sms-form-field__label {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+  text-indent: 0 !important;
+}
+
+/* Título: aseguramos también que el `<span>` interno NO arrastre
+   `padding-left` ni `margin-left` (Tailwind utilities como `pl-*`
+   o el reset del navegador para spans no deberían afectar, pero
+   blindamos por las dudas). */
+sms-organization-form .p-card .p-card-title,
+sms-region-form .p-card .p-card-title,
+sms-branch-form .p-card .p-card-title,
+sms-building-form .p-card .p-card-title,
+sms-asset-form .p-card .p-card-title,
+sms-meter-form .p-card .p-card-title,
+sms-cost-center-form .p-card .p-card-title,
+sms-organization-form .p-card .p-card-title > *,
+sms-region-form .p-card .p-card-title > *,
+sms-branch-form .p-card .p-card-title > *,
+sms-building-form .p-card .p-card-title > *,
+sms-asset-form .p-card .p-card-title > *,
+sms-meter-form .p-card .p-card-title > *,
+sms-cost-center-form .p-card .p-card-title > * {
+  padding-left: 0 !important;
+  margin-left: 0 !important;
+  text-indent: 0 !important;
+}
+
+/* Inputs / textarea / wrappers de PrimeNG: el borde izquierdo del
+   control debe coincidir con la X del título y del label. Los
+   inputs ya están en `width: 100%; box-sizing: border-box` por
+   reglas previas — aquí sólo agregamos un `margin-left: 0` defensivo
+   por si alguna utility de Tailwind se cuela. */
+sms-organization-form .p-card-body .p-inputtext,
+sms-region-form .p-card-body .p-inputtext,
+sms-branch-form .p-card-body .p-inputtext,
+sms-building-form .p-card-body .p-inputtext,
+sms-asset-form .p-card-body .p-inputtext,
+sms-meter-form .p-card-body .p-inputtext,
+sms-cost-center-form .p-card-body .p-inputtext,
+sms-organization-form .p-card-body .p-dropdown,
+sms-region-form .p-card-body .p-dropdown,
+sms-branch-form .p-card-body .p-dropdown,
+sms-building-form .p-card-body .p-dropdown,
+sms-asset-form .p-card-body .p-dropdown,
+sms-meter-form .p-card-body .p-dropdown,
+sms-cost-center-form .p-card-body .p-dropdown,
+sms-organization-form .p-card-body .p-inputnumber,
+sms-region-form .p-card-body .p-inputnumber,
+sms-branch-form .p-card-body .p-inputnumber,
+sms-building-form .p-card-body .p-inputnumber,
+sms-asset-form .p-card-body .p-inputnumber,
+sms-meter-form .p-card-body .p-inputnumber,
+sms-cost-center-form .p-card-body .p-inputnumber,
+sms-organization-form .p-card-body .p-calendar,
+sms-region-form .p-card-body .p-calendar,
+sms-branch-form .p-card-body .p-calendar,
+sms-building-form .p-card-body .p-calendar,
+sms-asset-form .p-card-body .p-calendar,
+sms-meter-form .p-card-body .p-calendar,
+sms-cost-center-form .p-card-body .p-calendar {
+  margin-left: 0 !important;
+}
+
+/* El `<span>` interno del template title — el que de verdad rendea el
+   texto — debe:
+   1. Heredar font-size/line-height del padre (pisamos los `text-base`
+      de Tailwind para que el container-aware del padre tome efecto).
+   2. Alinear su eje X al padding-left del card-body (sin margin/
+      padding propio ni desplazamientos del flex).
+   Sin esto, el "Identidad y domicilio" arrancaría con un pequeño
+   offset respecto al label "NOMBRE *" del primer campo del grid. */
+sms-organization-form .p-card .p-card-title > *,
+sms-region-form .p-card .p-card-title > *,
+sms-branch-form .p-card .p-card-title > *,
+sms-building-form .p-card .p-card-title > *,
+sms-asset-form .p-card .p-card-title > *,
+sms-meter-form .p-card .p-card-title > *,
+sms-cost-center-form .p-card .p-card-title > * {
+  display: block !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  font-size: inherit !important;
+  line-height: inherit !important;
+  text-indent: 0 !important;
+}
+
+/* Si PrimeNG inyecta un `.p-card-subtitle` vacío entre title y content,
+   lo escondemos para que no aporte espacio fantasma. */
+sms-organization-form .p-card .p-card-subtitle:empty,
+sms-region-form .p-card .p-card-subtitle:empty,
+sms-branch-form .p-card .p-card-subtitle:empty,
+sms-building-form .p-card .p-card-subtitle:empty,
+sms-asset-form .p-card .p-card-subtitle:empty,
+sms-meter-form .p-card .p-card-subtitle:empty,
+sms-cost-center-form .p-card .p-card-subtitle:empty {
+  display: none !important;
+  margin: 0 !important;
+}
+
+/* PrimeNG dropdown · vertical centering + ancho completo + placeholder estable
+   ------------------------------------------------------------
+   IMPORTANTE: usamos `display: flex` (no inline-flex) + `width: 100%` para que
+   el dropdown ocupe todo el grid-cell padre y no “colapse” cuando el value es
+   null (placeholder). Sin esto, al cambiar entre value y placeholder el ancho
+   visual difería y se rompía la alineación del grid de 12 columnas. */
+.p-dropdown {
+  height: var(--sms-control-height);
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  border-radius: 12px !important;
+  display: flex;
+  align-items: stretch;
+  box-sizing: border-box;
+  overflow: hidden;
+  background-color: #ffffff;
+  border: 1px solid #cbd5e1; /* slate-300 */
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  transition:
+    border-color 140ms ease,
+    box-shadow 140ms ease,
+    background-color 140ms ease;
+}
+
+/* Hover suave: pasa a slate-400 cuando no está enfocado ni deshabilitado */
+.p-dropdown:not(.p-focus):not(.p-disabled):hover {
+  border-color: #94a3b8; /* slate-400 */
+}
+
+/* Foco esmeralda con anillo coherente con inputs */
 .p-dropdown.p-focus,
 .p-dropdown:focus,
 .p-dropdown:focus-within {
-  box-shadow: none !important;
   outline: none !important;
+  border-color: #10b981 !important; /* emerald-500 */
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.18) !important;
 }
 
-.p-dropdown.p-focus {
-  border-color: #10b981; /* emerald-500 */
+/* Estado inválido (cuando Angular agrega ng-invalid + ng-touched) */
+.p-dropdown.ng-invalid.ng-touched {
+  border-color: #f87171; /* red-400 */
+}
+.p-dropdown.ng-invalid.ng-touched.p-focus,
+.p-dropdown.ng-invalid.ng-touched:focus,
+.p-dropdown.ng-invalid.ng-touched:focus-within {
+  border-color: #ef4444 !important; /* red-500 */
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18) !important;
 }
 
+/* Label: ocupa todo el ancho disponible y alinea como cualquier input.
+   Padding horizontal igual al de input.p-inputtext (0.75rem) para que el
+   texto NO se pegue al borde izquierdo del control. */
 .p-dropdown .p-dropdown-label {
-  /* Keep Lara's default styles; only ensure centering + truncation */
   display: flex;
   align-items: center;
   flex: 1 1 auto;
   min-width: 0;
+  height: 100%;
+  padding: 0 0.75rem;
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.2;
+  color: #1e293b; /* slate-800 */
+  font-weight: 500;
+  background: transparent;
+  border: 0 !important;
+  box-shadow: none !important;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/* Placeholder: mismo tono que los inputs vacíos (slate-400) y peso normal
+   para diferenciarlo del valor seleccionado. */
+.p-dropdown .p-dropdown-label.p-placeholder {
+  color: #94a3b8 !important; /* slate-400 */
+  font-weight: 400;
+}
+
+/* Cuando el dropdown está vacío (label vacío), PrimeNG inyecta un &nbsp;
+   que aún así puede colapsar la altura visual. Forzamos altura mínima
+   sobre la línea para mantener la barra estable. */
+.p-dropdown .p-dropdown-label:empty::before {
+  content: '\00a0';
+}
+
 .p-dropdown .p-dropdown-trigger {
   height: 100%;
   width: 2.5rem;
+  flex: 0 0 2.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
-  border-top-right-radius: 8px !important;
-  border-bottom-right-radius: 8px !important;
   background: transparent;
-  border-left: 0 !important; /* remove inner divider/double border */
   border: 0 !important;
   box-shadow: none !important;
+  color: #64748b; /* slate-500 */
 }
 
 .p-dropdown .p-dropdown-trigger-icon {
-  font-size: 0.875rem; /* ~text-sm */
+  font-size: 0.875rem;
   line-height: 1;
-  height: 100%;
+  height: auto;
   display: inline-flex;
   align-items: center;
+}
+
+/* Botón de limpiar (showClear). Lo neutralizamos para que herede el alto del
+   control y no se monte sobre el trigger. */
+.p-dropdown .p-dropdown-clear-icon {
+  position: static;
+  margin: 0 0.25rem 0 0;
+  align-self: center;
+  color: #94a3b8;
+  cursor: pointer;
+}
+.p-dropdown .p-dropdown-clear-icon:hover {
+  color: #475569;
 }
 
 .ui-badge {
@@ -844,14 +1465,20 @@ button#user-trigger:focus {
 
 /* Hover y selección en tono esmeralda — aplican incluso si el tema Lara
    intenta imponer su azul por defecto. */
+/* Ancho intrínseco para que el panel del Location Manager pueda
+   adaptarse al árbol completo (ver location-manager.page.ts). El
+   \`min-width: 100%\` asegura que el hover/selección cubran todo el
+   ancho del panel aunque el nodo sea corto. */
 .sms-tree .p-treenode {
-  width: 100%;
-  max-width: 100%;
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
 }
 
 .sms-tree .p-treenode-content {
-  width: 100%;
-  max-width: 100%;
+  width: max-content;
+  min-width: 100%;
+  max-width: none;
   flex-wrap: nowrap;
   border-radius: 0.85rem;
   border: 1px solid transparent;
@@ -859,9 +1486,9 @@ button#user-trigger:focus {
 }
 
 .sms-tree .p-treenode-content .p-treenode-label {
-  flex: 1 1 auto;
-  min-width: 0;
-  width: 100%;
+  flex: 0 0 auto;
+  width: auto;
+  white-space: nowrap;
 }
 
 .sms-tree sms-tree-node-template {

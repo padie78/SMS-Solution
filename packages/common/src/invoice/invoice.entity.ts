@@ -1,43 +1,99 @@
 import type { InvoiceDTO } from './invoice.dto.js';
 
-/** Factura / snapshot consumo para líneas billing→carbono (sin DynamoDB). */
+/**
+ * InvoiceEntity: Representa el dominio de una factura procesada.
+ * Centraliza la lógica de negocio y validación de integridad.
+ */
 export class InvoiceEntity {
   constructor(
-    public readonly amount: number,
-    public readonly kwhConsumption: number,
-    public readonly facilityId: string,
-    public readonly billingPeriod: string
+    public readonly pk: string,
+    public readonly sk: string,
+    public readonly aiAnalysis: InvoiceDTO['aiAnalysis'],
+    public readonly analyticsDimensions: InvoiceDTO['analyticsDimensions'],
+    public readonly climatiqResult: InvoiceDTO['climatiqResult'],
+    public readonly extractedData: InvoiceDTO['extractedData'],
+    public readonly metadata: InvoiceDTO['metadata'],
+    public readonly processedAt: string,
+    public readonly totalDaysProrated: number
   ) {
     this.assertDomainInvariants();
   }
 
+  /**
+   * Factory Method para crear la entidad desde un DTO validado.
+   */
   static fromDTO(dto: InvoiceDTO): InvoiceEntity {
-    return new InvoiceEntity(dto.amount, dto.kwhConsumption, dto.facilityId, dto.billingPeriod);
+    return new InvoiceEntity(
+      dto.pk,
+      dto.sk,
+      dto.aiAnalysis,
+      dto.analyticsDimensions,
+      dto.climatiqResult,
+      dto.extractedData,
+      dto.metadata,
+      dto.processedAt,
+      dto.totalDaysProrated
+    );
   }
 
-  assertDomainInvariants(): void {
-    if (!Number.isFinite(this.amount)) throw new Error('amount must be finite');
-    if (!Number.isFinite(this.kwhConsumption) || this.kwhConsumption < 0) {
-      throw new Error('kwhConsumption must be a non-negative finite number');
+  /**
+   * Validaciones de reglas de negocio (Invariantes).
+   */
+  private assertDomainInvariants(): void {
+    // 1. Validaciones de Identidad
+    if (!this.pk.includes('TENANT#') || !this.pk.includes('#ORG#')) {
+      throw new Error('Invalid Partition Key: Must contain Tenant and Org context');
     }
-    if (!this.facilityId?.trim()) throw new Error('facilityId is required');
-    if (!this.billingPeriod?.trim()) throw new Error('billingPeriod is required');
-    if (Number.isNaN(Date.parse(this.billingPeriod))) {
-      throw new Error('billingPeriod must be parseable as a date');
+
+    // 2. Validaciones de Consumo
+    if (this.aiAnalysis.value < 0) {
+      throw new Error('Consumption value cannot be negative');
+    }
+
+    // 3. Validaciones Financieras
+    if (this.extractedData.totalAmount < 0) {
+      throw new Error('Invoice total amount cannot be negative');
+    }
+
+    // 4. Integridad de Fechas
+    if (new Date(this.extractedData.billingPeriod.start) > new Date(this.extractedData.billingPeriod.end)) {
+      throw new Error('Billing period start cannot be after end date');
     }
   }
 
-  kwhPerCurrencyUnit(): number | null {
-    if (this.amount <= 0) return null;
-    return this.kwhConsumption / this.amount;
+  /**
+   * Lógica de Negocio: Intensidad de Carbono Monetaria.
+   * Relaciona las emisiones de CO2 con el gasto económico.
+   */
+  getCarbonIntensityPerCurrency(): number {
+    const amount = this.extractedData.totalAmount;
+    if (amount <= 0) return 0;
+    return this.climatiqResult.co2e / amount;
   }
 
-  toValue(): InvoiceDTO {
+  /**
+   * Lógica de Negocio: Consumo Diario Promedio.
+   * Útil para normalizar consumos de periodos de diferente duración.
+   */
+  getDailyAverageConsumption(): number {
+    if (this.totalDaysProrated <= 0) return 0;
+    return this.aiAnalysis.value / this.totalDaysProrated;
+  }
+
+  /**
+   * Convierte la entidad de vuelta a un DTO plano.
+   */
+  toDTO(): InvoiceDTO {
     return {
-      amount: this.amount,
-      kwhConsumption: this.kwhConsumption,
-      facilityId: this.facilityId,
-      billingPeriod: this.billingPeriod
+      pk: this.pk,
+      sk: this.sk,
+      aiAnalysis: { ...this.aiAnalysis },
+      analyticsDimensions: { ...this.analyticsDimensions },
+      climatiqResult: { ...this.climatiqResult },
+      extractedData: { ...this.extractedData },
+      metadata: { ...this.metadata },
+      processedAt: this.processedAt,
+      totalDaysProrated: this.totalDaysProrated
     };
   }
 }

@@ -9,6 +9,7 @@ import type { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 
 import type { OrganizationDTO } from '@sms/common';
 import { withHelp } from './form-help.util';
+import { buildLocationFormGroup } from './location-form-shared';
 import {
   CurrencyCodeSchema,
   IndustrySectorSchema,
@@ -497,23 +498,22 @@ function allFieldDefs(): ReadonlyArray<OrganizationFormFieldDef> {
   return ORGANIZATION_FORM_TABS.flatMap((t) => t.fields);
 }
 
+/** Claves cuyo control admite `null` (sin no-nullable). Mantiene la semántica previa. */
+const ORGANIZATION_NULLABLE_FIELDS: ReadonlySet<keyof OrganizationFormValue> = new Set([
+  'websiteUrl',
+  'logoUrl',
+  'createdAt',
+  'updatedAt'
+]);
+
 export function buildOrganizationFormGroup(fb: FormBuilder): OrganizationFormGroup {
-  const defaults = ORGANIZATION_FORM_DEFAULT_VALUE;
-  const fbnn = fb.nonNullable;
-  const controls = {} as Record<keyof OrganizationFormValue, FormControl | unknown>;
-  for (const meta of allFieldDefs()) {
-    const key = meta.key;
-    const initial = defaults[key];
-    const validators = organizationFieldValidators(meta);
-    const isNullableScalar =
-      key === 'websiteUrl' || key === 'logoUrl' || key === 'createdAt' || key === 'updatedAt';
-    if (isNullableScalar && (initial === null || initial === undefined)) {
-      controls[key] = fb.control<string | null>((initial ?? null) as string | null, validators);
-      continue;
-    }
-    controls[key] = fbnn.control(initial as never, validators);
-  }
-  return fb.group(controls as never) as unknown as OrganizationFormGroup;
+  return buildLocationFormGroup({
+    fb,
+    fieldDefs: allFieldDefs(),
+    defaults: ORGANIZATION_FORM_DEFAULT_VALUE as unknown as Record<string, unknown>,
+    nullableFields: ORGANIZATION_NULLABLE_FIELDS as unknown as ReadonlySet<string>,
+    getValidators: organizationFieldValidators
+  }) as unknown as OrganizationFormGroup;
 }
 
 /**

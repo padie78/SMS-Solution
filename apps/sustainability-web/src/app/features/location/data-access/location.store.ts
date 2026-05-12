@@ -46,7 +46,8 @@ export class LocationService {
 
   readonly tree = signal<SmsLocationNode[]>([]);
   readonly selectedNode = signal<SmsLocationNode | null>(null);
-  readonly loading = signal(false);
+  /** `true` hasta el primer `loadRoots` (evita flash del vacío en F5 antes de AppSync). Solo la página Location Manager lo refleja en UI. */
+  readonly loading = signal(true);
   readonly lastError = signal<string | null>(null);
 
   /**

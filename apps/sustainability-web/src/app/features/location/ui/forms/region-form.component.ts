@@ -8,12 +8,8 @@ import {
   inject,
   signal
 } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { CardModule } from 'primeng/card';
-import { DropdownModule } from 'primeng/dropdown';
-import { InputNumberModule } from 'primeng/inputnumber';
-import { InputTextModule } from 'primeng/inputtext';
-import { InputTextareaModule } from 'primeng/inputtextarea';
 import type {
   SmsLocationNode,
   SmsLocationNodeMetadata
@@ -23,15 +19,13 @@ import { isSmsTreeDraftNode, stripSmsLocalDraftFromMetadata } from '../../lib/lo
 import { LocationService } from '../../services/location.service';
 import { resolveHierarchyContext } from './location-hierarchy-context';
 import { LocationFormActionsComponent } from './location-form-actions.component';
-import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
+import { LocationFormFieldComponent } from './location-form-field.component';
 import {
-  REGION_FIELD_GRID_CLASS,
   REGION_FORM_ENUM_OPTIONS,
   REGION_FORM_TABS,
   buildRegionFormGroup,
   hydrateRegionFormFromPartial,
   regionFormRawValueToDTO,
-  type RegionFormFieldDef,
   type RegionFormGroup,
   type RegionFormShape,
   type RegionFormTabDef,
@@ -50,12 +44,8 @@ import type { RegionDTO } from '@sms/common';
     CommonModule,
     ReactiveFormsModule,
     CardModule,
-    InputTextModule,
-    InputTextareaModule,
-    InputNumberModule,
-    DropdownModule,
     LocationFormActionsComponent,
-    UiHelpTipComponent
+    LocationFormFieldComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './region-form.component.html'
@@ -102,10 +92,6 @@ export class RegionFormComponent implements OnChanges {
     this.form.markAsPristine();
   }
 
-  gridClass(field: RegionFormFieldDef): string {
-    return REGION_FIELD_GRID_CLASS[field.mdCols];
-  }
-
   enumOptions(key: keyof typeof REGION_FORM_ENUM_OPTIONS | undefined): Array<SelectOption<string>> {
     if (!key) return [];
     return [...REGION_FORM_ENUM_OPTIONS[key]] as SelectOption<string>[];
@@ -125,18 +111,6 @@ export class RegionFormComponent implements OnChanges {
     } catch {
       return '{}';
     }
-  }
-
-  errorMessage<K extends keyof RegionFormValue>(key: K): string | null {
-    const c = this.form.controls[key];
-    const errs = c.errors as ValidationErrors | null;
-    if (!errs) return null;
-    if (errs['required']) return 'Campo obligatorio.';
-    if (errs['email']) return 'Introduce un email válido.';
-    if (errs['pattern']) return 'El formato del valor no es válido.';
-    if (errs['min']) return `Valor mínimo: ${errs['min'].min}.`;
-    if (errs['max']) return `Valor máximo: ${errs['max'].max}.`;
-    return null;
   }
 
   reset(): void {

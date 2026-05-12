@@ -7,6 +7,7 @@ import { Validators } from '@angular/forms';
 import type { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 
 import type { MeterDTO } from '@sms/common';
+import { buildLocationFormGroup } from './location-form-shared';
 import {
   MeterAccuracyClassSchema,
   MeterCommunicationStatusSchema,
@@ -544,22 +545,13 @@ const NULLABLE_FIELDS = new Set<keyof MeterFormValue>([
 ]);
 
 export function buildMeterFormGroup(fb: FormBuilder): MeterFormGroup {
-  const defaults = METER_FORM_DEFAULT_VALUE;
-  const fbnn = fb.nonNullable;
-  const controls = {} as Record<keyof MeterFormValue, FormControl | unknown>;
-
-  for (const meta of allFieldDefs()) {
-    const key = meta.key;
-    const initial = defaults[key];
-    const validators = meterFieldValidators(meta);
-    if (NULLABLE_FIELDS.has(key)) {
-      controls[key] = fb.control(initial as never, validators);
-      continue;
-    }
-    controls[key] = fbnn.control(initial as never, validators);
-  }
-
-  return fb.group(controls as never) as unknown as MeterFormGroup;
+  return buildLocationFormGroup({
+    fb,
+    fieldDefs: allFieldDefs(),
+    defaults: METER_FORM_DEFAULT_VALUE as unknown as Record<string, unknown>,
+    nullableFields: NULLABLE_FIELDS as unknown as ReadonlySet<string>,
+    getValidators: meterFieldValidators
+  }) as unknown as MeterFormGroup;
 }
 
 function toIsoLike(d: Date): string {

@@ -2,7 +2,6 @@ import { CommonModule } from '@angular/common';
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject } from '@angular/core';
 import { BreadcrumbModule } from 'primeng/breadcrumb';
 import type { MenuItem } from 'primeng/api';
-import { SplitterModule } from 'primeng/splitter';
 import { DialogService, DynamicDialogModule } from 'primeng/dynamicdialog';
 import type { CostCenterDTO, TariffDTO } from '@sms/common';
 import { LocationMasterTreeComponent } from '../../../ui/organisms/location-master-tree/location-master-tree.component';
@@ -32,7 +31,6 @@ function smsNodeStableLocationId(node: SmsLocationNode): string {
   standalone: true,
   imports: [
     CommonModule,
-    SplitterModule,
     BreadcrumbModule,
     DynamicDialogModule,
     LocationMasterTreeComponent,
@@ -42,84 +40,164 @@ function smsNodeStableLocationId(node: SmsLocationNode): string {
   changeDetection: ChangeDetectionStrategy.OnPush,
   styles: [
     `
-      :host ::ng-deep .sms-location-splitter.p-splitter {
-        background: transparent;
+      /* =========================================================
+         Layout 2-paneles · sin p-splitter
+         ---------------------------------------------------------
+         Decisión: el panel del árbol toma un ancho natural acotado
+         (clamp 280–420px) y el panel del form se queda con TODO
+         el espacio restante. Garantiza máxima superficie para los
+         formularios sin que el árbol se sienta apretado.
+
+         - Desktop (≥md): row, panel-tree ancho fijo, panel-form flex-1.
+         - Mobile (<md):  column, panel-tree primero, panel-form abajo,
+                          ambos al 100% del ancho disponible.
+         ========================================================= */
+      .sms-loc-layout {
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        min-width: 0;
       }
 
-      /* Hace que el "Location Manager" se perciba como el módulo principal:
-         panel izquierdo más sólido, gutter más sutil, y mejor contraste. */
-      :host ::ng-deep .sms-location-splitter .p-splitter-gutter {
-        background: rgb(241 245 249); /* slate-100 */
+      @media (min-width: 900px) {
+        .sms-loc-layout {
+          flex-direction: row;
+        }
       }
-      :host ::ng-deep .sms-location-splitter .p-splitter-gutter .p-splitter-gutter-handle {
+
+      .sms-loc-layout__tree {
+        flex: 0 0 auto;
+        width: 100%;
+        min-width: 0;
+      }
+
+      @media (min-width: 900px) {
+        /* El panel toma el ancho INTRÍNSECO del árbol (max-content) para
+           que toda la jerarquía se lea sin scroll horizontal interno.
+           Bounds:
+            - min  300px → cuando el árbol está vacío o sólo tiene roots,
+                           el panel no colapsa.
+            - max  min(50vw, 560px) → cap defensivo para que un nombre muy
+                           largo no se coma el espacio del form. Si el
+                           árbol excede ese tope, scrollea horizontalmente
+                           dentro del panel (overflow-x: auto). */
+        .sms-loc-layout__tree {
+          flex: 0 0 auto;
+          width: max-content;
+          min-width: 300px;
+          max-width: min(50vw, 560px);
+          overflow-x: auto;
+        }
+      }
+
+      .sms-loc-layout__detail {
+        flex: 1 1 auto;
+        min-width: 0;
+        width: 100%;
+      }
+
+      .sms-loc-layout__divider {
         background: rgb(226 232 240); /* slate-200 */
-        border-radius: 999px;
+        flex: 0 0 auto;
+      }
+
+      @media (min-width: 900px) {
+        .sms-loc-layout__divider {
+          width: 1px;
+          align-self: stretch;
+        }
+      }
+
+      @media (max-width: 899px) {
+        .sms-loc-layout__divider {
+          height: 1px;
+          width: 100%;
+        }
       }
     `
   ],
   template: `
-    <div class="max-w-[1600px] mx-auto space-y-5 md:space-y-6 pb-12 min-w-0">
-      <header class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <p class="text-xs font-bold text-emerald-700 m-0">SMS · Trust &amp; Compliance</p>
-          <div class="flex flex-wrap items-center gap-2">
-            <h1 class="text-3xl font-black text-slate-900 tracking-tight mt-1 m-0">Location Manager</h1>
+    <div
+      class="mx-auto w-full max-w-[1600px] min-w-0 space-y-4 px-3 pb-8 sm:space-y-5 sm:px-4 sm:pb-10 md:space-y-6 md:px-6 md:pb-12 lg:px-8"
+    >
+      <header
+        class="flex flex-col gap-4 sm:gap-5 md:flex-row md:items-start md:justify-between md:gap-6"
+      >
+        <div class="min-w-0">
+          <p class="m-0 text-[11px] font-bold uppercase tracking-wider text-emerald-700">
+            SMS · Trust &amp; Compliance
+          </p>
+          <div class="mt-1 flex flex-wrap items-center gap-2">
+            <h1 class="m-0 text-2xl font-black tracking-tight text-slate-900 sm:text-3xl">
+              Location Manager
+            </h1>
             <span
-              class="text-[10px] font-black uppercase tracking-wider px-2 py-1 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-800"
+              class="rounded-xl border border-indigo-200 bg-indigo-50 px-2 py-1 text-[10px] font-black uppercase tracking-wider text-indigo-800"
             >
               UI v2
             </span>
           </div>
-          <p class="text-slate-500 text-sm max-w-3xl leading-relaxed mt-2 m-0">
-            La raíz es tu <strong class="text-slate-700">Organización</strong>. Desde ahí modelás la jerarquía operativa y
-            energética: <span class="font-mono text-slate-600">Region → Branch → Building → Cost Center → Asset → Meter</span>.
-            Usá el árbol para crear nodos y <strong class="text-slate-700">drag &amp; drop</strong> para reubicar (valida la
+          <p class="m-0 mt-2 max-w-3xl text-sm leading-relaxed text-slate-500">
+            La raíz es tu <strong class="text-slate-700">Organización</strong>. Desde ahí modelás la
+            jerarquía operativa y energética:
+            <span class="font-mono text-slate-600">
+              Region → Branch → Building → Cost Center → Asset → Meter
+            </span>
+            . Usá el árbol para crear nodos y
+            <strong class="text-slate-700">drag &amp; drop</strong> para reubicar (valida la
             jerarquía).
           </p>
         </div>
-        <div class="flex flex-wrap gap-2 align-items-center justify-content-end shrink-0">
-          <div class="border border-slate-200 rounded-xl px-3 py-2 bg-white">
-            <p-breadcrumb [model]="breadcrumbItems()" styleClass="bg-transparent border-none p-0 text-sm" />
+        <div class="min-w-0 shrink-0 md:max-w-[420px]">
+          <div
+            class="overflow-x-auto rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm"
+          >
+            <p-breadcrumb
+              [model]="breadcrumbItems()"
+              styleClass="bg-transparent border-none p-0 text-sm whitespace-nowrap"
+            />
           </div>
         </div>
       </header>
 
       <section
-        class="rounded-2xl border border-rose-200 bg-rose-50/80 p-4 md:p-5 text-rose-800 text-sm"
+        class="rounded-2xl border border-rose-200 bg-rose-50/80 p-3 text-sm text-rose-800 sm:p-4 md:p-5"
         *ngIf="location.lastError() as err"
       >
-        <div class="flex align-items-start gap-2">
+        <div class="flex items-start gap-2">
           <i class="pi pi-exclamation-triangle mt-1"></i>
           <div class="min-w-0">
-            <div class="font-black uppercase tracking-wider text-[11px]">Error</div>
+            <div class="text-[11px] font-black uppercase tracking-wider">Error</div>
             <div class="break-words">{{ err }}</div>
           </div>
         </div>
       </section>
 
-      <section class="rounded-2xl border border-slate-200 bg-white shadow-2 min-w-0 overflow-hidden">
-        <p-splitter [panelSizes]="[46, 54]" styleClass="min-h-[760px] sms-location-splitter">
-          <ng-template pTemplate>
-            <div
-              class="h-full p-4 md:p-5 border-r border-slate-200 min-w-0 bg-gradient-to-b from-slate-50/70 via-white to-white"
-            >
-              <sms-master-tree
-                [nodes]="location.tree()"
-                [treeViewEpoch]="location.treeViewEpoch()"
-                [loading]="location.loading()"
-                (selected)="onNodeSelected($event)"
-                (dropped)="onNodeDropped($event)"
-                (quickAction)="onQuickAction($event)"
-                (reload)="reload()"
-              />
-            </div>
-          </ng-template>
-          <ng-template pTemplate>
-            <div class="h-full p-4 md:p-6 overflow-auto min-w-0">
-              <sms-detail-explorer [node]="location.selectedNode()" />
-            </div>
-          </ng-template>
-        </p-splitter>
+      <section
+        class="min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+      >
+        <div class="sms-loc-layout min-h-[560px] sm:min-h-[640px] md:min-h-[720px] xl:min-h-[760px]">
+          <aside
+            class="sms-loc-layout__tree bg-gradient-to-b from-slate-50/70 via-white to-white p-3 sm:p-4 md:p-5 lg:p-6"
+            aria-label="Árbol de organización"
+          >
+            <sms-master-tree
+              [nodes]="location.tree()"
+              [treeViewEpoch]="location.treeViewEpoch()"
+              [loading]="location.loading()"
+              (selected)="onNodeSelected($event)"
+              (dropped)="onNodeDropped($event)"
+              (quickAction)="onQuickAction($event)"
+              (reload)="reload()"
+            />
+          </aside>
+          <div class="sms-loc-layout__divider" aria-hidden="true"></div>
+          <div
+            class="sms-loc-layout__detail overflow-auto p-3 sm:p-4 md:p-5 lg:p-7"
+          >
+            <sms-detail-explorer [node]="location.selectedNode()" />
+          </div>
+        </div>
       </section>
     </div>
   `

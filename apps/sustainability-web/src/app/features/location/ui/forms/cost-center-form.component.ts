@@ -10,13 +10,8 @@ import {
   inject,
   signal
 } from '@angular/core';
-import { FormBuilder, ReactiveFormsModule, type ValidationErrors } from '@angular/forms';
-import { CalendarModule } from 'primeng/calendar';
+import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { CardModule } from 'primeng/card';
-import { DropdownModule } from 'primeng/dropdown';
-import { InputNumberModule } from 'primeng/inputnumber';
-import { InputTextModule } from 'primeng/inputtext';
-import { InputTextareaModule } from 'primeng/inputtextarea';
 import type { CostCenterDTO } from '@sms/common';
 import type {
   SmsLocationNode,
@@ -26,17 +21,14 @@ import type {
 import { LocationService } from '../../services/location.service';
 import { resolveHierarchyContext } from './location-hierarchy-context';
 import { LocationFormActionsComponent } from './location-form-actions.component';
-import { UiHelpTipComponent } from '../../../../ui/atoms/ui-help-tip/ui-help-tip.component';
-import { UiInputSwitchComponent } from '../../../../ui/atoms/ui-input-switch/ui-input-switch.component';
+import { LocationFormFieldComponent } from './location-form-field.component';
 import {
-  COST_CENTER_FIELD_GRID_CLASS,
   COST_CENTER_FORM_DEFAULT_VALUE,
   COST_CENTER_FORM_ENUM_OPTIONS,
   COST_CENTER_FORM_TABS,
   buildCostCenterFormGroup,
   costCenterFormRawValueToDTO,
   hydrateCostCenterFormFromPartial,
-  type CostCenterFormFieldDef,
   type CostCenterFormGroup,
   type CostCenterFormShape,
   type CostCenterFormTabDef,
@@ -61,14 +53,8 @@ function toSmsNodeStatus(status: unknown): SmsNodeStatus {
     CommonModule,
     ReactiveFormsModule,
     CardModule,
-    InputTextModule,
-    InputTextareaModule,
-    InputNumberModule,
-    DropdownModule,
-    CalendarModule,
     LocationFormActionsComponent,
-    UiHelpTipComponent,
-    UiInputSwitchComponent
+    LocationFormFieldComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './cost-center-form.component.html'
@@ -130,10 +116,6 @@ export class CostCenterFormComponent implements OnChanges {
     this.form.markAsPristine();
   }
 
-  gridClass(field: CostCenterFormFieldDef): string {
-    return COST_CENTER_FIELD_GRID_CLASS[field.mdCols];
-  }
-
   enumOptions(key: keyof typeof COST_CENTER_FORM_ENUM_OPTIONS | undefined): Array<SelectOption<string>> {
     if (!key) return [];
     return [...COST_CENTER_FORM_ENUM_OPTIONS[key]] as SelectOption<string>[];
@@ -153,18 +135,6 @@ export class CostCenterFormComponent implements OnChanges {
     } catch {
       return '{}';
     }
-  }
-
-  errorMessage<K extends keyof CostCenterFormValue>(key: K): string | null {
-    const c = this.form.controls[key];
-    const errs = c.errors as ValidationErrors | null;
-    if (!errs) return null;
-    if (errs['required']) return 'Campo obligatorio.';
-    if (errs['min']) return `Valor mínimo: ${errs['min'].min}.`;
-    if (errs['max']) return `Valor máximo: ${errs['max'].max}.`;
-    if (errs['maxlength']) return `Máximo ${errs['maxlength'].requiredLength} caracteres.`;
-    if (errs['email']) return 'Email inválido.';
-    return null;
   }
 
   reset(): void {
