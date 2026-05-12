@@ -9,6 +9,7 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test packages/*/test/**/*.test.js 2>/dev/null || true"
+    "test": "node --test packages/*/test/**/*.test.js 2>/dev/null || true",
+    "build:packages": "npm run build -w @sms/common && npm run build -w @sms/shared && npm run build -w @sms/core && npm run build -w @sms/infrastructure"
   }
 }
