@@ -66,11 +66,6 @@ jobs:
         run: terraform apply -auto-approve tfplan
         working-directory: ./terraform
 
-      - name: Debug Workspace
-        run: |
-        ls -F node_modules/.bin/ng || echo "❌ Angular CLI no está en la raíz"
-        find . -name "ng" -type f
-
       # 4. Construcción del Frontend (Angular)
       # Nota: Si el front está en Nx, podrías usar: npx nx build sustainability-web
       - name: Build Frontend with Nx

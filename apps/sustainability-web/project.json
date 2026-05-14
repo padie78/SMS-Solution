@@ -4,11 +4,31 @@
   "projectType": "application",
   "targets": {
     "build": {
-      "executor": "nx:run-commands",
-      "outputs": ["{workspaceRoot}/dist/apps/sustainability-web"],
+      "executor": "@angular-devkit/build-angular:browser",
       "options": {
-        "command": "./node_modules/.bin/ng build --configuration=production",
-        "cwd": "." 
+        "outputPath": "dist/apps/sustainability-web",
+        "index": "apps/sustainability-web/src/index.html",
+        "main": "apps/sustainability-web/src/main.ts",
+        "polyfills": "apps/sustainability-web/src/polyfills.ts",
+        "tsConfig": "apps/sustainability-web/tsconfig.app.json",
+        "assets": [
+          "apps/sustainability-web/src/favicon.ico",
+          "apps/sustainability-web/src/assets"
+        ],
+        "styles": [
+          "apps/sustainability-web/src/styles.css"
+        ],
+        "scripts": []
+      },
+      "configurations": {
+        "production": {
+          "buildOptimizer": true,
+          "optimization": true,
+          "vendorChunk": false,
+          "extractLicenses": true,
+          "sourceMap": false,
+          "namedChunks": false
+        }
       }
     }
   }
