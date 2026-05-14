@@ -1,4 +1,4 @@
-/** Shared Zod contracts and DTOs (`@sms/contracts`, carpeta `libs/common` → `dtos/` + `schemas/`) — consumible por Angular y Node. */
+/** Shared Zod contracts and DTOs (`@sms/common`, carpeta `libs/common` → `dtos/` + `schemas/`) — consumible por Angular y Node. */
 
 export {
   EntityType,

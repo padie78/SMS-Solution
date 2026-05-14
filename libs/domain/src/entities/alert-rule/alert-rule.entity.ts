@@ -1,5 +1,5 @@
 import { DomainInvariantError } from '../../exceptions/domain-invariant.error.js';
-import { AlertRuleDTO } from '@sms/contracts';
+import { AlertRuleDTO } from '@sms/common';
 
 export class AlertRuleEntity {
   public readonly id: string;

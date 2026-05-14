@@ -1,6 +1,6 @@
 import { DomainInvariantError } from '../../exceptions/domain-invariant.error.js';
-import type { CostAllocationMethod, LifecycleStatus } from '@sms/contracts';
-import { CostCenterDTO } from '@sms/contracts';
+import type { CostAllocationMethod, LifecycleStatus } from '@sms/common';
+import { CostCenterDTO } from '@sms/common';
 
 /** Entidad transversal de prorrateo — referencia financiera a Branch y/o Building. */
 export class CostCenterEntity {

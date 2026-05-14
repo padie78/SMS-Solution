@@ -1,4 +1,4 @@
-import type { InvoiceDTO } from '@sms/contracts';
+import type { InvoiceDTO } from '@sms/common';
 import { DomainInvariantError } from '../../exceptions/domain-invariant.error.js';
 import { MeasuredConsumption } from '../../value-objects/measured-consumption.js';
 

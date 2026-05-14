@@ -18,7 +18,7 @@
     "moduleResolution": "node",
     "paths": {
       "@pages/setup/*": ["src/app/pages/setup/*"],
-      "@sms/contracts": ["../../libs/common/dist/index"],
+      "@sms/common": ["../../libs/common/dist/index"],
       "@sms/lib-common": ["../../libs/common/dist/index"],
       "@sms/common": ["../../libs/common/dist/index"],
       "@sms/common/schemas": ["../../libs/common/dist/schemas/index"],
@@ -27,7 +27,7 @@
     "importHelpers": true,
     "target": "ES2022",
     "module": "ES2022",
-    "lib": ["ES2022", "dom"],
+    "lib": ["ES2022", "dom"],   
     "types": ["node"],
     "allowSyntheticDefaultImports": true
   },

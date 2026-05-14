@@ -1,12 +1,12 @@
-import type { SmsEntityTag } from '@sms/contracts';
+import type { SmsEntityTag } from '@sms/common';
 import { BuildingEntity } from '@sms/domain';
-import { BuildingDTO } from '@sms/contracts';
+import { BuildingDTO } from '@sms/common';
 import type {
   BuildingUsageType,
   HvacType,
   MainFuelType,
   OperationalStatus
-} from '@sms/contracts';
+} from '@sms/common';
 
 export interface BuildingPersistence {
   sms_et: SmsEntityTag;

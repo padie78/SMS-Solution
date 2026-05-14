@@ -1,15 +1,15 @@
-import type { SmsEntityTag } from '@sms/contracts';
+import type { SmsEntityTag } from '@sms/common';
 import {
   CostAllocationMethodSchema,
   LifecycleStatusSchema,
   type CostAllocationMethod,
   type LifecycleStatus
-} from '@sms/contracts';
+} from '@sms/common';
 import {
   CostCenterDTO,
   CostCenterTypeSchema,
   CostCenterForecastModelSchema
-} from '@sms/contracts';
+} from '@sms/common';
 import { CostCenterEntity } from '@sms/domain';
 
 export interface CostCenterPersistence {

@@ -1,10 +1,10 @@
-import type { SmsEntityTag } from '@sms/contracts';
+import type { SmsEntityTag } from '@sms/common';
 import { z } from 'zod';
 import {
   AlertRuleNotificationChannelSchema,
   parseAlertRuleDTO
-} from '@sms/contracts';
-import type { AlertRuleDTO } from '@sms/contracts';
+} from '@sms/common';
+import type { AlertRuleDTO } from '@sms/common';
 import { AlertRuleEntity } from '@sms/domain';
 
 const NotificationChannelsPersistSchema = z.array(AlertRuleNotificationChannelSchema);

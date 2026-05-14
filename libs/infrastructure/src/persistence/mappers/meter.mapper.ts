@@ -1,18 +1,18 @@
-import { METER_TYPE_TO_PERSISTENCE } from '@sms/contracts';
-import { decodeMeterType } from '@sms/contracts';
-import type { MeterType } from '@sms/contracts';
-import type { SmsEntityTag } from '@sms/contracts';
+import { METER_TYPE_TO_PERSISTENCE } from '@sms/common';
+import { decodeMeterType } from '@sms/common';
+import type { MeterType } from '@sms/common';
+import type { SmsEntityTag } from '@sms/common';
 import { MeterEntity } from '@sms/domain';
-import type { MeterProtocol } from '@sms/contracts';
-import type { MeterOperationalStatus } from '@sms/contracts';
-import { MeterProtocolSchema } from '@sms/contracts';
+import type { MeterProtocol } from '@sms/common';
+import type { MeterOperationalStatus } from '@sms/common';
+import { MeterProtocolSchema } from '@sms/common';
 import {
   MeterDTO,
   MeterCommunicationStatusSchema,
   MeterServiceTypeSchema,
   MeterUnitSchema,
   MeterAccuracyClassSchema
-} from '@sms/contracts';
+} from '@sms/common';
 
 export interface MeterPersistence {
   sms_et: SmsEntityTag;

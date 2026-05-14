@@ -1,4 +1,4 @@
-import type { InvoiceDTO } from '@sms/contracts';
+import type { InvoiceDTO } from '@sms/common';
 import {
   parseAlertRuleDTO,
   parseAssetDTO,
@@ -13,7 +13,7 @@ import {
   parseRegionDTO,
   parseTariffDTO,
   parseUserDTO
-} from '@sms/contracts';
+} from '@sms/common';
 import {
   AlertRuleEntity,
   AssetEntity,

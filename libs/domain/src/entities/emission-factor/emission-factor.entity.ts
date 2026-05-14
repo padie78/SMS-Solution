@@ -1,5 +1,5 @@
 import { DomainInvariantError } from '../../exceptions/domain-invariant.error.js';
-import { EmissionFactorDTO } from '@sms/contracts';
+import { EmissionFactorDTO } from '@sms/common';
 
 export class EmissionFactorEntity {
   public readonly id: string;

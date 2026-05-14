@@ -1,16 +1,16 @@
-import type { SmsEntityTag } from '@sms/contracts';
+import type { SmsEntityTag } from '@sms/common';
 import { z } from 'zod';
 import {
   EnergyServiceTypeSchema,
   TariffLifecycleStatusSchema,
   TariffPricingModelSchema
-} from '@sms/contracts';
+} from '@sms/common';
 import {
   TariffDTO,
   TariffDemandChargeUnitSchema,
   TariffSeasonSchema,
   TariffTierRatePairSchema
-} from '@sms/contracts';
+} from '@sms/common';
 import { TariffEntity } from '@sms/domain';
 
 function generateTariffFallbackId(row: Pick<TariffPersistence, 'vf' | 'ctr_id' | 'br_id'>): string {

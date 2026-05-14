@@ -1,7 +1,7 @@
 import { DomainInvariantError } from '../../exceptions/domain-invariant.error.js';
-import type { LifecycleStatus } from '@sms/contracts';
-import type { OrgConfigDTO } from '@sms/contracts';
-import { OrganizationDTO } from '@sms/contracts';
+import type { LifecycleStatus } from '@sms/common';
+import type { OrgConfigDTO } from '@sms/common';
+import { OrganizationDTO } from '@sms/common';
 
 export class OrgConfigEntity {
   constructor(

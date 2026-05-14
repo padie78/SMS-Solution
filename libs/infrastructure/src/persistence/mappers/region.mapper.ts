@@ -1,7 +1,7 @@
-import type { SmsEntityTag } from '@sms/contracts';
+import type { SmsEntityTag } from '@sms/common';
 import { RegionEntity } from '@sms/domain';
-import { RegionDTO } from '@sms/contracts';
-import type { LifecycleStatus } from '@sms/contracts';
+import { RegionDTO } from '@sms/common';
+import type { LifecycleStatus } from '@sms/common';
 
 export interface RegionPersistence {
   sms_et: SmsEntityTag;

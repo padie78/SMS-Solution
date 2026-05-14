@@ -1,6 +1,6 @@
-import type { SmsEntityTag } from '@sms/contracts';
+import type { SmsEntityTag } from '@sms/common';
 import { ProductionLogEntity } from '@sms/domain';
-import type { ProductionLogDTO } from '@sms/contracts';
+import type { ProductionLogDTO } from '@sms/common';
 
 export interface ProductionLogPersistence {
   sms_et: Extract<SmsEntityTag, 'PLOG'>;

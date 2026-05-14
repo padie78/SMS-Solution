@@ -1,6 +1,6 @@
-import type { SmsEntityTag } from '@sms/contracts';
+import type { SmsEntityTag } from '@sms/common';
 import { BranchEntity } from '@sms/domain';
-import { BranchDTO, parseBranchDTO } from '@sms/contracts';
+import { BranchDTO, parseBranchDTO } from '@sms/common';
 
 export interface BranchPersistence {
   sms_et: SmsEntityTag;

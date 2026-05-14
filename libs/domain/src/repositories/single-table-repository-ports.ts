@@ -1,4 +1,4 @@
-import type { InvoiceDTO } from '@sms/contracts';
+import type { InvoiceDTO } from '@sms/common';
 import type { AlertRuleEntity } from '../entities/alert-rule/alert-rule.entity.js';
 import type { AssetEntity } from '../entities/asset/asset.entity.js';
 import type { BranchEntity } from '../entities/branch/branch.entity.js';

@@ -1,7 +1,7 @@
 import { DomainInvariantError } from '../../exceptions/domain-invariant.error.js';
-import type { BuildingUsageType, HvacType, MainFuelType, OperationalStatus } from '@sms/contracts';
-import type { GeoCoordinatesDTO } from '@sms/contracts';
-import { BuildingDTO } from '@sms/contracts';
+import type { BuildingUsageType, HvacType, MainFuelType, OperationalStatus } from '@sms/common';
+import type { GeoCoordinatesDTO } from '@sms/common';
+import { BuildingDTO } from '@sms/common';
 
 /** Nivel 4 — activo físico bajo Branch. */
 export class BuildingEntity {

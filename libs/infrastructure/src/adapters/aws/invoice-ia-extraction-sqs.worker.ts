@@ -2,7 +2,7 @@ import type { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import {
   buildInitialInvoiceIaTechnicalExtraction,
   parseInvoiceIaExtractionSqsBody
-} from '@sms/contracts';
+} from '@sms/common';
 import { RecordInvoiceIaExtractionUseCase } from '@sms/application';
 import type { SingleTableWriteContext, TenantOrgContext } from '@sms/domain';
 import { DynamoInvoiceRepository } from '../../persistence/repositories/dynamo-invoice.repository.js';

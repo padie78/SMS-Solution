@@ -6,8 +6,8 @@ import type {
   TariffPricingModel,
   TariffSeason,
   TariffTierRatePair
-} from '@sms/contracts';
-import { TariffDTO } from '@sms/contracts';
+} from '@sms/common';
+import { TariffDTO } from '@sms/common';
 
 /** Contrato tarifario con benchmarking, demanda y capa ESG. */
 export class TariffEntity {

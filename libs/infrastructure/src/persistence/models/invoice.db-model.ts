@@ -1,4 +1,4 @@
-import type { InvoiceDTO } from '@sms/contracts';
+import type { InvoiceDTO } from '@sms/common';
 import type { SingleTableInfrastructureFields } from './base-persistence.model.js';
 
 export type InvoiceBusinessBlob = Partial<Omit<InvoiceDTO, 'pk' | 'sk'>>;

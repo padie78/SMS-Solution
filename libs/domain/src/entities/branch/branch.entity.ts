@@ -1,5 +1,5 @@
 import { DomainInvariantError } from '../../exceptions/domain-invariant.error.js';
-import { BranchDTO } from '@sms/contracts';
+import { BranchDTO } from '@sms/common';
 
 /** Nivel 3 — sucursal / planta bajo una Region. */
 export class BranchEntity {

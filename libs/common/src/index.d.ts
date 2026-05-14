@@ -1,4 +1,4 @@
-/** Shared Zod contracts and DTOs (`@sms/contracts`, carpeta `libs/common` → `dtos/` + `schemas/`) — consumible por Angular y Node. */
+/** Shared Zod contracts and DTOs (`@sms/common`, carpeta `libs/common` → `dtos/` + `schemas/`) — consumible por Angular y Node. */
 export { EntityType, EntityTypeSchema, ENTITY_TYPE_VALUES, isEntityType, ENTITY_TYPE_I18N, getEntityTypeI18nKey, ENERGY_SERVICE_TYPE_I18N, getEnergyServiceTypeI18nKey, type EntityTypeI18nKey, type EnergyServiceTypeI18nKey } from './dtos/shared/i18n/index.js';
 export { SmsIdSchema, type SmsId } from './schemas/sms-id.schema.js';
 export type { SmsEntityTag } from './dtos/shared/sms-entity-tag.js';

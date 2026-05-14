@@ -20,7 +20,7 @@
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.658.0",
     "@aws-sdk/lib-dynamodb": "^3.658.0",
-    "@sms/contracts": "*",
+    "@sms/common": "*",
     "@sms/application": "*",
     "@sms/domain": "*"
   },

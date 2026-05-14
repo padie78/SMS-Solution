@@ -1,5 +1,5 @@
 import { DomainInvariantError } from '../../exceptions/domain-invariant.error.js';
-import type { ProductionLogDTO } from '@sms/contracts';
+import type { ProductionLogDTO } from '@sms/common';
 
 export class ProductionLogEntity {
   constructor(

@@ -1,7 +1,7 @@
 import { DomainInvariantError } from '../../exceptions/domain-invariant.error.js';
-import type { MeterType } from '@sms/contracts';
-import type { MeterOperationalStatus, MeterProtocol } from '@sms/contracts';
-import { MeterDTO } from '@sms/contracts';
+import type { MeterType } from '@sms/common';
+import type { MeterOperationalStatus, MeterProtocol } from '@sms/common';
+import { MeterDTO } from '@sms/common';
 
 /** Punto de medición: siempre Building; opcionalmente Asset para sub-medición. */
 export class MeterEntity {

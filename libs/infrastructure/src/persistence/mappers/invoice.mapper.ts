@@ -1,5 +1,5 @@
-import type { InvoiceDTO } from '@sms/contracts';
-import { InvoiceIaTechnicalExtractionSchema } from '@sms/contracts';
+import type { InvoiceDTO } from '@sms/common';
+import { InvoiceIaTechnicalExtractionSchema } from '@sms/common';
 import { InvoiceEntity } from '@sms/domain';
 
 /** 

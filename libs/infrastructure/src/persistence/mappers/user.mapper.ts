@@ -1,7 +1,7 @@
-import type { SmsEntityTag } from '@sms/contracts';
-import { ROLE_TO_CODE, decodeRole } from '@sms/contracts';
+import type { SmsEntityTag } from '@sms/common';
+import { ROLE_TO_CODE, decodeRole } from '@sms/common';
 import { UserEntity } from '@sms/domain';
-import type { UserDTO } from '@sms/contracts';
+import type { UserDTO } from '@sms/common';
 
 export interface UserPersistence {
   sms_et: SmsEntityTag;

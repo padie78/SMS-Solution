@@ -1,10 +1,10 @@
-import type { SmsEntityTag } from '@sms/contracts';
+import type { SmsEntityTag } from '@sms/common';
 import {
   EmissionFactorCatalogStatusSchema,
   EmissionFactorDTO,
   EmissionFactorGwpReferenceSchema,
   parseEmissionFactorDTO
-} from '@sms/contracts';
+} from '@sms/common';
 import { EmissionFactorEntity } from '@sms/domain';
 
 function normalizeDataQualityTier(

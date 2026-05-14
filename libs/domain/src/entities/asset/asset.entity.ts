@@ -1,7 +1,7 @@
 import { DomainInvariantError } from '../../exceptions/domain-invariant.error.js';
-import type { AssetType } from '@sms/contracts';
-import type { AssetLifecycleStatus } from '@sms/contracts';
-import { AssetDTO } from '@sms/contracts';
+import type { AssetType } from '@sms/common';
+import type { AssetLifecycleStatus } from '@sms/common';
+import { AssetDTO } from '@sms/common';
 
 /** Activo energético anclado a Building + CostCenter. */
 export class AssetEntity {

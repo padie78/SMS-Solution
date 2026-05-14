@@ -18,7 +18,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@sms/contracts": "*"
+    "@sms/common": "*"
   },
   "devDependencies": {
     "typescript": "~5.6.3"

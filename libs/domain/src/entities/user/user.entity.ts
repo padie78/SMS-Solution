@@ -1,7 +1,7 @@
 import { DomainInvariantError } from '../../exceptions/domain-invariant.error.js';
-import type { UserRole } from '@sms/contracts';
-import type { UserLanguage } from '@sms/contracts';
-import type { UserDTO } from '@sms/contracts';
+import type { UserRole } from '@sms/common';
+import type { UserLanguage } from '@sms/common';
+import type { UserDTO } from '@sms/common';
 
 /** Usuario workspace — alcance regional o por sucursal (RBAC). */
 export class UserEntity {

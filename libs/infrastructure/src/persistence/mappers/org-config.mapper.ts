@@ -1,8 +1,8 @@
-import type { SmsEntityTag } from '@sms/contracts';
+import type { SmsEntityTag } from '@sms/common';
 import { OrgConfigEntity } from '@sms/domain';
-import type { OrgConfigDTO } from '@sms/contracts';
-import { OrganizationDTO } from '@sms/contracts';
-import type { LifecycleStatus } from '@sms/contracts';
+import type { OrgConfigDTO } from '@sms/common';
+import { OrganizationDTO } from '@sms/common';
+import type { LifecycleStatus } from '@sms/common';
 
 export interface OrgConfigPersistence {
   sms_et: Extract<SmsEntityTag, 'ORG_CFG'>;

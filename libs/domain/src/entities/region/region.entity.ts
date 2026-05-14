@@ -1,7 +1,7 @@
 import { DomainInvariantError } from '../../exceptions/domain-invariant.error.js';
-import type { LifecycleStatus } from '@sms/contracts';
-import type { GeoCoordinatesDTO } from '@sms/contracts';
-import { RegionDTO } from '@sms/contracts';
+import type { LifecycleStatus } from '@sms/common';
+import type { GeoCoordinatesDTO } from '@sms/common';
+import { RegionDTO } from '@sms/common';
 
 /** Nivel 2 — agrupa sucursales geopolíticas / compliance. */
 export class RegionEntity {

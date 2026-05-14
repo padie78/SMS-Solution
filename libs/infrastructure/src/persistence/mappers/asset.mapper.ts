@@ -1,10 +1,10 @@
-import { ASSET_TYPE_TO_PERSISTENCE } from '@sms/contracts';
-import type { AssetType } from '@sms/contracts';
-import { AssetTypeSchema } from '@sms/contracts';
-import type { SmsEntityTag } from '@sms/contracts';
+import { ASSET_TYPE_TO_PERSISTENCE } from '@sms/common';
+import type { AssetType } from '@sms/common';
+import { AssetTypeSchema } from '@sms/common';
+import type { SmsEntityTag } from '@sms/common';
 import { AssetEntity } from '@sms/domain';
-import { AssetDTO } from '@sms/contracts';
-import type { AssetLifecycleStatus } from '@sms/contracts';
+import { AssetDTO } from '@sms/common';
+import type { AssetLifecycleStatus } from '@sms/common';
 
 export interface AssetPersistence {
   sms_et: SmsEntityTag;

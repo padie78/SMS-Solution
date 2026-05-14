@@ -11,8 +11,8 @@
   "scripts": {
     "test": "node --test packages/*/test/**/*.test.js 2>/dev/null || true",
     "build:packages": "npm run build -w @sms/common && npm run build -w @sms/shared && npm run build -w @sms/core && npm run build -w @sms/infrastructure",
-    "build:libs": "npm run build -w @sms/contracts && npm run build -w @sms/domain && npm run build -w @sms/application && npm run build -w @sms/infrastructure",
-    "build:libs-for-web": "npm run build -w @sms/contracts && npm run build -w @sms/domain",
+    "build:libs": "npm run build -w @sms/common && npm run build -w @sms/domain && npm run build -w @sms/application && npm run build -w @sms/infrastructure",
+    "build:libs-for-web": "npm run build -w @sms/common && npm run build -w @sms/domain",
     "nx:build-libs": "nx run-many -t build --projects=common,domain,application,infrastructure"
   },
   "devDependencies": {
