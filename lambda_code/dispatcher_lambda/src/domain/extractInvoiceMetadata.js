@@ -1,6 +1,6 @@
 import { safeParseDecodedInvoiceUploadKey } from "@sms/common";
 import { ValidationError } from "./errors.js";
-import { formatZodIssues } from "@sms/common";
+//import { formatZodIssues } from "@sms/common";
 
 /**
  * Decodes S3 Key and extracts the internal Invoice ID (SK).
@@ -19,7 +19,8 @@ export function extractInvoiceMetadata(rawKey) {
   const sk = fileName.split("__")[0];
   const validated = safeParseDecodedInvoiceUploadKey({ sk, key });
   if (!validated.success) {
-    throw new ValidationError(`${formatZodIssues(validated.error)} key=${key}`);
+    throw new ValidationError(`Invalid DecodedInvoiceUploadKey: ${JSON.stringify(validated.error)} key=${key}`);
+    //throw new ValidationError(`${formatZodIssues(validated.error)} key=${key}`);
   }
 
   return validated.data;

@@ -1,6 +1,6 @@
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { parseInvoiceDispatchQueueMessage } from "@sms/common";
-import { Logger } from "@sms/common";
+//import { Logger } from "@sms/common";
 import { ConfigError } from "../../domain/errors.js";
 
 export class SqsInvoiceQueue {
@@ -31,11 +31,11 @@ export class SqsInvoiceQueue {
 
     const messageBody = parseInvoiceDispatchQueueMessage(draft);
 
-    Logger.info("Enqueue invoice to SQS", {
-      requestId: params.requestId,
-      sk: params.sk,
-      source: "dispatcher_lambda"
-    });
+    //Logger.info("Enqueue invoice to SQS", {
+    //  requestId: params.requestId,
+    //  sk: params.sk,
+    //  source: "dispatcher_lambda"
+    //});
 
     await this.sqs.send(
       new SendMessageCommand({

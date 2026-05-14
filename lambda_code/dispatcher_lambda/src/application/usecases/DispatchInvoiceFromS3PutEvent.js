@@ -4,7 +4,7 @@ import {
 } from "@sms/common";
 import { ValidationError } from "../../domain/errors.js";
 import { extractInvoiceMetadata } from "../../domain/extractInvoiceMetadata.js";
-import { formatZodIssues } from "@sms/common";
+//import { formatZodIssues } from "@sms/common";
 
 export class DispatchInvoiceFromS3PutEvent {
   /**
@@ -27,7 +27,8 @@ export class DispatchInvoiceFromS3PutEvent {
   async execute(params) {
     const parsedInvoke = safeParseS3DispatcherInvoke(params);
     if (!parsedInvoke.success) {
-      throw new ValidationError(`${formatZodIssues(parsedInvoke.error)}`);
+      //throw new ValidationError(`${formatZodIssues(parsedInvoke.error)}`);
+      throw new ValidationError(`Invalid S3DispatcherInvoke: ${JSON.stringify(parsedInvoke.error)}`);
     }
 
     const { requestId, bucket, rawKey } = parsedInvoke.data;

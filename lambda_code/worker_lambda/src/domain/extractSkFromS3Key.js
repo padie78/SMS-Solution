@@ -1,5 +1,5 @@
 import { InvoiceSkSchema } from "@sms/common";
-import { formatZodIssues } from "@sms/common";
+//import { formatZodIssues } from "@sms/common";
 import { ValidationError } from "./errors.js";
 
 /**
@@ -15,9 +15,11 @@ export function extractSkFromS3Key(key) {
 
   const parsed = InvoiceSkSchema.safeParse(candidate);
   if (!parsed.success) {
-    throw new ValidationError(
-      `Invalid invoice SK in key: ${formatZodIssues(parsed.error)} key=${decoded}`
-    );
+    //throw new ValidationError(`Invalid InvoiceSk: ${JSON.stringify(parsed.error)} key=${decoded}`);
+    //throw new ValidationError(
+  //    `Invalid invoice SK in key: ${formatZodIssues(parsed.error)} key=${decoded}`
+  //  );
+    throw new ValidationError(`Invalid InvoiceSk: ${JSON.stringify(parsed.error)} key=${decoded}`);
   }
 
   return parsed.data;

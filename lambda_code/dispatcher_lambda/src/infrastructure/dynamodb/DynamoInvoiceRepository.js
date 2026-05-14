@@ -1,6 +1,6 @@
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
 import { buildInvoiceProcessingSkeleton } from "@sms/common";
-import { Logger } from "@sms/common";
+//import { Logger } from "@sms/common";
 import { ddb, TABLE_NAME } from "../../services/data/client.js";
 
 export class DynamoInvoiceRepository {
@@ -23,13 +23,13 @@ export class DynamoInvoiceRepository {
       bucket: params.bucket
     });
 
-    Logger.info("DynamoDB Put invoice skeleton", {
-      requestId: params.requestId,
-      sk: params.sk,
-      orgId: params.orgId,
-      tableName: this.tableName,
-      source: "dispatcher_lambda"
-    });
+    //Logger.info("DynamoDB Put invoice skeleton", {
+    //  requestId: params.requestId,
+    //  sk: params.sk,
+    //  orgId: params.orgId,
+    //      tableName: this.tableName,
+    //  source: "dispatcher_lambda"
+    //});
 
     await this.ddb.send(
       new PutCommand({
@@ -38,11 +38,11 @@ export class DynamoInvoiceRepository {
       })
     );
 
-    Logger.info("Invoice skeleton persisted", {
-      requestId: params.requestId,
-      sk: params.sk,
-      source: "dispatcher_lambda"
-    });
+    //Logger.info("Invoice skeleton persisted", {
+    //  requestId: params.requestId,
+    //  sk: params.sk,
+    //  source: "dispatcher_lambda"
+    //});
   }
 }
 
