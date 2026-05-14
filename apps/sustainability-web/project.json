@@ -1,24 +1,25 @@
 {
-  "name": "sustainability-web",
-  "root": "apps/sustainability-web",
-  "projectType": "application",
-  "sourceRoot": "apps/sustainability-web/src",
-  "tags": ["scope:web", "type:app"],
-  "targets": {
-    "build": {
-      "executor": "nx:run-commands",
-      "outputs": ["{projectRoot}/dist/apps/sustainability-web"],
-      "options": {
-        "command": "npm run build",
-        "cwd": "apps/sustainability-web"
-      }
-    },
-    "serve": {
-      "executor": "nx:run-commands",
-      "options": {
-        "command": "npm run start",
-        "cwd": "apps/sustainability-web"
+  {
+    "name": "sustainability-web",
+    "root": "apps/sustainability-web",
+    "projectType": "application",
+    "sourceRoot": "apps/sustainability-web/src",
+    "tags": ["scope:web", "type:app"],
+    "targets": {
+      "build": {
+        "executor": "nx:run-commands",
+        "outputs": ["{workspaceRoot}/dist/apps/sustainability-web"],
+        "options": {
+          "command": "../../node_modules/.bin/ng build --configuration=production",
+          "cwd": "apps/sustainability-web"
+        }
+      },
+      "serve": {
+        "executor": "nx:run-commands",
+        "options": {
+          "command": "../../node_modules/.bin/ng serve",
+          "cwd": "apps/sustainability-web"
+        }
       }
     }
   }
-}

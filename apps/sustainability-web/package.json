@@ -2,8 +2,6 @@
   "name": "sustainability-web",
   "version": "1.0.0",
   "scripts": {
-    "prebuild": "npm run build:libs-for-web --prefix ../..",
-    "postinstall": "mkdir -p src/assets/pdfjs && cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs src/assets/pdfjs/pdf.worker.min.mjs",
     "build": "npx ng build",
     "test": "npx ng test",
     "lint": "npx ng lint"
