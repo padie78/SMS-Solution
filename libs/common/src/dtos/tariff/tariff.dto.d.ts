@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EnergyServiceTypeSchema, TariffLifecycleStatusSchema, TariffPricingModelSchema } from '../common/graphql-setup-enums.js';
+import { EnergyServiceTypeSchema, TariffLifecycleStatusSchema, TariffPricingModelSchema } from '../shared/graphql-setup-enums.js';  
 export declare const TariffDemandChargeUnitSchema: z.ZodEnum<["KW", "KVA"]>;
 export declare const TariffSeasonSchema: z.ZodEnum<["SUMMER", "WINTER", "TRANSITION", "ALL_YEAR"]>;
 export type TariffDemandChargeUnit = z.infer<typeof TariffDemandChargeUnitSchema>;

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { SmsIdSchema } from '../../schemas/sms-id.schema.js';
-import { CostAllocationMethodSchema, LifecycleStatusSchema } from '../common/graphql-setup-enums.js';
+import { CostAllocationMethodSchema, LifecycleStatusSchema } from '../shared/graphql-setup-enums.js';
 export const CostCenterTypeSchema = z.enum(['DEPARTMENT', 'PROJECT', 'SERVICE', 'OPERATIONAL_UNIT']);
 export const CostCenterForecastModelSchema = z.enum([
     'LINEAR',

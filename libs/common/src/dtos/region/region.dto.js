@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { SmsIdSchema } from '../../schemas/sms-id.schema.js';
-import { GeoCoordinatesDTOSchema } from '../common/geo.dto.js';
-import { LifecycleStatusSchema } from '../common/graphql-setup-enums.js';
+import { GeoCoordinatesDTOSchema } from '../shared/geo.dto.js';
+import { LifecycleStatusSchema } from '../shared/graphql-setup-enums.js';       
 export const ClimateZoneSchema = z.enum(['TROPICAL', 'DRY', 'TEMPERATE', 'CONTINENTAL', 'POLAR']);
 export const CarbonMarketTypeSchema = z.enum(['TAX', 'ETS', 'NONE']);
 export const MaturityLevelSchema = z.enum(['MANUAL', 'SEMIAUTOMATED', 'IOT_READY']);

@@ -10,7 +10,7 @@
  *  - Frontend Angular (form de revisión + preview JSON).
  */
 import { z } from 'zod';
-import { EnergyServiceTypeSchema } from '../common/graphql-setup-enums.js';
+import { EnergyServiceTypeSchema } from '../shared/graphql-setup-enums.js';
 import { InvoiceSkSchema } from '../../schemas/invoice-sk.schema.js';
 import { InvoiceAuditTrailSchema } from './invoice-audit-trail.dto.js';
 /** Estados operativos del item Invoice a lo largo de su ciclo de vida. */
