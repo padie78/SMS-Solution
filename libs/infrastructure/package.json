@@ -1,5 +1,5 @@
 {
-  "name": "@sms/app-infrastructure",
+  "name": "@sms/infrastructure",
   "version": "0.1.0",
   "description": "Frameworks & drivers: DynamoDB, AWS clients, mappers, repository implementations",
   "type": "module",

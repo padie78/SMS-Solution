@@ -1,5 +1,5 @@
 {
-  "name": "app-infrastructure",
+  "name": "infrastructure",
   "root": "libs/infrastructure",
   "projectType": "library",
   "sourceRoot": "libs/infrastructure/src",

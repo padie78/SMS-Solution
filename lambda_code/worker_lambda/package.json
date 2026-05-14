@@ -13,8 +13,10 @@
     "@aws-sdk/client-bedrock-runtime": "^3.500.0",
     "@aws-sdk/client-dynamodb": "^3.500.0",
     "@aws-sdk/lib-dynamodb": "^3.500.0",
-    "@sms/common": "file:../../packages/common",
-    "@sms/shared": "file:../../packages/shared",
+    "@sms/common": "*",
+    "@sms/infrastructure": "*",
+    "@sms/application": "*",
+    "@sms/domain": "*",
     "axios": "^1.6.0",
     "zod": "^3.23.8"
   }

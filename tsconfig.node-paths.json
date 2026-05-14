@@ -6,9 +6,7 @@
       "@sms/domain": ["libs/domain/src/index.ts"],
       "@sms/application": ["libs/application/src/index.ts"],
       "@sms/infrastructure": ["libs/infrastructure/src/index.ts"],
-      "@sms/app-infrastructure": ["libs/infrastructure/src/index.ts"],
-      "@sms/contracts": ["libs/common/src/index.ts"],
-      "@sms/lib-common": ["libs/common/src/index.ts"],
+      "@sms/common": ["libs/common/src/index.ts"],
       "@sms/common/schemas": ["libs/common/src/schemas/index.ts"]
     }
   },
