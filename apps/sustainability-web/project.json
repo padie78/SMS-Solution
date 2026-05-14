@@ -2,33 +2,22 @@
   "name": "sustainability-web",
   "root": "apps/sustainability-web",
   "projectType": "application",
+  "sourceRoot": "apps/sustainability-web/src",
+  "tags": ["scope:web", "type:app"],
   "targets": {
     "build": {
-      "executor": "@angular-devkit/build-angular:browser",
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/dist/apps/sustainability-web"],
       "options": {
-        "outputPath": "dist/apps/sustainability-web",
-        "index": "apps/sustainability-web/src/index.html",
-        "main": "apps/sustainability-web/src/main.ts",
-        "polyfills": "apps/sustainability-web/src/polyfills.ts",
-        "tsConfig": "apps/sustainability-web/tsconfig.app.json",
-        "assets": [
-          "apps/sustainability-web/src/favicon.ico",
-          "apps/sustainability-web/src/assets"
-        ],
-        "styles": [
-          "apps/sustainability-web/src/styles.css"
-        ],
-        "scripts": []
-      },
-      "configurations": {
-        "production": {
-          "buildOptimizer": true,
-          "optimization": true,
-          "vendorChunk": false,
-          "extractLicenses": true,
-          "sourceMap": false,
-          "namedChunks": false
-        }
+        "command": "npm run build",
+        "cwd": "apps/sustainability-web"
+      }
+    },
+    "serve": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "npm run start",
+        "cwd": "apps/sustainability-web"
       }
     }
   }
