@@ -68,7 +68,6 @@ jobs:
 
       - name: Debug Workspace
         run: |
-        ls -F
         ls -F node_modules/.bin/ng || echo "❌ Angular CLI no está en la raíz"
         find . -name "ng" -type f
 
