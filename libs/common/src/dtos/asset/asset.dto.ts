@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { SmsIdSchema } from '../../schemas/sms-id.schema.js';
-import { AssetTypeSchema } from '../common/domain-enums.js';
-import { AssetLifecycleStatusSchema } from '../common/graphql-setup-enums.js';
+import { AssetTypeSchema } from '../shared/domain-enums.js';
+import { AssetLifecycleStatusSchema } from '../shared/graphql-setup-enums.js';
 
 export const AssetCriticalitySchema = z.enum(['LOW', 'MEDIUM', 'HIGH', 'MISSION_CRITICAL']);
 

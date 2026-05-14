@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { GeoCoordinatesDTOSchema } from '../common/geo.dto.js';
-import { BuildingUsageTypeSchema, HvacTypeSchema, MainFuelTypeSchema, OperationalStatusSchema } from '../common/graphql-setup-enums.js';
+import { GeoCoordinatesDTOSchema } from '../shared/geo.dto.js';
+import { BuildingUsageTypeSchema, HvacTypeSchema, MainFuelTypeSchema, OperationalStatusSchema } from '../shared/graphql-setup-enums.js';
 /** Calidad térmica de envolvente */
 export declare const BuildingInsulationQualitySchema: z.ZodEnum<["POOR", "AVERAGE", "HIGH"]>;
 /** Tipo de cubierta */

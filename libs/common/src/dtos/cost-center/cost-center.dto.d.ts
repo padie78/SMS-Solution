@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CostAllocationMethodSchema, LifecycleStatusSchema } from '../common/graphql-setup-enums.js';
+import { CostAllocationMethodSchema, LifecycleStatusSchema } from '../shared/graphql-setup-enums.js';
 export declare const CostCenterTypeSchema: z.ZodEnum<["DEPARTMENT", "PROJECT", "SERVICE", "OPERATIONAL_UNIT"]>;
 export type CostCenterType = z.infer<typeof CostCenterTypeSchema>;
 export declare const CostCenterForecastModelSchema: z.ZodEnum<["LINEAR", "ML_PROPHET", "ARIMA", "STRICT_BUDGET"]>;

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { LifecycleStatusSchema } from '../common/graphql-setup-enums.js';
+import { LifecycleStatusSchema } from '../shared/graphql-setup-enums.js';
 export declare const ClimateZoneSchema: z.ZodEnum<["TROPICAL", "DRY", "TEMPERATE", "CONTINENTAL", "POLAR"]>;
 export declare const CarbonMarketTypeSchema: z.ZodEnum<["TAX", "ETS", "NONE"]>;
 export declare const MaturityLevelSchema: z.ZodEnum<["MANUAL", "SEMIAUTOMATED", "IOT_READY"]>;

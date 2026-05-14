@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { SmsIdSchema } from '../../schemas/sms-id.schema.js';
-import { LifecycleStatusSchema } from '../common/graphql-setup-enums.js';
+import { LifecycleStatusSchema } from '../shared/graphql-setup-enums.js';
 import { OrgConfigDTOSchema } from './org-config.dto.js';
 
 const iso6391Schema = z.string().regex(/^[a-z]{2}$/, 'Expected ISO 639-1 code (e.g. en, es)');
