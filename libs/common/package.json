@@ -1,5 +1,5 @@
 {
-  "name": "@sms/contracts",
+  "name": "@sms/common",
   "version": "0.1.0",
   "description": "Shared Zod contracts and DTOs for SMS (Angular + Node; Clean Architecture kernel)",
   "type": "module",
