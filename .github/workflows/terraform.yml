@@ -15,18 +15,16 @@ jobs:
       # 1. Preparación del Entorno
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Importante para que Nx pueda calcular qué cambió
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
-          cache-dependency-path: |
-            package-lock.json
-            apps/sustainability-web/package.json
-            lambda_code/signer_lambda/package.json
-            lambda_code/dispatcher_lambda/package.json
-            lambda_code/worker_lambda/package.json
+          # Cacheamos el lockfile raíz únicamente
+          cache-dependency-path: package-lock.json
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
@@ -41,32 +39,18 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-central-1
 
-      # 2a. Workspace packages (@sms/common) para dependencias file: del signer
-      - name: Build @sms/common
-        run: npm ci --no-audit --no-fund && npm run build -w @sms/common
+      # 2. Instalación y Build del Monorepo (RAÍZ)
+      # Esto crea los symlinks locales y evita que npm busque @sms/* en internet
+      - name: Install Monorepo Dependencies
+        run: npm ci --no-audit --no-fund
         working-directory: .
 
-      # 2b. signer_lambda: copia src → dist; Terraform zip incluye node_modules + handler src/index.handler
-      - name: Build signer_lambda
+      - name: Build Libraries and Lambdas
+        # Ejecutamos el build de todas las piezas necesarias
+        # Nx se encarga de buildear common, domain, etc., antes que las lambdas
         run: |
-          npm ci --no-audit --no-fund
-          npm run build
-          npm prune --omit=dev
-        working-directory: ./lambda_code/signer_lambda
-
-      # 2c. dispatcher_lambda: zip Terraform incluye node_modules (@sms/common via file:)
-      - name: Install dispatcher_lambda dependencies
-        run: |
-          npm ci --no-audit --no-fund
-          npm prune --omit=dev
-        working-directory: ./lambda_code/dispatcher_lambda
-
-      # 2d. worker_lambda: procesamiento SQS + pipeline invoice
-      - name: Install worker_lambda dependencies
-        run: |
-          npm ci --no-audit --no-fund
-          npm prune --omit=dev
-        working-directory: ./lambda_code/worker_lambda
+          npx nx run-many -t build --projects=common,application,domain,infrastructure,signer_lambda,dispatcher_lambda,worker_lambda
+        working-directory: .
 
       # 3. Infraestructura con Terraform
       - name: Terraform Init
@@ -83,57 +67,41 @@ jobs:
         working-directory: ./terraform
 
       # 4. Construcción del Frontend (Angular)
-      - name: Install Frontend Dependencies
-        run: npm install --no-audit --no-fund
-        working-directory: apps/sustainability-web
-
+      # Nota: Si el front está en Nx, podrías usar: npx nx build sustainability-web
       - name: Build Angular App
-        run: npm run build -- --configuration production
+        run: |
+          npm run build -- --configuration production
         working-directory: apps/sustainability-web
 
-      # 5. Despliegue de Activos a AWS
-     # 4a. Capturar variables de infraestructura y exponerlas como outputs del step
+      # 5. Exportar Outputs e Invalidar CloudFront
       - name: Export Terraform Outputs
         id: tf_outputs
         run: |
-          # Obtenemos los valores y los limpiamos
           BUCKET=$(terraform output -raw s3_bucket_name | tr -d '[:space:]')
           DIST_ID=$(terraform output -raw cloudfront_distribution_id | tr -d '[:space:]')
           
-          # Validamos que no estén vacíos
           if [ -z "$BUCKET" ] || [ -z "$DIST_ID" ]; then
             echo "❌ ERROR: Outputs de Terraform no encontrados."
             exit 1
           fi
 
-          # Seteamos los outputs del step usando el nuevo formato de GitHub
           echo "bucket_name=$BUCKET" >> $GITHUB_OUTPUT
           echo "cloudfront_id=$DIST_ID" >> $GITHUB_OUTPUT
         working-directory: ./terraform
 
-      # 4b. Sincronizar S3 e Invalidar CloudFront usando la referencia del step anterior
-      # 4b. Sincronizar S3 e Invalidar CloudFront
       - name: Sync S3 and Invalidate CloudFront
         run: |
-          # 1. BUSCADOR AUTOMÁTICO DE LA CARPETA DIST
-          # Buscamos el index.html que genera el build y tomamos su carpeta
+          # Buscamos el index.html generado y tomamos su carpeta
           REAL_DIST_PATH=$(find . -name "index.html" | grep "/dist/" | head -n 1 | xargs dirname)
 
           if [ -z "$REAL_DIST_PATH" ]; then
-            echo "❌ ERROR: No se encontró el index.html en ninguna carpeta 'dist'."
-            echo "Listado de archivos para diagnóstico:"
-            ls -R
+            echo "❌ ERROR: No se encontró la carpeta dist."
             exit 1
           fi
 
-          echo "✅ Carpeta de build encontrada en: $REAL_DIST_PATH"
-          echo "🚀 Subiendo a: ${{ steps.tf_outputs.outputs.bucket_name }}"
-
-          # 2. Sincronizar usando la ruta encontrada
+          echo "✅ Sincronizando desde: $REAL_DIST_PATH"
           aws s3 sync "$REAL_DIST_PATH" s3://${{ steps.tf_outputs.outputs.bucket_name }} --delete
 
-          # 3. Invalidar CloudFront
-          echo "🧹 Invalidando: ${{ steps.tf_outputs.outputs.cloudfront_id }}"
           aws cloudfront create-invalidation \
             --distribution-id ${{ steps.tf_outputs.outputs.cloudfront_id }} \
             --paths "/*"
