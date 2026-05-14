@@ -68,10 +68,9 @@ jobs:
 
       # 4. Construcción del Frontend (Angular)
       # Nota: Si el front está en Nx, podrías usar: npx nx build sustainability-web
-      - name: Build Angular App
-        run: |
-          npm run build -- --configuration production
-        working-directory: apps/sustainability-web
+        - name: Build Frontend with Nx
+  run: npx nx build sustainability-web --configuration=production
+  working-directory: .
 
       # 5. Exportar Outputs e Invalidar CloudFront
       - name: Export Terraform Outputs
