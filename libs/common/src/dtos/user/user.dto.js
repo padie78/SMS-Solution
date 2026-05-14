@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { SmsIdSchema } from '../../schemas/sms-id.schema.js';
-import { UserRoleSchema } from '../common/domain-enums.js';
-import { UserLanguageSchema } from '../common/graphql-setup-enums.js';
+import { UserRoleSchema } from '../shared/domain-enums.js';
+import { UserLanguageSchema } from '../shared/graphql-setup-enums.js';
 export const UserDTOSchema = z
     .object({
     id: SmsIdSchema,
