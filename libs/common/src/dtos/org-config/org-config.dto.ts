@@ -4,7 +4,7 @@ import {
   IndustrySectorSchema,
   ReportingCurrencyCodeSchema,
   SubscriptionPlanSchema
-} from '../shared/graphql-setup-enums.js';
+} from '../common/graphql-setup-enums.js';
 
 export const OrgConfigDTOSchema = z.object({
   name: z.string().min(1),

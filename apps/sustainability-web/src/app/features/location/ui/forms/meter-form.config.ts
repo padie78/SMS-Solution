@@ -7,7 +7,7 @@ import { Validators } from '@angular/forms';
 import type { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 
 import type { MeterDTO } from '@sms/common';
-import { buildLocationFormGroup } from './location-form-shared';
+import { buildLocationFormGroup } from './location-form-common';
 import {
   MeterAccuracyClassSchema,
   MeterCommunicationStatusSchema,

@@ -1,6 +1,6 @@
 import { SendMessageCommand, SQSClient } from "@aws-sdk/client-sqs";
 import { parseInvoiceDispatchQueueMessage } from "@sms/common";
-import { Logger } from "@sms/shared";
+import { Logger } from "@sms/common";
 import { ConfigError } from "../../domain/errors.js";
 
 export class SqsInvoiceQueue {

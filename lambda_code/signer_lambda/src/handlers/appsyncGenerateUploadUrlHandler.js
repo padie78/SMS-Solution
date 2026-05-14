@@ -1,4 +1,4 @@
-import { Logger } from "@sms/shared";
+import { Logger } from "@sms/common";
 import { ConfigError, ValidationError } from "../domain/errors.js";
 
 /**

@@ -1,4 +1,4 @@
-/** Shared Zod contracts and DTOs (`@sms/common`, carpeta `libs/common` → `dtos/` + `schemas/`) — consumible por Angular y Node. */
+/** common Zod contracts and DTOs (`@sms/common`, carpeta `libs/common` → `dtos/` + `schemas/`) — consumible por Angular y Node. */
 
 export {
   EntityType,
@@ -11,11 +11,11 @@ export {
   getEnergyServiceTypeI18nKey,
   type EntityTypeI18nKey,
   type EnergyServiceTypeI18nKey
-} from './dtos/shared/i18n/index.js';
+} from './dtos/common/i18n/index.js';
 
 export { SmsIdSchema, type SmsId } from './schemas/sms-id.schema.js';
 
-export type { SmsEntityTag } from './dtos/shared/sms-entity-tag.js';
+export type { SmsEntityTag } from './dtos/common/sms-entity-tag.js';
 
 export {
   AssetTypeSchema,
@@ -26,26 +26,26 @@ export {
   type AssetType,
   type MeterType,
   type UserRole
-} from './dtos/shared/domain-enums.js';
+} from './dtos/common/domain-enums.js';
 
-export { SmsDomainError, RegionDomainError } from './dtos/shared/sms-domain-error.js';
+export { SmsDomainError, RegionDomainError } from './dtos/common/sms-domain-error.js';
 
 export {
   AddressDTOSchema,
   type AddressDTO
-} from './dtos/shared/address.dto.js';
+} from './dtos/common/address.dto.js';
 
 export {
   GeoCoordinatesDTOSchema,
   type GeoCoordinatesDTO
-} from './dtos/shared/geo.dto.js';
+} from './dtos/common/geo.dto.js';
 
 export {
   ROLE_TO_CODE,
   decodeAssetType,
   decodeMeterType,
   decodeRole
-} from './dtos/shared/persistence-codecs.js';
+} from './dtos/common/persistence-codecs.js';
 
 export {
   RegionDTOSchema,
@@ -261,7 +261,7 @@ export {
   type MeterOperationalStatus,
   type TariffLifecycleStatus,
   type MainFuelType
-} from './dtos/shared/graphql-setup-enums.js';
+} from './dtos/common/graphql-setup-enums.js';
 
 export {
   OrgConfigDTOSchema,

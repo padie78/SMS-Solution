@@ -20,7 +20,7 @@ import {
   type TariffPricingModel
 } from '@sms/common';
 import { withHelp } from './form-help.util';
-import { buildLocationFormGroup } from './location-form-shared';
+import { buildLocationFormGroup } from './location-form-common';
 
 export type TariffFormValue = {
   id: string;

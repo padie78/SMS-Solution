@@ -19,7 +19,7 @@ import {
   type LifecycleStatus
 } from '@sms/common';
 import { withHelp } from './form-help.util';
-import { buildLocationFormGroup } from './location-form-shared';
+import { buildLocationFormGroup } from './location-form-common';
 
 export type CostCenterFormValue = {
   id: string;
@@ -43,7 +43,7 @@ export type CostCenterFormValue = {
   renewableEnergyTarget: number;
   allocationMethod: CostAllocationMethod;
   percentage: number;
-  isShared: boolean;
+  iscommon: boolean;
   allocationLastReviewDate: Date | null;
   approvedBy: string | null;
   type: CostCenterType;
@@ -397,8 +397,8 @@ const COST_CENTER_FORM_TABS_RAW: ReadonlyArray<CostCenterFormTabDef> = Object.fr
         step: 0.01
       },
       {
-        key: 'isShared',
-        label: 'Centro compartido (isShared)',
+        key: 'iscommon',
+        label: 'Centro compartido (iscommon)',
         kind: 'checkbox',
         mdCols: 12
       },
@@ -485,8 +485,8 @@ const COST_CENTER_FIELD_HELP: Partial<Record<keyof CostCenterFormValue, string>>
     'BY_USAGE. Determina cómo se prorratean facturas multi-CC.',
   percentage:
     'Porcentaje 0–100 que se asigna a este CC cuando comparte recursos con otros. ' +
-    'Sólo aplica si isShared = true.',
-  isShared:
+    'Sólo aplica si iscommon = true.',
+  iscommon:
     'Marca el CC como compartido (recibe una fracción del consumo de otros). Habilita ' +
     'allocationMethod y percentage.',
   allocationLastReviewDate:
@@ -536,7 +536,7 @@ export const COST_CENTER_FORM_DEFAULT_VALUE: CostCenterFormValue = {
   renewableEnergyTarget: 0,
   allocationMethod: (CostAllocationMethodSchema.options[0] ?? 'SQUARE_METERS') as CostAllocationMethod,
   percentage: 100,
-  isShared: false,
+  iscommon: false,
   allocationLastReviewDate: null,
   approvedBy: null,
   type: (CostCenterTypeSchema.options[0] ?? 'DEPARTMENT') as CostCenterType,
@@ -628,7 +628,7 @@ export function costCenterFormRawValueToDTO(v: CostCenterFormValue): CostCenterD
     renewableEnergyTarget: v.renewableEnergyTarget,
     allocationMethod: v.allocationMethod,
     percentage: v.percentage,
-    isShared: v.isShared,
+    iscommon: v.iscommon,
     type: v.type,
     forecastModel: v.forecastModel,
     status: v.status,
@@ -782,8 +782,8 @@ export function hydrateCostCenterFormFromPartial(
     form.controls.percentage.setValue(patch.percentage, { emitEvent: false });
   }
 
-  if (typeof patch.isShared === 'boolean') {
-    form.controls.isShared.setValue(patch.isShared, { emitEvent: false });
+  if (typeof patch.iscommon === 'boolean') {
+    form.controls.iscommon.setValue(patch.iscommon, { emitEvent: false });
   }
 
   if (typeof patch.allocationLastReviewDate === 'string') {

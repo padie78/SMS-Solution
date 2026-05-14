@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CostAllocationMethodSchema, LifecycleStatusSchema } from '../shared/graphql-setup-enums.js';
+import { CostAllocationMethodSchema, LifecycleStatusSchema } from '../common/graphql-setup-enums.js';
 export declare const CostCenterTypeSchema: z.ZodEnum<["DEPARTMENT", "PROJECT", "SERVICE", "OPERATIONAL_UNIT"]>;
 export type CostCenterType = z.infer<typeof CostCenterTypeSchema>;
 export declare const CostCenterForecastModelSchema: z.ZodEnum<["LINEAR", "ML_PROPHET", "ARIMA", "STRICT_BUDGET"]>;
@@ -27,7 +27,7 @@ export declare const CostCenterDTOSchema: z.ZodObject<{
     renewableEnergyTarget: z.ZodDefault<z.ZodNumber>;
     allocationMethod: z.ZodEnum<["FIXED", "PERCENTAGE", "SQUARE_METERS"]>;
     percentage: z.ZodDefault<z.ZodNumber>;
-    isShared: z.ZodDefault<z.ZodBoolean>;
+    iscommon: z.ZodDefault<z.ZodBoolean>;
     allocationLastReviewDate: z.ZodOptional<z.ZodString>;
     approvedBy: z.ZodOptional<z.ZodString>;
     type: z.ZodEnum<["DEPARTMENT", "PROJECT", "SERVICE", "OPERATIONAL_UNIT"]>;
@@ -53,7 +53,7 @@ export declare const CostCenterDTOSchema: z.ZodObject<{
     renewableEnergyTarget: number;
     allocationMethod: "FIXED" | "PERCENTAGE" | "SQUARE_METERS";
     percentage: number;
-    isShared: boolean;
+    iscommon: boolean;
     forecastModel: "LINEAR" | "ML_PROPHET" | "ARIMA" | "STRICT_BUDGET";
     createdAt?: string | undefined;
     updatedAt?: string | undefined;
@@ -99,7 +99,7 @@ export declare const CostCenterDTOSchema: z.ZodObject<{
     targetIntensity?: number | undefined;
     renewableEnergyTarget?: number | undefined;
     percentage?: number | undefined;
-    isShared?: boolean | undefined;
+    iscommon?: boolean | undefined;
     allocationLastReviewDate?: string | undefined;
     approvedBy?: string | undefined;
     managerEmail?: string | undefined;
@@ -127,7 +127,7 @@ export declare class CostCenterDTO {
     readonly renewableEnergyTarget: number;
     readonly allocationMethod: z.infer<typeof CostAllocationMethodSchema>;
     readonly percentage: number;
-    readonly isShared: boolean;
+    readonly iscommon: boolean;
     readonly allocationLastReviewDate?: string;
     readonly approvedBy?: string;
     readonly type: z.infer<typeof CostCenterTypeSchema>;
@@ -138,7 +138,7 @@ export declare class CostCenterDTO {
     readonly tags: Record<string, string>;
     readonly createdAt?: string;
     readonly updatedAt?: string;
-    constructor(id: string, organizationId: string, name: string, externalId: string | null | undefined, parentId: string | null | undefined, branchId: string | null | undefined, buildingId: string | null | undefined, annualBudget: number, currency: string | null | undefined, budgetThresholdAlert: number | null | undefined, carbonBudgetTons: number | null | undefined, carbonShadowPrice: number | null | undefined, budgetSensitivityIndex: number | null | undefined, fiscalYear: number | null | undefined, headcount: number | null | undefined, floorAreaSqm: number | null | undefined, productionUnitName: string | null | undefined, targetIntensity: number | null | undefined, renewableEnergyTarget: number | null | undefined, allocationMethod: z.infer<typeof CostAllocationMethodSchema>, percentage: number | null | undefined, isShared: boolean | null | undefined, allocationLastReviewDate: string | null | undefined, approvedBy: string | null | undefined, type: z.infer<typeof CostCenterTypeSchema>, forecastModel: z.infer<typeof CostCenterForecastModelSchema>, managerEmail: string | null | undefined, operatingHoursId: string | null | undefined, status: z.infer<typeof LifecycleStatusSchema>, tags: Record<string, string> | null | undefined, createdAt?: string, updatedAt?: string);
+    constructor(id: string, organizationId: string, name: string, externalId: string | null | undefined, parentId: string | null | undefined, branchId: string | null | undefined, buildingId: string | null | undefined, annualBudget: number, currency: string | null | undefined, budgetThresholdAlert: number | null | undefined, carbonBudgetTons: number | null | undefined, carbonShadowPrice: number | null | undefined, budgetSensitivityIndex: number | null | undefined, fiscalYear: number | null | undefined, headcount: number | null | undefined, floorAreaSqm: number | null | undefined, productionUnitName: string | null | undefined, targetIntensity: number | null | undefined, renewableEnergyTarget: number | null | undefined, allocationMethod: z.infer<typeof CostAllocationMethodSchema>, percentage: number | null | undefined, iscommon: boolean | null | undefined, allocationLastReviewDate: string | null | undefined, approvedBy: string | null | undefined, type: z.infer<typeof CostCenterTypeSchema>, forecastModel: z.infer<typeof CostCenterForecastModelSchema>, managerEmail: string | null | undefined, operatingHoursId: string | null | undefined, status: z.infer<typeof LifecycleStatusSchema>, tags: Record<string, string> | null | undefined, createdAt?: string, updatedAt?: string);
 }
 export type CostCenterDTOInput = z.infer<typeof CostCenterDTOSchema>;
 export declare const parseCostCenterDTO: (input: unknown) => CostCenterDTO;
@@ -170,7 +170,7 @@ export declare const safeParseCostCenterDTO: (input: unknown) => z.SafeParseRetu
     targetIntensity?: number | undefined;
     renewableEnergyTarget?: number | undefined;
     percentage?: number | undefined;
-    isShared?: boolean | undefined;
+    iscommon?: boolean | undefined;
     allocationLastReviewDate?: string | undefined;
     approvedBy?: string | undefined;
     managerEmail?: string | undefined;
@@ -190,7 +190,7 @@ export declare const safeParseCostCenterDTO: (input: unknown) => z.SafeParseRetu
     renewableEnergyTarget: number;
     allocationMethod: "FIXED" | "PERCENTAGE" | "SQUARE_METERS";
     percentage: number;
-    isShared: boolean;
+    iscommon: boolean;
     forecastModel: "LINEAR" | "ML_PROPHET" | "ARIMA" | "STRICT_BUDGET";
     createdAt?: string | undefined;
     updatedAt?: string | undefined;

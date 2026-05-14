@@ -1,6 +1,6 @@
 import { PutCommand } from "@aws-sdk/lib-dynamodb";
 import { buildInvoiceProcessingSkeleton } from "@sms/common";
-import { Logger } from "@sms/shared";
+import { Logger } from "@sms/common";
 import { ddb, TABLE_NAME } from "../../services/data/client.js";
 
 export class DynamoInvoiceRepository {

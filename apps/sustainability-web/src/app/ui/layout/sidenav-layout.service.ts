@@ -4,7 +4,7 @@ const STORAGE_KEY = 'sms.sidebar.isCollapsed';
 const LEGACY_COMPACT_KEY = 'sms.sidebar.compact';
 
 /**
- * Shared desktop sidebar width (250px expanded / 80px rail) for fixed sidenav + main inset.
+ * common desktop sidebar width (250px expanded / 80px rail) for fixed sidenav + main inset.
  */
 @Injectable({ providedIn: 'root' })
 export class SidenavLayoutService {

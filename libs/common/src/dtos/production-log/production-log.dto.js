@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ProductionShiftModeSchema, ProductionUnitTypeSchema } from '../shared/graphql-setup-enums.js';
+import { ProductionShiftModeSchema, ProductionUnitTypeSchema } from '../common/graphql-setup-enums.js';
 export const ProductionLogDTOSchema = z.object({
     units: z.number().nonnegative(),
     unitType: ProductionUnitTypeSchema,

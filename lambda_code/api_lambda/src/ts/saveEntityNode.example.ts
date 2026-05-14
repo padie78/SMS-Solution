@@ -1,5 +1,5 @@
 /**
- * Ejemplo de Lambda handler que importa el MISMO Enum desde la Shared Library
+ * Ejemplo de Lambda handler que importa el MISMO Enum desde la common Library
  * (`@sms/common`) para validar `entityType` ANTES de escribir en DynamoDB.
  *
  * Beneficios:

@@ -95,7 +95,7 @@ export const CostCenterMapper = Object.freeze({
       ren_tgt: entity.renewableEnergyTarget,
       cc_ty: entity.type,
       fc_mdl: entity.forecastModel,
-      is_sh: entity.isShared,
+      is_sh: entity.iscommon,
       ...(entity.externalId?.trim() ? { ext_id: entity.externalId.trim() } : {}),
       ...(entity.parentId?.trim() ? { par_id: entity.parentId.trim() } : {}),
       ...(entity.branchId?.trim() ? { br_id: entity.branchId.trim() } : {}),

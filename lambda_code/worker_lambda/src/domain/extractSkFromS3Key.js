@@ -1,5 +1,5 @@
 import { InvoiceSkSchema } from "@sms/common";
-import { formatZodIssues } from "@sms/shared";
+import { formatZodIssues } from "@sms/common";
 import { ValidationError } from "./errors.js";
 
 /**

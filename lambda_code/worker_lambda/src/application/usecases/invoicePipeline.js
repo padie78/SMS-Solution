@@ -1,4 +1,4 @@
-import { Logger } from "@sms/shared";
+import { Logger } from "@sms/common";
 import { getTextFromS3 } from "../../infrastructure/apis/textract.js";
 import { identifyCategory } from "../../infrastructure/ai/classifier.js";
 import { analyzeInvoice } from "../../infrastructure/ai/bedrock.js";

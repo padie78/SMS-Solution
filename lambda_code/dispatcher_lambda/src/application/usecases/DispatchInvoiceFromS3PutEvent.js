@@ -4,7 +4,7 @@ import {
 } from "@sms/common";
 import { ValidationError } from "../../domain/errors.js";
 import { extractInvoiceMetadata } from "../../domain/extractInvoiceMetadata.js";
-import { formatZodIssues } from "@sms/shared";
+import { formatZodIssues } from "@sms/common";
 
 export class DispatchInvoiceFromS3PutEvent {
   /**

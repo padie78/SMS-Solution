@@ -75,7 +75,7 @@ When implementing ingestion features, follow these architectural patterns:
 ## 10. Type Safety & Modeling
 - **Zero 'any' policy:** All data structures must be strictly typed using TypeScript Interfaces.
 - **Domain Alignment:** Models must match the DynamoDB Single Table Design defined in `docs/dynamodb-design.md`.
-- **Location:** Frontend models must reside in `src/app/core/models/`. Backend models for Lambdas should be centralized in a shared Layer or local `models/` folder.
+- **Location:** Frontend models must reside in `src/app/core/models/`. Backend models for Lambdas should be centralized in a common Layer or local `models/` folder.
 - **Enforcement:** If a task involves data fetching or state management, always start by defining or updating the corresponding Interface.
 ## 11. AWS Lambda Project Structure
 Every Lambda function must follow this folder structure to ensure separation of concerns:
@@ -90,7 +90,7 @@ Every Lambda function must follow this folder structure to ensure separation of 
 - **Language:** All Lambda functions MUST be written in **TypeScript**.
 - **Runtime:** Node.js 20.x or higher.
 - **Transpilation:** Use `esbuild` for bundling. 
-- **Type Strictness:** No `any` allowed. Use the shared interfaces defined in the project to type all `event` and `context` objects.
+- **Type Strictness:** No `any` allowed. Use the common interfaces defined in the project to type all `event` and `context` objects.
 
 ### Ingestion Logic Rules:
 - All ingestion methods must land files in a "Raw" S3 prefix before processing.

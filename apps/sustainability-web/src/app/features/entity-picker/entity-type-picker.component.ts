@@ -55,7 +55,7 @@ export class EntityTypePickerComponent {
   @Output() readonly submitted = new EventEmitter<EntityPickerSubmitPayload>();
 
   /**
-   * Opciones derivadas de la Shared Library — fuente única de verdad.
+   * Opciones derivadas de la common Library — fuente única de verdad.
    * Array mutable (no readonly) porque PrimeNG `p-dropdown` tipa `options` como `any[]`.
    * La inmutabilidad real la garantizan `ENTITY_TYPE_VALUES` (frozen) en el origen.
    */

@@ -1,6 +1,6 @@
 import { safeParseDecodedInvoiceUploadKey } from "@sms/common";
 import { ValidationError } from "./errors.js";
-import { formatZodIssues } from "@sms/shared";
+import { formatZodIssues } from "@sms/common";
 
 /**
  * Decodes S3 Key and extracts the internal Invoice ID (SK).

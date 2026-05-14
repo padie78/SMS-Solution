@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { CurrencyCodeSchema, IndustrySectorSchema, ReportingCurrencyCodeSchema, SubscriptionPlanSchema } from '../shared/graphql-setup-enums.js';
+import { CurrencyCodeSchema, IndustrySectorSchema, ReportingCurrencyCodeSchema, SubscriptionPlanSchema } from '../common/graphql-setup-enums.js';
 export const OrgConfigDTOSchema = z.object({
     name: z.string().min(1),
     taxId: z.string().min(1),

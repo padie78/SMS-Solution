@@ -88,7 +88,7 @@ export const INVOICE_COST_CENTER_OPTIONS: Array<HierarchyDropdownOption & { buil
     { label: 'Corporate — HQ Operations', value: 'cc-hq-ops', buildingIds: ['bld-01', 'bld-05'] },
     { label: 'Logistics — Warehousing', value: 'cc-log-wh', buildingIds: ['bld-02', 'bld-07'] },
     { label: 'Manufacturing — Production', value: 'cc-mfg-prd', buildingIds: ['bld-03'] },
-    { label: 'Regional Admin — Shared Services', value: 'cc-reg-adm', buildingIds: [] },
+    { label: 'Regional Admin — common Services', value: 'cc-reg-adm', buildingIds: [] },
     { label: 'Data Center — Infrastructure', value: 'cc-dc-inf', buildingIds: ['bld-06'] },
     { label: 'Mexico — Branch Overhead', value: 'cc-mx-oh', buildingIds: ['bld-04'] }
   ];

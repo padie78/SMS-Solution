@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { MeterTypeSchema } from '../shared/domain-enums.js';
-import { MeterOperationalStatusSchema, MeterProtocolSchema } from '../shared/graphql-setup-enums.js';
+import { MeterTypeSchema } from '../common/domain-enums.js';
+import { MeterOperationalStatusSchema, MeterProtocolSchema } from '../common/graphql-setup-enums.js';
 export declare const MeterServiceTypeSchema: z.ZodEnum<["UTILITY", "SUBMETERING", "GENERATION"]>;
 export declare const MeterUnitSchema: z.ZodEnum<["KWH", "M3", "GJ", "L", "BTU"]>;
 export declare const MeterAccuracyClassSchema: z.ZodEnum<["0.2S", "0.5S", "1.0", "2.0"]>;

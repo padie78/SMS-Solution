@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { SmsIdSchema } from '../../schemas/sms-id.schema.js';
-import { MeterTypeSchema } from '../shared/domain-enums.js';
-import { MeterOperationalStatusSchema, MeterProtocolSchema } from '../shared/graphql-setup-enums.js';
+import { MeterTypeSchema } from '../common/domain-enums.js';
+import { MeterOperationalStatusSchema, MeterProtocolSchema } from '../common/graphql-setup-enums.js';
 
 export const MeterServiceTypeSchema = z.enum(['UTILITY', 'SUBMETERING', 'GENERATION']);
 

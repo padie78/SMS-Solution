@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { SmsIdSchema } from '../../schemas/sms-id.schema.js';
-import { CostAllocationMethodSchema, LifecycleStatusSchema } from '../shared/graphql-setup-enums.js';
+import { CostAllocationMethodSchema, LifecycleStatusSchema } from '../common/graphql-setup-enums.js';
 export const CostCenterTypeSchema = z.enum(['DEPARTMENT', 'PROJECT', 'SERVICE', 'OPERATIONAL_UNIT']);
 export const CostCenterForecastModelSchema = z.enum([
     'LINEAR',
@@ -33,7 +33,7 @@ export const CostCenterDTOSchema = z.object({
     renewableEnergyTarget: z.number().min(0).max(100).default(0),
     allocationMethod: CostAllocationMethodSchema,
     percentage: z.number().min(0).max(100).default(100),
-    isShared: z.boolean().default(false),
+    iscommon: z.boolean().default(false),
     allocationLastReviewDate: isoLike,
     approvedBy: z.string().min(1).optional(),
     type: CostCenterTypeSchema,
@@ -67,7 +67,7 @@ export class CostCenterDTO {
     renewableEnergyTarget;
     allocationMethod;
     percentage;
-    isShared;
+    iscommon;
     allocationLastReviewDate;
     approvedBy;
     type;
@@ -78,7 +78,7 @@ export class CostCenterDTO {
     tags;
     createdAt;
     updatedAt;
-    constructor(id, organizationId, name, externalId, parentId, branchId, buildingId, annualBudget, currency, budgetThresholdAlert, carbonBudgetTons, carbonShadowPrice, budgetSensitivityIndex, fiscalYear, headcount, floorAreaSqm, productionUnitName, targetIntensity, renewableEnergyTarget, allocationMethod, percentage, isShared, allocationLastReviewDate, approvedBy, type, forecastModel, managerEmail, operatingHoursId, status, tags, createdAt, updatedAt) {
+    constructor(id, organizationId, name, externalId, parentId, branchId, buildingId, annualBudget, currency, budgetThresholdAlert, carbonBudgetTons, carbonShadowPrice, budgetSensitivityIndex, fiscalYear, headcount, floorAreaSqm, productionUnitName, targetIntensity, renewableEnergyTarget, allocationMethod, percentage, iscommon, allocationLastReviewDate, approvedBy, type, forecastModel, managerEmail, operatingHoursId, status, tags, createdAt, updatedAt) {
         this.id = id;
         this.organizationId = organizationId;
         this.name = name;
@@ -111,7 +111,7 @@ export class CostCenterDTO {
         this.renewableEnergyTarget = renewableEnergyTarget ?? 0;
         this.allocationMethod = allocationMethod;
         this.percentage = percentage ?? 100;
-        this.isShared = isShared ?? false;
+        this.iscommon = iscommon ?? false;
         if (allocationLastReviewDate?.trim())
             this.allocationLastReviewDate = allocationLastReviewDate.trim();
         if (approvedBy?.trim())
@@ -130,7 +130,7 @@ export class CostCenterDTO {
 }
 export const parseCostCenterDTO = (input) => {
     const d = CostCenterDTOSchema.parse(input);
-    return new CostCenterDTO(d.id, d.organizationId, d.name, d.externalId, d.parentId, d.branchId, d.buildingId, d.annualBudget, d.currency, d.budgetThresholdAlert, d.carbonBudgetTons, d.carbonShadowPrice, d.budgetSensitivityIndex, d.fiscalYear, d.headcount, d.floorAreaSqm, d.productionUnitName, d.targetIntensity, d.renewableEnergyTarget, d.allocationMethod, d.percentage, d.isShared, d.allocationLastReviewDate, d.approvedBy, d.type, d.forecastModel, d.managerEmail, d.operatingHoursId, d.status, d.tags, d.createdAt, d.updatedAt);
+    return new CostCenterDTO(d.id, d.organizationId, d.name, d.externalId, d.parentId, d.branchId, d.buildingId, d.annualBudget, d.currency, d.budgetThresholdAlert, d.carbonBudgetTons, d.carbonShadowPrice, d.budgetSensitivityIndex, d.fiscalYear, d.headcount, d.floorAreaSqm, d.productionUnitName, d.targetIntensity, d.renewableEnergyTarget, d.allocationMethod, d.percentage, d.iscommon, d.allocationLastReviewDate, d.approvedBy, d.type, d.forecastModel, d.managerEmail, d.operatingHoursId, d.status, d.tags, d.createdAt, d.updatedAt);
 };
 export const safeParseCostCenterDTO = (input) => CostCenterDTOSchema.safeParse(input);
 //# sourceMappingURL=cost-center.dto.js.map

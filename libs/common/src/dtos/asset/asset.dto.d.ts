@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { AssetTypeSchema } from '../shared/domain-enums.js';
-import { AssetLifecycleStatusSchema } from '../shared/graphql-setup-enums.js';
+import { AssetTypeSchema } from '../common/domain-enums.js';
+import { AssetLifecycleStatusSchema } from '../common/graphql-setup-enums.js';
 export declare const AssetCriticalitySchema: z.ZodEnum<["LOW", "MEDIUM", "HIGH", "MISSION_CRITICAL"]>;
 export declare const AssetEnergySourceSchema: z.ZodEnum<["ELECTRICITY", "NATURAL_GAS", "DIESEL", "BIOMASS", "STEAM", "HYDROGEN"]>;
 export declare const AssetGhgScopeSchema: z.ZodEnum<["SCOPE_1", "SCOPE_2", "SCOPE_3"]>;

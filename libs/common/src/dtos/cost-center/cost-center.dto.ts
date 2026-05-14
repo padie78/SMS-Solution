@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { SmsIdSchema } from '../../schemas/sms-id.schema.js';
-import { CostAllocationMethodSchema, LifecycleStatusSchema } from '../shared/graphql-setup-enums.js';
+import { CostAllocationMethodSchema, LifecycleStatusSchema } from '../common/graphql-setup-enums.js';
 
 export const CostCenterTypeSchema = z.enum(['DEPARTMENT', 'PROJECT', 'SERVICE', 'OPERATIONAL_UNIT']);
 
@@ -46,7 +46,7 @@ export const CostCenterDTOSchema = z.object({
 
   allocationMethod: CostAllocationMethodSchema,
   percentage: z.number().min(0).max(100).default(100),
-  isShared: z.boolean().default(false),
+  iscommon: z.boolean().default(false),
   allocationLastReviewDate: isoLike,
   approvedBy: z.string().min(1).optional(),
 
@@ -83,7 +83,7 @@ export class CostCenterDTO {
   public readonly renewableEnergyTarget: number;
   public readonly allocationMethod: z.infer<typeof CostAllocationMethodSchema>;
   public readonly percentage: number;
-  public readonly isShared: boolean;
+  public readonly iscommon: boolean;
   public readonly allocationLastReviewDate?: string;
   public readonly approvedBy?: string;
   public readonly type: z.infer<typeof CostCenterTypeSchema>;
@@ -117,7 +117,7 @@ export class CostCenterDTO {
     renewableEnergyTarget: number | null | undefined,
     allocationMethod: z.infer<typeof CostAllocationMethodSchema>,
     percentage: number | null | undefined,
-    isShared: boolean | null | undefined,
+    iscommon: boolean | null | undefined,
     allocationLastReviewDate: string | null | undefined,
     approvedBy: string | null | undefined,
     type: z.infer<typeof CostCenterTypeSchema>,
@@ -151,7 +151,7 @@ export class CostCenterDTO {
     this.renewableEnergyTarget = renewableEnergyTarget ?? 0;
     this.allocationMethod = allocationMethod;
     this.percentage = percentage ?? 100;
-    this.isShared = isShared ?? false;
+    this.iscommon = iscommon ?? false;
     if (allocationLastReviewDate?.trim())
       this.allocationLastReviewDate = allocationLastReviewDate.trim();
     if (approvedBy?.trim()) this.approvedBy = approvedBy.trim();
@@ -192,7 +192,7 @@ export const parseCostCenterDTO = (input: unknown): CostCenterDTO => {
     d.renewableEnergyTarget,
     d.allocationMethod,
     d.percentage,
-    d.isShared,
+    d.iscommon,
     d.allocationLastReviewDate,
     d.approvedBy,
     d.type,

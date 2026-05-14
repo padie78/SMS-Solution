@@ -13,5 +13,5 @@
       }
     }
   },
-  "tags": ["scope:shared", "type:dtos-schemas"]
+  "tags": ["scope:common", "type:dtos-schemas"]
 }

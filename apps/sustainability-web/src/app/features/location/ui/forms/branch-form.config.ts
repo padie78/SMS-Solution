@@ -8,7 +8,7 @@ import type { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 
 import type { BranchDTO } from '@sms/common';
 import { withHelp } from './form-help.util';
-import { buildLocationFormGroup } from './location-form-shared';
+import { buildLocationFormGroup } from './location-form-common';
 import {
   BackupPowerTypeSchema,
   BranchStatusSchema,

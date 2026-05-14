@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { LifecycleStatusSchema } from '../shared/graphql-setup-enums.js';
+import { LifecycleStatusSchema } from '../common/graphql-setup-enums.js';
 import { OrgConfigDTOSchema } from './org-config.dto.js';
 export declare const AdminContactDTOSchema: z.ZodObject<{
     name: z.ZodString;

@@ -1,5 +1,5 @@
 import { parseInvoiceWorkerPipelineInput } from "@sms/common";
-import { Logger, formatZodIssues } from "@sms/shared";
+import { Logger, formatZodIssues } from "@sms/common";
 import { ZodError } from "zod";
 import { extractSkFromS3Key } from "../../domain/extractSkFromS3Key.js";
 import { ValidationError } from "../../domain/errors.js";

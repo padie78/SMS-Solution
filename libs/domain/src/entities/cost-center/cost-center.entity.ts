@@ -25,7 +25,7 @@ export class CostCenterEntity {
   public readonly renewableEnergyTarget: number;
   public readonly allocationMethod: CostAllocationMethod;
   public readonly percentage: number;
-  public readonly isShared: boolean;
+  public readonly iscommon: boolean;
   public readonly allocationLastReviewDate?: string;
   public readonly approvedBy?: string;
   public readonly type: 'DEPARTMENT' | 'PROJECT' | 'SERVICE' | 'OPERATIONAL_UNIT';
@@ -59,7 +59,7 @@ export class CostCenterEntity {
     renewableEnergyTarget: number,
     allocationMethod: CostAllocationMethod,
     percentage: number,
-    isShared: boolean,
+    iscommon: boolean,
     allocationLastReviewDate: string | undefined,
     approvedBy: string | undefined,
     type: 'DEPARTMENT' | 'PROJECT' | 'SERVICE' | 'OPERATIONAL_UNIT',
@@ -92,7 +92,7 @@ export class CostCenterEntity {
     this.renewableEnergyTarget = renewableEnergyTarget;
     this.allocationMethod = allocationMethod;
     this.percentage = percentage;
-    this.isShared = isShared;
+    this.iscommon = iscommon;
     if (allocationLastReviewDate !== undefined) this.allocationLastReviewDate = allocationLastReviewDate;
     if (approvedBy !== undefined) this.approvedBy = approvedBy;
     this.type = type;
@@ -129,7 +129,7 @@ export class CostCenterEntity {
       dto.renewableEnergyTarget,
       dto.allocationMethod,
       dto.percentage,
-      dto.isShared,
+      dto.iscommon,
       dto.allocationLastReviewDate,
       dto.approvedBy,
       dto.type,
@@ -198,7 +198,7 @@ export class CostCenterEntity {
       this.renewableEnergyTarget,
       this.allocationMethod,
       this.percentage,
-      this.isShared,
+      this.iscommon,
       this.allocationLastReviewDate,
       this.approvedBy,
       this.type,
