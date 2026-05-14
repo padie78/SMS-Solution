@@ -7,7 +7,7 @@
       "executor": "nx:run-commands",
       "outputs": ["{workspaceRoot}/dist/apps/sustainability-web"],
       "options": {
-        "command": "npx ng build --configuration=production",
+        "command": "./node_modules/.bin/ng build --configuration=production",
         "cwd": "." 
       }
     }
