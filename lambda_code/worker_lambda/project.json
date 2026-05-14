@@ -1,0 +1,27 @@
+{
+  "name": "worker-lambda",
+  "root": "lambda_code/worker_lambda",
+  "projectType": "application",
+  "sourceRoot": "lambda_code/worker_lambda/src",
+  "tags": ["type:lambda", "scope:worker"],
+  "targets": {
+    "build": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "tsConfig": "lambda_code/worker_lambda/tsconfig.json",
+        "bundle": true,
+        "platform": "node",
+        "target": "node20",
+        "format": ["esm"],
+        "main": "lambda_code/worker_lambda/src/index.js",
+        "outputPath": "dist/lambda_code/worker_lambda",
+        "outputFileName": "main.js",
+        "external": ["@aws-sdk/*"],
+        "esbuildOptions": {
+          "logLevel": "warning"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "api-lambda",
+  "root": "lambda_code/api_lambda",
+  "projectType": "application",
+  "sourceRoot": "lambda_code/api_lambda/src",
+  "tags": ["type:lambda", "scope:api"],
+  "targets": {
+    "build": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "tsConfig": "lambda_code/api_lambda/tsconfig.json",
+        "bundle": true,
+        "platform": "node",
+        "target": "node20",
+        "format": ["esm"],
+        "main": "lambda_code/api_lambda/src/index.js",
+        "outputPath": "dist/lambda_code/api_lambda",
+        "outputFileName": "main.js",
+        "external": ["@aws-sdk/*"],
+        "esbuildOptions": {
+          "logLevel": "warning"
+        }
+      }
+    }
+  }
+}

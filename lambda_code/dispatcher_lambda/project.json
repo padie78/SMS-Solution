@@ -1,0 +1,27 @@
+{
+  "name": "dispatcher-lambda",
+  "root": "lambda_code/dispatcher_lambda",
+  "projectType": "application",
+  "sourceRoot": "lambda_code/dispatcher_lambda/src",
+  "tags": ["type:lambda", "scope:dispatcher"],
+  "targets": {
+    "build": {
+      "executor": "@nx/esbuild:esbuild",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "tsConfig": "lambda_code/dispatcher_lambda/tsconfig.json",
+        "bundle": true,
+        "platform": "node",
+        "target": "node20",
+        "format": ["esm"],
+        "main": "lambda_code/dispatcher_lambda/src/index.js",
+        "outputPath": "dist/lambda_code/dispatcher_lambda",
+        "outputFileName": "main.js",
+        "external": ["@aws-sdk/*"],
+        "esbuildOptions": {
+          "logLevel": "warning"
+        }
+      }
+    }
+  }
+}

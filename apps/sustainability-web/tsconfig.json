@@ -1,7 +1,8 @@
+// Front: paths → libs/*/dist/index (TS usa .d.ts; bundler resuelve .js). Sin @sms/application / @sms/infrastructure.
 {
   "compileOnSave": false,
   "compilerOptions": {
-    "baseUrl": "./",
+    "baseUrl": ".",
     "outDir": "./dist/out-tsc",
     "forceConsistentCasingInFileNames": true,
     "strict": true,
@@ -16,7 +17,12 @@
     "experimentalDecorators": true,
     "moduleResolution": "node",
     "paths": {
-      "@pages/setup/*": ["src/app/pages/setup/*"]
+      "@pages/setup/*": ["src/app/pages/setup/*"],
+      "@sms/contracts": ["../../libs/common/dist/index"],
+      "@sms/lib-common": ["../../libs/common/dist/index"],
+      "@sms/common": ["../../libs/common/dist/index"],
+      "@sms/common/schemas": ["../../libs/common/dist/schemas/index"],
+      "@sms/domain": ["../../libs/domain/dist/index"]
     },
     "importHelpers": true,
     "target": "ES2022",

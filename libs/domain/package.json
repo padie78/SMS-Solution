@@ -1,0 +1,27 @@
+{
+  "name": "@sms/domain",
+  "version": "0.1.0",
+  "description": "SMS domain model: pure TypeScript entities and repository ports (no AWS SDK)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@sms/contracts": "*"
+  },
+  "devDependencies": {
+    "typescript": "~5.6.3"
+  },
+  "keywords": ["sms", "domain", "typescript"]
+}

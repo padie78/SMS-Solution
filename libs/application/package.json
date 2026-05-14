@@ -1,0 +1,27 @@
+{
+  "name": "@sms/application",
+  "version": "0.1.0",
+  "description": "Application layer: use cases, services, and ports (depends on @sms/domain only)",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@sms/domain": "*"
+  },
+  "devDependencies": {
+    "typescript": "~5.6.3"
+  },
+  "keywords": ["sms", "domain-services", "typescript"]
+}

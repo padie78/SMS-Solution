@@ -72,3 +72,9 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# --- Nx / Build Caches ---
+.nx/
+.cache/
+dist/
+/dist/

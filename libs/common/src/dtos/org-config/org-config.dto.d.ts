@@ -1,0 +1,71 @@
+import { z } from 'zod';
+export declare const OrgConfigDTOSchema: z.ZodObject<{
+    name: z.ZodString;
+    taxId: z.ZodString;
+    hqAddress: z.ZodString;
+    totalGlobalM2: z.ZodNumber;
+    industrySector: z.ZodEnum<["MANUFACTURING"]>;
+    currency: z.ZodEnum<["ILS"]>;
+    reportingCurrency: z.ZodEnum<["USD"]>;
+    minConfidence: z.ZodNumber;
+    baselineYear: z.ZodNumber;
+    reductionTarget: z.ZodNumber;
+    targetYear: z.ZodNumber;
+    subscriptionPlan: z.ZodEnum<["ENTERPRISE"]>;
+}, "strip", z.ZodTypeAny, {
+    name: string;
+    currency: "ILS";
+    taxId: string;
+    hqAddress: string;
+    totalGlobalM2: number;
+    industrySector: "MANUFACTURING";
+    reportingCurrency: "USD";
+    minConfidence: number;
+    baselineYear: number;
+    reductionTarget: number;
+    targetYear: number;
+    subscriptionPlan: "ENTERPRISE";
+}, {
+    name: string;
+    currency: "ILS";
+    taxId: string;
+    hqAddress: string;
+    totalGlobalM2: number;
+    industrySector: "MANUFACTURING";
+    reportingCurrency: "USD";
+    minConfidence: number;
+    baselineYear: number;
+    reductionTarget: number;
+    targetYear: number;
+    subscriptionPlan: "ENTERPRISE";
+}>;
+export type OrgConfigDTO = z.infer<typeof OrgConfigDTOSchema>;
+export declare const parseOrgConfigDTO: (input: unknown) => OrgConfigDTO;
+export declare const safeParseOrgConfigDTO: (input: unknown) => z.SafeParseReturnType<{
+    name: string;
+    currency: "ILS";
+    taxId: string;
+    hqAddress: string;
+    totalGlobalM2: number;
+    industrySector: "MANUFACTURING";
+    reportingCurrency: "USD";
+    minConfidence: number;
+    baselineYear: number;
+    reductionTarget: number;
+    targetYear: number;
+    subscriptionPlan: "ENTERPRISE";
+}, {
+    name: string;
+    currency: "ILS";
+    taxId: string;
+    hqAddress: string;
+    totalGlobalM2: number;
+    industrySector: "MANUFACTURING";
+    reportingCurrency: "USD";
+    minConfidence: number;
+    baselineYear: number;
+    reductionTarget: number;
+    targetYear: number;
+    subscriptionPlan: "ENTERPRISE";
+}>;
+//# sourceMappingURL=org-config.dto.d.ts.map

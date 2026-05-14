@@ -1,0 +1,2 @@
+export { RegionDTOSchema, RegionalManagerDTOSchema, ClimateZoneSchema, CarbonMarketTypeSchema, MaturityLevelSchema, EconomicAreaSchema, parseRegionDTO, safeParseRegionDTO, RegionDTO } from './region.dto.js';
+//# sourceMappingURL=index.js.map

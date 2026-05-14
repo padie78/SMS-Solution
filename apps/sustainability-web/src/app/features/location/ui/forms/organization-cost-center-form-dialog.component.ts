@@ -9,7 +9,8 @@ import {
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { ButtonModule } from 'primeng/button';
 import { DynamicDialogConfig, DynamicDialogRef } from 'primeng/dynamicdialog';
-import { CostCenterEntity, type CostCenterDTO } from '@sms/common';
+import type { CostCenterDTO } from '@sms/common';
+import { CostCenterEntity } from '@sms/domain';
 
 import {
   COST_CENTER_FORM_ENUM_OPTIONS,

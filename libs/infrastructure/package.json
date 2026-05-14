@@ -1,0 +1,32 @@
+{
+  "name": "@sms/app-infrastructure",
+  "version": "0.1.0",
+  "description": "Frameworks & drivers: DynamoDB, AWS clients, mappers, repository implementations",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.658.0",
+    "@aws-sdk/lib-dynamodb": "^3.658.0",
+    "@sms/contracts": "*",
+    "@sms/application": "*",
+    "@sms/domain": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "~5.6.3"
+  },
+  "keywords": ["sms", "infrastructure", "dynamodb", "typescript"]
+}
