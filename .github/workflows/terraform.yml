@@ -108,22 +108,27 @@ jobs:
       ###########################################################################
       # 11. Debug Extremo + Build de Frontend
       ###########################################################################
-      - name: Diagnostic & Build Frontend
+      ###########################################################################
+      # 11. Instalar CLI de Angular + Build de Frontend
+      ###########################################################################
+      - name: Install Angular CLI & Build Frontend
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
-          echo "🔎 [DIAGNOSTICO 1] ¿Dónde están los binarios locales?"
-          ls -la ./node_modules/.bin/
-          
-          echo "🔎 [DIAGNOSTICO 2] ¿Angular CLI responde directamente?"
-          ./node_modules/.bin/ng version || echo "❌ El binario de Angular local no responde"
+          echo "📦 Instalar de emergencia Angular CLI localmente en el Runner..."
+          npm install @angular/cli --no-save
 
-          echo "🚀 [PASO CRÍTICO] Forzando compilación directa saltando Nx y npx..."
-          # Usamos el binario local directo con rutas absolutas de Node para capturar TODO
-          node ./node_modules/@angular/cli/bin/ng build sustainability-web --configuration=production --verbose
+          echo "🔎 Verificando que ahora sí exista el binario:"
+          ./node_modules/.bin/ng version
+
+          echo "🚀 Compilando Frontend con el binario local dedicado..."
+          ./node_modules/.bin/ng build sustainability-web --configuration=production
+
+          echo "✅ Frontend build completado exitosamente"
+          echo "📂 Contenido del directorio dist generado:"
+          ls -la dist/apps/sustainability-web || ls -la dist/sustainability-web
         working-directory: .
-
       ###########################################################################
       # 12. Dump NPM Logs On Failure
       ###########################################################################
