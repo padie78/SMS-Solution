@@ -66,13 +66,19 @@ jobs:
         run: terraform apply -auto-approve tfplan
         working-directory: ./terraform
 
-      # 5. Construcción del Frontend (Nx Local)
+      # 5. Construcción del Frontend (Fuerza de Contexto Raíz)
       - name: Build Frontend Application
         env:
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
           NODE_OPTIONS: "--max_old_space_size=4096"
-        # Usamos el binario local de la raíz para evitar los caprichos de 'npx' y 'ng' global
-        run: ./node_modules/.bin/nx build sustainability-web --configuration=production
+        run: |
+          # Añadimos los binarios locales del monorepo directamente al PATH de Linux para esta ejecución
+          export PATH="$EXTERNAL_WORKSPACE/node_modules/.bin:$PWD/node_modules/.bin:$PATH"
+          
+          echo "📍 Directorio actual de ejecución: $PWD"
+          
+          # Ejecutamos el build apuntando a la aplicación y forzando que no intente recompilar subproyectos de forma aislada con npm
+          ./node_modules/.bin/nx build sustainability-web --configuration=production --skip-nx-cache
         working-directory: .
       # PASO TEMPORAL: Esto imprimirá el log de npm en la consola si el paso de arriba falla
       - name: Dump NPM Debug Log on Failure
