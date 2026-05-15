@@ -20,9 +20,9 @@
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.658.0",
     "@aws-sdk/lib-dynamodb": "^3.658.0",
-    "@sms/common": "workspace:*",
-    "@sms/domain": "workspace:*",
-    "@sms/application": "workspace:*"
+    "@sms/common": "*",
+    "@sms/application": "*",
+    "@sms/domain": "*"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
