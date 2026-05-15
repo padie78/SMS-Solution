@@ -106,25 +106,21 @@ jobs:
         working-directory: ./terraform
 
       ###########################################################################
-      # 11. Compilar Frontend - Bypass definitivo de npx ng
+      # 11. Compilar Frontend - Solución Contextual Nativa para npx
       ###########################################################################
-      - name: Build Frontend with Nx (npx Bypass)
+      - name: Build Frontend with Nx
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
-          echo "🛠️ Creando puente de bypass para 'ng' en la carpeta de la app..."
-          # Creamos un script local 'ng' dentro de la app para interceptar la llamada de npx
-          mkdir -p apps/sustainability-web/.bin
-          echo '#!/bin/sh' > apps/sustainability-web/ng
-          echo 'exec ../../node_modules/.bin/ng "$@"' >> apps/sustainability-web/ng
-          chmod +x apps/sustainability-web/ng
-
-          echo "🌐 Inyectando la ruta local al PATH del runner..."
-          # Agregamos tanto el node_modules raíz como la carpeta de la app al PATH global del paso
-          export PATH="$PWD/apps/sustainability-web:$PWD/node_modules/.bin:$PATH"
-
-          echo "🚀 Ejecutando el build del Frontend con Nx..."
+          echo "📦 Enlazando el CLI de Angular en el contexto de la aplicación..."
+          # Al instalar explícitamente el CLI en el directorio de la app,
+          # npx ng build encontrará el ejecutable local de inmediato y no fallará.
+          cd apps/sustainability-web
+          npm install @angular/cli@19 --no-save --legacy-peer-deps
+          
+          echo "🚀 Regresando a la raíz y ejecutando el build con Nx..."
+          cd ../..
           ./node_modules/.bin/nx build sustainability-web --configuration=production
 
           echo "✅ Frontend build completado exitosamente"
