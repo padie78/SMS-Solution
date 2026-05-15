@@ -106,25 +106,19 @@ jobs:
         working-directory: ./terraform
 
       ###########################################################################
-      # 11. Instalar CLI de Angular + Build de Frontend
+      # 11. Compilar Frontend usando el CLI de Nx
       ###########################################################################
-      - name: Install Angular CLI & Build Frontend
+      - name: Build Frontend with Nx
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
-          echo "📦 Instalar de emergencia Angular CLI (v18) localmente en el Runner..."
-          npm install @angular/cli@18 --no-save
-
-          echo "🔎 Verificando que ahora sí exista el binario:"
-          ./node_modules/.bin/ng version
-
-          echo "🚀 Compilando Frontend con el binario local dedicado..."
-          ./node_modules/.bin/ng build sustainability-web --configuration=production
+          echo "🚀 Compilando Frontend con Nx..."
+          ./node_modules/.bin/nx build sustainability-web --configuration=production
 
           echo "✅ Frontend build completado exitosamente"
           echo "📂 Contenido del directorio dist generado:"
-          ls -la dist/apps/sustainability-web 2>/dev/null || ls -la dist/sustainability-web 2>/dev/null || ls -la dist/
+          ls -la dist/apps/sustainability-web 2>/dev/null || ls -la dist/
         working-directory: .
       ###########################################################################
       # 12. Dump NPM Logs On Failure
