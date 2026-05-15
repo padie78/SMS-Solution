@@ -66,13 +66,19 @@ jobs:
         run: terraform apply -auto-approve tfplan
         working-directory: ./terraform
 
-      # 5. Construcción del Frontend (Angular)
-      # 5. Construcción del Frontend (Angular)
+      # 5. Construcción del Frontend (Angular Nactivo)
+      - name: Install Angular CLI Globally in Runner
+        # Esto asegura que el binario 'ng' exista a nivel de sistema operativo en Ubuntu
+        run: npm install -g @angular/cli --legacy-peer-deps
+        working-directory: .
+
       - name: Build Frontend Application
         env:
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
           NODE_OPTIONS: "--max_old_space_size=4096"
-        run: npx nx build sustainability-web --configuration=production --verbose
+        # Usamos el comando nativo global 'ng build' apuntando a la configuración de producción
+        # Ejecutado desde la raíz, Angular leerá el angular.json/nx.json sin ayuda de npx
+        run: ng build sustainability-web --configuration=production
         working-directory: .
 
       # PASO TEMPORAL: Esto imprimirá el log de npm en la consola si el paso de arriba falla
