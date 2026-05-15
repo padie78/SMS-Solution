@@ -52,20 +52,15 @@ jobs:
       ###########################################################################
       # 5. Install Dependencies
       ###########################################################################
-      # 5. Construcción del Frontend con Bypass de Binario
+      # 5. Construcción del Frontend vía Angular CLI Directo
       - name: Build Frontend Application
         env:
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: |
-          echo "🤖 Configurando bypass para el CLI de Angular..."
-          # Creamos un enlace del 'ng' local en una ruta del sistema accesible
-          sudo ln -sf "$PWD/node_modules/.bin/ng" /usr/local/bin/ng
-          
-          echo "🚀 Ejecutando Nx Build..."
-          ./node_modules/.bin/nx build sustainability-web --configuration=production --skip-nx-cache
+          echo "🚀 Ejecutando compilación directa con Angular CLI..."
+          ./node_modules/.bin/ng build sustainability-web --configuration=production
         working-directory: .
-
       ###########################################################################
       # 6. Build Backend Libraries
       ###########################################################################
