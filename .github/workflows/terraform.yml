@@ -55,12 +55,11 @@ jobs:
 
       # 5. Construcción del Frontend (Angular)
       - name: Build Frontend Application
-        # Usamos variables de entorno del sistema para forzar a npm a tragar las peer-deps 
-        # cuando Nx dispare internamente el comando 'npx ng build'
         env:
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
           NODE_OPTIONS: "--max_old_space_size=4096"
-        run: npx nx build sustainability-web --configuration=production
+        # Añadimos --verbose al final para romper el silencio de Nx
+        run: npx nx build sustainability-web --configuration=production --verbose
         working-directory: .
 
       # 6. Exportar Outputs e Invalidar CloudFront
