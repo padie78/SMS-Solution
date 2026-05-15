@@ -106,26 +106,23 @@ jobs:
         working-directory: ./terraform
 
       ###########################################################################
-      # 11. Build Frontend (Ejecutado de forma segura con Nx)
+      # 11. Build Frontend (Bypass directo vía Angular CLI)
       ###########################################################################
       - name: Build Frontend Application
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
-          echo "📍 Current directory: $PWD"
+          echo "📍 Directorio actual: $PWD"
           
-          echo "📦 Nx version:"
-          ./node_modules/.bin/nx --version
+          echo "📦 Versión local de Angular CLI:"
+          ./node_modules/.bin/ng version
 
-          echo "🚀 Building sustainability-web..."
-          ./node_modules/.bin/nx build sustainability-web \
-            --configuration=production \
-            --skip-nx-cache \
-            --verbose
+          echo "🚀 Compilando frontend saltando la abstracción de Nx..."
+          ./node_modules/.bin/ng build sustainability-web --configuration=production
 
           echo "✅ Frontend build completed"
-          echo "📂 Dist contents:"
+          echo "📂 Contenido de dist generado:"
           find dist -type f | head -50
         working-directory: .
 
