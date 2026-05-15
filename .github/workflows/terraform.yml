@@ -46,10 +46,10 @@ jobs:
         working-directory: .
 
       - name: Build Libraries and Lambdas
-        # Se ha corregido el orden de --projects de forma estrictamente secuencial
-        # para que 'common' y 'domain' generen sus archivos /dist a tiempo.
+        # Indicamos las aplicaciones finales y dejamos que Nx arrastre y resuelva 
+        # automáticamente las dependencias (common, domain, application, infrastructure)
         run: |
-          npx nx run-many -t build --projects=common,domain,application,infrastructure,signer_lambda,dispatcher_lambda,worker_lambda --parallel=1
+          npx nx run-many -t build --projects=signer_lambda,dispatcher_lambda,worker_lambda --with-deps
         working-directory: .
 
       # 3. Infraestructura con Terraform
