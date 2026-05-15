@@ -40,9 +40,8 @@ jobs:
 
       # 2. Instalación de Dependencias
       - name: Install Monorepo Dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm install --include=dev
         working-directory: .
-
       # 3. Compilación Jerárquica Estricta
       - name: Build Monorepo Components
         # Usamos run-many secuencial con skip-nx-cache para asegurar la creación física de las carpetas /dist
