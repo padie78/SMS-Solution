@@ -43,26 +43,24 @@ jobs:
         run: npm ci --no-audit --no-fund
         working-directory: .
 
-      # 3. Compilación Secuencial Física (Aislamiento absoluto en CI)
+      # 3. Compilación Secuencial Física (Con tiempo de espera artificial)
       - name: Build Core Common Library
         run: npx nx run common:build --skip-nx-cache
         working-directory: .
 
+      - name: Wait for Disk Sync
+        # Metemos 10 segundos de espera para asegurar que el disco termine de escribir todo
+        run: sleep 10
+
       - name: Build Domain Library
-        # --skip-nx-dependencies evita que Nx intente volver a correr common antes de tsc
         run: npx nx run domain:build --skip-nx-cache --skip-nx-dependencies
         working-directory: .
 
       - name: Build Application & Infrastructure
-        # Hacemos lo mismo para el resto de las capas
         run: |
           npx nx run application:build --skip-nx-cache --skip-nx-dependencies
           npx nx run infrastructure:build --skip-nx-cache --skip-nx-dependencies
-        working-directory: .
-
-      - name: Build Lambdas
-        run: |
-          npx nx run-many -t build --projects=signer_lambda,dispatcher_lambda,worker_lambda --skip-nx-cache || echo "Lambdas no usan target build estándar, continuando..."
+        working-directory: .uild --projects=signer_lambda,dispatcher_lambda,worker_lambda --skip-nx-cache || echo "Lambdas no usan target build estándar, continuando..."
         working-directory: .
 
       # 4. Infraestructura con Terraform
