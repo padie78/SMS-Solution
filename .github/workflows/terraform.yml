@@ -43,23 +43,22 @@ jobs:
         run: npm ci --no-audit --no-fund
         working-directory: .
 
-      # 3. Compilación Secuencial Física (Con tiempo de espera artificial)
+      # 3. Compilación Secuencial Física Directa (Bypass de orquestación en CI)
       - name: Build Core Common Library
-        run: npx nx run common:build --skip-nx-cache
+        # Compilamos common primero de forma nativa para poblar la carpeta /dist
+        run: npm run build --workspace=@sms/common
         working-directory: .
 
-      - name: Wait for Disk Sync
-        # Metemos 10 segundos de espera para asegurar que el disco termine de escribir todo
-        run: sleep 10
-
       - name: Build Domain Library
-        run: npx nx run domain:build --skip-nx-cache --skip-nx-dependencies
+        # Forzamos a tsc a correr de forma aislada consumiendo el dist real de la raíz
+        run: npm run build --workspace=@sms/domain
         working-directory: .
 
       - name: Build Application & Infrastructure
+        # Ejecutamos el mismo aislamiento para el resto de las capas del monorepo
         run: |
-          npx nx run application:build --skip-nx-cache --skip-nx-dependencies
-          npx nx run infrastructure:build --skip-nx-cache --skip-nx-dependencies
+          npm run build --workspace=@sms/application
+          npm run build --workspace=@sms/infrastructure
         working-directory: .
 
       # 4. Infraestructura con Terraform
