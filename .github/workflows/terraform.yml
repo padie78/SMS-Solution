@@ -68,8 +68,8 @@ jobs:
 
       # 5. Construcción del Frontend (Angular)
       - name: Build Frontend Application
-        # Al usar --legacy-peer-deps aquí, Nx y Angular ignoran el choque con TypeScript 6
-        run: npx nx run sustainability-web:build:production --legacy-peer-deps
+        # Llamamos al ejecutable real de Angular evadiendo el npx problemático
+        run: node ./node_modules/@angular/cli/bin/ng build --configuration=production
         working-directory: .
 
       # 6. Exportar Outputs e Invalidar CloudFront
