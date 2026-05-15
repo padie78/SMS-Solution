@@ -43,20 +43,21 @@ jobs:
         run: npm ci --no-audit --no-fund
         working-directory: .
 
-      # 3. Compilación Secuencial Física (Evita colisiones de TypeScript en CI)
+      # 3. Compilación Secuencial Física (Aislamiento absoluto en CI)
       - name: Build Core Common Library
-        # El flag --skip-nx-cache fuerza a Nx a escribir los archivos reales en /dist
         run: npx nx run common:build --skip-nx-cache
         working-directory: .
 
       - name: Build Domain Library
-        run: npx nx run domain:build --skip-nx-cache
+        # --skip-nx-dependencies evita que Nx intente volver a correr common antes de tsc
+        run: npx nx run domain:build --skip-nx-cache --skip-nx-dependencies
         working-directory: .
 
       - name: Build Application & Infrastructure
+        # Hacemos lo mismo para el resto de las capas
         run: |
-          npx nx run application:build --skip-nx-cache
-          npx nx run infrastructure:build --skip-nx-cache
+          npx nx run application:build --skip-nx-cache --skip-nx-dependencies
+          npx nx run infrastructure:build --skip-nx-cache --skip-nx-dependencies
         working-directory: .
 
       - name: Build Lambdas
