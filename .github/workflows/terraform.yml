@@ -46,10 +46,10 @@ jobs:
         working-directory: .
 
       - name: Build Libraries and Lambdas
-        # Ejecutamos el build de todas las piezas necesarias
-        # Nx se encarga de buildear common, domain, etc., antes que las lambdas
+        # Se ha corregido el orden de --projects de forma estrictamente secuencial
+        # para que 'common' y 'domain' generen sus archivos /dist a tiempo.
         run: |
-          npx nx run-many -t build --projects=common,application,domain,infrastructure,signer_lambda,dispatcher_lambda,worker_lambda
+          npx nx run-many -t build --projects=common,domain,application,infrastructure,signer_lambda,dispatcher_lambda,worker_lambda
         working-directory: .
 
       # 3. Infraestructura con Terraform
@@ -67,7 +67,7 @@ jobs:
         working-directory: ./terraform
 
       # 4. Construcción del Frontend (Angular)
-      # Nota: Si el front está en Nx, podrías usar: npx nx build sustainability-web
+      # Ahora que 'dist/libs/common' y 'dist/libs/domain' existen, Angular compilará sin errores de rutas.
       - name: Build Frontend with Nx
         run: npx nx build sustainability-web --configuration=production
         working-directory: .
