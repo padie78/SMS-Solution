@@ -65,8 +65,8 @@ jobs:
         working-directory: ./terraform
 
       # 5. Construcción del Frontend (Angular)
-      - name: Build Frontend with Nx
-        run: npx nx build sustainability-web --configuration=production
+      - name: Build Frontend Application
+        run: npx nx run sustainability-web:build:production
         working-directory: .
 
       # 6. Exportar Outputs e Invalidar CloudFront
