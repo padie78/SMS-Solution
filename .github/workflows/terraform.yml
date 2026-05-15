@@ -106,24 +106,22 @@ jobs:
         working-directory: ./terraform
 
       ###########################################################################
-      # 11. Build Frontend (Bypass directo vía Angular CLI)
+      # 11. Debug Extremo + Build de Frontend
       ###########################################################################
-      - name: Build Frontend Application
+      - name: Diagnostic & Build Frontend
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
-          echo "📍 Directorio actual: $PWD"
+          echo "🔎 [DIAGNOSTICO 1] ¿Dónde están los binarios locales?"
+          ls -la ./node_modules/.bin/
           
-          echo "📦 Versión local de Angular CLI:"
-          ./node_modules/.bin/ng version
+          echo "🔎 [DIAGNOSTICO 2] ¿Angular CLI responde directamente?"
+          ./node_modules/.bin/ng version || echo "❌ El binario de Angular local no responde"
 
-          echo "🚀 Compilando frontend saltando la abstracción de Nx..."
-          ./node_modules/.bin/ng build sustainability-web --configuration=production
-
-          echo "✅ Frontend build completed"
-          echo "📂 Contenido de dist generado:"
-          find dist -type f | head -50
+          echo "🚀 [PASO CRÍTICO] Forzando compilación directa saltando Nx y npx..."
+          # Usamos el binario local directo con rutas absolutas de Node para capturar TODO
+          node ./node_modules/@angular/cli/bin/ng build sustainability-web --configuration=production --verbose
         working-directory: .
 
       ###########################################################################
