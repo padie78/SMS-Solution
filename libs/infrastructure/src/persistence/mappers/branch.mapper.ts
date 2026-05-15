@@ -127,7 +127,14 @@ export const BranchMapper = Object.freeze({
       aq: entity.hasAirQualityMonitoring,
       cool_sp: entity.coolingSetPoint,
       heat_sp: entity.heatingSetPoint,
-      br_mgr: entity.branchManager,
+      // 1. En toPersistence (Alrededor de la línea 100):
+      br_mgr: entity.branchManager
+        ? {
+          name: entity.branchManager.name ?? 'N/A',
+          email: entity.branchManager.email ?? 'no-email@sms.com',
+          ...(entity.branchManager.phone ? { phone: entity.branchManager.phone } : {})
+        }
+        : undefined,
       ...(entity.createdAt ? { crt_at: entity.createdAt } : {}),
       ...(entity.updatedAt ? { upd_at: entity.updatedAt } : {})
     };

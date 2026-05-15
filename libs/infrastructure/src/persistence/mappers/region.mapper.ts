@@ -73,8 +73,15 @@ export const RegionMapper = Object.freeze({
       loc_regs: [...(entity.localRegulations ?? [])],
       mat: entity.maturityLevel,
       eco: entity.economicArea,
-      reg_mgr: entity.regionalManager,
-      rr_tgt: entity.regionalReductionTarget,
+      // Corrección del mapeo para asegurar tipos requeridos en RegionPersistence
+      reg_mgr: entity.regionalManager 
+        ? {
+            name: entity.regionalManager.name ?? 'N/A',
+            email: entity.regionalManager.email ?? 'no-email@sms.com',
+            ...(entity.regionalManager.phone ? { phone: entity.regionalManager.phone } : {})
+          }
+        : undefined,
+            rr_tgt: entity.regionalReductionTarget,
       es_risk: entity.energyScarcityRisk,
       ...(entity.description?.trim() ? { dsc: entity.description } : {}),
       crd_lat: coords.lat,
