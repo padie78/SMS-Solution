@@ -68,8 +68,15 @@ jobs:
 
       # 5. Construcción del Frontend (Angular)
       - name: Build Frontend Application
-        # Llamamos al ejecutable real de Angular evadiendo el npx problemático
-        run: node ./node_modules/@angular/cli/bin/ng build --configuration=production
+        # Buscamos el ejecutable nativo de ng dentro de todo el monorepo y lo ejecutamos
+        run: |
+          NG_PATH=$(find . -name "ng" | grep -E "node_modules/\.bin/ng$" | head -n 1)
+          if [ -z "$NG_PATH" ]; then
+            echo "❌ ERROR: No se encontró el binario de Angular (ng)."
+            exit 1
+          fi
+          echo "✅ Ejecutando Angular desde: $NG_PATH"
+          node "$NG_PATH" build --configuration=production
         working-directory: .
 
       # 6. Exportar Outputs e Invalidar CloudFront
