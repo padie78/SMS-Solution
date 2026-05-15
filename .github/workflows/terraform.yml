@@ -38,28 +38,65 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-central-1
 
-      # 2. Instalación de Dependencias Total (Raíz + Subproyectos enlazados)
+      # 2. Instalación de Dependencias Completa (Monorepo Completo)
+      # 2. Instalación de Dependencias Total (Raíz + Subproyectos)
       - name: Install Monorepo Dependencies
-        # Usamos '--prefer-offline' para mitigar fallos de red/404 del registro de npm 
-        # y forzamos la resolución general de todos los workspaces del monorepo
-        run: npm install --include=dev --legacy-peer-deps --prefer-offline
+        # Al quitar `--workspaces` y dejar solo el instalador estándar con peer-deps, 
+        # npm poblará Nx en la raíz y Angular en los subproyectos de forma unificada.
+        run: npm install --include=dev --legacy-peer-deps
         working-directory: .
 
-      # 3. Compilación Jerárquica Estricta del Backend
+      # 3. Compilación Jerárquica Estricta
       - name: Build Monorepo Components
         run: |
-          ./node_modules/.bin/nx run-many -t build --projects=common,domain,application,infrastructure --parallel=1 --skip-nx-cache
+          npx nx run-many -t build --projects=common,domain,application,infrastructure --parallel=1 --skip-nx-cache
         working-directory: .
 
-      # 4. (Tus pasos de Terraform se mantienen exactamente igual aquí)
+      # 4. Infraestructura con Terraform
+      - name: Terraform Init
+        run: terraform init -input=false
+        working-directory: ./terraform
 
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan -input=false
+        working-directory: ./terraform
+
+      - name: Terraform Apply
+        if: github.ref == 'refs/heads/main'
+        run: terraform apply -auto-approve tfplan
+        working-directory: ./terraform
+
+      # 5. Construcción del Frontend (Angular)
       # 5. Construcción del Frontend (Angular)
       - name: Build Frontend Application
         env:
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
           NODE_OPTIONS: "--max_old_space_size=4096"
-        # Añadimos --verbose al final para romper el silencio de Nx
         run: npx nx build sustainability-web --configuration=production --verbose
+        working-directory: .
+
+      # PASO TEMPORAL: Esto imprimirá el log de npm en la consola si el paso de arriba falla
+      - name: Dump NPM Debug Log on Failure
+        if: failure()
+        run: |
+          LOG_FILE=$(find /home/runner/.npm/_logs/ -name "*.log" | head -n 1)
+          if [ -n "$LOG_FILE" ]; then
+            echo "📄 Mostrando contenido de: $LOG_FILE"
+            cat "$LOG_FILE"
+          else
+            echo "❌ No se encontró ningún archivo de log de npm."
+          fi
+
+      - name: Rebuild Backend Packages to Fix Exports
+        # Forzamos que se vuelvan a generar limpiamente los archivos físicos en dist/ con el tsconfig corregido
+        run: ./node_modules/.bin/nx run-many -t build --projects=common,domain,application,infrastructure --parallel=1 --skip-nx-cache
+        working-directory: .
+
+      - name: Build Frontend Application
+        run: |
+          FRONTEND_DIR=$(find . -name "package.json" | grep -v "node_modules" | grep "sustainability-web" | xargs dirname)
+          cd "$FRONTEND_DIR"
+          ./node_modules/.bin/ng build --configuration=production
         working-directory: .
 
       # 6. Exportar Outputs e Invalidar CloudFront
