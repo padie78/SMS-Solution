@@ -52,18 +52,18 @@ jobs:
       ###########################################################################
       # 5. Install Dependencies
       ###########################################################################
-      - name: Install Monorepo Dependencies
+      # 5. Construcción del Frontend con Bypass de Binario
+      - name: Build Frontend Application
         env:
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
+          NODE_OPTIONS: "--max_old_space_size=4096"
         run: |
-          echo "📦 Installing dependencies..."
-          npm ci --include=dev --legacy-peer-deps
-
-          echo "📦 Verifying Nx..."
-          ls -la ./node_modules/.bin/nx || true
-
-          echo "📦 Verifying Angular CLI..."
-          ls -la ./node_modules/.bin/ng || true
+          echo "🤖 Configurando bypass para el CLI de Angular..."
+          # Creamos un enlace del 'ng' local en una ruta del sistema accesible
+          sudo ln -sf "$PWD/node_modules/.bin/ng" /usr/local/bin/ng
+          
+          echo "🚀 Ejecutando Nx Build..."
+          ./node_modules/.bin/nx build sustainability-web --configuration=production --skip-nx-cache
         working-directory: .
 
       ###########################################################################
