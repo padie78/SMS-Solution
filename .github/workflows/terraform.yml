@@ -106,9 +106,6 @@ jobs:
         working-directory: ./terraform
 
       ###########################################################################
-      # 11. Debug Extremo + Build de Frontend
-      ###########################################################################
-      ###########################################################################
       # 11. Instalar CLI de Angular + Build de Frontend
       ###########################################################################
       - name: Install Angular CLI & Build Frontend
@@ -116,8 +113,8 @@ jobs:
           NODE_OPTIONS: "--max_old_space_size=4096"
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
-          echo "📦 Instalar de emergencia Angular CLI localmente en el Runner..."
-          npm install @angular/cli --no-save
+          echo "📦 Instalar de emergencia Angular CLI (v18) localmente en el Runner..."
+          npm install @angular/cli@18 --no-save
 
           echo "🔎 Verificando que ahora sí exista el binario:"
           ./node_modules/.bin/ng version
@@ -127,7 +124,7 @@ jobs:
 
           echo "✅ Frontend build completado exitosamente"
           echo "📂 Contenido del directorio dist generado:"
-          ls -la dist/apps/sustainability-web || ls -la dist/sustainability-web
+          ls -la dist/apps/sustainability-web 2>/dev/null || ls -la dist/sustainability-web 2>/dev/null || ls -la dist/
         working-directory: .
       ###########################################################################
       # 12. Dump NPM Logs On Failure
