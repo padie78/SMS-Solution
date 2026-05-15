@@ -108,20 +108,25 @@ jobs:
       ###########################################################################
       # 11. Compilar Frontend forzando el Path del Workspace
       ###########################################################################
-      - name: Build Frontend with Nx and Shared Path
+      ###########################################################################
+      # 11. Compilar Frontend (Modo Diagnóstico Verbose)
+      ###########################################################################
+      - name: Build Frontend with Nx (Verbose Mode)
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
+          NPM_CONFIG_LOGLEVEL: "silly" # Esto activa el verbose máximo para cualquier comando de NPM interno
         run: |
-          echo "🌐 Agregando los binarios locales del proyecto al PATH del sistema..."
+          echo "🌐 Agregando binarios al PATH..."
           export PATH="./node_modules/.bin:$PATH"
 
-          echo "🚀 Ejecutando el build del Frontend a través de Nx..."
-          nx build sustainability-web --configuration=production
+          echo "🚀 Ejecutando el build con Nx en modo VERBOSE..."
+          # Agregamos --verbose para Nx y forzamos el ejecutable directo para evitar que npx falle
+          nx build sustainability-web --configuration=production --verbose
 
           echo "✅ Frontend build completado exitosamente"
           echo "📂 Contenido del directorio dist generado:"
-          ls -la dist/apps/sustainability-web 2>/dev/null || ls -la dist/sustainability-web 2>/dev/null || ls -la dist/
+          ls -la dist/apps/sustainability-web 2>/dev/null || ls -la dist/
         working-directory: .
       ###########################################################################
       # 12. Dump NPM Logs On Failure
