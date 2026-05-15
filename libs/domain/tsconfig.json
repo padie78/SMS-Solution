@@ -3,13 +3,7 @@
   "compilerOptions": {
     "outDir": "dist",
     "declarationMap": true,
-    "sourceMap": true,
-    "allowImportingTsExtensions": false,
-    "baseUrl": ".",
-    "paths": {
-      "@sms/common": ["../../node_modules/@sms/common"],
-      "@sms/common/*": ["../../node_modules/@sms/common/*"]
-    }
+    "sourceMap": true
   },
   "include": ["src/**/*.ts"]
 }

@@ -43,22 +43,11 @@ jobs:
         run: npm ci --no-audit --no-fund
         working-directory: .
 
-      # 3. Compilación Secuencial Física Directa (Bypass de orquestación en CI)
-      - name: Build Core Common Library
-        # Compilamos common primero de forma nativa para poblar la carpeta /dist
-        run: npm run build --workspace=@sms/common
-        working-directory: .
-
-      - name: Build Domain Library
-        # Forzamos a tsc a correr de forma aislada consumiendo el dist real de la raíz
-        run: npm run build --workspace=@sms/domain
-        working-directory: .
-
-      - name: Build Application & Infrastructure
-        # Ejecutamos el mismo aislamiento para el resto de las capas del monorepo
+      # 3. Compilación Jerárquica Estricta
+      - name: Build Monorepo Components
+        # Usamos run-many secuencial con skip-nx-cache para asegurar la creación física de las carpetas /dist
         run: |
-          npm run build --workspace=@sms/application
-          npm run build --workspace=@sms/infrastructure
+          npx nx run-many -t build --projects=common,domain,application,infrastructure --parallel=1 --skip-nx-cache
         working-directory: .
 
       # 4. Infraestructura con Terraform
