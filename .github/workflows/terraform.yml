@@ -55,8 +55,12 @@ jobs:
 
       # 5. Construcción del Frontend (Angular)
       - name: Build Frontend Application
-        # Ejecutamos el compilador desde la raíz apuntando explícitamente a la app web
-        run: ./node_modules/.bin/ng build sustainability-web --configuration=production
+        # Usamos variables de entorno del sistema para forzar a npm a tragar las peer-deps 
+        # cuando Nx dispare internamente el comando 'npx ng build'
+        env:
+          NPM_CONFIG_LEGACY_PEER_DEPS: "true"
+          NODE_OPTIONS: "--max_old_space_size=4096"
+        run: npx nx build sustainability-web --configuration=production
         working-directory: .
 
       # 6. Exportar Outputs e Invalidar CloudFront
