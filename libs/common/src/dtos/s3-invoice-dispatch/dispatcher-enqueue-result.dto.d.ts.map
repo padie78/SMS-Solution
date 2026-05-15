@@ -1,1 +1,0 @@
-{"version":3,"file":"dispatcher-enqueue-result.dto.d.ts","sourceRoot":"","sources":["dispatcher-enqueue-result.dto.ts"],"names":[],"mappings":"AAAA,OAAO,EAAE,CAAC,EAAE,MAAM,KAAK,CAAC;AAIxB,mEAAmE;AACnE,eAAO,MAAM,6BAA6B;;;;;;;;;;;;;;;EAKxC,CAAC;AAEH,MAAM,MAAM,uBAAuB,GAAG,CAAC,CAAC,KAAK,CAAC,OAAO,6BAA6B,CAAC,CAAC;AAEpF,wBAAgB,4BAA4B,CAAC,KAAK,EAAE,OAAO,GAAG,uBAAuB,CAEpF"}

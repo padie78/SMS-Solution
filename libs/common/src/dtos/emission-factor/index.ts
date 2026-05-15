@@ -12,4 +12,4 @@ export {
   EmissionFactorCatalogStatusSchema,
   EmissionFactorDataQualityTierSchema,
   type EmissionFactorDTOInput
-} from './emission-factor.dto.js';
+} from './emission-factor.dto';

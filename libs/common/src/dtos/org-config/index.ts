@@ -3,11 +3,11 @@ export {
   parseOrgConfigDTO,
   safeParseOrgConfigDTO,
   type OrgConfigDTO
-} from './org-config.dto.js';
+} from './org-config.dto';
 export {
   OrganizationDTOSchema,
   parseOrganizationDTO,
   safeParseOrganizationDTO,
   OrganizationDTO,
   type OrganizationDTOInput
-} from './organization.dto.js';
+} from './organization.dto';

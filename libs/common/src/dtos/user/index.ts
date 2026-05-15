@@ -3,4 +3,4 @@ export {
   parseUserDTO,
   safeParseUserDTO,
   type UserDTO
-} from './user.dto.js';
+} from './user.dto';

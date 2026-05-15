@@ -3,10 +3,10 @@ export {
   parsePresignedUploadUrlInput,
   safeParsePresignedUploadUrlInput,
   type PresignedUploadUrlInput
-} from './presigned-upload.dto.js';
+} from './presigned-upload.dto';
 
 export {
   PresignedUploadUrlResultSchema,
   parsePresignedUploadUrlResult,
   type PresignedUploadUrlResult
-} from './presigned-upload-result.dto.js';
+} from './presigned-upload-result.dto';

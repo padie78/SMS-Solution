@@ -5,7 +5,7 @@ import {
   type AssetType,
   type MeterType,
   type UserRole
-} from './domain-enums.js';
+} from './domain-enums';
 
 export const ROLE_TO_CODE: Record<UserRole, string> = {
   ADMIN: 'ADM',

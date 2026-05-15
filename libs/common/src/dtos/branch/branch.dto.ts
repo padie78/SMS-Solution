@@ -129,7 +129,10 @@ export class BranchDTO {
   public readonly hasAirQualityMonitoring: boolean;
   public readonly coolingSetPoint: number;
   public readonly heatingSetPoint: number;
-  public readonly branchManager: { name: string; email: string; phone?: string };
+  
+  // CORRECCIÓN: Tipado inferido del esquema de Zod
+  public readonly branchManager: z.infer<typeof BranchManagerDTOSchema>;
+  
   public readonly createdAt?: string;
   public readonly updatedAt?: string;
 
@@ -175,7 +178,8 @@ export class BranchDTO {
     hasAirQualityMonitoring: boolean | null | undefined,
     coolingSetPoint: number,
     heatingSetPoint: number,
-    branchManager: { name: string; email: string; phone?: string },
+    // CORRECCIÓN: Parámetro del constructor sincronizado con Zod
+    branchManager: z.infer<typeof BranchManagerDTOSchema>,
     createdAt?: string,
     updatedAt?: string,
     timezone?: string
@@ -268,7 +272,7 @@ export const parseBranchDTO = (input: unknown): BranchDTO => {
     dto.hasAirQualityMonitoring,
     dto.coolingSetPoint,
     dto.heatingSetPoint,
-    dto.branchManager,
+    dto.branchManager,  
     dto.createdAt,
     dto.updatedAt,
     dto.timezone

@@ -13,4 +13,4 @@ export {
   AlertRuleMonitorScopeSchema,
   AlertRuleNotificationChannelSchema,
   type AlertRuleDTOInput
-} from './alert-rule.dto.js';
+} from './alert-rule.dto';

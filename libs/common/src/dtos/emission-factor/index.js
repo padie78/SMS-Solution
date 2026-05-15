@@ -1,2 +1,0 @@
-export { EmissionFactorDTOSchema, parseEmissionFactorDTO, safeParseEmissionFactorDTO, EmissionFactorDTO, generateEmissionFactorId, EmissionFactorActivityTypeSchema, EmissionFactorScopeNumberSchema, EmissionFactorPhysicalUnitSchema, EmissionFactorCalculationMethodSchema, EmissionFactorGwpReferenceSchema, EmissionFactorCatalogStatusSchema, EmissionFactorDataQualityTierSchema } from './emission-factor.dto.js';
-//# sourceMappingURL=index.js.map

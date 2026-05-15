@@ -9,7 +9,7 @@ import type { FormBuilder, FormControl, FormGroup } from '@angular/forms';
 
 import type { RegionDTO } from '@sms/common';
 import { withHelp } from './form-help.util';
-import { buildLocationFormGroup } from './location-form-common';
+import { buildLocationFormGroup } from './location-form.component';
 import {
   CarbonMarketTypeSchema,
   ClimateZoneSchema,

@@ -33,7 +33,7 @@ import {
   resolveLocationFormError,
   type BaseLocationFormFieldDef,
   type BaseSelectOption
-} from './location-form-common';
+} from './location-form.component';
 
 @Component({
   selector: 'sms-location-form-field',

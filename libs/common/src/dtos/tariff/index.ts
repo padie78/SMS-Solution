@@ -11,4 +11,4 @@ export {
   type TariffDemandChargeUnit,
   type TariffSeason,
   type TariffTierRatePair
-} from './tariff.dto.js';
+} from './tariff.dto';

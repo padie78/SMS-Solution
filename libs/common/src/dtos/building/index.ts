@@ -16,4 +16,4 @@ export {
   type BuildingLightingTechnology,
   type BuildingDataGranularity,
   type BuildingSubmeteringTopology
-} from './building.dto.js';
+} from './building.dto';

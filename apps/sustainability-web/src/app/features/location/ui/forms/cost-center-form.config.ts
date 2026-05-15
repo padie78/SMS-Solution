@@ -19,7 +19,7 @@ import {
   type LifecycleStatus
 } from '@sms/common';
 import { withHelp } from './form-help.util';
-import { buildLocationFormGroup } from './location-form-common';
+import { buildLocationFormGroup } from './location-form.component';
 
 export type CostCenterFormValue = {
   id: string;

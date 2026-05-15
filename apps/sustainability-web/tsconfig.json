@@ -1,4 +1,3 @@
-// Front: paths → libs/*/dist/index (TS usa .d.ts; bundler resuelve .js). Sin @sms/application / @sms/infrastructure.
 {
   "compileOnSave": false,
   "compilerOptions": {
@@ -16,14 +15,14 @@
     "declaration": false,
     "experimentalDecorators": true,
     "moduleResolution": "node",
-    "paths": {
-      "@pages/setup/*": ["src/app/pages/setup/*"],
-      "@sms/common": ["../../libs/common/dist/index"],
-      "@sms/lib-common": ["../../libs/common/dist/index"],
-      "@sms/common": ["../../libs/common/dist/index"],
-      "@sms/common/schemas": ["../../libs/common/dist/schemas/index"],
-      "@sms/domain": ["../../libs/domain/dist/index"]
-    },
+"paths": {
+    "@pages/setup/*": ["src/app/pages/setup/*"],
+    "@sms/common": ["../../dist/libs/common"],
+    "@sms/common/schemas": ["../../dist/libs/common/schemas"],
+    "@sms/domain": ["../../dist/libs/domain"],
+    "@sms/application": ["../../dist/libs/application"],
+    "@sms/infrastructure": ["../../dist/libs/infrastructure"]
+  },
     "importHelpers": true,
     "target": "ES2022",
     "module": "ES2022",

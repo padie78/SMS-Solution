@@ -3,4 +3,4 @@ export {
   parseProductionLogDTO,
   safeParseProductionLogDTO,
   type ProductionLogDTO
-} from './production-log.dto.js';
+} from './production-log.dto';

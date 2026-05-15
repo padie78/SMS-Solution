@@ -3,7 +3,7 @@ export {
   parseInvoiceDTO,
   safeParseInvoiceDTO,
   type InvoiceDTO
-} from './invoice.dto.js';
+} from './invoice.dto';
 
 export {
   InvoiceIaTechnicalExtractionSchema,
@@ -12,14 +12,14 @@ export {
   buildInitialInvoiceIaTechnicalExtraction,
   type InvoiceIaTechnicalExtraction,
   type InvoiceIaExtractionSqsBody
-} from './invoice-ia-technical-extraction.dto.js';
+} from './invoice-ia-technical-extraction.dto';
 
 export {
   InvoiceProcessingSkeletonSchema,
   buildInvoiceProcessingSkeleton,
   type InvoiceProcessingSkeleton,
   type BuildInvoiceProcessingSkeletonParams
-} from './invoice-processing-skeleton.dto.js';
+} from './invoice-processing-skeleton.dto';
 
 export {
   InvoiceAuditActorSchema,
@@ -33,7 +33,7 @@ export {
   type InvoiceAuditSource,
   type InvoiceAuditEntry,
   type InvoiceAuditTrail
-} from './invoice-audit-trail.dto.js';
+} from './invoice-audit-trail.dto';
 
 export {
   InvoiceLifecycleStatusSchema,
@@ -62,4 +62,4 @@ export {
   type InvoiceMetadata,
   type InvoiceDdbItem,
   type InvoiceConfirmPayload
-} from './invoice-ddb-item.dto.js';
+} from './invoice-ddb-item.dto';

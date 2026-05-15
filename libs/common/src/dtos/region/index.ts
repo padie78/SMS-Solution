@@ -13,4 +13,4 @@ export {
   type CarbonMarketType,
   type MaturityLevel,
   type EconomicArea
-} from './region.dto.js';
+} from './region.dto';

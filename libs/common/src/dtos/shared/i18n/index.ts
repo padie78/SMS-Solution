@@ -12,7 +12,7 @@ export {
   EntityTypeSchema,
   ENTITY_TYPE_VALUES,
   isEntityType
-} from './enums.js';
+} from './enums';
 
 export {
   ENTITY_TYPE_I18N,
@@ -21,4 +21,4 @@ export {
   getEnergyServiceTypeI18nKey,
   type EntityTypeI18nKey,
   type EnergyServiceTypeI18nKey
-} from './i18n-keys.js';
+} from './i18n-keys';

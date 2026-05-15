@@ -14,4 +14,4 @@ export {
   type BranchType,
   type OwnershipType,
   type BackupPowerType
-} from './branch.dto.js';
+} from './branch.dto';

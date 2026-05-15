@@ -13,9 +13,9 @@ export {
   type EnergyServiceTypeI18nKey
 } from './dtos/shared/i18n/index.js';
 
-export { SmsIdSchema, type SmsId } from './schemas/sms-id.schema.js';
+export { SmsIdSchema, type SmsId } from './schemas/sms-id.schema';
 
-export type { SmsEntityTag } from './dtos/shared/sms-entity-tag.js';
+export { type SmsEntityTag } from './dtos/shared/sms-entity-tag';
 
 export {
   AssetTypeSchema,
@@ -26,26 +26,26 @@ export {
   type AssetType,
   type MeterType,
   type UserRole
-} from './dtos/shared/domain-enums.js';
+} from './dtos/shared/domain-enums';
 
-export { SmsDomainError, RegionDomainError } from './dtos/shared/sms-domain-error.js';
+export { SmsDomainError, RegionDomainError } from './dtos/shared/sms-domain-error';
 
 export {
   AddressDTOSchema,
   type AddressDTO
-} from './dtos/shared/address.dto.js';
+} from './dtos/shared/address.dto';
 
 export {
   GeoCoordinatesDTOSchema,
   type GeoCoordinatesDTO
-} from './dtos/shared/geo.dto.js';
+} from './dtos/shared/geo.dto';
 
 export {
   ROLE_TO_CODE,
   decodeAssetType,
   decodeMeterType,
   decodeRole
-} from './dtos/shared/persistence-codecs.js';
+} from './dtos/shared/persistence-codecs';
 
 export {
   RegionDTOSchema,
@@ -62,7 +62,7 @@ export {
   type CarbonMarketType,
   type MaturityLevel,
   type EconomicArea
-} from './dtos/region/index.js';
+} from './dtos/region/index';
 
 export {
   BranchDTOSchema,
@@ -80,7 +80,7 @@ export {
   type BranchType,
   type OwnershipType,
   type BackupPowerType
-} from './dtos/branch/index.js';
+} from './dtos/branch/index';
 
 export {
   BuildingDTOSchema,
@@ -100,7 +100,7 @@ export {
   type BuildingLightingTechnology,
   type BuildingDataGranularity,
   type BuildingSubmeteringTopology
-} from './dtos/building/index.js';
+} from './dtos/building/index';
 
 export {
   CostCenterDTOSchema,
@@ -112,7 +112,7 @@ export {
   CostCenterForecastModelSchema,
   type CostCenterType,
   type CostCenterForecastModel
-} from './dtos/cost-center/index.js';
+} from './dtos/cost-center/index';
 
 export {
   AssetDTOSchema,
@@ -132,7 +132,7 @@ export {
   type AssetEmissionSourceCategory,
   type AssetConditionIndex,
   type AssetRedundancyLevel
-} from './dtos/asset/index.js';
+} from './dtos/asset/index';
 
 export {
   MeterDTOSchema,
@@ -148,14 +148,14 @@ export {
   type MeterUnit,
   type MeterAccuracyClass,
   type MeterCommunicationStatus
-} from './dtos/meter/index.js';
+} from './dtos/meter/index';
 
 export {
   UserDTOSchema,
   parseUserDTO,
   safeParseUserDTO,
   type UserDTO
-} from './dtos/user/index.js';
+  } from './dtos/user/index';
 
 export {
   InvoiceDTOSchema,
@@ -207,16 +207,16 @@ export {
   InvoiceIaExtractionSqsBodySchema,
   parseInvoiceIaExtractionSqsBody,
   buildInitialInvoiceIaTechnicalExtraction
-} from './dtos/invoice/index.js';
+} from './dtos/invoice/index';
 
-export type { InvoiceIaTechnicalExtraction, InvoiceIaExtractionSqsBody } from './dtos/invoice/index.js';
+export type { InvoiceIaTechnicalExtraction, InvoiceIaExtractionSqsBody } from './dtos/invoice/index';
 
 export {
   PresignedUploadUrlInputSchema,
   parsePresignedUploadUrlInput,
   safeParsePresignedUploadUrlInput,
   type PresignedUploadUrlInput
-} from './dtos/presigned-upload/index.js';
+} from './dtos/presigned-upload/index';
 
 export {
   IndustrySectorSchema,
@@ -261,7 +261,7 @@ export {
   type MeterOperationalStatus,
   type TariffLifecycleStatus,
   type MainFuelType
-} from './dtos/shared/graphql-setup-enums.js';
+} from './dtos/shared/graphql-setup-enums';
 
 export {
   OrgConfigDTOSchema,
@@ -273,7 +273,7 @@ export {
   safeParseOrganizationDTO,
   OrganizationDTO,
   type OrganizationDTOInput
-} from './dtos/org-config/index.js';
+} from './dtos/org-config/index';
 
 export {
   AlertRuleDTOSchema,
@@ -290,7 +290,7 @@ export {
   AlertRuleMonitorScopeSchema,
   AlertRuleNotificationChannelSchema,
   type AlertRuleDTOInput
-} from './dtos/alert-rule/index.js';
+} from './dtos/alert-rule/index';
 
 export {
   TariffDTOSchema,
@@ -305,14 +305,14 @@ export {
   type TariffDemandChargeUnit,
   type TariffSeason,
   type TariffTierRatePair
-} from './dtos/tariff/index.js';
+} from './dtos/tariff/index';
 
 export {
   ProductionLogDTOSchema,
   parseProductionLogDTO,
   safeParseProductionLogDTO,
   type ProductionLogDTO
-} from './dtos/production-log/index.js';
+} from './dtos/production-log/index';
 
 export {
   EmissionFactorDTOSchema,
@@ -328,7 +328,7 @@ export {
   EmissionFactorCatalogStatusSchema,
   EmissionFactorDataQualityTierSchema,
   type EmissionFactorDTOInput
-} from './dtos/emission-factor/index.js';
+} from './dtos/emission-factor/index';
 
 export {
   InvoiceSkSchema,
@@ -351,4 +351,4 @@ export {
   parseInvoiceWorkerPipelineInput,
   type InvoiceWorkerLegacyQueueBody,
   type InvoiceWorkerPipelineInput
-} from './dtos/s3-invoice-dispatch/index.js';
+} from './dtos/s3-invoice-dispatch/index';

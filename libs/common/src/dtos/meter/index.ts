@@ -12,4 +12,4 @@ export {
   type MeterUnit,
   type MeterAccuracyClass,
   type MeterCommunicationStatus
-} from './meter.dto.js';
+} from './meter.dto';

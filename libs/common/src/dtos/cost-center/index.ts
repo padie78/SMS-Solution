@@ -8,4 +8,4 @@ export {
   CostCenterForecastModelSchema,
   type CostCenterType,
   type CostCenterForecastModel
-} from './cost-center.dto.js';
+} from './cost-center.dto';

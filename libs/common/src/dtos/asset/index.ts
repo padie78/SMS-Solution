@@ -16,4 +16,4 @@ export {
   type AssetEmissionSourceCategory,
   type AssetConditionIndex,
   type AssetRedundancyLevel
-} from './asset.dto.js';
+} from './asset.dto';

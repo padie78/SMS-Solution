@@ -1,2 +1,0 @@
-export { MeterDTOSchema, parseMeterDTO, safeParseMeterDTO, MeterDTO, MeterServiceTypeSchema, MeterUnitSchema, MeterAccuracyClassSchema, MeterCommunicationStatusSchema } from './meter.dto.js';
-//# sourceMappingURL=index.js.map

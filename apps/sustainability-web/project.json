@@ -7,16 +7,15 @@
   "targets": {
     "build": {
       "executor": "nx:run-commands",
-      "outputs": ["{projectRoot}/dist/apps/sustainability-web"],
       "options": {
-        "command": "npm run build",
+        "command": "npx ng build",
         "cwd": "apps/sustainability-web"
       }
     },
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "npm run start",
+        "command": "npx ng serve",
         "cwd": "apps/sustainability-web"
       }
     }

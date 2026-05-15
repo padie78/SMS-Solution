@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { SmsIdSchema } from '../../schemas/sms-id.schema.js';
-import { LifecycleStatusSchema } from '../shared/graphql-setup-enums.js';
-import { OrgConfigDTOSchema } from './org-config.dto.js';
+import { SmsIdSchema } from '../../schemas/sms-id.schema';
+import { LifecycleStatusSchema } from '../shared/graphql-setup-enums';
+import { OrgConfigDTOSchema } from './org-config.dto';
 
 const iso6391Schema = z.string().regex(/^[a-z]{2}$/, 'Expected ISO 639-1 code (e.g. en, es)');
 const unitSystemSchema = z.enum(['METRIC', 'IMPERIAL']);
@@ -69,7 +69,10 @@ export class OrganizationDTO {
   public readonly esgFrameworks: string[];
   public readonly subscriptionPlan: z.infer<typeof OrgConfigDTOSchema>['subscriptionPlan'];
   public readonly status: z.infer<typeof LifecycleStatusSchema>;
-  public readonly adminContact: { name: string; email: string; phone?: string };
+  
+  // CORRECCIÓN: Tipo inferido directamente del esquema de Zod
+  public readonly adminContact: z.infer<typeof AdminContactDTOSchema>;
+  
   public readonly createdAt?: string;
   public readonly updatedAt?: string;
 
@@ -95,7 +98,8 @@ export class OrganizationDTO {
     esgFrameworks: string[] | null | undefined,
     subscriptionPlan: z.infer<typeof OrgConfigDTOSchema>['subscriptionPlan'],
     status: z.infer<typeof LifecycleStatusSchema> | null | undefined,
-    adminContact: { name: string; email: string; phone?: string },
+    // CORRECCIÓN: Sincronizado en el parámetro del constructor
+    adminContact: z.infer<typeof AdminContactDTOSchema>,
     createdAt?: string,
     updatedAt?: string
   ) {

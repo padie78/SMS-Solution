@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { SmsIdSchema } from '../../schemas/sms-id.schema.js';
-import { GeoCoordinatesDTOSchema } from '../shared/geo.dto.js';
-import { LifecycleStatusSchema } from '../shared/graphql-setup-enums.js';
+import { SmsIdSchema } from '../../schemas/sms-id.schema';
+import { GeoCoordinatesDTOSchema } from '../shared/geo.dto';
+import { LifecycleStatusSchema } from '../shared/graphql-setup-enums';
 
 export const ClimateZoneSchema = z.enum(['TROPICAL', 'DRY', 'TEMPERATE', 'CONTINENTAL', 'POLAR']);
 export const CarbonMarketTypeSchema = z.enum(['TAX', 'ETS', 'NONE']);
@@ -77,7 +77,10 @@ export class RegionDTO {
   public readonly code: string;
   public readonly countryCode: string;
   public readonly timezone: string;
-  public readonly coordinates: { lat: number; lng: number };
+  
+  // CORRECCIÓN: Tipo inferido directamente del esquema geográfico compartido
+  public readonly coordinates: z.infer<typeof GeoCoordinatesDTOSchema>;
+  
   public readonly climateZone: ClimateZone;
   public readonly avgHDD: number;
   public readonly avgCDD: number;
@@ -94,7 +97,10 @@ export class RegionDTO {
   public readonly localRegulations: string[];
   public readonly maturityLevel: MaturityLevel;
   public readonly economicArea: EconomicArea;
-  public readonly regionalManager: { name: string; email: string; phone?: string };
+  
+  // CORRECCIÓN: Tipo inferido directamente del esquema del Manager
+  public readonly regionalManager: z.infer<typeof RegionalManagerDTOSchema>;
+  
   public readonly regionalReductionTarget: number;
   public readonly energyScarcityRisk: number;
   public readonly status: z.infer<typeof LifecycleStatusSchema>;
@@ -111,7 +117,8 @@ export class RegionDTO {
     code: string,
     countryCode: string,
     timezone: string,
-    coordinates: { lat: number; lng: number },
+    // CORRECCIÓN: Sincronizado en el parámetro del constructor
+    coordinates: z.infer<typeof GeoCoordinatesDTOSchema>,
     climateZone: ClimateZone,
     avgHDD: number | null | undefined,
     avgCDD: number | null | undefined,
@@ -128,7 +135,8 @@ export class RegionDTO {
     localRegulations: string[] | null | undefined,
     maturityLevel: MaturityLevel,
     economicArea: EconomicArea,
-    regionalManager: { name: string; email: string; phone?: string },
+    // CORRECCIÓN: Sincronizado en el parámetro del constructor
+    regionalManager: z.infer<typeof RegionalManagerDTOSchema>,
     regionalReductionTarget: number | null | undefined,
     energyScarcityRisk: number | null | undefined,
     status: z.infer<typeof LifecycleStatusSchema> | null | undefined,
