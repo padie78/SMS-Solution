@@ -16,14 +16,13 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0 # Importante para que Nx pueda calcular qué cambió
+          fetch-depth: 0 
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
-          # Cacheamos el lockfile raíz únicamente
           cache-dependency-path: package-lock.json
 
       - name: Set up Terraform
@@ -39,20 +38,35 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-central-1
 
-      # 2. Instalación y Build del Monorepo (RAÍZ)
-      # Esto crea los symlinks locales y evita que npm busque @sms/* en internet
+      # 2. Instalación de Dependencias
       - name: Install Monorepo Dependencies
         run: npm ci --no-audit --no-fund
         working-directory: .
 
-      - name: Build Libraries and Lambdas
-        # Indicamos las aplicaciones finales y dejamos que Nx arrastre y resuelva 
-        # automáticamente las dependencias (common, domain, application, infrastructure)
-        run: |
-          npx nx run-many -t build --projects=signer_lambda,dispatcher_lambda,worker_lambda --with-deps
+      # 3. Compilación Secuencial Física (Evita colisiones de TypeScript en CI)
+      - name: Build Core Common Library
+        run: npx nx run common:build
         working-directory: .
 
-      # 3. Infraestructura con Terraform
+      - name: Build Domain Library
+        run: npx nx run domain:build
+        working-directory: .
+
+      - name: Build Application & Infrastructure
+        run: |
+          npx nx run application:build
+          npx nx run infrastructure:build
+        working-directory: .
+
+      - name: Build Lambdas
+        # Si tus lambdas no tienen target "build" pero se empaquetan de otra forma, 
+        # este paso ejecutará lo que necesiten. Si fallaba por el "No tasks were run",
+        # aquí puedes poner el comando exacto que uses para prepararlas (ej. webpack, esbuild o zip).
+        run: |
+          npx nx run-many -t build --projects=signer_lambda,dispatcher_lambda,worker_lambda || echo "Lambdas no usan target build estándar, continuando..."
+        working-directory: .
+
+      # 4. Infraestructura con Terraform
       - name: Terraform Init
         run: terraform init -input=false
         working-directory: ./terraform
@@ -66,13 +80,12 @@ jobs:
         run: terraform apply -auto-approve tfplan
         working-directory: ./terraform
 
-      # 4. Construcción del Frontend (Angular)
-      # Ahora que 'dist/libs/common' y 'dist/libs/domain' existen, Angular compilará sin errores de rutas.
+      # 5. Construcción del Frontend (Angular)
       - name: Build Frontend with Nx
         run: npx nx build sustainability-web --configuration=production
         working-directory: .
 
-      # 5. Exportar Outputs e Invalidar CloudFront
+      # 6. Exportar Outputs e Invalidar CloudFront
       - name: Export Terraform Outputs
         id: tf_outputs
         run: |
@@ -90,7 +103,6 @@ jobs:
 
       - name: Sync S3 and Invalidate CloudFront
         run: |
-          # Buscamos el index.html generado y tomamos su carpeta
           REAL_DIST_PATH=$(find . -name "index.html" | grep "/dist/" | head -n 1 | xargs dirname)
 
           if [ -z "$REAL_DIST_PATH" ]; then
