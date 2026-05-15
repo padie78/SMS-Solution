@@ -67,16 +67,21 @@ jobs:
         working-directory: ./terraform
 
       # 5. Construcción del Frontend (Angular)
-      - name: Build Frontend Application
-        # Buscamos el ejecutable nativo de ng dentro de todo el monorepo y lo ejecutamos
+      - name: Force Install Frontend Dependencies
+        # Entramos a la carpeta del frontend e instalamos sus dependencias a la fuerza
         run: |
-          NG_PATH=$(find . -name "ng" | grep -E "node_modules/\.bin/ng$" | head -n 1)
-          if [ -z "$NG_PATH" ]; then
-            echo "❌ ERROR: No se encontró el binario de Angular (ng)."
-            exit 1
-          fi
-          echo "✅ Ejecutando Angular desde: $NG_PATH"
-          node "$NG_PATH" build --configuration=production
+          FRONTEND_DIR=$(find . -name "package.json" | grep -v "node_modules" | grep "sustainability-web" | xargs dirname)
+          echo "✅ Carpeta del frontend detectada en: $FRONTEND_DIR"
+          cd "$FRONTEND_DIR"
+          npm install --force
+        working-directory: .
+
+      - name: Build Frontend Application
+        # Ahora que sus dependencias locales existen sí o sí, ejecutamos el build desde su propio directorio
+        run: |
+          FRONTEND_DIR=$(find . -name "package.json" | grep -v "node_modules" | grep "sustainability-web" | xargs dirname)
+          cd "$FRONTEND_DIR"
+          ./node_modules/.bin/ng build --configuration=production
         working-directory: .
 
       # 6. Exportar Outputs e Invalidar CloudFront
