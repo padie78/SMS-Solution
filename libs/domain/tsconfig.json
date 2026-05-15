@@ -6,10 +6,10 @@
     "declarationMap": true,
     "sourceMap": true,
     "allowImportingTsExtensions": false,
-    "baseUrl": ".",
+    "baseUrl": "../../", 
     "paths": {
-      "@sms/common": ["../../dist/libs/common"],
-      "@sms/common/schemas": ["../../dist/libs/common/schemas"]
+      "@sms/common": ["dist/libs/common"],
+      "@sms/common/schemas": ["dist/libs/common/schemas"]
     }
   },
   "include": ["src/**/*.ts"]
