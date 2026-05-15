@@ -38,13 +38,14 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-central-1
 
-      # 2. Instalación de Dependencias
+      # 2. Instalación de Dependencias Completa (Monorepo Completo)
       - name: Install Monorepo Dependencies
-        run: npm install --include=dev
+        # --workspaces obliga a npm a instalar recursivamente apps y libs locales
+        run: npm install --workspaces --include=dev --legacy-peer-deps
         working-directory: .
+
       # 3. Compilación Jerárquica Estricta
       - name: Build Monorepo Components
-        # Usamos run-many secuencial con skip-nx-cache para asegurar la creación física de las carpetas /dist
         run: |
           npx nx run-many -t build --projects=common,domain,application,infrastructure --parallel=1 --skip-nx-cache
         working-directory: .
@@ -64,13 +65,9 @@ jobs:
         working-directory: ./terraform
 
       # 5. Construcción del Frontend (Angular)
-      # 5. Construcción del Frontend (Angular)
-      - name: Install Angular Build Tools in Root Context
-        run: npm install @angular/cli @angular-devkit/build-angular --no-save --legacy-peer-deps
-        working-directory: .
-
       - name: Build Frontend Application
-        run: npx nx run sustainability-web:build:production
+        # Al usar --legacy-peer-deps aquí, Nx y Angular ignoran el choque con TypeScript 6
+        run: npx nx run sustainability-web:build:production --legacy-peer-deps
         working-directory: .
 
       # 6. Exportar Outputs e Invalidar CloudFront
