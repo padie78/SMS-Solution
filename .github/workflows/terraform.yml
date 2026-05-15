@@ -64,8 +64,9 @@ jobs:
         working-directory: ./terraform
 
       # 5. Construcción del Frontend (Angular)
+      # 5. Construcción del Frontend (Angular)
       - name: Install Angular Build Tools in Root Context
-        run: npm install @angular/cli @angular-devkit/build-angular --no-save
+        run: npm install @angular/cli @angular-devkit/build-angular --no-save --legacy-peer-deps
         working-directory: .
 
       - name: Build Frontend Application
