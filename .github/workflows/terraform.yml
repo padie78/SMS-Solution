@@ -55,22 +55,8 @@ jobs:
 
       # 5. Construcción del Frontend (Angular)
       - name: Build Frontend Application
-        # Al haber resuelto todo en el paso 2, el binario local del workspace funcionará directo
-        run: |
-          cd apps/sustainability-web
-          ./node_modules/.bin/ng build --configuration=production
-        working-directory: .
-
-      - name: Rebuild Backend Packages to Fix Exports
-        # Forzamos que se vuelvan a generar limpiamente los archivos físicos en dist/ con el tsconfig corregido
-        run: ./node_modules/.bin/nx run-many -t build --projects=common,domain,application,infrastructure --parallel=1 --skip-nx-cache
-        working-directory: .
-
-      - name: Build Frontend Application
-        run: |
-          FRONTEND_DIR=$(find . -name "package.json" | grep -v "node_modules" | grep "sustainability-web" | xargs dirname)
-          cd "$FRONTEND_DIR"
-          ./node_modules/.bin/ng build --configuration=production
+        # Ejecutamos el compilador desde la raíz apuntando explícitamente a la app web
+        run: ./node_modules/.bin/ng build sustainability-web --configuration=production
         working-directory: .
 
       # 6. Exportar Outputs e Invalidar CloudFront
