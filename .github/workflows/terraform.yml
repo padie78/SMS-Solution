@@ -50,27 +50,32 @@ jobs:
           aws-region: eu-central-1
 
       ###########################################################################
-      # 5. Install Dependencies
+      # 5. Install Dependencies (¡Crucial!)
       ###########################################################################
-      # 5. Construcción del Frontend vía Angular CLI Directo
-      - name: Build Frontend Application
+      - name: Install Monorepo Dependencies
         env:
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
-          NODE_OPTIONS: "--max_old_space_size=4096"
         run: |
-          echo "🚀 Ejecutando compilación directa con Angular CLI..."
-          ./node_modules/.bin/ng build sustainability-web --configuration=production
-        working-directory: .
+          echo "📦 Instalando dependencias del espacio de trabajo..."
+          npm ci --include=dev
+
       ###########################################################################
-      # 6. Build Backend Libraries
+      # 6. Configure Angular CLI Bypass
+      ###########################################################################
+      - name: Configure Angular CLI Bypass
+        run: |
+          echo "🤖 Enlazando binario local de Angular CLI al entorno global del Runner..."
+          sudo ln -sf "$PWD/node_modules/.bin/ng" /usr/local/bin/ng
+
+      ###########################################################################
+      # 7. Build Backend Libraries
       ###########################################################################
       - name: Build Monorepo Libraries
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: |
           echo "🚀 Building backend/shared libraries..."
-
-          npx nx run-many \
+          ./node_modules/.bin/nx run-many \
             --target=build \
             --projects=common,domain,application,infrastructure \
             --parallel=1 \
@@ -79,21 +84,21 @@ jobs:
         working-directory: .
 
       ###########################################################################
-      # 7. Terraform Init
+      # 8. Terraform Init
       ###########################################################################
       - name: Terraform Init
         run: terraform init -input=false
         working-directory: ./terraform
 
       ###########################################################################
-      # 8. Terraform Plan
+      # 9. Terraform Plan
       ###########################################################################
       - name: Terraform Plan
         run: terraform plan -out=tfplan -input=false
         working-directory: ./terraform
 
       ###########################################################################
-      # 9. Terraform Apply
+      # 10. Terraform Apply
       ###########################################################################
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main'
@@ -101,7 +106,7 @@ jobs:
         working-directory: ./terraform
 
       ###########################################################################
-      # 10. Build Frontend
+      # 11. Build Frontend (Ejecutado de forma segura con Nx)
       ###########################################################################
       - name: Build Frontend Application
         env:
@@ -109,34 +114,28 @@ jobs:
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
           echo "📍 Current directory: $PWD"
-
+          
           echo "📦 Nx version:"
-          npx nx --version
-
-          echo "📦 Angular CLI version:"
-          npx ng version || true
+          ./node_modules/.bin/nx --version
 
           echo "🚀 Building sustainability-web..."
-
-          npx nx build sustainability-web \
+          ./node_modules/.bin/nx build sustainability-web \
             --configuration=production \
             --skip-nx-cache \
             --verbose
 
           echo "✅ Frontend build completed"
-
           echo "📂 Dist contents:"
           find dist -type f | head -50
         working-directory: .
 
       ###########################################################################
-      # 11. Dump NPM Logs On Failure
+      # 12. Dump NPM Logs On Failure
       ###########################################################################
       - name: Dump NPM Debug Log on Failure
         if: failure()
         run: |
           echo "📄 Dumping npm logs..."
-
           find /home/runner/.npm/_logs/ -name "*.log" -type f | while read file; do
             echo "=================================================="
             echo "FILE: $file"
@@ -146,7 +145,7 @@ jobs:
           done
 
       ###########################################################################
-      # 12. Export Terraform Outputs
+      # 13. Export Terraform Outputs
       ###########################################################################
       - name: Export Terraform Outputs
         id: tf_outputs
@@ -172,7 +171,7 @@ jobs:
         working-directory: ./terraform
 
       ###########################################################################
-      # 13. Upload Frontend to S3 + CloudFront Invalidation
+      # 14. Upload Frontend to S3 + CloudFront Invalidation
       ###########################################################################
       - name: Sync S3 and Invalidate CloudFront
         run: |
@@ -196,14 +195,12 @@ jobs:
           echo "✅ Frontend dist path: $REAL_DIST_PATH"
 
           echo "🚀 Uploading files to S3..."
-
           aws s3 sync \
             "$REAL_DIST_PATH" \
             s3://${{ steps.tf_outputs.outputs.bucket_name }} \
             --delete
 
           echo "🚀 Invalidating CloudFront cache..."
-
           aws cloudfront create-invalidation \
             --distribution-id ${{ steps.tf_outputs.outputs.cloudfront_id }} \
             --paths "/*"
