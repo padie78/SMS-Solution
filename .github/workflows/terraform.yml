@@ -65,6 +65,10 @@ jobs:
         working-directory: ./terraform
 
       # 5. Construcción del Frontend (Angular)
+      - name: Install Angular CLI for Pipeline Context
+        run: npm install @angular/cli --no-save
+        working-directory: .
+
       - name: Build Frontend Application
         run: npx nx run sustainability-web:build:production
         working-directory: .
