@@ -2,6 +2,13 @@
   "extends": "./tsconfig.node-paths.json", 
   "compilerOptions": {
     "baseUrl": ".",
+    "paths": {
+      "@sms/common": ["libs/common/src/index.ts"],
+      "@sms/common/schemas": ["libs/common/src/schemas/index.ts"],
+      "@sms/common/*": ["libs/common/src/*"],
+      "@sms/domain": ["libs/domain/src/index.ts"],
+      "@sms/domain/*": ["libs/domain/src/*"]
+    },
     "target": "ES2022",
     "module": "NodeNext",
     "allowImportingTsExtensions": true,
