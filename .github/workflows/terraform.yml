@@ -106,16 +106,24 @@ jobs:
         working-directory: ./terraform
 
       ###########################################################################
-      # 11. Compilar Frontend forzando el binario raíz en el sub-entorno de Nx
+      # 11. Compilar Frontend - Bypass definitivo de npx ng
       ###########################################################################
-      - name: Build Frontend with Fixed Nx Path
+      - name: Build Frontend with Nx (npx Bypass)
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
-          # 💡 ESTA ES LA CLAVE: Forzamos a Nx a usar el binario absoluto de la raíz,
-          # evitando que npx intente buscar "ng" en internet desde /apps/sustainability-web
-          NX_NG_CLI_EXE: "../../../node_modules/.bin/ng"
         run: |
+          echo "🛠️ Creando puente de bypass para 'ng' en la carpeta de la app..."
+          # Creamos un script local 'ng' dentro de la app para interceptar la llamada de npx
+          mkdir -p apps/sustainability-web/.bin
+          echo '#!/bin/sh' > apps/sustainability-web/ng
+          echo 'exec ../../node_modules/.bin/ng "$@"' >> apps/sustainability-web/ng
+          chmod +x apps/sustainability-web/ng
+
+          echo "🌐 Inyectando la ruta local al PATH del runner..."
+          # Agregamos tanto el node_modules raíz como la carpeta de la app al PATH global del paso
+          export PATH="$PWD/apps/sustainability-web:$PWD/node_modules/.bin:$PATH"
+
           echo "🚀 Ejecutando el build del Frontend con Nx..."
           ./node_modules/.bin/nx build sustainability-web --configuration=production
 
