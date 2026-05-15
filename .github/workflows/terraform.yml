@@ -106,14 +106,20 @@ jobs:
         working-directory: ./terraform
 
       ###########################################################################
-      # 11. Compilar Frontend usando el CLI de Nx
+      # 11. Registrar Angular CLI + Compilar con Nx
       ###########################################################################
-      - name: Build Frontend with Nx
+      - name: Register Angular CLI and Build with Nx
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
-          echo "🚀 Compilando Frontend con Nx..."
+          echo "📦 Inyectando Angular CLI en las devDependencies locales del Runner..."
+          npm install @angular/cli@18 --save-dev --legacy-peer-deps
+
+          echo "🔎 Verificando que npx ahora sí reconozca el comando 'ng':"
+          npx ng version
+
+          echo "🚀 Ejecutando el build del Frontend a través de Nx..."
           ./node_modules/.bin/nx build sustainability-web --configuration=production
 
           echo "✅ Frontend build completado exitosamente"
