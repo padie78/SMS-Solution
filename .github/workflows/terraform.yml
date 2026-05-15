@@ -39,9 +39,11 @@ jobs:
           aws-region: eu-central-1
 
       # 2. Instalación de Dependencias Completa (Monorepo Completo)
+      # 2. Instalación de Dependencias Total (Raíz + Subproyectos)
       - name: Install Monorepo Dependencies
-        # --workspaces obliga a npm a instalar recursivamente apps y libs locales
-        run: npm install --workspaces --include=dev --legacy-peer-deps
+        # Al quitar `--workspaces` y dejar solo el instalador estándar con peer-deps, 
+        # npm poblará Nx en la raíz y Angular en los subproyectos de forma unificada.
+        run: npm install --include=dev --legacy-peer-deps
         working-directory: .
 
       # 3. Compilación Jerárquica Estricta
