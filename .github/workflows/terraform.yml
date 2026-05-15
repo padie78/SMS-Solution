@@ -67,17 +67,22 @@ jobs:
         working-directory: ./terraform
 
       # 5. Construcción del Frontend (Angular)
-      - name: Force Install Frontend Dependencies
-        # Entramos a la carpeta del frontend e instalamos sus dependencias a la fuerza
+      - name: Install All Frontend Core Dependencies
         run: |
           FRONTEND_DIR=$(find . -name "package.json" | grep -v "node_modules" | grep "sustainability-web" | xargs dirname)
           echo "✅ Carpeta del frontend detectada en: $FRONTEND_DIR"
           cd "$FRONTEND_DIR"
-          npm install --force
+          
+          # Instalamos de forma masiva todas las dependencias externas que exige el compilador
+          npm install primeng @ngx-translate/core @ngx-translate/http-loader aws-amplify echarts chart.js tailwindcss --no-save --legacy-peer-deps
+        working-directory: .
+
+      - name: Rebuild Backend Packages to Fix Exports
+        # Forzamos que se vuelvan a generar limpiamente los archivos físicos en dist/ con el tsconfig corregido
+        run: ./node_modules/.bin/nx run-many -t build --projects=common,domain,application,infrastructure --parallel=1 --skip-nx-cache
         working-directory: .
 
       - name: Build Frontend Application
-        # Ahora que sus dependencias locales existen sí o sí, ejecutamos el build desde su propio directorio
         run: |
           FRONTEND_DIR=$(find . -name "package.json" | grep -v "node_modules" | grep "sustainability-web" | xargs dirname)
           cd "$FRONTEND_DIR"
