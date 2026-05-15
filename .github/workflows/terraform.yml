@@ -45,25 +45,23 @@ jobs:
 
       # 3. Compilación Secuencial Física (Evita colisiones de TypeScript en CI)
       - name: Build Core Common Library
-        run: npx nx run common:build
+        # El flag --skip-nx-cache fuerza a Nx a escribir los archivos reales en /dist
+        run: npx nx run common:build --skip-nx-cache
         working-directory: .
 
       - name: Build Domain Library
-        run: npx nx run domain:build
+        run: npx nx run domain:build --skip-nx-cache
         working-directory: .
 
       - name: Build Application & Infrastructure
         run: |
-          npx nx run application:build
-          npx nx run infrastructure:build
+          npx nx run application:build --skip-nx-cache
+          npx nx run infrastructure:build --skip-nx-cache
         working-directory: .
 
       - name: Build Lambdas
-        # Si tus lambdas no tienen target "build" pero se empaquetan de otra forma, 
-        # este paso ejecutará lo que necesiten. Si fallaba por el "No tasks were run",
-        # aquí puedes poner el comando exacto que uses para prepararlas (ej. webpack, esbuild o zip).
         run: |
-          npx nx run-many -t build --projects=signer_lambda,dispatcher_lambda,worker_lambda || echo "Lambdas no usan target build estándar, continuando..."
+          npx nx run-many -t build --projects=signer_lambda,dispatcher_lambda,worker_lambda --skip-nx-cache || echo "Lambdas no usan target build estándar, continuando..."
         working-directory: .
 
       # 4. Infraestructura con Terraform
