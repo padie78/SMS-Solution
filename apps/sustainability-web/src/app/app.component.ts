@@ -1,6 +1,6 @@
 import { Component } from '@angular/core';
 import { MainAppLayoutComponent } from './ui/templates/main-app-layout/main-app-layout.component';
-/* test*/
+/* test test test */
 @Component({
   selector: 'app-root',
   standalone: true,
