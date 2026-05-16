@@ -106,19 +106,34 @@ jobs:
         working-directory: ./terraform
 
       ###########################################################################
-      # 11. Compilar Frontend - Solución Definitiva con PATH Sano
+      # 11. Compilar Frontend - Bypass Absoluto por Script Inyectado
       ###########################################################################
       - name: Build Frontend with Nx
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
-          echo "🌐 Agregando de forma segura los bines locales al PATH del sistema..."
-          echo "$GITHUB_WORKSPACE/node_modules/.bin" >> $GITHUB_PATH
+          echo "🛠️ Creando un ejecutable falso de 'npx' para interceptar la llamada de Nx..."
+          
+          # Creamos una carpeta temporal de bines prioritarios para este step
+          mkdir -p .bin_override
+          
+          # Escribimos un script 'npx' personalizado. Si Nx pide 'npx ng build ...',
+          # nuestro script lo captura y ejecuta directamente el archivo JS real de Angular CLI
+          # usando el Node de la raíz, sin tocar el gestor de paquetes de NPM.
+          cat << 'EOF' > .bin_override/npx
+#!/bin/sh
+if [ "$1" = "ng" ]; then
+  shift
+  exec node "$GITHUB_WORKSPACE/node_modules/@angular/cli/bin/ng.js" "$@"
+else
+  exec /usr/bin/npx "$@"
+fi
+EOF
+          chmod +x .bin_override/npx
 
-          echo "🤖 Forzando enlace simbólico en la carpeta de la aplicación..."
-          mkdir -p apps/sustainability-web/node_modules/.bin
-          ln -sf "$GITHUB_WORKSPACE/node_modules/.bin/ng" apps/sustainability-web/node_modules/.bin/ng
+          echo "🌐 Inyectando el bypass en el PATH local inmediato de la sesión..."
+          export PATH="$GITHUB_WORKSPACE/.bin_override:$PATH"
 
           echo "🚀 Ejecutando el build del Frontend con Nx..."
           ./node_modules/.bin/nx build sustainability-web --configuration=production --verbose
