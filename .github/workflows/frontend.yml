@@ -50,14 +50,14 @@ jobs:
 
       - name: Build Monorepo Dependencies & Frontend
         env:
-          NODE_OPTIONS: "--max_old_space_size=4096"
+          NODE_OPTIONS: "--max_old_space_size=40 Wel96"
         run: |
           echo "📦 Compilando librerías compartidas necesarias para el Frontend..."
           node ./node_modules/nx/bin/nx.js run-many -t build --projects=common,domain,application,infrastructure
           
-          echo "🚀 Entrando a la carpeta del Frontend y compilando localmente..."
-          cd apps/sustainability-web
-          npm run build --if-present || npx ng build --configuration=production
+          echo "🚀 Compilando el Frontend forzando el script raíz sin contexto de Workspaces..."
+          npm run ng:build:front --no-workspaces
+          
       - name: Dump NPM Debug Log on Failure
         if: failure()
         run: |
