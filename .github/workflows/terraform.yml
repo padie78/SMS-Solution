@@ -106,22 +106,27 @@ jobs:
         working-directory: ./terraform
 
       ###########################################################################
-      # 11. Compilar Frontend - Mapeo Absoluto de Dependencias del Monorrepo
+      # 11. Compilar Frontend - Ejecución Directa sin pasar por npx
       ###########################################################################
       - name: Build Frontend with Nx
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
-          # 💡 ESTA ES LA CLAVE DEFINITIVA: Forzamos a Node/Webpack a buscar siempre
-          # en el node_modules principal de la raíz, usando el PATH absoluto del workspace de GitHub.
-          NODE_PATH: "${{ github.workspace }}/node_modules"
+          # Seteamos el PATH absoluto para que cualquier subproceso vea el 'ng' de la raíz inmediatamente
+          PATH: "${{ github.workspace }}/node_modules/.bin:${{ env.PATH }}"
         run: |
-          echo "🚀 Ejecutando el build del Frontend con Nx mapeando dependencias raíz..."
-          ./node_modules/.bin/nx build sustainability-web --configuration=production
+          echo "🤖 Verificando link al CLI de Angular..."
+          # Forzamos un enlace simbólico local directo dentro de la app para asegurar el tiro
+          mkdir -p apps/sustainability-web/node_modules/.bin
+          ln -sf "${{ github.workspace }}/node_modules/.bin/ng" apps/sustainability-web/node_modules/.bin/ng
+
+          echo "🚀 Ejecutando el build del Frontend con Nx..."
+          ./node_modules/.bin/nx build sustainability-web --configuration=production --verbose
 
           echo "✅ Frontend build completado exitosamente"
           echo "📂 Contenido del directorio dist generado:"
           ls -la dist/apps/sustainability-web 2>/dev/null || ls -la dist/sustainability-web 2>/dev/null || ls -la dist/
+        working-directory: ./dev/null || ls -la dist/sustainability-web 2>/dev/null || ls -la dist/
         working-directory: .
       ###########################################################################
       # 12. Dump NPM Logs On Failure
