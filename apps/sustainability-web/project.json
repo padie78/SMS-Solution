@@ -8,15 +8,15 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "../../node_modules/.bin/ng build sustainability-web --configuration=production",
-        "cwd": "apps/sustainability-web"
+        "command": "npx ng build sustainability-web --configuration=production",
+        "cwd": "."
       }
     },
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "../../node_modules/.bin/ng serve sustainability-web",
-        "cwd": "apps/sustainability-web"
+        "command": "npx ng serve sustainability-web",
+        "cwd": "."
       }
     }
   }
