@@ -48,16 +48,13 @@ jobs:
           echo "📦 Instalando dependencias completas (incluyendo devDependencies)..."
           npm ci --include=dev
 
-      - name: Build Monorepo Dependencies & Frontend
+      - name: Build Frontend via NPM Workspace
         env:
-          NODE_OPTIONS: "--max_old_space_size=40 Wel96"
+          NODE_OPTIONS: "--max_old_space_size=4096"
         run: |
-          echo "📦 Compilando librerías compartidas necesarias para el Frontend..."
-          node ./node_modules/nx/bin/nx.js run-many -t build --projects=common,domain,application,infrastructure
-          
-          echo "🚀 Compilando el Frontend forzando el script raíz sin contexto de Workspaces..."
-          npm run ng:build:front --no-workspaces
-          
+          echo "🚀 Compilando Angular usando el contexto nativo del Workspace..."
+          npm run ng:build:front
+
       - name: Dump NPM Debug Log on Failure
         if: failure()
         run: |
