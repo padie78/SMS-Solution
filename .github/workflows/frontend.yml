@@ -47,11 +47,12 @@ jobs:
         run: |
           npm ci --include=dev
 
-      - name: Build Frontend with Nx (Configuración fija corregida)
+      - name: Build Frontend with Nx
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: |
-          npx nx build sustainability-web
+          echo "🧹 Rompiendo caches y forzando lectura limpia..."
+          npx nx build sustainability-web --skip-nx-cache --verbose
 
       - name: Dump NPM Debug Log on Failure
         if: failure()
