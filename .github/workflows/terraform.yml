@@ -126,7 +126,6 @@ jobs:
           echo "✅ Frontend build completado exitosamente"
           echo "📂 Contenido del directorio dist generado:"
           ls -la dist/apps/sustainability-web 2>/dev/null || ls -la dist/sustainability-web 2>/dev/null || ls -la dist/
-        working-directory: ./dev/null || ls -la dist/sustainability-web 2>/dev/null || ls -la dist/
         working-directory: .
       ###########################################################################
       # 12. Dump NPM Logs On Failure
