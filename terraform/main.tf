@@ -113,20 +113,6 @@ module "api" {
   cognito_region       = var.aws_region
 }
 
-# ==============================================================================
-# 6. FRONTEND HOSTING (Angular + PrimeNG + Tailwind)
-# ==============================================================================
-module "frontend" {
-  source       = "./modules/frontend"
-  project_name = var.project_name
-  environment  = var.environment
-
-  appsync_url    = module.api.appsync_url
-  appsync_region = var.aws_region
-  user_pool_id   = module.auth.user_pool_id
-  client_id      = module.auth.client_id
-}
-
 module "invoice_process_dlq" {
   source = "./modules/sqs"
   name   = "${var.project_name}-invoice-dlq-${var.environment}"
@@ -140,30 +126,27 @@ module "invoice_process_queue" {
   tags    = { Environment = var.environment, Service = "billing" }
 }
 
-# 3. Módulo de Frontend (Aquí es donde ocurre la magia)
+# ==============================================================================
+# 6. FRONTEND HOSTING (S3 + CloudFront OAC)
+# ==============================================================================
 module "frontend_storage" {
   source = "./modules/frontend"
 
   project_name = var.project_name
   environment  = var.environment
 
-  # CONEXIÓN AUTOMÁTICA: Usamos los outputs de los otros módulos
   appsync_url    = module.api.appsync_url
   appsync_region = var.aws_region
   user_pool_id   = module.auth.user_pool_id
   client_id      = module.auth.client_id
-
-  cloudfront_arn = module.frontend_cdn.cloudfront_arn
 }
 
-# 2. Luego llamamos a la red (CloudFront)
 module "frontend_cdn" {
   source = "./modules/cloudfront"
 
   project_name = var.project_name
   environment  = var.environment
 
-  # CORRECCIÓN: Usamos el output del módulo anterior, no el recurso directo
   bucket_name                 = module.frontend_storage.bucket_id
   bucket_regional_domain_name = module.frontend_storage.bucket_regional_domain_name
 
@@ -171,6 +154,34 @@ module "frontend_cdn" {
     Project     = "SMS"
     Environment = var.environment
   }
+}
+
+# Política S3 en la raíz (evita ciclo módulo↔CDN y ARN vacío en SourceArn)
+resource "aws_s3_bucket_policy" "webapp_cloudfront_oac" {
+  bucket = module.frontend_storage.bucket_id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "AllowCloudFrontServicePrincipalReadOnly"
+        Effect    = "Allow"
+        Principal = { Service = "cloudfront.amazonaws.com" }
+        Action    = "s3:GetObject"
+        Resource  = "${module.frontend_storage.bucket_arn}/*"
+        Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = module.frontend_cdn.cloudfront_arn
+          }
+        }
+      }
+    ]
+  })
+
+  depends_on = [
+    module.frontend_storage,
+    module.frontend_cdn
+  ]
 }
 
 # main.tf (RAÍZ)
@@ -182,4 +193,10 @@ import {
 import {
   to = module.frontend_cdn.aws_cloudfront_origin_access_control.default
   id = "sms-platform-dev-oac" # Reemplaza con el nombre real del OAC si es distinto
+}
+
+# Migración de state: política única en raíz (tras eliminar module.frontend duplicado)
+moved {
+  from = module.frontend_storage.aws_s3_bucket_policy.allow_cloudfront
+  to   = aws_s3_bucket_policy.webapp_cloudfront_oac
 }

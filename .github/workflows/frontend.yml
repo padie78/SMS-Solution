@@ -91,7 +91,7 @@ jobs:
             exit 1
           fi
           echo "Frontend dist path: $REAL_DIST_PATH"
-          aws s3 sync "$REAL_DIST_PATH" s3://${{ steps.infra_config.outputs.bucket_name }} --delete
+          aws s3 sync "$REAL_DIST_PATH" s3://${{ steps.infra_config.outputs.bucket_name }} --delete --exclude "assets/config.json"
           aws cloudfront create-invalidation \
             --distribution-id ${{ steps.infra_config.outputs.cloudfront_id }} \
             --paths "/*"
