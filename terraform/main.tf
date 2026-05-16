@@ -184,19 +184,6 @@ resource "aws_s3_bucket_policy" "webapp_cloudfront_oac" {
   ]
 }
 
-# main.tf (RAÍZ)
-import {
-  to = module.frontend_storage.aws_s3_bucket.webapp_bucket
-  id = "sms-platform-dev-webapp-hosting"
-}
-
-import {
-  to = module.frontend_cdn.aws_cloudfront_origin_access_control.default
-  id = "sms-platform-dev-oac" # Reemplaza con el nombre real del OAC si es distinto
-}
-
-# Migración de state: política única en raíz (tras eliminar module.frontend duplicado)
-moved {
-  from = module.frontend_storage.aws_s3_bucket_policy.allow_cloudfront
-  to   = aws_s3_bucket_policy.webapp_cloudfront_oac
-}
+# Si el bucket ya existe en AWS y querés importarlo (opcional):
+#   terraform import module.frontend_storage.aws_s3_bucket.webapp_bucket sms-platform-dev-webapp-hosting
+# No uses bloques `import {}` si el bucket fue borrado: Terraform no lo recrea y fallan los recursos hijos.

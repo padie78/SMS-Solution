@@ -16,6 +16,8 @@ resource "aws_s3_bucket_public_access_block" "webapp_public_access_block" {
   block_public_policy     = true
   ignore_public_acls      = true
   restrict_public_buckets = true
+
+  depends_on = [aws_s3_bucket.webapp_bucket]
 }
 
 resource "aws_s3_bucket_website_configuration" "webapp_config" {
@@ -28,9 +30,10 @@ resource "aws_s3_bucket_website_configuration" "webapp_config" {
   error_document {
     key = "index.html"
   }
+
+  depends_on = [aws_s3_bucket.webapp_bucket]
 }
 
-# Config runtime para Amplify/AppSync (CI no debe borrarlo: excluir en sync o re-subir tras deploy)
 resource "aws_s3_object" "config_json" {
   bucket       = aws_s3_bucket.webapp_bucket.id
   key          = "assets/config.json"
@@ -42,5 +45,8 @@ resource "aws_s3_object" "config_json" {
     client_id      = var.client_id
   })
 
-  depends_on = [aws_s3_bucket_public_access_block.webapp_public_access_block]
+  depends_on = [
+    aws_s3_bucket.webapp_bucket,
+    aws_s3_bucket_public_access_block.webapp_public_access_block,
+  ]
 }
