@@ -106,37 +106,18 @@ jobs:
         working-directory: ./terraform
 
       ###########################################################################
-      # 11. Compilar Frontend - Bypass Absoluto por Script Inyectado
+      # 11. Compilar Frontend - Ejecución Forzada Core de Angular
       ###########################################################################
       - name: Build Frontend with Nx
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
-          echo "🛠️ Creando un ejecutable falso de 'npx' para interceptar la llamada de Nx..."
+          echo "🚀 Forzando compilación directa usando el Angular CLI de la raíz..."
           
-          # Creamos una carpeta temporal de bines prioritarios para este step
-          mkdir -p .bin_override
-          
-          # Escribimos un script 'npx' personalizado. Si Nx pide 'npx ng build ...',
-          # nuestro script lo captura y ejecuta directamente el archivo JS real de Angular CLI
-          # usando el Node de la raíz, sin tocar el gestor de paquetes de NPM.
-          cat << 'EOF' > .bin_override/npx
-          #!/bin/sh
-          if [ "$1" = "ng" ]; then
-            shift
-            exec node "$GITHUB_WORKSPACE/node_modules/@angular/cli/bin/ng.js" "$@"
-          else
-            exec /usr/bin/npx "$@"
-          fi
-          EOF
-          chmod +x .bin_override/npx
-
-          echo "🌐 Inyectando el bypass en el PATH local inmediato de la sesión..."
-          export PATH="$GITHUB_WORKSPACE/.bin_override:$PATH"
-
-          echo "🚀 Ejecutando el build del Frontend con Nx..."
-          ./node_modules/.bin/nx build sustainability-web --configuration=production --verbose
+          # En lugar de dejar que Nx llame al npx roto del subdirectorio,
+          # invocamos directamente al CLI de Angular pasándole el proyecto de forma nativa.
+          ./node_modules/.bin/ng build sustainability-web --configuration=production
 
           echo "✅ Frontend build completado exitosamente"
           echo "📂 Contenido del directorio dist generado:"
