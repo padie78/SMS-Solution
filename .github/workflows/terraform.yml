@@ -106,23 +106,15 @@ jobs:
         working-directory: ./terraform
 
       ###########################################################################
-      # 11. Compilar Frontend - Ejecución Forzada Core de Angular
+      # 11. Compilar Frontend con Nx Estándar
       ###########################################################################
       - name: Build Frontend with Nx
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
-          echo "🚀 Forzando compilación directa usando el Angular CLI de la raíz..."
-          
-          # En lugar de dejar que Nx llame al npx roto del subdirectorio,
-          # invocamos directamente al CLI de Angular pasándole el proyecto de forma nativa.
-          ./node_modules/.bin/ng build sustainability-web --configuration=production
-
-          echo "✅ Frontend build completado exitosamente"
-          echo "📂 Contenido del directorio dist generado:"
-          ls -la dist/apps/sustainability-web 2>/dev/null || ls -la dist/sustainability-web 2>/dev/null || ls -la dist/
-        working-directory: .
+          echo "🚀 Ejecutando build de la aplicación frontend con Nx..."
+          npx nx build sustainability-web
       ###########################################################################
       # 12. Dump NPM Logs On Failure
       ###########################################################################

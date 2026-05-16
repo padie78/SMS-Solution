@@ -6,18 +6,54 @@
   "tags": ["scope:web", "type:app"],
   "targets": {
     "build": {
-      "executor": "nx:run-commands",
+      "executor": "@nx/angular:browser",
+      "outputs": ["{options.outputPath}"],
       "options": {
-        "command": "npx ng build",
-        "cwd": "apps/sustainability-web"
-      }
+        "outputPath": "dist/apps/sustainability-web",
+        "index": "apps/sustainability-web/src/index.html",
+        "main": "apps/sustainability-web/src/main.ts",
+        "polyfills": ["zone.js"],
+        "tsConfig": "apps/sustainability-web/tsconfig.app.json",
+        "assets": ["apps/sustainability-web/src/favicon.ico", "apps/sustainability-web/src/assets"],
+        "styles": ["apps/sustainability-web/src/styles.css"],
+        "scripts": []
+      },
+      "configurations": {
+        "production": {
+          "budgets": [
+            {
+              "type": "initial",
+              "maximumWarning": "2mb",
+              "maximumError": "5mb"
+            }
+          ],
+          "outputHashing": "all"
+        },
+        "development": {
+          "buildOptimizer": false,
+          "optimization": false,
+          "vendorChunk": true,
+          "extractLicenses": false,
+          "sourceMap": true,
+          "namedChunks": true
+        }
+      },
+      "defaultConfiguration": "production"
     },
     "serve": {
-      "executor": "nx:run-commands",
+      "executor": "@nx/angular:dev-server",
       "options": {
-        "command": "npx ng serve",
-        "cwd": "apps/sustainability-web"
-      }
+        "buildTarget": "sustainability-web:build"
+      },
+      "configurations": {
+        "production": {
+          "buildTarget": "sustainability-web:build:production"
+        },
+        "development": {
+          "buildTarget": "sustainability-web:build:development"
+        }
+      },
+      "defaultConfiguration": "development"
     }
   }
 }
