@@ -51,7 +51,7 @@ jobs:
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: |
-          echo "🧹 Rompiendo caches y forzando lectura limpia..."
+          echo "🧹 Rompiendo caches y forzando lectura limpia...."
           npx nx build sustainability-web --skip-nx-cache --verbose
 
       - name: Dump NPM Debug Log on Failure
