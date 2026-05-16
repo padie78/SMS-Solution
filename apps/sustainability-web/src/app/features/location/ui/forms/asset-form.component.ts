@@ -129,7 +129,7 @@ export class AssetFormComponent implements OnChanges {
     this.form.controls.id.disable({ emitEvent: false });
 
     // Multi-asignación: prioridad a metadata.costCenterIds (nativo) y fallback a custom JSON legacy.
-    // Fallback al costCenterId del DTO (`controls.costCenterId.value`) si la lista viene vacía.
+    // Fallback al costCenterId del DTO (`controls.costCenterId.value`) si la lista viene vacía. t
     const fromMetadata = readNodeCostCenterIds(this.parentNode.metadata);
     if (fromMetadata.length > 0) {
       this.selectedCostCenterIds.set(fromMetadata);
