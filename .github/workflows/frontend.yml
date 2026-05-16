@@ -55,8 +55,9 @@ jobs:
           echo "📦 Compilando librerías compartidas necesarias para el Frontend..."
           node ./node_modules/nx/bin/nx.js run-many -t build --projects=common,domain,application,infrastructure
           
-          echo "🚀 Compilando el Frontend usando el Workspace de NPM..."
-          npm run build --workspace=apps/sustainability-web --if-present || npm run build -w sustainability-web
+          echo "🚀 Entrando a la carpeta del Frontend y compilando localmente..."
+          cd apps/sustainability-web
+          npm run build --if-present || npx ng build --configuration=production
       - name: Dump NPM Debug Log on Failure
         if: failure()
         run: |
