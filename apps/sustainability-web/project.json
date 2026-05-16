@@ -8,14 +8,14 @@
     "build": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "node ../../node_modules/@angular/cli/bin/ng.js build --configuration=production",
+        "command": "npm exec -- ng build --configuration=production",
         "cwd": "apps/sustainability-web"
       }
     },
     "serve": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "node ../../node_modules/@angular/cli/bin/ng.js serve",
+        "command": "npm exec -- ng serve",
         "cwd": "apps/sustainability-web"
       }
     }
