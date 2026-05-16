@@ -122,14 +122,14 @@ jobs:
           # nuestro script lo captura y ejecuta directamente el archivo JS real de Angular CLI
           # usando el Node de la raíz, sin tocar el gestor de paquetes de NPM.
           cat << 'EOF' > .bin_override/npx
-#!/bin/sh
-if [ "$1" = "ng" ]; then
-  shift
-  exec node "$GITHUB_WORKSPACE/node_modules/@angular/cli/bin/ng.js" "$@"
-else
-  exec /usr/bin/npx "$@"
-fi
-EOF
+          #!/bin/sh
+          if [ "$1" = "ng" ]; then
+            shift
+            exec node "$GITHUB_WORKSPACE/node_modules/@angular/cli/bin/ng.js" "$@"
+          else
+            exec /usr/bin/npx "$@"
+          fi
+          EOF
           chmod +x .bin_override/npx
 
           echo "🌐 Inyectando el bypass en el PATH local inmediato de la sesión..."
