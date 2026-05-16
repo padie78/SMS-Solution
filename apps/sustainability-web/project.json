@@ -4,6 +4,15 @@
   "projectType": "application",
   "sourceRoot": "apps/sustainability-web/src",
   "tags": ["scope:web", "type:app"],
+  "scripts": {
+    "nx": "nx",
+    "build": "nx run-many -t build",
+    "test": "nx run-many -t test",
+    "lint": "nx run-many -t lint",
+    "build:all": "nx run-many -t build --all",
+    "prepare": "nx --version",
+    "ng:build:front": "ng build sustainability-web --configuration=production"
+  },
   "targets": {
     "build": {
       "executor": "nx:run-commands",

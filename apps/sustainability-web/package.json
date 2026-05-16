@@ -14,7 +14,8 @@
     "test": "nx run-many -t test",
     "lint": "nx run-many -t lint",
     "build:all": "nx run-many -t build --all",
-    "prepare": "nx --version"
+    "prepare": "nx --version",
+    "ng:build:front": "ng build sustainability-web --configuration=production"
   },
   "dependencies": {
     "@angular/common": "^17.3.0",
