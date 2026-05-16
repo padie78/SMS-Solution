@@ -106,18 +106,15 @@ jobs:
         working-directory: ./terraform
 
       ###########################################################################
-      # 11. Compilar Frontend - Solución Contextual Nativa para npx
-      ###########################################################################
-     ###########################################################################
-      # 11. Compilar Frontend - Mapeo Nativo de Dependencias del Monorrepo
+      # 11. Compilar Frontend - Mapeo Absoluto de Dependencias del Monorrepo
       ###########################################################################
       - name: Build Frontend with Nx
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
           NPM_CONFIG_LEGACY_PEER_DEPS: "true"
-          # 💡 LA CLAVE: Forzamos a Node a que busque dependencias tanto en la raíz 
-          # del monorrepo como en cualquier subcontexto donde Nx decida pararse.
-          NODE_PATH: "./node_modules"
+          # 💡 ESTA ES LA CLAVE DEFINITIVA: Forzamos a Node/Webpack a buscar siempre
+          # en el node_modules principal de la raíz, usando el PATH absoluto del workspace de GitHub.
+          NODE_PATH: "${{ github.workspace }}/node_modules"
         run: |
           echo "🚀 Ejecutando el build del Frontend con Nx mapeando dependencias raíz..."
           ./node_modules/.bin/nx build sustainability-web --configuration=production
