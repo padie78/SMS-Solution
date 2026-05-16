@@ -7,10 +7,12 @@ on:
     paths:
       - 'apps/sustainability-web/**'
       - 'libs/**'
+      - 'angular.json'
       - 'package.json'
       - 'package-lock.json'
       - 'nx.json'
       - 'tsconfig.base.json'
+      - 'tsconfig.json'
   workflow_dispatch:
 
 jobs:
@@ -19,17 +21,11 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      ###########################################################################
-      # 1. Checkout
-      ###########################################################################
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      ###########################################################################
-      # 2. Node.js
-      ###########################################################################
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
@@ -37,18 +33,12 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      ###########################################################################
-      # 3. Terraform
-      ###########################################################################
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.10.0
           terraform_wrapper: false
 
-      ###########################################################################
-      # 4. AWS Credentials
-      ###########################################################################
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
@@ -56,155 +46,52 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-central-1
 
-      ###########################################################################
-      # 5. Install Dependencies
-      ###########################################################################
-      - name: Install Monorepo Dependencies
-        env:
-          NPM_CONFIG_LEGACY_PEER_DEPS: "true"
+      - name: Install monorepo dependencies
+        run: npm ci --include=dev
+
+      - name: Verify Nx workspace
         run: |
-          echo "📦 Installing monorepo dependencies..."
-
-          npm ci --include=dev --legacy-peer-deps
-
-          echo "📦 Checking Nx..."
-          ls -la ./node_modules/.bin/nx || true
-
-          echo "📦 Checking Angular CLI..."
-          ls -la ./node_modules/.bin/ng || true
-
-      ###########################################################################
-      # 6. Verify Workspace
-      ###########################################################################
-      - name: Verify Nx Workspace
-        run: |
-          echo "📍 Current directory: $PWD"
-
-          echo "📦 Nx Version:"
           npx nx --version
+          npx nx show projects
 
-          echo "📦 Angular Version:"
-          npx ng version || true
-
-          echo "📂 Workspace files:"
-          ls -la
-
-      ###########################################################################
-      # 7. Build Shared Libraries
-      ###########################################################################
-      - name: Build Shared Libraries
+      - name: Build shared libraries
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: |
-          echo "🚀 Building shared libraries..."
-
           npx nx run-many \
             --target=build \
             --projects=common,domain,application,infrastructure \
-            --parallel=1 \
-            --skip-nx-cache \
-            --verbose
+            --parallel=2
 
-      ###########################################################################
-      # 8. Build Frontend
-      ###########################################################################
-      - name: Build Frontend Application
+      - name: Build frontend application
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
-          NPM_CONFIG_LEGACY_PEER_DEPS: "true"
         run: |
-          echo "🚀 Building sustainability-web..."
+          npx nx build sustainability-web --configuration=production
 
-          npx nx build sustainability-web \
-            --configuration=production \
-            --skip-nx-cache \
-            --verbose
-
-          echo "✅ Frontend build completed"
-
-          echo "📂 Dist files:"
-          find dist -type f | head -50
-
-      ###########################################################################
-      # 9. Dump Logs On Failure
-      ###########################################################################
-      - name: Dump NPM Debug Log on Failure
-        if: failure()
-        run: |
-          echo "📄 Dumping npm logs..."
-
-          find /home/runner/.npm/_logs/ -name "*.log" -type f | while read file; do
-            echo "=================================================="
-            echo "FILE: $file"
-            echo "=================================================="
-            cat "$file"
-            echo ""
-          done
-
-      ###########################################################################
-      # 10. Extract Terraform Outputs
-      ###########################################################################
-      - name: Extract Target AWS Infrastructure Config
+      - name: Extract Terraform outputs
         id: infra_config
         run: |
           terraform init -input=false
-
           BUCKET=$(terraform output -raw s3_bucket_name | tr -d '[:space:]')
           DIST_ID=$(terraform output -raw cloudfront_distribution_id | tr -d '[:space:]')
-
-          if [ -z "$BUCKET" ]; then
-            echo "❌ ERROR: Missing S3 bucket output"
-            exit 1
-          fi
-
-          if [ -z "$DIST_ID" ]; then
-            echo "❌ ERROR: Missing CloudFront distribution output"
-            exit 1
-          fi
-
           echo "bucket_name=$BUCKET" >> $GITHUB_OUTPUT
           echo "cloudfront_id=$DIST_ID" >> $GITHUB_OUTPUT
-
-          echo "✅ Bucket: $BUCKET"
-          echo "✅ Distribution: $DIST_ID"
-
         working-directory: ./terraform
 
-      ###########################################################################
-      # 11. Upload to S3 + Invalidate CloudFront
-      ###########################################################################
-      - name: Sync S3 and Invalidate CloudFront
+      - name: Sync S3 and invalidate CloudFront
         run: |
-          echo "🔎 Searching frontend dist folder..."
-
           REAL_DIST_PATH=$(find . -path "*/dist/apps/sustainability-web/browser" -type d | head -n 1)
-
           if [ -z "$REAL_DIST_PATH" ]; then
-            REAL_DIST_PATH=$(find . -path "*/dist/sustainability-web/browser" -type d | head -n 1)
+            REAL_DIST_PATH=$(find . -path "*/dist/apps/sustainability-web" -name "index.html" | head -n 1 | xargs dirname)
           fi
-
           if [ -z "$REAL_DIST_PATH" ]; then
-            REAL_DIST_PATH=$(find . -name "index.html" | grep "/dist/" | head -n 1 | xargs dirname)
-          fi
-
-          if [ -z "$REAL_DIST_PATH" ]; then
-            echo "❌ ERROR: Could not locate frontend dist folder"
+            echo "ERROR: Could not locate frontend dist folder"
+            find dist -type f | head -30
             exit 1
           fi
-
-          echo "✅ Frontend dist path: $REAL_DIST_PATH"
-
-          echo "🚀 Uploading files to S3..."
-
-          aws s3 sync \
-            "$REAL_DIST_PATH" \
-            s3://${{ steps.infra_config.outputs.bucket_name }} \
-            --delete
-
-          echo "🚀 Invalidating CloudFront..."
-
+          echo "Frontend dist path: $REAL_DIST_PATH"
+          aws s3 sync "$REAL_DIST_PATH" s3://${{ steps.infra_config.outputs.bucket_name }} --delete
           aws cloudfront create-invalidation \
             --distribution-id ${{ steps.infra_config.outputs.cloudfront_id }} \
             --paths "/*"
-
-          echo "✅ Frontend deployment completed"

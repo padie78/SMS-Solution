@@ -1,5 +1,5 @@
 {
-  "name": "sms-signer-lambda",
+  "name": "sms-api-lambda",
   "version": "1.0.0",
   "type": "module",
   "description": "Generación de URLs firmadas para subida directa a S3",

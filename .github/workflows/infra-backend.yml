@@ -10,11 +10,13 @@ on:
       - 'terraform/**'
       - 'package.json'
       - 'package-lock.json'
+      - 'nx.json'
+      - 'tsconfig.base.json'
   workflow_dispatch:
 
 jobs:
   deploy-infra:
-    name: Build Libs & Apply Terraform
+    name: Build libs & apply Terraform
     runs-on: ubuntu-latest
 
     steps:
@@ -43,32 +45,27 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-central-1
 
-      - name: Install Monorepo Dependencies
-        env:
-          NPM_CONFIG_LEGACY_PEER_DEPS: "true"
-        run: |
-          npm ci --include=dev
+      - name: Install monorepo dependencies
+        run: npm ci --include=dev
 
-      - name: Build Monorepo Libraries
+      - name: Build monorepo libraries
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: |
-          ./node_modules/.bin/nx run-many \
+          npx nx run-many \
             --target=build \
             --projects=common,domain,application,infrastructure \
-            --parallel=1 \
-            --skip-nx-cache \
-            --verbose
+            --parallel=2
 
-      - name: Terraform Init
+      - name: Terraform init
         run: terraform init -input=false
         working-directory: ./terraform
 
-      - name: Terraform Plan
+      - name: Terraform plan
         run: terraform plan -out=tfplan -input=false
         working-directory: ./terraform
 
-      - name: Terraform Apply
+      - name: Terraform apply
         if: github.ref == 'refs/heads/main'
         run: terraform apply -auto-approve tfplan
         working-directory: ./terraform

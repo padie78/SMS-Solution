@@ -1,17 +1,18 @@
 {
   "name": "application",
-  "root": "libs/application",
-  "projectType": "library",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/application/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:use-cases"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",
-      "outputs": ["{projectRoot}/dist"],
+      "outputs": ["{workspaceRoot}/dist/libs/application"],
+      "dependsOn": ["^build"],
       "options": {
-        "command": "npm run build",
-        "cwd": "libs/application"
+        "command": "tsc -p libs/application/tsconfig.json",
+        "cwd": "{workspaceRoot}"
       }
     }
-  },
-  "tags": ["scope:application", "type:use-cases"]
+  }
 }

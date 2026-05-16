@@ -10,8 +10,7 @@
   "dependencies": {
     "@aws-sdk/client-s3": "^3.500.0",
     "@aws-sdk/s3-request-presigner": "^3.500.0",
-    "@sms/common": "file:../../packages/common",
-    "@sms/common": "file:../../packages/common"
+    "@sms/common": "*"
   },
   "devDependencies": {},
   "scripts": {

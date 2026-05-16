@@ -1,22 +1,21 @@
 {
-  "name": "dispatcher-lambda",
+  "name": "kpi-engine-lambda",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "lambda_code/dispatcher_lambda/src",
+  "sourceRoot": "lambda_code/kpi_engine_lambda/src",
   "projectType": "application",
-  "tags": ["type:lambda", "scope:dispatcher"],
+  "tags": ["type:lambda", "scope:kpi"],
   "targets": {
     "build": {
       "executor": "@nx/esbuild:esbuild",
-      "dependsOn": ["^build"],
       "outputs": ["{options.outputPath}"],
       "options": {
-        "tsConfig": "lambda_code/dispatcher_lambda/tsconfig.json",
+        "tsConfig": "lambda_code/kpi_engine_lambda/tsconfig.json",
         "bundle": true,
         "platform": "node",
         "target": "node20",
         "format": ["esm"],
-        "main": "lambda_code/dispatcher_lambda/src/index.js",
-        "outputPath": "dist/lambda_code/dispatcher_lambda",
+        "main": "lambda_code/kpi_engine_lambda/src/index.js",
+        "outputPath": "dist/lambda_code/kpi_engine_lambda",
         "outputFileName": "main.js",
         "external": ["@aws-sdk/*"],
         "esbuildOptions": {

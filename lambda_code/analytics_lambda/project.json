@@ -1,27 +1,33 @@
 {
-  "name": "dispatcher-lambda",
+  "name": "analytics-lambda",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "lambda_code/dispatcher_lambda/src",
+  "sourceRoot": "lambda_code/analytics_lambda/src",
   "projectType": "application",
-  "tags": ["type:lambda", "scope:dispatcher"],
+  "tags": ["type:lambda", "scope:analytics"],
   "targets": {
     "build": {
       "executor": "@nx/esbuild:esbuild",
-      "dependsOn": ["^build"],
       "outputs": ["{options.outputPath}"],
       "options": {
-        "tsConfig": "lambda_code/dispatcher_lambda/tsconfig.json",
+        "tsConfig": "lambda_code/analytics_lambda/tsconfig.json",
         "bundle": true,
         "platform": "node",
         "target": "node20",
         "format": ["esm"],
-        "main": "lambda_code/dispatcher_lambda/src/index.js",
-        "outputPath": "dist/lambda_code/dispatcher_lambda",
+        "main": "lambda_code/analytics_lambda/src/index.js",
+        "outputPath": "dist/lambda_code/analytics_lambda",
         "outputFileName": "main.js",
         "external": ["@aws-sdk/*"],
         "esbuildOptions": {
           "logLevel": "warning"
         }
+      }
+    },
+    "test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "node --test src/**/*.test.js",
+        "cwd": "lambda_code/analytics_lambda"
       }
     }
   }

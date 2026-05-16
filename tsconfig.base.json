@@ -1,21 +1,42 @@
 {
+  "compileOnSave": false,
   "compilerOptions": {
+    "rootDir": ".",
     "baseUrl": ".",
-    "moduleResolution": "node",
-    "allowImportingTsExtensions": false,
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "importHelpers": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
     "paths": {
-      "@sms/common": ["dist/libs/common", "libs/common/src/index.ts"],
-      "@sms/common/schemas": ["dist/libs/common/schemas", "libs/common/src/schemas/index.ts"],
+      "@sms/common": ["dist/libs/common/index.d.ts", "libs/common/src/index.ts"],
+      "@sms/common/schemas": [
+        "dist/libs/common/schemas/index.d.ts",
+        "libs/common/src/schemas/index.ts"
+      ],
       "@sms/common/*": ["dist/libs/common/*", "libs/common/src/*"],
-      
-      "@sms/domain": ["dist/libs/domain", "libs/domain/src/index.ts"],
+      "@sms/domain": ["dist/libs/domain/index.d.ts", "libs/domain/src/index.ts"],
       "@sms/domain/*": ["dist/libs/domain/*", "libs/domain/src/*"],
-
-      "@sms/application": ["dist/libs/application", "libs/application/src/index.ts"],
+      "@sms/application": [
+        "dist/libs/application/index.d.ts",
+        "libs/application/src/index.ts"
+      ],
       "@sms/application/*": ["dist/libs/application/*", "libs/application/src/*"],
-      
-      "@sms/infrastructure": ["dist/libs/infrastructure", "libs/infrastructure/src/index.ts"],
+      "@sms/infrastructure": [
+        "dist/libs/infrastructure/index.d.ts",
+        "libs/infrastructure/src/index.ts"
+      ],
       "@sms/infrastructure/*": ["dist/libs/infrastructure/*", "libs/infrastructure/src/*"]
     }
-  }
+  },
+  "exclude": ["node_modules", "tmp", "dist"]
 }

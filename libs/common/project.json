@@ -1,17 +1,17 @@
 {
   "name": "common",
-  "root": "libs/common",
-  "projectType": "library",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/common/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:dtos-schemas"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",
       "outputs": ["{workspaceRoot}/dist/libs/common"],
       "options": {
-        "command": "npm run build",
-        "cwd": "libs/common"
+        "command": "tsc -p libs/common/tsconfig.json",
+        "cwd": "{workspaceRoot}"
       }
     }
-  },
-  "tags": ["scope:common", "type:dtos-schemas"]
+  }
 }

@@ -1,21 +1,29 @@
 {
+  "extends": "./tsconfig.base.json",
   "compilerOptions": {
-    "baseUrl": ".",
+    "module": "ESNext",
     "moduleResolution": "bundler",
-    "allowImportingTsExtensions": true,
+    "lib": ["ES2022", "DOM"],
+    "noEmit": true,
     "paths": {
-      "@sms/domain": ["libs/domain/src/index.ts"],
-      "@sms/domain/*": ["libs/domain/src/*"],
-      
-      "@sms/application": ["libs/application/src/index.ts"],
-      "@sms/application/*": ["libs/application/src/*"],
-      
-      "@sms/infrastructure": ["libs/infrastructure/src/index.ts"],
-      "@sms/infrastructure/*": ["libs/infrastructure/src/*"],
-      
-      "@sms/common": ["libs/common/src/index.ts"],
-      "@sms/common/schemas": ["libs/common/src/schemas/index.ts"],
-      "@sms/common/*": ["libs/common/src/*"]
+      "@sms/common": ["dist/libs/common/index.js", "libs/common/src/index.ts"],
+      "@sms/common/schemas": [
+        "dist/libs/common/schemas/index.js",
+        "libs/common/src/schemas/index.ts"
+      ],
+      "@sms/common/*": ["dist/libs/common/*", "libs/common/src/*"],
+      "@sms/domain": ["dist/libs/domain/index.js", "libs/domain/src/index.ts"],
+      "@sms/domain/*": ["dist/libs/domain/*", "libs/domain/src/*"],
+      "@sms/application": [
+        "dist/libs/application/index.js",
+        "libs/application/src/index.ts"
+      ],
+      "@sms/application/*": ["dist/libs/application/*", "libs/application/src/*"],
+      "@sms/infrastructure": [
+        "dist/libs/infrastructure/index.js",
+        "libs/infrastructure/src/index.ts"
+      ],
+      "@sms/infrastructure/*": ["dist/libs/infrastructure/*", "libs/infrastructure/src/*"]
     }
   },
   "files": []

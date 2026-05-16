@@ -1,11 +1,10 @@
 # =============================================================================
-# Monorepo SMS — no versionar artefactos de build, secretos ni ruido local
+# Monorepo SMS (Nx + Angular + Lambdas) — no versionar build, secretos ni caché
 # =============================================================================
 
-# --- Node / npm (cualquier carpeta del repo) ---
+# --- Node / npm ---
 node_modules/
 **/node_modules/
-lambda_code/**/node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
@@ -13,12 +12,38 @@ pnpm-debug.log*
 lerna-debug.log*
 .npm/
 .pnpm-store/
+package-lock.json
+!package-lock.json
 
-# --- TypeScript / paquetes workspace (p. ej. @sms/common → dist/) ---
-packages/*/dist/
+# Lockfiles anidados (solo el de la raíz del monorepo)
+apps/**/package-lock.json
+libs/**/package-lock.json
+lambda_code/**/package-lock.json
 
-# --- Lambdas: salida de build local (p. ej. signer cp src → dist) ---
+# --- Angular CLI (caché de build; puede estar en raíz o en apps/*) ---
+.angular/
+**/.angular/
+
+# --- Nx ---
+.nx/
+.nx/cache/
+
+# --- Salidas de compilación ---
+dist/
+**/dist/
+!dist/.gitkeep
+
+# Dist local dentro de libs (tsc legacy en libs/*/dist)
+libs/*/dist/
+
+# Lambdas: artefactos de build local
 lambda_code/*/dist/
+dist/lambda_code/
+
+# --- TypeScript ---
+*.tsbuildinfo
+**/out-tsc/
+tmp/
 
 # --- Terraform ---
 .terraform/
@@ -31,29 +56,41 @@ terraform/modules/**/zips/
 # --- AWS SAM local ---
 .aws-sam/
 
-# --- Variables de entorno (secretos / overrides locales) ---
+# --- Variables de entorno ---
 .env
 .env.*
 !.env.example
 
-# --- Logs y cachés de herramientas ---
+# --- Logs, tests y linters ---
 *.log
 logs/
 .eslintcache
 coverage/
 .nyc_output/
-*.tsbuildinfo
+/reports
 
-# --- Cursor / IDE (logs de debug; no bloquear .cursorrules si existen) ---
+# --- Cachés genéricas ---
+.cache/
+.sass-cache/
+.parcel-cache/
+.turbo/
+
+# --- Cursor / IDE (logs; mantener .cursorrules versionado) ---
 .cursor/*.log
 .cursor/debug*.log
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+*.swp
+*.swo
+*~
 
 # --- Sistema operativo ---
 .DS_Store
 Thumbs.db
-*.swp
-*.swo
-*~
 
 # --- Certificados / claves locales ---
 *.pem
@@ -62,19 +99,25 @@ Thumbs.db
 id_rsa
 id_rsa.*
 
-# --- Fixtures de factura / PoC en la raíz (ajusta si deben ir al repo) ---
+# --- AWS Amplify (generados localmente) ---
+amplify/.config/
+amplify/**/*-parameters.json
+amplify/backend/amplify-meta.json
+amplify/backend/.temp/
+aws-exports.js
+awsconfiguration.json
+apps/**/src/assets/config.json
+
+# --- PDF worker (copiado en postinstall desde pdfjs-dist) ---
+apps/**/src/assets/pdfjs/pdf.worker.min.mjs
+
+# --- Fixtures locales en la raíz ---
 /factura-*.pdf
 /factura_*.pdf
 /factura-test*.html
 
-# --- Python (si aparece tooling auxiliar) ---
+# --- Python (tooling auxiliar) ---
 __pycache__/
 *.py[cod]
 .venv/
 venv/
-
-# --- Nx / Build Caches ---
-.nx/
-.cache/
-dist/
-/dist/

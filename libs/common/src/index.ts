@@ -215,7 +215,10 @@ export {
   PresignedUploadUrlInputSchema,
   parsePresignedUploadUrlInput,
   safeParsePresignedUploadUrlInput,
-  type PresignedUploadUrlInput
+  PresignedUploadUrlResultSchema,
+  parsePresignedUploadUrlResult,
+  type PresignedUploadUrlInput,
+  type PresignedUploadUrlResult
 } from './dtos/presigned-upload/index';
 
 export {

@@ -1,7 +1,7 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compileOnSave": false,
   "compilerOptions": {
-    "baseUrl": ".",
     "outDir": "./dist/out-tsc",
     "forceConsistentCasingInFileNames": true,
     "strict": true,
@@ -10,25 +10,20 @@
     "noImplicitReturns": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
-    "esModuleInterop": true,
-    "sourceMap": true,
-    "declaration": false,
     "experimentalDecorators": true,
-    "moduleResolution": "node",
-"paths": {
-    "@pages/setup/*": ["src/app/pages/setup/*"],
-    "@sms/common": ["../../dist/libs/common"],
-    "@sms/common/schemas": ["../../dist/libs/common/schemas"],
-    "@sms/domain": ["../../dist/libs/domain"],
-    "@sms/application": ["../../dist/libs/application"],
-    "@sms/infrastructure": ["../../dist/libs/infrastructure"]
-  },
     "importHelpers": true,
     "target": "ES2022",
     "module": "ES2022",
-    "lib": ["ES2022", "dom"],   
+    "lib": ["ES2022", "dom"],
     "types": ["node"],
-    "allowSyntheticDefaultImports": true
+    "paths": {
+      "@pages/setup/*": ["apps/sustainability-web/src/app/pages/setup/*"],
+      "@sms/common": ["dist/libs/common", "libs/common/src/index.ts"],
+      "@sms/common/schemas": ["dist/libs/common/schemas", "libs/common/src/schemas/index.ts"],
+      "@sms/domain": ["dist/libs/domain", "libs/domain/src/index.ts"],
+      "@sms/application": ["dist/libs/application", "libs/application/src/index.ts"],
+      "@sms/infrastructure": ["dist/libs/infrastructure", "libs/infrastructure/src/index.ts"]
+    }
   },
   "angularCompilerOptions": {
     "enableI18nLegacyMessageIdFormat": false,

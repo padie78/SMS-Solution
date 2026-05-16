@@ -1,17 +1,18 @@
 {
   "name": "infrastructure",
-  "root": "libs/infrastructure",
-  "projectType": "library",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/infrastructure/src",
+  "projectType": "library",
+  "tags": ["scope:shared", "type:data-access"],
   "targets": {
     "build": {
       "executor": "nx:run-commands",
-      "outputs": ["{projectRoot}/dist"],
+      "outputs": ["{workspaceRoot}/dist/libs/infrastructure"],
+      "dependsOn": ["^build"],
       "options": {
-        "command": "npm run build",
-        "cwd": "libs/infrastructure"
+        "command": "tsc -p libs/infrastructure/tsconfig.json",
+        "cwd": "{workspaceRoot}"
       }
     }
-  },
-  "tags": ["scope:infrastructure", "type:data-access"]
+  }
 }

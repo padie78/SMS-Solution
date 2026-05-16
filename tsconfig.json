@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compileOnSave": false,
+  "files": [],
+  "references": [
+    { "path": "./libs/common" },
+    { "path": "./libs/domain" },
+    { "path": "./libs/application" },
+    { "path": "./libs/infrastructure" }
+  ]
+}

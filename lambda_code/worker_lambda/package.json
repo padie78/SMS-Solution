@@ -1,5 +1,5 @@
 {
-  "name": "kpi-engine-lambda",
+  "name": "sms-worker-lambda",
   "version": "1.0.0",
   "type": "module",
   "description": "Motor de KPI para análisis de datos y generación de informes",

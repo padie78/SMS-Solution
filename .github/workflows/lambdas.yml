@@ -6,11 +6,15 @@ on:
       - main
     paths:
       - 'lambda_code/**'
+      - 'libs/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'nx.json'
   workflow_dispatch:
 
 jobs:
   deploy-lambdas:
-    name: Fast Deploy Update Lambdas
+    name: Build & package Lambdas
     runs-on: ubuntu-latest
 
     steps:
@@ -22,6 +26,7 @@ jobs:
         with:
           node-version: 20
           cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
@@ -30,18 +35,22 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: eu-central-1
 
-      - name: Install Monorepo Dependencies
-        env:
-          NPM_CONFIG_LEGACY_PEER_DEPS: "true"
+      - name: Install monorepo dependencies
         run: npm ci --include=dev
 
-      - name: Build Shared Code
+      - name: Build shared libraries
         run: |
-          ./node_modules/.bin/nx run-many --target=build --projects=common,domain,application,infrastructure
+          npx nx run-many \
+            --target=build \
+            --projects=common,domain,application,infrastructure \
+            --parallel=2
 
-      - name: Zip & Update Lambda Functions (Ejemplo AWS CLI)
+      - name: Build Lambda bundles
         run: |
-          echo "⚡ Ejecutando empaquetado rápido de Lambdas..."
-          # Aquí podés iterar sobre tus carpetas de lambdas generadas, zipearlas 
-          # y subirlas directo con: aws lambda update-function-code --function-name TU_LAMBDA --zip-file fileb://bundle.zip
-          # O bien llamar a un script personalizado de Nx que haga el update rápido.
+          npx nx run-many \
+            --target=build \
+            --projects=api-lambda,worker-lambda,dispatcher-lambda,signer-lambda,analytics-lambda,kpi-engine-lambda,post-confirmation-lambda \
+            --parallel=3
+
+      - name: List Lambda artifacts
+        run: find dist/lambda_code -type f | head -50
