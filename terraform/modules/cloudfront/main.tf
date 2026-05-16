@@ -14,9 +14,24 @@ resource "aws_cloudfront_response_headers_policy" "csp_policy" {
   security_headers_config {
     content_security_policy {
       override = true
-      # 'unsafe-eval' es necesario para el motor de renderizado de ng2-pdf-viewer
-      # 'unsafe-inline' es necesario para los estilos de PrimeNG/Tailwind
-      content_security_policy = "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.amazonaws.com https://*.appsync-api.us-east-1.amazonaws.com;"
+      # Angular 17 + PrimeNG + Amplify + Google Fonts (index.html)
+      # - unsafe-eval: ng2-pdf-viewer / zone.js
+      # - unsafe-inline (script): toggles PrimeNG (p-password) usan event handlers inline
+      # - unsafe-inline (style): PrimeNG / Tailwind en runtime
+      # - font-src / fonts.googleapis.com: Inter + iconos PrimeIcons
+      # - connect-src *.amazonaws.com: AppSync, Cognito, S3 (eu-central-1 y demás regiones)
+      content_security_policy = join("; ", [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-eval' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        "img-src 'self' data: blob:",
+        "connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com wss://*.amazonaws.com",
+        "worker-src 'self' blob:",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "frame-ancestors 'none'",
+      ])
     }
 
     strict_transport_security {
