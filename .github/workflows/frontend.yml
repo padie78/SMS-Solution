@@ -47,12 +47,18 @@ jobs:
         run: |
           npm ci --include=dev
 
-      - name: Build Frontend Direct (Bypassing Nx)
+      - name: Debug y Build Frontend Definitivo
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: |
-          echo "🚀 Compilando Angular directamente desde el binario local..."
-          ./node_modules/.bin/ng build sustainability-web --configuration=production
+          echo "📍 ¿Dónde estamos parados?"
+          pwd
+          
+          echo "📂 Contenido del directorio actual:"
+          ls -la
+          
+          echo "📦 Ejecutando compilación forzando el paquete global de Angular CLI..."
+          npx -p @angular/cli ng build sustainability-web --configuration=production
 
       - name: Dump NPM Debug Log on Failure
         if: failure()
