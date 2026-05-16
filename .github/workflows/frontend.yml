@@ -43,16 +43,17 @@ jobs:
 
       - name: Install Monorepo Dependencies
         env:
-          NPM_CONFIG_LEGACY_PEER_DEPS: "true"
+          NPM_CONFIG_LEGACY_PEPS: "true"
         run: |
+          echo "📦 Instalando dependencias completas (incluyendo devDependencies)..."
           npm ci --include=dev
 
-      - name: Build Frontend con Node Directo
+      - name: Build Frontend with Nx
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: |
-          echo "🚀 Compilando Angular forzando el binario local exacto..."
-          node ./node_modules/@angular/cli/bin/ng build sustainability-web --configuration=production
+          echo "🚀 Compilando con Nx local..."
+          npx nx build sustainability-web --configuration=production
 
       - name: Dump NPM Debug Log on Failure
         if: failure()
