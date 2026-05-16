@@ -48,12 +48,12 @@ jobs:
           echo "📦 Instalando dependencias completas (incluyendo devDependencies)..."
           npm ci --include=dev
 
-      - name: Build Frontend with Nx
+      - name: Build Frontend (Direct Angular Execution)
         env:
           NODE_OPTIONS: "--max_old_space_size=4096"
         run: |
-          echo "🚀 Compilando con Nx local..."
-          npx nx build sustainability-web --configuration=production
+          echo "🔨 Forzando compilación directa usando Angular CLI local sin intermediarios..."
+          npx --no-install ng build sustainability-web --configuration=production
 
       - name: Dump NPM Debug Log on Failure
         if: failure()
