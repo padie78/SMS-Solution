@@ -1,0 +1,70 @@
+{
+  "root": true,
+  "ignorePatterns": ["**/*"],
+  "plugins": ["@nx"],
+  "overrides": [
+    {
+      "files": ["*.ts", "*.tsx", "*.js", "*.jsx"],
+      "rules": {
+        "@nx/enforce-module-boundaries": [
+          "error",
+          {
+            "enforceBuildableLibDependency": true,
+            "allow": [],
+            "allowCircularSelfDependency": false,
+            "depConstraints": [
+              {
+                "sourceTag": "type:common",
+                "onlyDependOnLibsWithTags": []
+              },
+              {
+                "sourceTag": "type:domain",
+                "onlyDependOnLibsWithTags": []
+              },
+              {
+                "sourceTag": "type:application",
+                "onlyDependOnLibsWithTags": ["type:domain", "type:common"]
+              },
+              {
+                "sourceTag": "type:infrastructure",
+                "onlyDependOnLibsWithTags": [
+                  "type:application",
+                  "type:domain",
+                  "type:common"
+                ]
+              },
+              {
+                "sourceTag": "type:lambda",
+                "onlyDependOnLibsWithTags": [
+                  "type:infrastructure",
+                  "type:application",
+                  "type:domain",
+                  "type:common"
+                ]
+              },
+              {
+                "sourceTag": "type:app",
+                "onlyDependOnLibsWithTags": [
+                  "type:infrastructure",
+                  "type:application",
+                  "type:domain",
+                  "type:common"
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["*.ts", "*.tsx"],
+      "extends": ["plugin:@nx/typescript"],
+      "rules": {}
+    },
+    {
+      "files": ["*.js", "*.jsx"],
+      "extends": ["plugin:@nx/javascript"],
+      "rules": {}
+    }
+  ]
+}

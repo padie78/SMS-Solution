@@ -3,8 +3,15 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/infrastructure/src",
   "projectType": "library",
-  "tags": ["scope:shared", "type:data-access"],
+  "tags": ["scope:shared", "layer:libs", "type:infrastructure"],
   "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["libs/infrastructure/**/*.ts"]
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "outputs": ["{workspaceRoot}/dist/libs/infrastructure"],

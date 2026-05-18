@@ -79,7 +79,7 @@ data "archive_file" "kpi_zip" {
 resource "aws_lambda_function" "dispatcher_lambda" {
   function_name = "${var.project_name}-dispatcher-${var.environment}"
   filename      = data.archive_file.dispatcher_zip.output_path
-  handler       = "src/index.handler"
+  handler       = "index.handler"
   runtime       = "nodejs20.x"
   role          = var.dispatcher_role_arn
   timeout       = 10
@@ -89,6 +89,7 @@ resource "aws_lambda_function" "dispatcher_lambda" {
   environment {
     variables = {
       SQS_QUEUE_URL = var.sqs_queue_url
+      DYNAMO_TABLE  = var.dynamo_table_name
       ENVIRONMENT   = var.environment
     }
   }

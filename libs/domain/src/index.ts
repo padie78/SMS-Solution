@@ -1,4 +1,5 @@
 export * from './exceptions/index.js';
+export * from './services/invoice-s3-upload-key.service.js';
 export * from './value-objects/index.js';
 export * from './entities/region/region.entity.js';
 export * from './entities/branch/branch.entity.js';

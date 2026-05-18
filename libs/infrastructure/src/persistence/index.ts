@@ -1,4 +1,8 @@
 export * from './dynamo-repository.base.js';
+export {
+  createDynamoDocumentClient,
+  type DynamoDocumentClientOptions
+} from './dynamo-document-client.factory.js';
 export * from './entity-type.constants.js';
 export * from './tenancy-keys.js';
 export * from './types/domain-snapshot.js';

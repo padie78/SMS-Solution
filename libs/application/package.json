@@ -18,6 +18,7 @@
     "clean": "rm -rf ../../dist/libs/application"
   },
   "dependencies": {
+    "@sms/common": "*",
     "@sms/domain": "*"
   },
   "keywords": ["sms", "domain-services", "typescript"]

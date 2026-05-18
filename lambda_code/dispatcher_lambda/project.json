@@ -1,21 +1,21 @@
 {
   "name": "dispatcher-lambda",
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
-  "sourceRoot": "lambda_code/dispatcher_lambda/src",
+  "sourceRoot": "lambda_code/dispatcher_lambda",
   "projectType": "application",
-  "tags": ["type:lambda", "scope:dispatcher"],
+  "tags": ["layer:lambda", "type:lambda", "scope:dispatcher"],
   "targets": {
     "build": {
       "executor": "@nx/esbuild:esbuild",
       "dependsOn": ["^build"],
       "outputs": ["{options.outputPath}"],
       "options": {
-        "tsConfig": "lambda_code/dispatcher_lambda/tsconfig.json",
+        "tsConfig": "tsconfig.node-paths.json",
         "bundle": true,
         "platform": "node",
         "target": "node20",
         "format": ["esm"],
-        "main": "lambda_code/dispatcher_lambda/src/index.js",
+        "main": "lambda_code/dispatcher_lambda/index.js",
         "outputPath": "dist/lambda_code/dispatcher_lambda",
         "outputFileName": "main.js",
         "external": ["@aws-sdk/*"],

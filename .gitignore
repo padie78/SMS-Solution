@@ -119,3 +119,9 @@ __pycache__/
 *.py[cod]
 .venv/
 venv/
+
+# Artefactos tsc que no deben vivir junto al fuente (salida oficial: dist/libs/*)
+libs/**/src/**/*.js
+libs/**/src/**/*.d.ts
+libs/**/src/**/*.js.map
+libs/**/src/**/*.d.ts.map

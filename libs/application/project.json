@@ -3,8 +3,15 @@
   "$schema": "../../node_modules/nx/schemas/project-schema.json",
   "sourceRoot": "libs/application/src",
   "projectType": "library",
-  "tags": ["scope:shared", "type:use-cases"],
+  "tags": ["scope:shared", "layer:libs", "type:application"],
   "targets": {
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["libs/application/**/*.ts"]
+      }
+    },
     "build": {
       "executor": "nx:run-commands",
       "outputs": ["{workspaceRoot}/dist/libs/application"],
