@@ -19,7 +19,10 @@
     "paths": {
       "@pages/setup/*": ["apps/sustainability-web/src/app/pages/setup/*"],
       "@sms/common": ["dist/libs/common", "libs/common/src/index.ts"],
-      "@sms/common/schemas": ["dist/libs/common/schemas", "libs/common/src/schemas/index.ts"],
+      "@sms/common/schemas": [
+        "dist/libs/common/utils/validation/schemas",
+        "libs/common/src/utils/validation/schemas/index.ts"
+      ],
       "@sms/domain": ["dist/libs/domain", "libs/domain/src/index.ts"],
       "@sms/application": ["dist/libs/application", "libs/application/src/index.ts"],
       "@sms/infrastructure": ["dist/libs/infrastructure", "libs/infrastructure/src/index.ts"]

@@ -20,8 +20,8 @@
     "paths": {
       "@sms/common": ["dist/libs/common/index.d.ts", "libs/common/src/index.ts"],
       "@sms/common/schemas": [
-        "dist/libs/common/schemas/index.d.ts",
-        "libs/common/src/schemas/index.ts"
+        "dist/libs/common/utils/validation/schemas/index.d.ts",
+        "libs/common/src/utils/validation/schemas/index.ts"
       ],
       "@sms/common/*": ["dist/libs/common/*", "libs/common/src/*"],
       "@sms/domain": ["dist/libs/domain/index.d.ts", "libs/domain/src/index.ts"],

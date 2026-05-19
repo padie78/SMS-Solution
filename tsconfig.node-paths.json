@@ -8,8 +8,8 @@
     "paths": {
       "@sms/common": ["dist/libs/common/index.js", "libs/common/src/index.ts"],
       "@sms/common/schemas": [
-        "dist/libs/common/schemas/index.js",
-        "libs/common/src/schemas/index.ts"
+        "dist/libs/common/utils/validation/schemas/index.js",
+        "libs/common/src/utils/validation/schemas/index.ts"
       ],
       "@sms/common/*": ["dist/libs/common/*", "libs/common/src/*"],
       "@sms/domain": ["dist/libs/domain/index.js", "libs/domain/src/index.ts"],

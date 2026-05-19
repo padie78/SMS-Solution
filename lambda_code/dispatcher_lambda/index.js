@@ -1,13 +1,8 @@
 import { extractInvoiceMetadataFromS3Key } from '@sms/domain';
-import { DispatchInvoiceFromS3PutUseCase } from '@sms/application';
-import {
-  createDynamoDocumentClient,
-  DynamoInvoiceDispatchSkeletonAdapter,
-  S3InvoiceDispatchOrgResolverAdapter,
-  SqsInvoiceDispatchQueueAdapter
-} from '@sms/infrastructure';
+import { DispatchInvoiceFromS3PutMapper } from '@sms/application';
+import { createDynamoDocumentClient, createDispatchInvoiceFromS3PutUseCase } from '@sms/infrastructure';
 
-// --- COMPOSITION ROOT / INYECCIÓN DE DEPENDENCIAS ---
+// --- COMPOSITION ROOT (config/) ---
 const queueUrl = process.env.SQS_QUEUE_URL;
 if (!queueUrl) {
   throw new Error('SQS_QUEUE_URL environment variable is not defined');
@@ -19,17 +14,13 @@ if (!tableName) {
 }
 
 const doc = createDynamoDocumentClient();
-const orgResolver = new S3InvoiceDispatchOrgResolverAdapter();
-const skeletonWriter = new DynamoInvoiceDispatchSkeletonAdapter(doc, tableName);
-const invoiceQueue = new SqsInvoiceDispatchQueueAdapter({ queueUrl });
-
-const dispatchInvoiceFromS3Put = new DispatchInvoiceFromS3PutUseCase({
-  orgResolver,
-  skeletonWriter,
-  invoiceQueue
+const dispatchInvoiceFromS3Put = createDispatchInvoiceFromS3PutUseCase({
+  doc,
+  tableName,
+  queueUrl
 });
 
-// --- HANDLER DE AWS (TRADUCTOR PURO) ---
+// --- HANDLER (traductor AWS → caso de uso) ---
 export const handler = async (event, context) => {
   try {
     const record = event?.Records?.[0];
@@ -43,11 +34,18 @@ export const handler = async (event, context) => {
 
     const uploadKey = extractInvoiceMetadataFromS3Key(rawKey);
 
-    return await dispatchInvoiceFromS3Put.execute({
-      requestId,
-      bucket,
-      uploadKey
-    });
+    const input = DispatchInvoiceFromS3PutMapper.toInputDto(
+      { requestId, bucket, rawKey },
+      DispatchInvoiceFromS3PutMapper.decodedUploadKeyFromDomain(uploadKey)
+    );
+
+    const result = await dispatchInvoiceFromS3Put.execute(input);
+
+    if (!result.ok) {
+      throw new Error(result.error);
+    }
+
+    return result.value;
   } catch (error) {
     throw new Error(error instanceof Error ? error.message : 'Unknown error');
   }

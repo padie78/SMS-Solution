@@ -1,4 +1,8 @@
-/** Shared Zod contracts and DTOs (`@sms/contracts`, carpeta `libs/common` → `dtos/` + `schemas/`) — consumible por Angular y Node. */
+/** Utilidades agnósticas: types, utils (contracts + validation), logging. */
+
+export { Result } from './types/result.js';
+export type { Result as ResultType, PagedResult } from './types/index.js';
+export * from './logging/index.js';
 
 export {
   EntityType,
@@ -11,11 +15,11 @@ export {
   getEnergyServiceTypeI18nKey,
   type EntityTypeI18nKey,
   type EnergyServiceTypeI18nKey
-} from './dtos/shared/i18n/index.js';
+} from './utils/contracts/shared/i18n/index.js';
 
-export { SmsIdSchema, type SmsId } from './schemas/sms-id.schema';
+export { SmsIdSchema, type SmsId } from './utils/validation/schemas/sms-id.schema';
 
-export { type SmsEntityTag } from './dtos/shared/sms-entity-tag';
+export { type SmsEntityTag } from './utils/contracts/shared/sms-entity-tag';
 
 export {
   AssetTypeSchema,
@@ -26,26 +30,26 @@ export {
   type AssetType,
   type MeterType,
   type UserRole
-} from './dtos/shared/domain-enums';
+} from './utils/contracts/shared/domain-enums';
 
-export { SmsDomainError, RegionDomainError } from './dtos/shared/sms-domain-error';
+export { SmsDomainError, RegionDomainError } from './utils/contracts/shared/sms-domain-error';
 
 export {
   AddressDTOSchema,
   type AddressDTO
-} from './dtos/shared/address.dto';
+} from './utils/contracts/shared/address.dto';
 
 export {
   GeoCoordinatesDTOSchema,
   type GeoCoordinatesDTO
-} from './dtos/shared/geo.dto';
+} from './utils/contracts/shared/geo.dto';
 
 export {
   ROLE_TO_CODE,
   decodeAssetType,
   decodeMeterType,
   decodeRole
-} from './dtos/shared/persistence-codecs';
+} from './utils/contracts/shared/persistence-codecs';
 
 export {
   RegionDTOSchema,
@@ -62,7 +66,7 @@ export {
   type CarbonMarketType,
   type MaturityLevel,
   type EconomicArea
-} from './dtos/region/index';
+} from './utils/contracts/region/index';
 
 export {
   BranchDTOSchema,
@@ -80,7 +84,7 @@ export {
   type BranchType,
   type OwnershipType,
   type BackupPowerType
-} from './dtos/branch/index';
+} from './utils/contracts/branch/index';
 
 export {
   BuildingDTOSchema,
@@ -100,7 +104,7 @@ export {
   type BuildingLightingTechnology,
   type BuildingDataGranularity,
   type BuildingSubmeteringTopology
-} from './dtos/building/index';
+} from './utils/contracts/building/index';
 
 export {
   CostCenterDTOSchema,
@@ -112,7 +116,7 @@ export {
   CostCenterForecastModelSchema,
   type CostCenterType,
   type CostCenterForecastModel
-} from './dtos/cost-center/index';
+} from './utils/contracts/cost-center/index';
 
 export {
   AssetDTOSchema,
@@ -132,7 +136,7 @@ export {
   type AssetEmissionSourceCategory,
   type AssetConditionIndex,
   type AssetRedundancyLevel
-} from './dtos/asset/index';
+} from './utils/contracts/asset/index';
 
 export {
   MeterDTOSchema,
@@ -148,14 +152,14 @@ export {
   type MeterUnit,
   type MeterAccuracyClass,
   type MeterCommunicationStatus
-} from './dtos/meter/index';
+} from './utils/contracts/meter/index';
 
 export {
   UserDTOSchema,
   parseUserDTO,
   safeParseUserDTO,
   type UserDTO
-  } from './dtos/user/index';
+  } from './utils/contracts/user/index';
 
 export {
   InvoiceDTOSchema,
@@ -207,9 +211,9 @@ export {
   InvoiceIaExtractionSqsBodySchema,
   parseInvoiceIaExtractionSqsBody,
   buildInitialInvoiceIaTechnicalExtraction
-} from './dtos/invoice/index';
+} from './utils/contracts/invoice/index';
 
-export type { InvoiceIaTechnicalExtraction, InvoiceIaExtractionSqsBody } from './dtos/invoice/index';
+export type { InvoiceIaTechnicalExtraction, InvoiceIaExtractionSqsBody } from './utils/contracts/invoice/index';
 
 export {
   PresignedUploadUrlInputSchema,
@@ -219,7 +223,7 @@ export {
   parsePresignedUploadUrlResult,
   type PresignedUploadUrlInput,
   type PresignedUploadUrlResult
-} from './dtos/presigned-upload/index';
+} from './utils/contracts/presigned-upload/index';
 
 export {
   IndustrySectorSchema,
@@ -264,7 +268,7 @@ export {
   type MeterOperationalStatus,
   type TariffLifecycleStatus,
   type MainFuelType
-} from './dtos/shared/graphql-setup-enums';
+} from './utils/contracts/shared/graphql-setup-enums';
 
 export {
   OrgConfigDTOSchema,
@@ -276,7 +280,7 @@ export {
   safeParseOrganizationDTO,
   OrganizationDTO,
   type OrganizationDTOInput
-} from './dtos/org-config/index';
+} from './utils/contracts/org-config/index';
 
 export {
   AlertRuleDTOSchema,
@@ -293,7 +297,7 @@ export {
   AlertRuleMonitorScopeSchema,
   AlertRuleNotificationChannelSchema,
   type AlertRuleDTOInput
-} from './dtos/alert-rule/index';
+} from './utils/contracts/alert-rule/index';
 
 export {
   TariffDTOSchema,
@@ -308,14 +312,14 @@ export {
   type TariffDemandChargeUnit,
   type TariffSeason,
   type TariffTierRatePair
-} from './dtos/tariff/index';
+} from './utils/contracts/tariff/index';
 
 export {
   ProductionLogDTOSchema,
   parseProductionLogDTO,
   safeParseProductionLogDTO,
   type ProductionLogDTO
-} from './dtos/production-log/index';
+} from './utils/contracts/production-log/index';
 
 export {
   EmissionFactorDTOSchema,
@@ -331,27 +335,6 @@ export {
   EmissionFactorCatalogStatusSchema,
   EmissionFactorDataQualityTierSchema,
   type EmissionFactorDTOInput
-} from './dtos/emission-factor/index';
+} from './utils/contracts/emission-factor/index';
 
-export {
-  InvoiceSkSchema,
-  type InvoiceSk,
-  S3DispatcherInvokeSchema,
-  parseS3DispatcherInvoke,
-  safeParseS3DispatcherInvoke,
-  type S3DispatcherInvoke,
-  DecodedInvoiceUploadKeySchema,
-  safeParseDecodedInvoiceUploadKey,
-  type DecodedInvoiceUploadKey,
-  InvoiceDispatchQueueMessageSchema,
-  parseInvoiceDispatchQueueMessage,
-  safeParseInvoiceDispatchQueueMessage,
-  type InvoiceDispatchQueueMessage,
-  DispatcherEnqueueResultSchema,
-  parseDispatcherEnqueueResult,
-  type DispatcherEnqueueResult,
-  InvoiceWorkerLegacyQueueBodySchema,
-  parseInvoiceWorkerPipelineInput,
-  type InvoiceWorkerLegacyQueueBody,
-  type InvoiceWorkerPipelineInput
-} from './dtos/s3-invoice-dispatch/index';
+export { InvoiceSkSchema, type InvoiceSk } from './utils/validation/schemas/invoice-sk.schema.js';

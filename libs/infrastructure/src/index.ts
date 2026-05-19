@@ -1,3 +1,3 @@
-export * from './persistence/index.js';
 export * from './adapters/index.js';
-export * from './shared/index.js';
+export * from './config/index.js';
+export * from './exceptions/index.js';
